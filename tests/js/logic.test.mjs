@@ -758,11 +758,95 @@ test("legendRows: one row per party in state order, party colour, mine only for 
   ];
   const rows = plain(L.legendRows({ parties }, "p-bbbbbb"));
   assert.deepEqual(rows, [
-    { id: "p-aaaaaa", name: "Riso a Ben", color: "#2F7D6D", people: "2 dospelí, 1 dieťa", stay: "Št 29. 10. – Ne 1. 11.", mine: false },
-    { id: "p-bbbbbb", name: "Eva", color: "#D07A2B", people: "1 dospelý", stay: "Pi 30. 10. – So 31. 10.", mine: true }
+    { id: "p-aaaaaa", name: "Riso a Ben", color: "#2F7D6D", people: "2 dospelí, 1 dieťa", stay: "Št 29. 10. – Ne 1. 11.", mine: false, ch: "R", ink: "#F4EBD0" },
+    { id: "p-bbbbbb", name: "Eva", color: "#D07A2B", people: "1 dospelý", stay: "Pi 30. 10. – So 31. 10.", mine: true, ch: "E", ink: "#2E1F14" }
   ]);
   assert.ok(plain(L.legendRows({ parties }, null)).every((r) => r.mine === false));
   assert.deepEqual(plain(L.legendRows({ parties: [] }, "p-aaaaaa")), []);
+});
+
+test("legendRows: the shirt letter loses the diacritic and the ink follows the colour", () => {
+  const parties = [{ id: "p-cccccc", name: "Šimon a Ela", color: "#6D5BA8", adults: 2, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: SAT }];
+  const [row] = plain(L.legendRows({ parties }, null));
+  assert.equal(row.ch, "S");
+  assert.equal(row.ink, "#F4EBD0");
+});
+
+// --- the letter on a figure's shirt (T-018) ---
+
+const PALETTE = ["#2F7D6D", "#D07A2B", "#6D5BA8", "#C08A1E", "#3E6FB0", "#9C4A7A", "#5E8A2E", "#8A6A4A", "#2E8AA0", "#C0603A", "#7A7F2B", "#A04848"];
+
+test("shirtChar: first letter or digit without diacritics, else the dot", () => {
+  const cases = [
+    ["Novákovci", "N"], ["  ivan a Eva", "I"], ["Šimon", "S"], ["Ľubo", "L"], ["Ďuro", "D"], ["Ôsmi", "O"],
+    ["S\u030Cimon", "S"], ["„Bratia“", "B"], ["😀 Novákovci", "N"], ["4 kamaráti", "4"], ["ßeta", "S"],
+    ["😀", "·"], ["", "·"], ["   ", "·"], ["Łukasz", "·"], ["Ωmega", "·"], ["Яна", "·"]
+  ];
+  cases.forEach(([name, ch]) => assert.equal(L.shirtChar(name), ch, JSON.stringify(name)));
+  assert.equal(L.shirtChar(null), "·");
+  assert.equal(L.shirtChar(undefined), "·");
+});
+
+test("PIXEL_FONT: 37 distinct 3 x 5 glyphs", () => {
+  const keys = Object.keys(L.PIXEL_FONT).sort();
+  const expected = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", "·"].sort();
+  assert.deepEqual(keys, expected);
+  assert.equal(keys.length, 37);
+  const seen = new Set();
+  keys.forEach((k) => {
+    const rows = plain(L.PIXEL_FONT[k]);
+    assert.equal(rows.length, 5, k);
+    rows.forEach((r) => assert.match(r, /^[#.]{3}$/, k));
+    assert.ok(rows.join("").includes("#"), k);
+    seen.add(rows.join("|"));
+  });
+  assert.equal(seen.size, 37);
+});
+
+test("glyphPath: one 1 x 1 square per pixel, integers only", () => {
+  assert.equal(L.glyphPath("·", 10, 20), "M11 22h1v1h-1z");
+  assert.equal(L.glyphPath("A", 0, 0).split("M").length - 1, 10);
+  assert.equal(L.glyphPath("nonsense", 10, 20), L.glyphPath("·", 10, 20));
+  assert.equal(L.glyphPath("A", 0, 0).slice(0, 14), "M1 0h1v1h-1zM0");
+  Object.keys(L.PIXEL_FONT).forEach((k) => {
+    const d = L.glyphPath(k, 7, 9);
+    assert.match(d, /^(M\d+ \d+h1v1h-1z)+$/, k);
+  });
+});
+
+test("relLuminance and contrastRatio: the WCAG end points", () => {
+  assert.equal(L.relLuminance("#FFFFFF"), 1);
+  assert.equal(L.relLuminance("#000000"), 0);
+  assert.ok(Math.abs(L.contrastRatio("#000000", "#FFFFFF") - 21) < 1e-9);
+  assert.ok(Math.abs(L.contrastRatio("#FFFFFF", "#000000") - 21) < 1e-9);
+  assert.ok(Math.abs(L.contrastRatio("#7E8FA0", "#7E8FA0") - 1) < 1e-9);
+});
+
+test("shirtInk: the better of the dark and the light ink on each palette colour", () => {
+  const light = ["#2F7D6D", "#6D5BA8", "#3E6FB0", "#9C4A7A", "#8A6A4A", "#A04848"];
+  const dark = ["#D07A2B", "#C08A1E", "#5E8A2E", "#2E8AA0", "#C0603A", "#7A7F2B"];
+  light.forEach((c) => assert.equal(L.shirtInk(c), "#F4EBD0", c));
+  dark.forEach((c) => assert.equal(L.shirtInk(c), "#2E1F14", c));
+  PALETTE.forEach((c) => assert.ok(L.contrastRatio(c, L.shirtInk(c)) >= 3.2, c));
+  assert.equal(L.shirtInk("red"), "#2E1F14");
+  assert.equal(L.shirtInk(""), "#2E1F14");
+  assert.equal(L.shirtInk(undefined), "#2E1F14");
+  assert.equal(L.SHIRT_DARK, "#2E1F14");
+  assert.equal(L.SHIRT_LIGHT, "#F4EBD0");
+});
+
+test("shirtOrigin: the 3 x 5 letter sits inside the torso and clear of the head", () => {
+  const inside = (box, r) => box[0] >= r[0] && box[1] >= r[1] && box[0] + 3 <= r[0] + r[2] && box[1] + 5 <= r[1] + r[3];
+  const apart = (box, r) => box[0] + 3 <= r[0] || r[0] + r[2] <= box[0] || box[1] + 5 <= r[1] || r[1] + r[3] <= box[1];
+  [[0, 0], [37, 91]].forEach(([px, py]) => {
+    const adult = plain(L.shirtOrigin(px, py, "adult"));
+    assert.ok(inside(adult, [px, py + 5, 10, 7]));
+    assert.ok(apart(adult, [px + 2, py, 6, 5]));
+    const kid = plain(L.shirtOrigin(px, py, "kid"));
+    assert.ok(inside(kid, [px + 1, py + 4, 8, 5]));
+    assert.ok(apart(kid, [px + 2, py, 6, 4]));
+    assert.deepEqual(plain(L.shirtOrigin(px, py, undefined)), adult);
+  });
 });
 
 // --- slots freed by a changed stay ---

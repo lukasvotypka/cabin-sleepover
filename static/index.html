@@ -143,7 +143,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .party-row .mark { color: var(--moss); font-weight: 700; }
 .legend-list { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
 .legend-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; background: var(--surface2); border: 3px solid var(--line); }
-.legend-row .swatch { flex: none; width: 16px; height: 16px; background: var(--muted); border: 2px solid rgba(0, 0, 0, .35); }
+.legend-row .swatch { flex: none; display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; background: var(--muted); border: 2px solid rgba(0, 0, 0, .35); }
 .legend-text { flex: 1; min-width: 0; }
 .legend-name { font-weight: 700; overflow-wrap: anywhere; }
 .legend-me, .legend-meta, .legend-empty { font-weight: 400; color: var(--muted); }
@@ -1032,10 +1032,91 @@ function stayText(party) {
   return one(party.arrive) + " – " + one(party.leave);
 }
 
+// --- the letter on a figure's shirt (T-018) ---
+
+var SHIRT_DARK = "#2E1F14";    // same as COLORS.ink in the app script
+var SHIRT_LIGHT = "#F4EBD0";   // same as COLORS.paper in the app script
+
+// A hand-made 3 x 5 pixel font: rows top to bottom, "#" is a pixel. Keys are A-Z, 0-9 and the fallback dot.
+var PIXEL_FONT = {
+  A: [".#.", "#.#", "###", "#.#", "#.#"], B: ["##.", "#.#", "##.", "#.#", "##."],
+  C: [".##", "#..", "#..", "#..", ".##"], D: ["##.", "#.#", "#.#", "#.#", "##."],
+  E: ["###", "#..", "##.", "#..", "###"], F: ["###", "#..", "##.", "#..", "#.."],
+  G: [".##", "#..", "#.#", "#.#", ".##"], H: ["#.#", "#.#", "###", "#.#", "#.#"],
+  I: ["###", ".#.", ".#.", ".#.", "###"], J: ["..#", "..#", "..#", "#.#", ".#."],
+  K: ["#.#", "#.#", "##.", "#.#", "#.#"], L: ["#..", "#..", "#..", "#..", "###"],
+  M: ["#.#", "###", "###", "#.#", "#.#"], N: ["##.", "#.#", "#.#", "#.#", "#.#"],
+  O: [".#.", "#.#", "#.#", "#.#", ".#."], P: ["##.", "#.#", "##.", "#..", "#.."],
+  Q: [".#.", "#.#", "#.#", "##.", ".##"], R: ["##.", "#.#", "##.", "#.#", "#.#"],
+  S: [".##", "#..", ".#.", "..#", "##."], T: ["###", ".#.", ".#.", ".#.", ".#."],
+  U: ["#.#", "#.#", "#.#", "#.#", "###"], V: ["#.#", "#.#", "#.#", "#.#", ".#."],
+  W: ["#.#", "#.#", "###", "###", "#.#"], X: ["#.#", "#.#", ".#.", "#.#", "#.#"],
+  Y: ["#.#", "#.#", ".#.", ".#.", ".#."], Z: ["###", "..#", ".#.", "#..", "###"],
+  0: ["###", "#.#", "#.#", "#.#", "###"], 1: [".#.", "##.", ".#.", ".#.", "###"],
+  2: ["##.", "..#", ".#.", "#..", "###"], 3: ["##.", "..#", ".#.", "..#", "##."],
+  4: ["#.#", "#.#", "###", "..#", "..#"], 5: ["###", "#..", "##.", "..#", "##."],
+  6: [".##", "#..", "###", "#.#", "###"], 7: ["###", "..#", ".#.", ".#.", ".#."],
+  8: ["###", "#.#", "###", "#.#", "###"], 9: ["###", "#.#", "###", "..#", "##."],
+  "·": ["...", "...", ".#.", "...", "..."]
+};
+
+// The PIXEL_FONT key for a party name: strip accents (Š -> S), take the first letter or digit (skipping spaces,
+// quotes and emoji), uppercase it. "·" when there is none or the font has no such character (Ł, Ω, Я).
+function shirtChar(name) {
+  var plain = String(name == null ? "" : name).normalize("NFD").replace(/\p{M}/gu, "");
+  var found = plain.match(/[\p{L}\p{N}]/u);
+  if (!found) return "·";
+  var up = Array.from(found[0].toUpperCase())[0];
+  return Object.prototype.hasOwnProperty.call(PIXEL_FONT, up) ? up : "·";
+}
+
+// SVG path data of a glyph with its top-left pixel at (x, y): one 1 x 1 square per "#". Unknown keys draw "·".
+// Numbers only, so no text from people can get into the path.
+function glyphPath(ch, x, y) {
+  var rows = Object.prototype.hasOwnProperty.call(PIXEL_FONT, ch) ? PIXEL_FONT[ch] : PIXEL_FONT["·"];
+  var d = "";
+  rows.forEach(function (row, r) {
+    for (var c = 0; c < row.length; c++) {
+      if (row.charAt(c) === "#") d += "M" + (x + c) + " " + (y + r) + "h1v1h-1z";
+    }
+  });
+  return d;
+}
+
+// WCAG relative luminance of "#RRGGBB" (0 ... 1) and the contrast ratio of two such colours (1 ... 21).
+function relLuminance(hex) {
+  var v = [1, 3, 5].map(function (i) {
+    var c = parseInt(String(hex).slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+}
+
+function contrastRatio(a, b) {
+  var la = relLuminance(a), lb = relLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+// SHIRT_DARK or SHIRT_LIGHT, whichever contrasts more with the party colour (a tie goes to dark).
+// Anything that is not "#RRGGBB" gives SHIRT_DARK.
+function shirtInk(color) {
+  if (typeof color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(color)) return SHIRT_DARK;
+  return contrastRatio(color, SHIRT_LIGHT) > contrastRatio(color, SHIRT_DARK) ? SHIRT_LIGHT : SHIRT_DARK;
+}
+
+// Top-left pixel of the letter on a figure drawn at (px, py) by drawFigure:
+// adult rows 6-10 of the 7-row torso, kid rows 4-8 (the shirt below the head).
+function shirtOrigin(px, py, kind) {
+  return kind === "kid" ? [px + 3, py + 4] : [px + 3, py + 6];
+}
+
 // One row per party, in `state.parties` order (creation order, which is also the palette order).
 function legendRows(state, myPartyId) {
   return ((state && state.parties) || []).map(function (p) {
-    return { id: p.id, name: p.name, color: p.color, people: peopleText(p), stay: stayText(p), mine: p.id === myPartyId };
+    return {
+      id: p.id, name: p.name, color: p.color, people: peopleText(p), stay: stayText(p), mine: p.id === myPartyId,
+      ch: shirtChar(p.name), ink: shirtInk(p.color)
+    };
   });
 }
 
@@ -2181,16 +2262,20 @@ function bootRemaining(startMs, nowMs, minMs) {
   }
 
   // A pixel figure in the party color, ported from `sprite()` of the preview. Kids are smaller.
-  function drawFigure(g, px, py, color, kind) {
+  function drawFigure(g, px, py, color, kind, ch) {
     if (kind === "kid") {
       rect(g, px + 1, py + 3, 8, 6, color);
       rect(g, px + 2, py, 6, 4, COLORS.skin);
-      return;
+    } else {
+      rect(g, px, py + 5, 10, 7, color);
+      rect(g, px + 2, py, 6, 5, COLORS.skin);
+      rect(g, px + 3, py + 2, 1, 1, COLORS.eye);
+      rect(g, px + 6, py + 2, 1, 1, COLORS.eye);
     }
-    rect(g, px, py + 5, 10, 7, color);
-    rect(g, px + 2, py, 6, 5, COLORS.skin);
-    rect(g, px + 3, py + 2, 1, 1, COLORS.eye);
-    rect(g, px + 6, py + 2, 1, 1, COLORS.eye);
+    if (ch) {      // the first letter of the party name, like a print on the shirt (drawn last)
+      var at = shirtOrigin(px, py, kind);
+      svgEl(g, "path", { d: glyphPath(ch, at[0], at[1]), fill: shirtInk(color), "aria-hidden": "true" });
+    }
   }
 
   function drawBeds() {
@@ -2217,7 +2302,7 @@ function bootRemaining(startMs, nowMs, minMs) {
           rect(sg, pos[0] - 1, pos[1] - 1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });
         }
         svgEl(sg, "title", null, who.party ? who.party.name : UNKNOWN_PARTY);
-        drawFigure(sg, pos[0], pos[1], color, who.kind);
+        drawFigure(sg, pos[0], pos[1], color, who.kind, who.party ? shirtChar(who.party.name) : null);
       } else {
         rect(sg, pos[0] + 1, pos[1] + 2, 8, 8, "none", {
           "class": "free", stroke: bed.tight.indexOf(slot) !== -1 ? COLORS.tight : COLORS.white, "stroke-width": 2
@@ -2637,6 +2722,22 @@ function bootRemaining(startMs, nowMs, minMs) {
     }, { returnKey: "who" });
   }
 
+  // The shirt letter at 2 CSS px per pixel, for the legend swatch: the same mark as on the map.
+  function glyphIcon(ch, ink) {
+    var svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 3 5");
+    svg.setAttribute("width", "6");
+    svg.setAttribute("height", "10");
+    svg.setAttribute("shape-rendering", "crispEdges");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", glyphPath(ch, 0, 0));
+    path.setAttribute("fill", ink);
+    svg.appendChild(path);
+    return svg;
+  }
+
   // „Kto je kto“: a read-only list of the parties with the colour of their figures.
   function openLegend() {
     openPanel("Kto je kto", function (body, panel) {
@@ -2660,6 +2761,7 @@ function bootRemaining(startMs, nowMs, minMs) {
           var li = htmlEl("li", { "class": "legend-row" });
           var swatch = htmlEl("span", { "class": "swatch", "aria-hidden": "true" });
           swatch.style.background = row.color;
+          swatch.appendChild(glyphIcon(row.ch, row.ink));
           var text = htmlEl("div", { "class": "legend-text" });
           var name = htmlEl("div", { "class": "legend-name" }, row.name);
           if (row.mine) name.appendChild(htmlEl("span", { "class": "legend-me" }, " (vy)"));

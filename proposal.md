@@ -241,6 +241,7 @@ Panel nad mapou. Polia partie z `chata-data.yaml` (meno, dospelí, deti, deti sp
 - Jesenné farby scény: tráva `#8E9B48`, chumáčiky trávy `#76823A`, chodníky `#D6BC8E`, spadnuté lístie na tráve (len farba na pozíciách chumáčikov) `#B5532A`, `#D69A2E` a `#8E3424`. Farby izieb v `config/chata.yaml` a 12 farieb partií ostávajú.
 - Pri načítavaní stránka ukáže pixelový lístok, ktorý padá na trávu, a text „Načítavam…“ na malej drevenej ceduľke. Pri chybe načítania lístok zostane ležať na zemi. S `prefers-reduced-motion` je lístok nehybný. Lístok je vidno aspoň jeden pád (asi 2,4 s od otvorenia stránky, s `prefers-reduced-motion` 0,8 s), potom sa načítavanie rozplynie a ukáže sa mapa. Ak sa dáta načítavajú dlhšie, mapa sa ukáže hneď, ako prídu. Obrazovka s kódom a chyba načítania sa ukážu hneď, bez čakania.
 - Paleta 12 farieb partií, priraďuje ju server pri vytvorení partie v tomto poradí: `#2F7D6D, #D07A2B, #6D5BA8, #C08A1E, #3E6FB0, #9C4A7A, #5E8A2E, #8A6A4A, #2E8AA0, #C0603A, #7A7F2B, #A04848`.
+- Každá postavička má na tričku prvé písmeno mena svojej partie, malým pixelovým písmom 3 × 5 (aj deti). Diakritika sa vynechá (Š → S), berie sa prvé písmeno alebo číslica mena, a keď v písme nie je, je tam bodka. Písmeno je tmavé alebo svetlé podľa toho, čo je na farbe partie lepšie vidieť. To isté písmeno je aj vo farebnom štvorčeku partie v „Kto je kto“.
 - Na mobile scéna zaberá celú šírku, spodný panel sa vysúva zdola, všetky ovládacie prvky (postele, smerovníky, ikony, tlačidlá) majú aspoň 44 px.
 
 ## Rozloženie chaty
