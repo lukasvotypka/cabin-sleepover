@@ -28,7 +28,11 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.4 var(--font-text); }
 [hidden] { display: none !important; }
-button, input { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 
 /* --- scene (fixed colors, never inverted in dark mode) --- */
 #scene { max-width: 560px; margin: 0 auto; }
@@ -140,6 +144,29 @@ button, input { font: inherit; color: inherit; }
 .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .actions .btn { width: 100%; }
 
+/* --- party form and summary panels --- */
+.pform { display: flex; flex-direction: column; gap: 12px; }
+.pform .field { display: flex; flex-direction: column; gap: 4px; margin: 0; min-width: 0; }
+.pform .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pform label { font-weight: 700; }
+.pform .opt { font-weight: 400; color: var(--muted); }
+.pform input, .pform select, .pform textarea, .summary-text {
+  width: 100%; min-height: 48px; padding: 8px 12px; background: var(--surface2); color: var(--ink);
+  border: 3px solid var(--line); border-radius: 0;
+}
+.pform textarea, .summary-text { resize: vertical; line-height: 1.35; }
+.pform input:focus, .pform select:focus, .pform textarea:focus, .summary-text:focus { outline: none; border-color: var(--moss); }
+.pform [aria-invalid="true"] { border-color: var(--warn); }
+.pform .hint { margin: 0; font-size: 15px; color: var(--muted); }
+.pform .field-error, .pform .form-error { margin: 0; color: var(--warn); font-weight: 700; }
+.pform .form-error { padding: 8px 12px; background: var(--warn-soft); border-left: 4px solid var(--warn); }
+.pform .freed { margin: 8px 0 0; padding-left: 20px; }
+.pform .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pform .row .btn { flex: 1 1 160px; }
+.sheet .done-list { margin: 0 0 12px; padding-left: 20px; }
+.summary-text { min-height: 280px; font-size: 14px; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; }
+.copy-status { min-height: 1.4em; margin: 8px 0 0; font-weight: 700; color: var(--ok); }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
@@ -157,6 +184,7 @@ button, input { font: inherit; color: inherit; }
   <button id="moveCancel" class="btn secondary" type="button">Zrušiť</button>
 </div>
 <main id="scene" hidden></main>
+<section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
 <div id="codeScreen" class="code-screen" hidden>
@@ -179,6 +207,11 @@ var DAY_NAMES = ["nedeľa", "pondelok", "utorok", "streda", "štvrtok", "piatok"
 var DAY_SHORT = ["Ne", "Po", "Ut", "St", "Št", "Pi", "So"];
 var DAY_LOCATIVE = ["v nedeľu", "v pondelok", "v utorok", "v stredu", "vo štvrtok", "v piatok", "v sobotu"];
 var FALLBACK_ERROR = "Niečo sa nepodarilo, skús to znova.";
+var UNKNOWN_PARTY = "neznáma partia";
+var NOTICE_LINES = ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.", "Presunúť sa dá cez posteľ."];
+// Same limits as the server (PartyInput in app/models.py).
+var PARTY_LIMITS = { name: 60, arrival_time: 60, note: 300, countMax: 20 };
+var LONG_PRESS_SLOP = 10;   // px a finger may move during a long press
 
 // --- dates ---
 
@@ -396,6 +429,11 @@ function pluralPlaces(n) {
   return n + " " + placesNoun(n);
 }
 
+// "chýba" for 1 and 5+, "chýbajú" for 2 to 4.
+function missingVerb(n) {
+  return n >= 2 && n <= 4 ? "chýbajú" : "chýba";
+}
+
 // Status of my party: the first night with missing places (red), else the first night with extra
 // places (soft amber), else everything is fine. kind: "none" | "missing" | "extra" | "ok".
 function myPartyStatus(state, party) {
@@ -404,10 +442,9 @@ function myPartyStatus(state, party) {
   for (i = 0; i < nights.length; i++) {
     n = missingPlaces(state, party, nights[i]);
     if (n > 0) {
-      var verb = n >= 2 && n <= 4 ? "chýbajú" : "chýba";
       return {
         kind: "missing", night: nights[i], count: n,
-        text: capitalize(dayLocative(nights[i])) + " vám " + verb + " " + pluralPlaces(n)
+        text: capitalize(dayLocative(nights[i])) + " vám " + missingVerb(n) + " " + pluralPlaces(n)
       };
     }
   }
@@ -557,6 +594,32 @@ function lowerFirst(text) {
   return text ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 }
 
+// Who sleeps in a bed on a night: the party names in slot order (each once) and the number of free slots.
+// The map, the screen-reader labels, the WhatsApp text and the hidden summary all read this.
+function bedOccupants(state, bed, night) {
+  var names = [], free = 0;
+  bed.slots.forEach(function (slot) {
+    var who = slotOccupant(state, slot, night);
+    if (!who) { free++; return; }
+    var name = who.party ? who.party.name : UNKNOWN_PARTY;
+    if (names.indexOf(name) === -1) names.push(name);
+  });
+  return { names: names, free: free };
+}
+
+// The same for a whole room: the names over all its beds (each once) and the free slots.
+function roomOccupants(state, room, night) {
+  var names = [], free = 0;
+  room.beds.forEach(function (bed) {
+    var o = bedOccupants(state, bed, night);
+    free += o.free;
+    o.names.forEach(function (name) {
+      if (names.indexOf(name) === -1) names.push(name);
+    });
+  });
+  return { names: names, free: free };
+}
+
 // "0 voľných", "1 voľné", "3 voľné", "5 voľných"
 function freeText(n) {
   return n + (n >= 1 && n <= 4 ? " voľné" : " voľných");
@@ -564,15 +627,9 @@ function freeText(n) {
 
 // Screen-reader label of a bed for a night, e.g. "Manželská posteľ, izba vľavo, v sobotu Ivan a Eva, 0 voľných".
 function bedLabel(state, room, bed, night) {
-  var names = [], free = 0;
-  bed.slots.forEach(function (slot) {
-    var who = slotOccupant(state, slot, night);
-    if (!who) { free++; return; }
-    var name = who.party ? who.party.name : "neznáma partia";
-    if (names.indexOf(name) === -1) names.push(name);
-  });
+  var o = bedOccupants(state, bed, night);
   return bed.name + ", " + lowerFirst(room.name) + ", " + dayLocative(night) + " " +
-    (names.length ? names.join(", ") : "nikto") + ", " + freeText(free);
+    (o.names.length ? o.names.join(", ") : "nikto") + ", " + freeText(o.free);
 }
 
 // "Zapísať nás sem (2 miesta)", or just the label when nothing can be taken.
@@ -604,6 +661,197 @@ function releaseConfirmText(partyName) {
 
 function moveBarText(partyName) {
   return "Ťukni na nové miesto pre " + partyName;
+}
+
+// --- move mode ---
+
+var MOVE_TEXTS = {
+  not_held: "Tú noc nespíte na pôvodnom mieste. Prepni noc alebo zvoľ „Všetky noci“.",
+  no_free: "Tu nie je voľné miesto."
+};
+
+// What a tap on `bed` does in move mode: {nights, target}, or {error} with the Slovak reason. `move` is
+// {partyId, fromSlot, all}; a single-night move uses `night`, an all-nights move the nights the party holds.
+function planMove(state, move, bed, night) {
+  var held = holdingNights(state, move.partyId, move.fromSlot);
+  var nights = move.all ? held : [night];
+  if (!nights.length || nights.some(function (n) { return held.indexOf(n) === -1; })) return { error: MOVE_TEXTS.not_held };
+  var target = moveTarget(state, bed, nights);
+  if (!target) return { error: MOVE_TEXTS.no_free };
+  return { nights: nights, target: target };
+}
+
+// True when a finger moved farther than `limit` px: a long press then turns into a scroll or drag.
+function movedBeyond(x0, y0, x1, y1, limit) {
+  var dx = x1 - x0, dy = y1 - y0;
+  return dx * dx + dy * dy > limit * limit;
+}
+
+// --- party form ---
+
+function defaultPartyForm(event) {
+  return {
+    name: "", adults: 2, kids: 0, kids_in_parents_bed: 0,
+    arrive: event.arrive_days[0], leave: event.leave_days[event.leave_days.length - 1], arrival_time: "", note: ""
+  };
+}
+
+function partyToForm(party) {
+  return {
+    name: party.name, adults: party.adults, kids: party.kids, kids_in_parents_bed: party.kids_in_parents_bed,
+    arrive: party.arrive, leave: party.leave, arrival_time: party.arrival_time || "", note: party.note || ""
+  };
+}
+
+// The request body from the raw form values (strings). A count that is not a whole number becomes NaN,
+// which checkPartyPayload rejects. An empty count is 0.
+function partyPayload(raw) {
+  function count(v) {
+    var s = v === undefined || v === null ? "" : String(v).trim();
+    if (s === "") return 0;
+    return /^\d+$/.test(s) ? +s : NaN;
+  }
+  function text(v) {
+    return v === undefined || v === null ? "" : String(v).trim();
+  }
+  return {
+    name: text(raw.name), adults: count(raw.adults), kids: count(raw.kids), kids_in_parents_bed: count(raw.kids_in_parents_bed),
+    arrive: text(raw.arrive), leave: text(raw.leave), arrival_time: text(raw.arrival_time), note: text(raw.note)
+  };
+}
+
+function isCount(n) {
+  return typeof n === "number" && n >= 0 && n <= PARTY_LIMITS.countMax && Math.floor(n) === n;
+}
+
+// A quick pre-check of the form, only for speed: the server checks again. Returns null, or an error in
+// the shape of a server error ({code: "invalid", params: {field}}) so that errorText words it.
+function checkPartyPayload(p, event) {
+  function bad(field, reason) {
+    return { code: "invalid", params: reason ? { field: field, reason: reason } : { field: field } };
+  }
+  if (!p.name || p.name.length > PARTY_LIMITS.name) return bad("name");
+  if (!isCount(p.adults)) return bad("adults");
+  if (!isCount(p.kids)) return bad("kids");
+  if (!isCount(p.kids_in_parents_bed) || p.kids_in_parents_bed > p.kids) return bad("kids_in_parents_bed");
+  if (event.arrive_days.indexOf(p.arrive) === -1) return bad("arrive");
+  if (event.leave_days.indexOf(p.leave) === -1) return bad("leave");
+  if (!(p.arrive < p.leave)) return bad("leave", "leave_not_after_arrive");
+  if (p.arrival_time.length > PARTY_LIMITS.arrival_time) return bad("arrival_time");
+  if (p.note.length > PARTY_LIMITS.note) return bad("note");
+  return null;
+}
+
+var FORM_FIELDS = ["name", "adults", "kids", "kids_in_parents_bed", "arrive", "leave", "arrival_time", "note"];
+
+// The form field a server error is about (`params.field`), or "" when it is not one of the form fields.
+function errorField(error) {
+  var f = error && error.params && typeof error.params === "object" ? error.params.field : "";
+  return typeof f === "string" && FORM_FIELDS.indexOf(f) !== -1 ? f : "";
+}
+
+// "Štvrtok 29. 10." for the arrive and leave selects.
+function dayOptionText(iso) {
+  var p = parseIso(iso);
+  return p ? capitalize(DAY_NAMES[p.dow]) + " " + p.d + ". " + p.m + "." : String(iso);
+}
+
+// The slots the party holds on nights outside a new stay (what the server will free): {night, slot},
+// by night and then in layout order, like the server's `freed`.
+function freedByStay(state, partyId, arrive, leave) {
+  var order = slotIds(state.layout), out = [];
+  Object.keys(state.sleeping || {}).sort().forEach(function (night) {
+    if (arrive <= night && night < leave) return;
+    var held = state.sleeping[night];
+    order.forEach(function (slot) {
+      if (held[slot] === partyId) out.push({ night: night, slot: slot });
+    });
+  });
+  return out;
+}
+
+// One line per night for a list of freed slots: "Vo štvrtok: Manželská posteľ (2 miesta), Posteľ pod oknom".
+function freedLines(state, freed) {
+  var nights = [], byNight = {};
+  freed.forEach(function (entry) {
+    if (!byNight[entry.night]) { byNight[entry.night] = []; nights.push(entry.night); }
+    var bed = bedOfSlot(state.layout, entry.slot);
+    var name = bed ? bed.name : "iné miesto";
+    var list = byNight[entry.night], found = null;
+    list.forEach(function (item) { if (item.name === name) found = item; });
+    if (found) found.count++;
+    else list.push({ name: name, count: 1 });
+  });
+  return nights.sort().map(function (night) {
+    var parts = byNight[night].map(function (item) {
+      return item.count > 1 ? item.name + " (" + pluralPlaces(item.count) + ")" : item.name;
+    });
+    return capitalize(dayLocative(night)) + ": " + parts.join(", ");
+  });
+}
+
+var FREED_TEXTS = {
+  ask: "Skrátením pobytu sa uvoľnia tieto miesta:",
+  done: "Uložené. Uvoľnili sa tieto miesta:"
+};
+
+// --- summary for WhatsApp and the hidden summary for screen readers ---
+
+// "Prehľad na poslanie": the name and dates, for each night the rooms with the party names, then the
+// parties that lack places, then the page link. Plain text, no codes.
+function summaryText(state, link) {
+  var event = state.event, lines = [event.name], total = totalSlots(state.layout);
+  var dates = eventDateText(event);
+  if (dates) lines.push(dates);
+  event.nights.forEach(function (night) {
+    var info = nightInfo(night) || { label: night, dates: "" };
+    lines.push("");
+    lines.push(info.label + " (" + info.dates + "), obsadené " + usedCount(state, night) + " z " + total);
+    state.layout.rooms.forEach(function (room) {
+      var o = roomOccupants(state, room, night);
+      lines.push(room.name + ": " + (o.names.length ? o.names.join(", ") : "nikto") +
+        (o.names.length && o.free ? " (" + freeText(o.free) + ")" : ""));
+    });
+  });
+  var warnings = [];
+  (state.parties || []).forEach(function (party) {
+    var parts = [];
+    event.nights.forEach(function (night) {
+      var n = missingPlaces(state, party, night);
+      if (n > 0) parts.push(dayLocative(night) + " " + missingVerb(n) + " " + pluralPlaces(n));
+    });
+    if (parts.length) warnings.push("- " + party.name + ": " + parts.join(", "));
+  });
+  if (warnings.length) {
+    lines.push("");
+    lines.push("Chýbajú miesta:");
+    warnings.forEach(function (w) { lines.push(w); });
+  }
+  lines.push("");
+  lines.push("Tu sa zapíšeš: " + link);
+  return lines.join("\n");
+}
+
+// The text a screen reader gets for the selected night: {title, dates, instructions, night, rooms}, where
+// rooms is [{name, beds: [{name, names, free, text}]}]. `text` is the party names, "voľné" for a free bed.
+function hiddenSummary(state, night) {
+  var info = nightInfo(night) || { label: night, dates: "" };
+  return {
+    title: state.event.name,
+    dates: eventDateText(state.event),
+    instructions: NOTICE_LINES.slice(),
+    night: "Noc " + info.label + " (" + info.dates + "), obsadené " + usedCount(state, night) + " z " + totalSlots(state.layout),
+    rooms: state.layout.rooms.map(function (room) {
+      return {
+        name: room.name,
+        beds: room.beds.map(function (bed) {
+          var o = bedOccupants(state, bed, night);
+          var text = o.names.length ? o.names.join(", ") + (o.free ? ", " + freeText(o.free) : "") : "voľné";
+          return { name: bed.name, names: o.names, free: o.free, text: text };
+        })
+      };
+    })
+  };
 }
 
 // --- error texts: the only place that turns a server `code` into Slovak ---
@@ -669,6 +917,7 @@ var ERROR_TEXTS = {
     return "Túto partiu sme nenašli. Vyber partiu znova.";
   },
   invalid: function (p) {
+    if (p.reason === "leave_not_after_arrive") return "Odchod musí byť po príchode.";
     var field = FIELD_NAMES.hasOwnProperty(paramText(p, "field")) ? FIELD_NAMES[paramText(p, "field")] : "";
     return field ? "Skontroluj pole „" + field + "“." : "Niečo v zadaní nesedí, skontroluj ho.";
   },
@@ -700,7 +949,6 @@ function errorText(error, state) {
   var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
   var LONG_PRESS_MS = 500;
   var TOAST_MS = 6000;
-  var NOTICE_LINES = ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.", "Presunúť sa dá cez posteľ."];
   var COLORS = {
     grass: "#79B35A", tuft: "#6AA14C", path: "#D8C59A", roomEdge: "#5C4033", roomLabel: "#4A3426", window: "#9FD3F0",
     woodDark: "#5C4033", wood: "#B98B56", woodLight: "#D4A870", plank: "#6B4426", paper: "#F4EBD0", ink: "#2E1F14",
@@ -771,6 +1019,12 @@ function errorText(error, state) {
 
   function $(id) { return document.getElementById(id); }
 
+  // The scene and its hidden text summary are shown and hidden together.
+  function showScene(on) {
+    $("scene").hidden = !on;
+    $("srSummary").hidden = !on;
+  }
+
   function htmlEl(tag, attrs, text) {
     var node = document.createElement(tag);
     if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
@@ -814,7 +1068,7 @@ function errorText(error, state) {
 
   // A write for the bed actions (T-006) and the party form (T-007). It applies the `state` that
   // comes with a success and with an error (so the page rolls back to the server's truth) and
-  // resolves to {ok, error, json}. `error` is undefined for a network failure.
+  // resolves to {ok, status, error, json}. `error` is undefined for a network failure (status 0).
   // `ops` are the pending changes of this write: they are dropped just before the answer is applied.
   function write(method, path, body, ops) {
     function settle() {
@@ -834,12 +1088,12 @@ function errorText(error, state) {
       } else {
         render();
       }
-      if (ok) return { ok: true, error: undefined, json: r.json };
-      return { ok: false, error: r.json ? r.json.error : undefined, json: r.json };
+      if (ok) return { ok: true, status: r.status, error: undefined, json: r.json };
+      return { ok: false, status: r.status, error: r.json ? r.json.error : undefined, json: r.json };
     }, function () {
       settle();
       render();
-      return { ok: false, error: undefined, json: null };
+      return { ok: false, status: 0, error: undefined, json: null };
     });
   }
 
@@ -888,12 +1142,15 @@ function errorText(error, state) {
     if (app.panel && app.panel.refresh) app.panel.refresh();
   }
 
+  // A move belongs to the party that started it, so a change of *moja partia* ends it.
   function forgetMyParty() {
     app.myParty = null;
     storage.remove(KEYS.party);
+    app.move = null;
   }
 
   function setMyParty(id) {
+    if (app.myParty !== id) app.move = null;
     app.myParty = id;
     storage.set(KEYS.party, id);
   }
@@ -981,14 +1238,15 @@ function errorText(error, state) {
     var layout = app.state.layout;
     var key = JSON.stringify([layout.map, layout.rooms]);
     $("boot").hidden = true;
-    $("scene").hidden = false;     // visible first: text is measured while drawing
+    showScene(true);     // visible first: text is measured while drawing
     if (app.layoutKey === key) return;
     app.layoutKey = key;
     var host = $("scene");
     clearNode(host);
     var vb = layout.map.viewbox;
     var svg = svgEl(host, "svg", {
-      viewBox: "0 0 " + vb[0] + " " + vb[1], "shape-rendering": "crispEdges", role: "group", "aria-label": "Mapa chaty"
+      viewBox: "0 0 " + vb[0] + " " + vb[1], "shape-rendering": "crispEdges", role: "group",
+      "aria-label": "Mapa chaty. Rovnaké údaje sú aj ako text hneď za mapou."
     });
     app.layers = {
       base: svgEl(svg, "g", { "aria-hidden": "true" }),
@@ -1037,13 +1295,31 @@ function errorText(error, state) {
   }
 
   function render() {
-    if (!app.state) return;
+    if (!app.state || app.codeOpen) return;     // the code screen covers the scene: leave it hidden
     ensureScene();
     keepFocus($("scene"), function () {
       drawBoards();
       drawBeds();
     });
+    renderSummary();
     renderMoveBar();
+  }
+
+  // The visually hidden text summary for screen readers: the same data as the map, for the selected night.
+  // It is built from the state the map draws (with unconfirmed changes), not from the plain server state.
+  function renderSummary() {
+    var host = $("srSummary"), h = hiddenSummary(viewState().state, app.night);
+    clearNode(host);
+    host.appendChild(htmlEl("h2", null, h.title));
+    host.appendChild(htmlEl("p", null, h.dates));
+    host.appendChild(htmlEl("p", null, "Návod: " + h.instructions.join(" ")));
+    host.appendChild(htmlEl("h3", null, h.night));
+    h.rooms.forEach(function (room) {
+      host.appendChild(htmlEl("h4", null, room.name));
+      var list = htmlEl("ul");
+      room.beds.forEach(function (bed) { list.appendChild(htmlEl("li", null, bed.name + ": " + bed.text)); });
+      host.appendChild(list);
+    });
   }
 
   function renderBoards() {
@@ -1063,7 +1339,23 @@ function errorText(error, state) {
     drawNights(g, scene, state);
     drawNotice(g, scene.notice);
     drawStatus(g, scene.status, state);
+    drawLetter(g, scene.letter);
     renderAge();
+  }
+
+  // The letter icon opens „Prehľad na poslanie“. The hit area is the whole `map.scene.letter` rect.
+  function drawLetter(parent, r) {
+    var g = svgEl(parent, "g");
+    var x = r[0] + (r[2] - 32) / 2, y = r[1] + (r[3] - 24) / 2;
+    rect(g, x, y, 32, 24, COLORS.woodDark);
+    rect(g, x + 3, y + 3, 26, 18, COLORS.paper);
+    [[0, 0], [4, 3], [8, 6], [12, 9]].forEach(function (p) {      // the flap, from the left corner to the middle
+      rect(g, x + 3 + p[0], y + 3 + p[1], 4, 3, COLORS.woodDark);
+      rect(g, x + 25 - p[0], y + 3 + p[1], 4, 3, COLORS.woodDark);
+    });
+    rect(g, x + 13, y + 14, 6, 6, COLORS.red);                  // the seal
+    hitRect(g, r);
+    makeButton(g, "Prehľad na poslanie. Ťuknutím otvoríš text, ktorý môžeš poslať do WhatsAppu.", "letter", openSummary);
   }
 
   function drawTitle(parent, r, state) {
@@ -1258,7 +1550,7 @@ function errorText(error, state) {
         if (who.party && who.party.id === app.myParty) {      // the yellow frame of my party
           rect(sg, pos[0] - 1, pos[1] - 1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });
         }
-        svgEl(sg, "title", null, who.party ? who.party.name : "neznáma partia");
+        svgEl(sg, "title", null, who.party ? who.party.name : UNKNOWN_PARTY);
         drawFigure(sg, pos[0], pos[1], color, who.kind);
       } else {
         rect(sg, pos[0] + 1, pos[1] + 2, 8, 8, "none", {
@@ -1278,6 +1570,7 @@ function errorText(error, state) {
   // A long press on touch shows who sleeps in the bed (a hover title does not exist there).
   function watchLongPress(g, bed) {
     var timer = null;
+    var startX = 0, startY = 0;
     function cancel() {
       if (timer) { clearTimeout(timer); timer = null; }
     }
@@ -1285,13 +1578,19 @@ function errorText(error, state) {
       app.suppressClick = false;
       cancel();
       if (e.pointerType === "mouse") return;
+      startX = e.clientX;
+      startY = e.clientY;
       timer = setTimeout(function () {
         timer = null;
         app.suppressClick = true;
         showTip(bed);
       }, LONG_PRESS_MS);
     });
-    ["pointerup", "pointercancel", "pointerleave", "pointermove"].forEach(function (name) { g.addEventListener(name, cancel); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (name) { g.addEventListener(name, cancel); });
+    // A finger always wobbles a little: only a real drag cancels the press.
+    g.addEventListener("pointermove", function (e) {
+      if (timer && movedBeyond(startX, startY, e.clientX, e.clientY, LONG_PRESS_SLOP)) cancel();
+    });
     g.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   }
 
@@ -1299,7 +1598,7 @@ function errorText(error, state) {
     var st = viewState().state, names = [];
     bed.slots.forEach(function (slot) {
       var who = slotOccupant(st, slot, app.night);
-      var name = who ? (who.party ? who.party.name : "neznáma partia") : null;
+      var name = who ? (who.party ? who.party.name : UNKNOWN_PARTY) : null;
       if (name && names.indexOf(name) === -1) names.push(name);
     });
     var g = app.layers.tip;
@@ -1336,7 +1635,8 @@ function errorText(error, state) {
   }
 
   // `build(body, panel)` fills the panel; it may set `panel.refresh` to redraw on new state.
-  // `opts.returnKey` is the data-key of the scene element that gets focus back on close, and
+  // `opts.returnKey` is the data-key of the scene element that gets focus back on close,
+  // `opts.initialFocus(body)` picks the element that gets focus first (default: the first button), and
   // `opts.onClose` runs after the panel is gone.
   function openPanel(title, build, opts) {
     closePanel();
@@ -1360,9 +1660,13 @@ function errorText(error, state) {
       refresh: null, onKey: null
     };
     panel.onKey = function (e) {
-      if (e.key === "Escape") { e.preventDefault(); closePanel(); return; }
+      // One Escape closes only the panel: it must not reach the move mode handler below.
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePanel(); return; }
       if (e.key !== "Tab") return;
-      var items = sheet.querySelectorAll("button:not([disabled]), input, [tabindex='0']");
+      var items = Array.prototype.filter.call(
+        sheet.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea, [tabindex='0']"),
+        function (node) { return node.getClientRects().length > 0; }
+      );
       if (!items.length) return;
       var first = items[0], last = items[items.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -1375,23 +1679,11 @@ function errorText(error, state) {
     build(body, panel);
     window.requestAnimationFrame(function () {
       sheet.classList.add("open");
-      var firstButton = body.querySelector("button");
-      (firstButton || close).focus({ preventScroll: true });
+      var first = (opts.initialFocus ? opts.initialFocus(body) : null) || body.querySelector("button") || close;
+      first.focus({ preventScroll: true });
     });
     return panel;
   }
-
-  // Hooks for T-007: it replaces these with the party form.
-  var hooks = {
-    addParty: function (body) {
-      var note = body.querySelector(".note");
-      if (note) note.textContent = "Formulár partie pribudne čoskoro.";
-    },
-    // Opens the party form to change arrival and departure.
-    editParty: function () {
-      showToast("Formulár partie pribudne čoskoro.", "info");
-    }
-  };
 
   // --- toast ---
 
@@ -1417,6 +1709,7 @@ function errorText(error, state) {
     renderBeds();
     return write("POST", path, body, ops).then(function (res) {
       if (res.ok) return res;
+      if (res.status === 401) return res;     // the code screen is up; the person typed nothing wrong
       var e = res.error;
       // Tapping a place the party already holds changes nothing and is not an error.
       if (e && e.code === "slot_taken" && e.params && e.params.own === true) return res;
@@ -1481,24 +1774,19 @@ function errorText(error, state) {
 
   function moveTo(bed) {
     var m = app.move, st = viewState().state;
-    var nights = m.all ? holdingNights(st, m.partyId, m.fromSlot) : [app.night];
-    if (!nights.length || nights.some(function (n) { return holdingNights(st, m.partyId, m.fromSlot).indexOf(n) === -1; })) {
-      showToast("Tú noc nespíte na pôvodnom mieste. Prepni noc alebo zvoľ „Všetky noci“.", "error");
-      return;
-    }
-    var target = moveTarget(st, bed, nights);
-    if (!target) {
-      showToast("Tu nie je voľné miesto.", "error");
+    var plan = planMove(st, m, bed, app.night);
+    if (plan.error) {
+      showToast(plan.error, "error");
       return;
     }
     var ops = [];
-    nights.forEach(function (n) {
+    plan.nights.forEach(function (n) {
       ops.push({ night: n, slot: m.fromSlot, party_id: null });
-      ops.push({ night: n, slot: target, party_id: m.partyId });
+      ops.push({ night: n, slot: plan.target, party_id: m.partyId });
     });
     app.move = null;
     renderMoveBar();
-    runWrite("api/move", { party_id: m.partyId, from_slot: m.fromSlot, to_slot: target, nights: nights }, ops);
+    runWrite("api/move", { party_id: m.partyId, from_slot: m.fromSlot, to_slot: plan.target, nights: plan.nights }, ops);
   }
 
   function onBedTap(room, bed) {
@@ -1526,7 +1814,7 @@ function errorText(error, state) {
       }
 
       function slotRow(st, slot, i, night) {
-        var who = slotOccupant(st, slot, night), name = who ? (who.party ? who.party.name : "neznáma partia") : "voľné";
+        var who = slotOccupant(st, slot, night), name = who ? (who.party ? who.party.name : UNKNOWN_PARTY) : "voľné";
         var rowText = (bed.slots.length > 1 ? "Miesto " + (i + 1) + ": " : "") + name;
         var row = htmlEl("div", { "class": "slot-row" });
         var label = htmlEl("span", { "class": "who" });
@@ -1542,7 +1830,7 @@ function errorText(error, state) {
 
       function slotActions(row, st, slot, who, rowText) {
         var pid = who.party ? who.party.id : null, mine = pid !== null && pid === app.myParty;
-        var name = who.party ? who.party.name : "neznáma partia";
+        var name = who.party ? who.party.name : UNKNOWN_PARTY;
         if (confirm && confirm.slot === slot && confirm.partyId === pid && confirm.night === app.night) {
           row.appendChild(htmlEl("p", { "class": "confirm" }, releaseConfirmText(name)));
           row.appendChild(button("Uvoľniť", "yes-" + slot, function () { clearSlot(slot); }, false, "Naozaj uvoľniť: " + rowText));
@@ -1583,7 +1871,7 @@ function errorText(error, state) {
           box.appendChild(htmlEl("p", { "class": "note" }, notPresentText(night)));
           box.appendChild(button("Upraviť príchod a odchod", "edit-party", function () {
             closePanel();
-            hooks.editParty(party.id);
+            openPartyForm(party, { returnKey: "bed-" + bed.id });
           }, true));
         } else if (blocked) {
           box.appendChild(htmlEl("p", { "class": "note" }, "Táto posteľ je v túto noc plná."));
@@ -1624,17 +1912,30 @@ function errorText(error, state) {
       body.appendChild(htmlEl("p", null, "Vyber partiu, za ktorú sa zapisuješ."));
       var list = htmlEl("ul", { "class": "party-list" });
       body.appendChild(list);
-      var add = htmlEl("button", { "class": "btn", type: "button" }, "Pridať partiu");
-      body.appendChild(add);
-      body.appendChild(htmlEl("p", { "class": "note", hidden: "" }));
+      var actions = htmlEl("div", { "class": "actions" });
+      body.appendChild(actions);
+      var add = htmlEl("button", { "class": "btn", type: "button", "data-key": "add-party" }, "Pridať partiu");
       add.addEventListener("click", function () {
-        var note = body.querySelector(".note");
-        note.hidden = false;
-        hooks.addParty(body);
+        closePanel();
+        openPartyForm(null, { returnKey: "who" });
       });
+      var edit = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "edit-party" });
+      edit.addEventListener("click", function () {
+        var mine = app.state ? partyById(app.state, app.myParty) : null;
+        if (!mine) return;
+        closePanel();
+        openPartyForm(mine, { returnKey: "who" });
+      });
+      actions.appendChild(add);
+      actions.appendChild(edit);
       panel.refresh = function () {
         // A new state rebuilds the rows, so focus returns to the same party (or to the first button).
-        keepFocus(list, function () { fillParties(list); }, function () { return add; });
+        keepFocus(body, function () {
+          fillParties(list);
+          var mine = app.state ? partyById(app.state, app.myParty) : null;
+          edit.hidden = !mine;
+          if (mine) edit.textContent = "Upraviť partiu „" + mine.name + "“";
+        }, function () { return add; });
       };
       function fillParties(list) {
         clearNode(list);
@@ -1662,7 +1963,263 @@ function errorText(error, state) {
         });
       }
       panel.refresh();
+    }, { returnKey: "who" });
+  }
+
+  // --- party form ---
+
+  var FORM_LABELS = {
+    name: "Meno partie", adults: "Dospelí", kids: "Deti", kids_in_parents_bed: "Deti spiace s rodičmi",
+    arrive: "Príchod", leave: "Odchod", arrival_time: "Čas príchodu", note: "Poznámka"
+  };
+
+  // The party form for a new party (`party` is null) or to edit one. `opts.returnKey` is the scene element
+  // that gets focus back on close.
+  function openPartyForm(party, opts) {
+    var event = app.state.event, editing = !!party;
+    var fields = {}, errors = {};
+    openPanel(editing ? "Upraviť partiu" : "Nová partia", function (body, panel) {
+      var values = editing ? partyToForm(party) : defaultPartyForm(event);
+      var form = htmlEl("form", { "class": "pform", novalidate: "" });
+      var formError = htmlEl("p", { "class": "form-error", role: "alert", hidden: "" });
+
+      // One labelled field: `input` is the control, and a paragraph under it carries that field's error.
+      function field(name, input, opts2) {
+        var wrap = htmlEl("div", { "class": "field" });
+        var label = htmlEl("label", { "for": "pf-" + name }, FORM_LABELS[name]);
+        if (opts2 && opts2.optional) label.appendChild(htmlEl("span", { "class": "opt" }, " (nepovinné)"));
+        input.id = "pf-" + name;
+        input.name = name;
+        var err = htmlEl("p", { "class": "field-error", id: "pf-" + name + "-err", hidden: "" });
+        input.setAttribute("aria-describedby", "pf-" + name + "-err" + (opts2 && opts2.hint ? " pf-" + name + "-hint" : ""));
+        wrap.appendChild(label);
+        wrap.appendChild(input);
+        if (opts2 && opts2.hint) wrap.appendChild(htmlEl("p", { "class": "hint", id: "pf-" + name + "-hint" }, opts2.hint));
+        wrap.appendChild(err);
+        fields[name] = input;
+        errors[name] = err;
+        return wrap;
+      }
+
+      function textInput(name, max) {
+        var i = htmlEl("input", { type: "text", maxlength: String(max), autocomplete: "off" });
+        i.value = values[name];
+        return i;
+      }
+
+      function countInput(name) {
+        var i = htmlEl("input", {
+          type: "number", min: "0", max: String(PARTY_LIMITS.countMax), step: "1", inputmode: "numeric"
+        });
+        i.value = String(values[name]);
+        return i;
+      }
+
+      function daySelect(name, days) {
+        var sel = htmlEl("select");
+        days.forEach(function (day) {
+          var o = htmlEl("option", { value: day }, dayOptionText(day));
+          if (day === values[name]) o.selected = true;
+          sel.appendChild(o);
+        });
+        return sel;
+      }
+
+      var note = htmlEl("textarea", { maxlength: String(PARTY_LIMITS.note), rows: "3" });
+      note.value = values.note;
+
+      form.appendChild(formError);
+      form.appendChild(field("name", textInput("name", PARTY_LIMITS.name)));
+      var pair = htmlEl("div", { "class": "pair" });
+      pair.appendChild(field("adults", countInput("adults")));
+      pair.appendChild(field("kids", countInput("kids")));
+      form.appendChild(pair);
+      form.appendChild(field("kids_in_parents_bed", countInput("kids_in_parents_bed"), {
+        hint: "Takéto dieťa nepotrebuje vlastné miesto."
+      }));
+      var days = htmlEl("div", { "class": "pair" });
+      days.appendChild(field("arrive", daySelect("arrive", event.arrive_days)));
+      days.appendChild(field("leave", daySelect("leave", event.leave_days)));
+      form.appendChild(days);
+      form.appendChild(field("arrival_time", textInput("arrival_time", PARTY_LIMITS.arrival_time), { optional: true }));
+      form.appendChild(field("note", note, { optional: true }));
+
+      var confirmBox = htmlEl("div", { "class": "note", hidden: "", role: "alert" });
+      form.appendChild(confirmBox);
+      var row = htmlEl("div", { "class": "row" });
+      var save = htmlEl("button", { "class": "btn", type: "submit", "data-key": "save" }, "Uložiť");
+      var cancel = htmlEl("button", { "class": "btn secondary", type: "button" }, "Zrušiť");
+      cancel.addEventListener("click", closePanel);
+      row.appendChild(save);
+      row.appendChild(cancel);
+      form.appendChild(row);
+      body.appendChild(form);
+
+      function readPayload() {
+        var raw = {};
+        FORM_FIELDS.forEach(function (name) {
+          var input = fields[name];
+          // A number field with unreadable text reports an empty value: keep it as an error, not a 0.
+          raw[name] = input.validity && input.validity.badInput ? "?" : input.value;
+        });
+        return partyPayload(raw);
+      }
+
+      function clearErrors() {
+        FORM_FIELDS.forEach(function (name) {
+          errors[name].hidden = true;
+          errors[name].textContent = "";
+          fields[name].removeAttribute("aria-invalid");
+        });
+        formError.hidden = true;
+        formError.textContent = "";
+      }
+
+      // The Slovak text of an error goes next to the field it is about, else on top of the form.
+      function showError(error) {
+        clearErrors();
+        var name = errorField(error), text = errorText(error, app.state);
+        if (name) {
+          errors[name].textContent = text;
+          errors[name].hidden = false;
+          fields[name].setAttribute("aria-invalid", "true");
+          fields[name].focus();
+        } else {
+          formError.textContent = text;
+          formError.hidden = false;
+          formError.scrollIntoView({ block: "nearest" });
+        }
+      }
+
+      function hideConfirm() {
+        confirmBox.hidden = true;
+        clearNode(confirmBox);
+        save.textContent = "Uložiť";
+        save.removeAttribute("data-confirm");
+      }
+
+      // Shortening a stay frees places: name them and ask once.
+      function askToFree(freed) {
+        clearNode(confirmBox);
+        confirmBox.appendChild(htmlEl("p", null, FREED_TEXTS.ask));
+        var list = htmlEl("ul", { "class": "freed" });
+        freedLines(app.state, freed).forEach(function (line) { list.appendChild(htmlEl("li", null, line)); });
+        confirmBox.appendChild(list);
+        confirmBox.hidden = false;
+        save.textContent = "Uložiť a uvoľniť miesta";
+        save.setAttribute("data-confirm", "1");
+        save.focus();
+      }
+
+      function showDone(freed) {
+        clearNode(body);
+        body.appendChild(htmlEl("p", null, FREED_TEXTS.done));
+        var list = htmlEl("ul", { "class": "done-list" });
+        freedLines(app.state, freed).forEach(function (line) { list.appendChild(htmlEl("li", null, line)); });
+        body.appendChild(list);
+        var ok = htmlEl("button", { "class": "btn", type: "button" }, "Zavrieť");
+        ok.addEventListener("click", closePanel);
+        body.appendChild(ok);
+        ok.focus();
+      }
+
+      function send(payload) {
+        save.disabled = true;
+        save.textContent = "Ukladám…";
+        var req = editing ? write("PUT", "api/parties/" + encodeURIComponent(party.id), payload) : write("POST", "api/parties", payload);
+        req.then(function (res) {
+          if (res.ok) {
+            var created = res.json && res.json.party;
+            if (!editing && created) {
+              setMyParty(created.id);
+              render();
+            }
+            var freed = (res.json && res.json.freed) || [];
+            if (app.panel !== panel) return;
+            if (freed.length) { showDone(freed); return; }
+            closePanel();
+            showToast(editing ? "Zmeny sú uložené." : "Partia „" + payload.name + "“ je pridaná.", "info");
+            return;
+          }
+          if (app.panel !== panel || res.status === 401) return;
+          save.disabled = false;
+          hideConfirm();
+          showError(res.error || { code: "" });
+        });
+      }
+
+      form.addEventListener("input", function () {
+        if (!confirmBox.hidden) hideConfirm();
+      });
+      form.addEventListener("change", function () {
+        if (!confirmBox.hidden) hideConfirm();
+      });
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (save.disabled) return;
+        clearErrors();
+        var payload = readPayload();
+        var problem = checkPartyPayload(payload, event);
+        if (problem) { hideConfirm(); showError(problem); return; }
+        if (editing && !save.getAttribute("data-confirm")) {
+          var freed = freedByStay(app.state, party.id, payload.arrive, payload.leave);
+          if (freed.length) { askToFree(freed); return; }
+        }
+        send(payload);
+      });
+    }, {
+      returnKey: opts && opts.returnKey,
+      initialFocus: function (body) { return body.querySelector("input"); }
     });
+  }
+
+  // --- „Prehľad na poslanie“ ---
+
+  function pageLink() {
+    return window.location.origin + window.location.pathname;
+  }
+
+  function openSummary() {
+    openPanel("Prehľad na poslanie", function (body, panel) {
+      body.appendChild(htmlEl("p", null, "Skopíruj text a pošli ho do skupiny."));
+      var area = htmlEl("textarea", { "class": "summary-text", readonly: "", rows: "14", "aria-label": "Text na poslanie" });
+      var status = htmlEl("p", { "class": "copy-status", role: "status" });
+      var copy = htmlEl("button", { "class": "btn", type: "button", "data-key": "copy" }, "Kopírovať");
+      body.appendChild(area);
+      body.appendChild(copy);
+      body.appendChild(status);
+
+      // The text follows the state while the panel is open (a poll may change it).
+      panel.refresh = function () {
+        var text = app.state ? summaryText(viewState().state, pageLink()) : "";
+        if (area.value !== text) area.value = text;
+      };
+
+      function selectText() {
+        area.focus({ preventScroll: true });
+        area.select();
+        area.setSelectionRange(0, area.value.length);
+      }
+
+      function fallback() {
+        selectText();
+        var copied = false;
+        try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
+        status.textContent = copied ? "Skopírované." : "Text je označený, skopíruj ho.";
+      }
+
+      copy.addEventListener("click", function () {
+        var text = area.value;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            status.textContent = "Skopírované.";
+          }, fallback);
+        } else {
+          fallback();
+        }
+      });
+      panel.refresh();
+    }, { returnKey: "letter" });
   }
 
   // --- code screen ---
@@ -1671,8 +2228,11 @@ function errorText(error, state) {
     if (app.codeOpen) return;
     app.codeOpen = true;
     closePanel();
+    hideToast();
+    app.move = null;
+    renderMoveBar();
     $("boot").hidden = true;
-    $("scene").hidden = true;
+    showScene(false);
     $("codeScreen").hidden = false;
     $("codeInput").focus();
   }
@@ -1706,7 +2266,7 @@ function errorText(error, state) {
         hideCodeScreen();
         $("boot").textContent = "Načítavam…";
         $("boot").hidden = !!app.state;
-        $("scene").hidden = !app.state;
+        showScene(!!app.state);
         poll();
       } else {
         errorNode.textContent = errorText(r.json ? r.json.error : undefined, null);

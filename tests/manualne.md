@@ -42,3 +42,13 @@ Items are grouped by the task that produced them.
 - [ ] Screen reader (VoiceOver and TalkBack): beds are announced as buttons with the label „<bed>, <room>, v <night> <who>, N voľných“, the sheet is announced as a dialog and focus returns to the bed on close.
 - [ ] The „Chodbička“ room label is squeezed to fit the 54-unit corridor and the „Letná kuchynka“ label touches the stove pipe. Look at both on a phone and decide with the organizer whether to shorten the names in `config/chata.yaml`.
 - [ ] Pinch-zoom on the map and on the open sheet still works on iPhone and Android.
+
+## T-007: party form, „Prehľad na poslanie“, hidden summary
+
+- [ ] „Kopírovať“ in the „Prehľad na poslanie“ panel on iPhone Safari, Android Chrome and the WhatsApp in-app browser: tap it, paste into a WhatsApp chat, and check the text is complete (all nights, the „Chýbajú miesta“ block, the page link, no code). Where `navigator.clipboard` is blocked, the text must be selected and the Slovak „Text je označený, skopíruj ho.“ shown. Tested only in desktop headless Chrome (clipboard and `execCommand` fallback both worked).
+- [ ] The textarea in that panel uses 14 px: check whether iOS Safari zooms the page when it gets focus (it does for fonts under 16 px). If it does, raise `.summary-text` to 16 px.
+- [ ] The party form on a phone: the number fields bring up the numeric keyboard, the Slovak error text appears right under the field with the keyboard open (not hidden behind it), and the „Uložiť“ button stays reachable. Opening the form from the sheet's „Upraviť príchod a odchod“ puts focus on the name field: check it does not feel odd with the keyboard.
+- [ ] Edit of your own party goes board → „Kto si?“ → „Upraviť partiu“ (two taps, intended): confirm with the organizer that this is clear enough.
+- [ ] Shortening a stay on two phones: phone A confirms the freed places, phone B shows them free after its next poll (within 30 s).
+- [ ] Screen reader (VoiceOver, TalkBack): the hidden text summary after the map is reachable and read per room and bed; the night headings read „Noc Št → Pi“ (the arrow may be read as „right arrow“, consider „zo štvrtka na piatok“); the party form fields are announced with their labels and the field errors are read out.
+- [ ] Wording of the WhatsApp text (headings, „(N voľné)“, „Chýbajú miesta:“, „Tu sa zapíšeš:“) is the developer's own: the organizer should read one real text and approve or change the phrases.

@@ -501,7 +501,7 @@ test("bed screen-reader label", () => {
   assert.equal(L.bedLabel(realState([p]), room, bed, FRI), "Manželská posteľ, izba vľavo, v piatok nikto, 2 voľné");
   const half = realState([p], { [THU]: hold(p.id, ["vlavo-manzelska-1"]) });
   assert.equal(L.bedLabel(half, room, bed, THU), "Manželská posteľ, izba vľavo, vo štvrtok Ivan a Eva, 1 voľné");
-  assert.equal(L.bedLabel(realState([p]), rooms[0], bedById("konica-dole-matrace"), THU), "Matrace na zemi, konica, podkrovie, vo štvrtok nikto, 3 voľné");
+  assert.equal(L.bedLabel(realState([p]), rooms[1], bedById("konica-dole-matrace"), THU), "Matrace na zemi, konica, dole, vo štvrtok nikto, 3 voľné");
 });
 
 test("free places in Slovak", () => {
@@ -526,6 +526,229 @@ test("skipped nights of assign-stay are reported in Slovak", () => {
   assert.equal(L.skippedText([THU, SAT]), "Vo štvrtok a v sobotu je to tu obsadené, tie noci sme vynechali.");
   assert.equal(L.skippedText([THU, FRI, SAT]), "Vo štvrtok, v piatok a v sobotu je to tu obsadené, tie noci sme vynechali.");
   assert.equal(L.skippedText([]), "");
+});
+
+// --- move mode ---
+
+test("move plan: one night, all nights and the two reasons it fails", () => {
+  const p = party();
+  const s = realState([p], { [THU]: hold(p.id, ["vlavo-okno-1"]), [SAT]: hold(p.id, ["vlavo-okno-1"]) });
+  const move = { partyId: p.id, fromSlot: "vlavo-okno-1", all: false };
+  const target = bedById("vlavo-manzelska");
+  assert.deepEqual(plain(L.planMove(s, move, target, THU)), { nights: [THU], target: "vlavo-manzelska-1" });
+  assert.deepEqual(plain(L.planMove(s, { ...move, all: true }, target, FRI)), { nights: [THU, SAT], target: "vlavo-manzelska-1" });
+  // not sleeping in the old place on the selected night
+  assert.equal(L.planMove(s, move, target, FRI).error, "Tú noc nespíte na pôvodnom mieste. Prepni noc alebo zvoľ „Všetky noci“.");
+  // the old place is not held on any night
+  assert.equal(L.planMove(s, { ...move, fromSlot: "chodba-gauc-1", all: true }, target, THU).error, L.MOVE_TEXTS.not_held);
+  // no free slot in every night
+  const busy = realState([p], { [THU]: { ...hold(p.id, ["vlavo-okno-1"]), ...hold("p-x", ["vlavo-manzelska-1", "vlavo-manzelska-2"]) } });
+  assert.equal(L.planMove(busy, move, target, THU).error, "Tu nie je voľné miesto.");
+});
+
+test("a finger may move up to the slop during a long press", () => {
+  assert.equal(L.LONG_PRESS_SLOP, 10);
+  assert.equal(L.movedBeyond(100, 100, 106, 108, 10), false);   // exactly 10 px away
+  assert.equal(L.movedBeyond(100, 100, 100, 100, 10), false);
+  assert.equal(L.movedBeyond(100, 100, 107, 108, 10), true);
+  assert.equal(L.movedBeyond(100, 100, 100, 89, 10), true);
+});
+
+// --- party form ---
+
+test("form defaults and values of an existing party", () => {
+  assert.deepEqual(plain(L.defaultPartyForm(event)),
+    { name: "", adults: 2, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "", note: "" });
+  const p = party({ kids: 1, arrival_time: "po 18:00", note: "pes" });
+  assert.deepEqual(plain(L.partyToForm(p)),
+    { name: "Ivan a Eva", adults: 2, kids: 1, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "po 18:00", note: "pes" });
+});
+
+test("party payload trims text and reads counts", () => {
+  const raw = { name: "  Ivan a Eva ", adults: "2", kids: "", kids_in_parents_bed: " 1 ", arrive: THU, leave: "2026-11-01", arrival_time: " 18:00 ", note: " pes\n" };
+  assert.deepEqual(plain(L.partyPayload(raw)),
+    { name: "Ivan a Eva", adults: 2, kids: 0, kids_in_parents_bed: 1, arrive: THU, leave: "2026-11-01", arrival_time: "18:00", note: "pes" });
+  assert.ok(Number.isNaN(L.partyPayload({ ...raw, adults: "1.5" }).adults));
+  assert.ok(Number.isNaN(L.partyPayload({ ...raw, kids: "-1" }).kids));
+  assert.ok(Number.isNaN(L.partyPayload({ ...raw, kids: "?" }).kids));
+});
+
+test("form pre-check names the field like the server does", () => {
+  const ok = L.partyPayload({ ...L.defaultPartyForm(event), name: "Ivan a Eva" });
+  assert.equal(L.checkPartyPayload(ok, event), null);
+  const field = (over) => { const e = L.checkPartyPayload({ ...ok, ...over }, event); return e && e.code === "invalid" ? e.params.field : e; };
+  assert.equal(field({ name: "" }), "name");
+  assert.equal(field({ name: "x".repeat(61) }), "name");
+  assert.equal(L.checkPartyPayload({ ...ok, name: "x".repeat(60) }, event), null);
+  assert.equal(field({ adults: 21 }), "adults");
+  assert.equal(field({ adults: NaN }), "adults");
+  assert.equal(field({ kids: -1 }), "kids");
+  assert.equal(field({ kids: 2, kids_in_parents_bed: 3 }), "kids_in_parents_bed");
+  assert.equal(field({ arrive: "2026-10-28" }), "arrive");
+  assert.equal(field({ leave: "2026-10-29" }), "leave");
+  assert.equal(field({ arrive: SAT, leave: FRI }), "leave");
+  assert.equal(field({ arrival_time: "x".repeat(61) }), "arrival_time");
+  assert.equal(field({ note: "x".repeat(301) }), "note");
+  assert.equal(L.checkPartyPayload({ ...ok, note: "x".repeat(300) }, event), null);
+});
+
+test("form limits are the server limits", () => {
+  assert.deepEqual(plain(L.PARTY_LIMITS), { name: 60, arrival_time: 60, note: 300, countMax: 20 });
+  // the form takes its maxlength and min / max from these constants
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.match(app, /maxlength: String\(max\)/);
+  assert.match(app, /maxlength: String\(PARTY_LIMITS\.note\)/);
+  assert.match(app, /min: "0", max: String\(PARTY_LIMITS\.countMax\)/);
+});
+
+test("a server error is shown next to the field it names", () => {
+  assert.equal(L.errorField({ code: "invalid", params: { field: "kids_in_parents_bed" } }), "kids_in_parents_bed");
+  assert.equal(L.errorField({ code: "duplicate_name", params: { field: "name", name: "Riso" } }), "name");
+  assert.equal(L.errorField({ code: "invalid", params: { field: "slots" } }), "");   // not a form field
+  assert.equal(L.errorField({ code: "invalid", params: {} }), "");
+  assert.equal(L.errorField({ code: "invalid" }), "");
+  assert.equal(L.errorField(undefined), "");
+  assert.equal(L.errorText({ code: "invalid", params: { field: "kids_in_parents_bed" } }, null), "Skontroluj pole „deti spiace s rodičmi“.");
+  assert.equal(L.errorText({ code: "invalid", params: { field: "leave", reason: "leave_not_after_arrive" } }, null), "Odchod musí byť po príchode.");
+  assert.equal(L.errorText({ code: "duplicate_name", params: { field: "name", name: "Riso a Ben" } }, null), "Partia „Riso a Ben“ už existuje. Vymysli iné meno.");
+});
+
+test("arrive and leave options", () => {
+  assert.deepEqual(plain(event.arrive_days.map(L.dayOptionText)), ["Štvrtok 29. 10.", "Piatok 30. 10.", "Sobota 31. 10."]);
+  assert.equal(L.dayOptionText("2026-11-01"), "Nedeľa 1. 11.");
+});
+
+// --- slots freed by a changed stay ---
+
+const stayState = () => {
+  const p = party({ arrive: THU, leave: "2026-11-01" });
+  const other = party({ id: "p-bbbbbb", name: "Riso a Ben" });
+  return realState([p, other], {
+    [THU]: { ...hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]), "vlavo-okno-1": other.id },
+    [FRI]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]),
+    [SAT]: { ...hold(p.id, ["vlavo-okno-1", "chodba-gauc-1"]), "vlavo-manzelska-1": other.id },
+  });
+};
+
+test("leave moved from Sunday to Saturday frees Saturday", () => {
+  assert.deepEqual(plain(L.freedByStay(stayState(), "p-aaaaaa", THU, SAT)),
+    [{ night: SAT, slot: "vlavo-okno-1" }, { night: SAT, slot: "chodba-gauc-1" }]);
+});
+
+test("arrive moved from Thursday to Friday frees Thursday", () => {
+  assert.deepEqual(plain(L.freedByStay(stayState(), "p-aaaaaa", FRI, "2026-11-01")),
+    [{ night: THU, slot: "vlavo-manzelska-1" }, { night: THU, slot: "vlavo-manzelska-2" }]);
+});
+
+test("a longer or unchanged stay frees nothing, and other parties' slots stay", () => {
+  assert.deepEqual(plain(L.freedByStay(stayState(), "p-aaaaaa", THU, "2026-11-01")), []);
+  assert.deepEqual(plain(L.freedByStay(stayState(), "p-bbbbbb", THU, FRI)), [{ night: SAT, slot: "vlavo-manzelska-1" }]);
+  assert.deepEqual(plain(L.freedByStay(stayState(), "p-bbbbbb", FRI, SAT)), [{ night: THU, slot: "vlavo-okno-1" }, { night: SAT, slot: "vlavo-manzelska-1" }]);
+});
+
+test("freed places are listed per night with the bed name", () => {
+  const s = stayState();
+  assert.deepEqual(plain(L.freedLines(s, L.freedByStay(s, "p-aaaaaa", FRI, SAT))), ["Vo štvrtok: Manželská posteľ (2 miesta)", "V sobotu: Posteľ pod oknom, Rozkladací gauč"]);
+  assert.deepEqual(plain(L.freedLines(s, [])), []);
+  assert.equal(L.FREED_TEXTS.ask, "Skrátením pobytu sa uvoľnia tieto miesta:");
+});
+
+// --- the WhatsApp summary and the hidden summary ---
+
+const summaryState = () => {
+  const ivan = party(), riso = party({ id: "p-bbbbbb", name: "Riso a Ben", adults: 1, kids: 1, color: "#2F7D6D" });
+  const late = party({ id: "p-cccccc", name: "Jana", adults: 1, arrive: FRI, leave: "2026-11-01", color: "#6D5BA8" });
+  return realState([ivan, riso, late], {
+    [THU]: { ...hold(ivan.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]), "konica-dole-matrace-1": riso.id },
+    [FRI]: { "vlavo-manzelska-1": ivan.id, "chodba-gauc-1": late.id },
+    [SAT]: { ...hold(ivan.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]), "vlavo-okno-1": riso.id, "vlavo-lehatko-1-1": riso.id, "konica-hore-jedno-1": late.id },
+  });
+};
+
+test("summary text for a sample state", () => {
+  const expected = [
+    "Chata 29. 10. – 1. 11.",
+    "29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)",
+    "",
+    "Št → Pi (29./30. 10.), obsadené 3 z 20",
+    "Konica, podkrovie: nikto",
+    "Konica, dole: Riso a Ben (2 voľné)",
+    "Izba vľavo: Ivan a Eva (3 voľné)",
+    "Chodbička: nikto",
+    "Izba vpravo: nikto",
+    "Letná kuchynka: nikto",
+    "",
+    "Pi → So (30./31. 10.), obsadené 2 z 20",
+    "Konica, podkrovie: nikto",
+    "Konica, dole: nikto",
+    "Izba vľavo: Ivan a Eva (4 voľné)",
+    "Chodbička: Jana (1 voľné)",
+    "Izba vpravo: nikto",
+    "Letná kuchynka: nikto",
+    "",
+    "So → Ne (31. 10./1. 11.), obsadené 5 z 20",
+    "Konica, podkrovie: Jana (2 voľné)",
+    "Konica, dole: nikto",
+    "Izba vľavo: Ivan a Eva, Riso a Ben (1 voľné)",
+    "Chodbička: nikto",
+    "Izba vpravo: nikto",
+    "Letná kuchynka: nikto",
+    "",
+    "Chýbajú miesta:",
+    "- Ivan a Eva: v piatok chýba 1 miesto",
+    "- Riso a Ben: vo štvrtok chýba 1 miesto, v piatok chýbajú 2 miesta",
+    "",
+    "Tu sa zapíšeš: https://chata.example/",
+  ].join("\n");
+  assert.equal(L.summaryText(summaryState(), "https://chata.example/"), expected);
+});
+
+test("summary text has no warnings when everybody has a place, and never a code", () => {
+  const p = party({ adults: 1, arrive: THU, leave: FRI });
+  const text = L.summaryText(realState([p], { [THU]: { "vlavo-okno-1": p.id } }), "https://chata.example/");
+  assert.doesNotMatch(text, /Chýbajú/);
+  assert.match(text, /Tu sa zapíšeš: https:\/\/chata\.example\/$/);
+  assert.doesNotMatch(text, /kód|code/i);
+});
+
+test("hidden summary for the selected night", () => {
+  const h = L.hiddenSummary(summaryState(), SAT);
+  assert.equal(h.title, "Chata 29. 10. – 1. 11.");
+  assert.equal(h.dates, "29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)");
+  assert.deepEqual(plain(h.instructions), ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.", "Presunúť sa dá cez posteľ."]);
+  assert.equal(h.night, "Noc So → Ne (31. 10./1. 11.), obsadené 5 z 20");
+  assert.deepEqual(plain(h.rooms.map((r) => r.name)), rooms.map((r) => r.name));
+  const left = h.rooms.find((r) => r.name === "Izba vľavo");
+  assert.deepEqual(plain(left.beds.map((b) => [b.name, b.text])), [
+    ["Manželská posteľ", "Ivan a Eva"], ["Posteľ pod oknom", "Riso a Ben"], ["Lehátko 1", "Riso a Ben"], ["Lehátko 2", "voľné"],
+  ]);
+  const top = h.rooms[0];
+  assert.deepEqual(plain(top.beds.map((b) => b.text)), ["voľné", "Jana"]);
+});
+
+test("the WhatsApp text and the hidden summary give the same parties per bed and night as the slot data", () => {
+  const s = summaryState();
+  const lines = L.summaryText(s, "https://chata.example/").split("\n");
+  s.event.nights.forEach((night) => {
+    const hidden = L.hiddenSummary(s, night);
+    const start = lines.findIndex((line) => line.startsWith(L.nightInfo(night).label));
+    s.layout.rooms.forEach((room, ri) => {
+      const roomNames = [];
+      room.beds.forEach((bed, bi) => {
+        // the expectation comes straight from the slot data the map draws from
+        const expected = [];
+        bed.slots.forEach((slot) => {
+          const id = (s.sleeping[night] || {})[slot];
+          if (id && !expected.includes(s.parties.find((p) => p.id === id).name)) expected.push(s.parties.find((p) => p.id === id).name);
+        });
+        assert.deepEqual(plain(hidden.rooms[ri].beds[bi].names), expected, `${night} ${bed.id} (hidden)`);
+        assert.equal(hidden.rooms[ri].beds[bi].free, bed.slots.filter((slot) => !(s.sleeping[night] || {})[slot]).length);
+        expected.forEach((name) => { if (!roomNames.includes(name)) roomNames.push(name); });
+      });
+      const line = lines[start + 1 + ri];
+      assert.ok(line.startsWith(`${room.name}: ${roomNames.length ? roomNames.join(", ") : "nikto"}`), `${night} ${room.id} (text): ${line}`);
+    });
+  });
 });
 
 // --- hit areas ---
