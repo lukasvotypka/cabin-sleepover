@@ -28,7 +28,7 @@ Work is organized as a kanban board in `tasks/` (`todo`, `in-progress`, `review`
 | `analyst` | opus | Reads `proposal.md`, writes ordered tasks into `tasks/todo/` |
 | `developer` | sonnet | Takes one task at a time (fixes first): `todo → in-progress → review` |
 | `reviewer` | opus | Two review rounds: `review → in-progress` (changes) or `→ testing` (approved) |
-| `tester` | sonnet | Verifies acceptance criteria: `testing → done` or back to `in-progress` |
+| `tester` | haiku | Verifies acceptance criteria: `testing → done` or back to `in-progress` |
 
 Subagents cannot launch each other, so the **main session is the orchestrator**. Loop: run `analyst` once, then repeat until `todo`, `in-progress`, `review` and `testing` are empty:
 
