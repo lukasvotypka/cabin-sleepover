@@ -21,10 +21,11 @@ Python 3.12 and all dependencies are managed with **uv**. Do not use pip, `requi
 
 ## Development workflow (agents and task board)
 
-Work is organized as a kanban board in `tasks/` (`todo`, `in-progress`, `review`, `testing`, `done`). A task's folder is its status, and the format is in `tasks/README.md`. Four project subagents in `.claude/agents/` own the stages:
+Work is organized as a kanban board in `tasks/` (`todo`, `in-progress`, `review`, `testing`, `done`). A task's folder is its status, and the format is in `tasks/README.md`. Five project subagents in `.claude/agents/` own the stages:
 
 | Agent | Model | Role |
 | --- | --- | --- |
+| `product-owner` | opus | Sets priorities and scope on the board, follows the organizer's requests, moves phase 2 items; does not code |
 | `analyst` | opus | Reads `proposal.md`, writes ordered tasks into `tasks/todo/` |
 | `developer` | sonnet | Takes one task at a time (fixes first): `todo → in-progress → review` |
 | `reviewer` | opus | Two review rounds: `review → in-progress` (changes) or `→ testing` (approved) |
