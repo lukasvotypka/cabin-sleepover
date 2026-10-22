@@ -233,9 +233,12 @@ Panel nad mapou. Polia partie z `chata-data.yaml` (meno, dospelí, deti, deti sp
 ### Vzhľad
 
 - Panely a obrazovka s kódom používajú písma Alegreya (nadpisy) a Alegreya Sans (text) z Google Fonts a tieto farby:
-  - svetlý režim: `--bg:#E8ECE4; --surface:#F8FAF5; --surface2:#EEF2EA; --ink:#1D2A23; --muted:#5A6B60; --line:#CCD5C8; --forest:#22392F; --moss:#5B7A4A; --amber:#C98A1C; --amber-soft:#F3E3C0; --warn:#B4472F; --warn-soft:#F4D9D1; --ok:#3D7A55`
-  - tmavý režim (podľa `prefers-color-scheme`): `--bg:#141A17; --surface:#1D2521; --surface2:#242E29; --ink:#E5EAE2; --muted:#9AA99F; --line:#34423B; --forest:#CFE0D3; --moss:#93B47F; --amber:#E7AE4A; --amber-soft:#3A2F1A; --warn:#E8826B; --warn-soft:#3B221C; --ok:#7CC49A`
+  - svetlý režim (jesenná paleta): `--bg:#EFE5D3; --surface:#FBF6EC; --surface2:#F4EBDB; --ink:#2B1D14; --muted:#6B5644; --line:#DCC9AE; --forest:#4A2C1A; --moss:#5E6B24; --amber:#96540F; --amber-soft:#F6DFB8; --warn:#A3361E; --warn-soft:#F6D6C8; --ok:#3F6E2C`
+  - tmavý režim (podľa `prefers-color-scheme`): `--bg:#1A1410; --surface:#241C16; --surface2:#2D231B; --ink:#F1E7D9; --muted:#B9A38C; --line:#47382B; --forest:#F2DBB8; --moss:#B9C46F; --amber:#EDA94E; --amber-soft:#3F2C16; --warn:#F08C70; --warn-soft:#43241A; --ok:#93C67E`
+  - Paletu a načítavaciu animáciu vybral product owner na základe delegovania organizátora (22. 10. 2026). Názov `--forest` ostal, hoci je to teraz tmavý gaštan.
 - Scéna (mapa, tabule, smerovníky) má pevné farby a v tmavom režime sa neinvertuje. Text v scéne je pixelový alebo monospace, nie Alegreya.
+- Jesenné farby scény: tráva `#8E9B48`, chumáčiky trávy `#76823A`, chodníky `#D6BC8E`, spadnuté lístie na tráve (len farba na pozíciách chumáčikov) `#B5532A`, `#D69A2E` a `#8E3424`. Farby izieb v `config/chata.yaml` a 12 farieb partií ostávajú.
+- Pri načítavaní stránka ukáže pixelový lístok, ktorý padá na trávu, a text „Načítavam…“ na malej drevenej ceduľke. Pri chybe načítania lístok zostane ležať na zemi. S `prefers-reduced-motion` je lístok nehybný.
 - Paleta 12 farieb partií, priraďuje ju server pri vytvorení partie v tomto poradí: `#2F7D6D, #D07A2B, #6D5BA8, #C08A1E, #3E6FB0, #9C4A7A, #5E8A2E, #8A6A4A, #2E8AA0, #C0603A, #7A7F2B, #A04848`.
 - Na mobile scéna zaberá celú šírku, spodný panel sa vysúva zdola, všetky ovládacie prvky (postele, smerovníky, ikony, tlačidlá) majú aspoň 44 px.
 

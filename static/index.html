@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#79B35A">
+<meta name="theme-color" content="#8E9B48">
 <meta name="color-scheme" content="light dark">
 <title>Chata</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,24 +11,24 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&amp;family=Alegreya+Sans:wght@400;500;700&amp;display=swap">
 <style>
 :root {
-  --bg: #E8ECE4; --surface: #F8FAF5; --surface2: #EEF2EA; --ink: #1D2A23; --muted: #5A6B60;
-  --line: #CCD5C8; --forest: #22392F; --moss: #5B7A4A; --amber: #C98A1C; --amber-soft: #F3E3C0;
-  --warn: #B4472F; --warn-soft: #F4D9D1; --ok: #3D7A55;
+  --bg: #EFE5D3; --surface: #FBF6EC; --surface2: #F4EBDB; --ink: #2B1D14; --muted: #6B5644;
+  --line: #DCC9AE; --forest: #4A2C1A; --moss: #5E6B24; --amber: #96540F; --amber-soft: #F6DFB8;
+  --warn: #A3361E; --warn-soft: #F6D6C8; --ok: #3F6E2C;
   --font-head: "Alegreya", Georgia, "Times New Roman", serif;
   --font-text: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #141A17; --surface: #1D2521; --surface2: #242E29; --ink: #E5EAE2; --muted: #9AA99F;
-    --line: #34423B; --forest: #CFE0D3; --moss: #93B47F; --amber: #E7AE4A; --amber-soft: #3A2F1A;
-    --warn: #E8826B; --warn-soft: #3B221C; --ok: #7CC49A;
+    --bg: #1A1410; --surface: #241C16; --surface2: #2D231B; --ink: #F1E7D9; --muted: #B9A38C;
+    --line: #47382B; --forest: #F2DBB8; --moss: #B9C46F; --amber: #EDA94E; --amber-soft: #3F2C16;
+    --warn: #F08C70; --warn-soft: #43241A; --ok: #93C67E;
   }
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; background: #79B35A; overscroll-behavior: none; }
+html { -webkit-text-size-adjust: 100%; background: #8E9B48; overscroll-behavior: none; }
 /* The map fills the viewport and nothing scrolls, so the body shows only where the grass does (under the iPhone status bar). */
-body { margin: 0; overflow: hidden; background: #79B35A; color: var(--ink); font: 18px/1.4 var(--font-text); }
+body { margin: 0; overflow: hidden; background: #8E9B48; color: var(--ink); font: 18px/1.4 var(--font-text); }
 .inset-probe {
   position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
@@ -59,12 +59,40 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg g[role="button"]:focus-visible .hit { stroke: #FFD54A; stroke-width: 2; fill: rgba(255, 213, 74, .18); }
 .boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; background: var(--bg); color: var(--muted); }
 
+/* Loading view: a falling pixel leaf on the scene grass, with the text on a small wooden sign. Translate only, so pixels stay crisp. */
+#boot { flex-direction: column; gap: 12px; background: #8E9B48; }
+#boot svg { display: block; width: 64px; height: 96px; }
+#boot .leaf { transform-box: fill-box; transform-origin: center; animation: leafFall 2.4s step-end infinite; }
+#bootText {
+  max-width: 100%; margin: 0; padding: 6px 12px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
+  font-weight: 700; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+}
+/* step-end: every frame is held as listed. Each one sets its own scaleX, so nothing is interpolated between a flipped and an unflipped leaf (that gives a zero-width leaf). */
+@keyframes leafFall {
+  0% { transform: translate(0, 0) scaleX(1); opacity: 1; }
+  12.5% { transform: translate(3px, 7px) scaleX(1); opacity: 1; }
+  25% { transform: translate(6px, 14px) scaleX(-1); opacity: 1; }
+  37.5% { transform: translate(3px, 21px) scaleX(-1); opacity: 1; }
+  50% { transform: translate(0, 28px) scaleX(1); opacity: 1; }
+  62.5% { transform: translate(-3px, 35px) scaleX(1); opacity: 1; }
+  75% { transform: translate(-6px, 42px) scaleX(-1); opacity: 1; }
+  87.5% { transform: translate(-3px, 49px) scaleX(-1); opacity: 1; }
+  91% { transform: translate(0, 56px) scaleX(1); opacity: 1; }
+  96% { transform: translate(0, 56px) scaleX(1); opacity: .5; }
+  100% { transform: translate(0, 56px) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #boot .leaf { animation: none; transform: translate(0, 28px); }
+}
+/* A failed load: the leaf stops and lies on the ground. */
+#boot.boot--error .leaf { animation: none; transform: translate(0, 56px); opacity: 1; }
+
 /* --- code screen and panels --- */
 .code-screen {
   position: fixed; inset: 0; z-index: 30; display: flex; justify-content: center; overscroll-behavior: contain;
   padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
-  overflow-y: auto; background-color: #79B35A; image-rendering: pixelated;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' shape-rendering='crispEdges'%3E%3Crect x='8' y='12' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='52' y='4' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='76' y='40' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='28' y='56' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='64' y='80' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='12' y='84' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='40' y='32' width='4' height='4' fill='%236AA14C'/%3E%3C/svg%3E");
+  overflow-y: auto; background-color: #8E9B48; image-rendering: pixelated;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' shape-rendering='crispEdges'%3E%3Crect x='8' y='12' width='4' height='4' fill='%2376823A'/%3E%3Crect x='52' y='4' width='4' height='4' fill='%2376823A'/%3E%3Crect x='76' y='40' width='4' height='4' fill='%2376823A'/%3E%3Crect x='28' y='56' width='4' height='4' fill='%2376823A'/%3E%3Crect x='64' y='80' width='4' height='4' fill='%2376823A'/%3E%3Crect x='12' y='84' width='4' height='4' fill='%2376823A'/%3E%3Crect x='40' y='32' width='4' height='4' fill='%2376823A'/%3E%3C/svg%3E");
 }
 .board {
   width: 100%; max-width: 360px; margin: auto; padding: 20px;   /* auto margins center it, and a tall board still scrolls from its top */ background: var(--surface); color: var(--ink);
@@ -89,7 +117,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .board .btn { width: 100%; }
 .btn:focus-visible, .party-row:focus-visible, .close:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 
-#panelRoot .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(10, 15, 12, .5); }
+#panelRoot .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(26, 20, 16, .5); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 560px; margin: 0 auto; max-height: 88vh; max-height: calc(88dvh - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain;
   padding: 16px calc(16px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
@@ -187,6 +215,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .summary-text { min-height: 280px; font-size: 16px; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; }
 .copy-status { min-height: 1.4em; margin: 8px 0 0; font-weight: 700; color: var(--ok); }
 
+@media (prefers-color-scheme: dark) {
+  .party-row .swatch, .slot-row .swatch { border-color: rgba(241, 231, 217, .55); }
+  .slot-row .swatch.free { border-color: var(--muted); }
+}
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
@@ -194,7 +226,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 </head>
 <body>
 <noscript><p class="boot">Stránka potrebuje zapnutý JavaScript.</p></noscript>
-<div id="boot" class="boot" role="status">Načítavam…</div>
+<div id="boot" class="boot" role="status">
+  <svg viewBox="0 0 64 96" width="64" height="96" aria-hidden="true" shape-rendering="crispEdges">
+    <rect x="0" y="92" width="64" height="4" fill="#76823A"/>
+    <rect x="10" y="88" width="2" height="2" fill="#B5532A"/><rect x="8" y="90" width="6" height="2" fill="#B5532A"/>
+    <rect x="48" y="88" width="2" height="2" fill="#8E3424"/><rect x="46" y="90" width="6" height="2" fill="#8E3424"/>
+    <g transform="translate(25 22)"><g class="leaf">
+      <rect x="6" y="0" width="2" height="2" fill="#D69A2E"/>
+      <rect x="4" y="2" width="2" height="2" fill="#D69A2E"/><rect x="6" y="2" width="2" height="2" fill="#B5532A"/><rect x="8" y="2" width="2" height="2" fill="#D69A2E"/>
+      <rect x="2" y="4" width="2" height="2" fill="#D69A2E"/><rect x="4" y="4" width="6" height="2" fill="#B5532A"/><rect x="10" y="4" width="2" height="2" fill="#D69A2E"/>
+      <rect x="0" y="6" width="2" height="2" fill="#D69A2E"/><rect x="2" y="6" width="10" height="2" fill="#B5532A"/><rect x="12" y="6" width="2" height="2" fill="#D69A2E"/>
+      <rect x="2" y="8" width="2" height="2" fill="#D69A2E"/><rect x="4" y="8" width="6" height="2" fill="#B5532A"/><rect x="10" y="8" width="2" height="2" fill="#D69A2E"/>
+      <rect x="4" y="10" width="2" height="2" fill="#D69A2E"/><rect x="6" y="10" width="2" height="2" fill="#B5532A"/><rect x="8" y="10" width="2" height="2" fill="#D69A2E"/>
+      <rect x="6" y="12" width="2" height="2" fill="#5C4033"/>
+    </g></g>
+  </svg>
+  <p id="bootText">Načítavam…</p>
+</div>
 <div id="moveBar" class="movebar" role="region" aria-label="Presun" hidden>
   <p id="moveText"></p>
   <div class="seg" role="group" aria-label="Ktoré noci presunúť">
@@ -1120,7 +1168,8 @@ function errorText(error, state) {
   var GRASS_TILE = 96;
   var GRASS_TUFTS = [[8, 12], [52, 4], [76, 40], [28, 56], [64, 80], [12, 84], [40, 32]];
   var COLORS = {
-    grass: "#79B35A", tuft: "#6AA14C", path: "#D8C59A", roomEdge: "#5C4033", roomLabel: "#4A3426", window: "#9FD3F0",
+    grass: "#8E9B48", tuft: "#76823A", path: "#D6BC8E",
+    leafRust: "#B5532A", leafOchre: "#D69A2E", leafRed: "#8E3424", roomEdge: "#5C4033", roomLabel: "#4A3426", window: "#9FD3F0",
     woodDark: "#5C4033", wood: "#B98B56", woodLight: "#D4A870", plank: "#6B4426", paper: "#F4EBD0", ink: "#2E1F14",
     selected: "#F2D58A", highlight: "#FFD54A", red: "#B4472F", redEdge: "#6E2414", amber: "#F3E3C0", amberEdge: "#C98A1C",
     green: "#3D7A55", greenEdge: "#1F4A31", white: "#FFFFFF",
@@ -1299,7 +1348,8 @@ function errorText(error, state) {
     }).then(function () {
       app.polling = false;
       if (!app.state && !app.codeOpen) {
-        $("boot").textContent = "Nepodarilo sa načítať, skúšam znova…";
+        $("bootText").textContent = "Nepodarilo sa načítať, skúšam znova…";
+        $("boot").classList.add("boot--error");
         setTimeout(poll, 4000);
       }
     });
@@ -1693,7 +1743,7 @@ function errorText(error, state) {
       var defs = svgEl(g, "defs", {});
       pattern = svgEl(defs, "pattern", { id: "grassTile", width: GRASS_TILE, height: GRASS_TILE, patternUnits: "userSpaceOnUse" });
       rect(pattern, 0, 0, GRASS_TILE, GRASS_TILE, COLORS.grass);
-      GRASS_TUFTS.forEach(function (t) { rect(pattern, t[0], t[1], 4, 4, COLORS.tuft); });
+      GRASS_TUFTS.forEach(function (t, k) { rect(pattern, t[0], t[1], 4, 4, k === 1 ? COLORS.leafRust : k === 4 ? COLORS.leafOchre : k === 6 ? COLORS.leafRed : COLORS.tuft); });
       svgEl(g, "rect", { "class": "ground", fill: "url(#grassTile)" });
     }
     var r = g.querySelector(".ground");
@@ -1706,7 +1756,7 @@ function errorText(error, state) {
   function drawBase(g, layout) {
     var W = layout.map.viewbox[0], H = layout.map.viewbox[1], i;
     rect(g, 0, 0, W, H, COLORS.grass);
-    for (i = 0; i < 70; i++) rect(g, (i * 53) % (W - 8), (i * 97) % (H - 8), 4, 4, COLORS.tuft);
+    for (i = 0; i < 70; i++) rect(g, (i * 53) % (W - 8), (i * 97) % (H - 8), 4, 4, i % 4 === 1 ? COLORS.leafRust : i % 4 === 3 ? COLORS.leafOchre : COLORS.tuft);
     layout.map.paths.forEach(function (p) { rect(g, p[0], p[1], p[2], p[3], COLORS.path); });
     layout.rooms.forEach(function (room) {
       var r = room.rect;
@@ -2715,7 +2765,8 @@ function errorText(error, state) {
         app.askWho = !app.myParty;
         app.etag = null;
         hideCodeScreen();
-        $("boot").textContent = "Načítavam…";
+        $("bootText").textContent = "Načítavam…";
+        $("boot").classList.remove("boot--error");
         $("boot").hidden = !!app.state;
         showScene(!!app.state);
         poll();

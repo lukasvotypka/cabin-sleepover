@@ -1178,7 +1178,7 @@ test("page: the map fills the viewport (fixed full-height scene, safe areas, gra
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(html, /#scene \{ position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100dvh; \}/);
   assert.match(html, /body \{[^}]*overflow: hidden;/);
-  assert.match(html, /<meta name="theme-color" content="#79B35A">/);
+  assert.match(html, /<meta name="theme-color" content="#8E9B48">/);
   assert.match(html, /\.zoom-reset \{[^}]*safe-area-inset-bottom/);
   assert.match(html, /#toast \{[^}]*safe-area-inset-bottom/);
   assert.match(html, /\.movebar \{[^}]*position: fixed;[^}]*safe-area-inset-top/);
@@ -1186,6 +1186,29 @@ test("page: the map fills the viewport (fixed full-height scene, safe areas, gra
   assert.match(app, /new ResizeObserver\(/);
   assert.match(app, /addEventListener\("resize", onResize\)/);
   assert.match(app, /drawGround\(app\.layers\.ground, nb\)/);
+});
+
+test("page: autumn palette and the loading leaf (T-012)", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.ok(!html.includes("79B35A"));
+  assert.match(html, /--bg: #EFE5D3;/);
+  assert.match(html, /--bg: #1A1410;/);
+  assert.match(html, /<p id="bootText">Načítavam…<\/p>/);
+  assert.match(html, /<div id="boot"[\s\S]*?<svg[^>]*aria-hidden="true"[^>]*shape-rendering="crispEdges"/);
+  assert.ok(!/\$\("boot"\)\.textContent/.test(app));
+  assert.match(app, /\$\("bootText"\)\.textContent = "Nepodarilo sa načítať/);
+  assert.ok(!/innerHTML/.test(app.replace(/\/\/.*$/gm, "")));
+});
+
+test("page: every leafFall keyframe sets its own scaleX and the animation uses step-end (T-012)", () => {
+  assert.match(html, /animation: leafFall [\d.]+s step-end infinite/);
+  const body = html.match(/@keyframes leafFall \{([\s\S]*?)\n\}/)[1];
+  const frames = [...body.matchAll(/([\d.]+)% \{([^}]*)\}/g)];
+  assert.ok(frames.length >= 9);
+  for (const [, pct, decl] of frames) {
+    assert.match(decl, /transform: translate\([^)]*\) scaleX\((-1|1)\)/, `frame ${pct}%`);
+  }
+  assert.deepEqual(frames.slice(0, 8).map((f) => Number(f[1])), [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5]);
 });
 
 test("fit: an extra top inset the size of the move bar keeps the whole scene below it, in every orientation", () => {
