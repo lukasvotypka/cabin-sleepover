@@ -487,6 +487,25 @@ function extraPlaces(state, party, night) {
   return Math.max(0, partySlots(state, party.id, night).length - neededOnNight(party, night));
 }
 
+// Placed vs needed places of a party on one night.
+// {night, present, needed, placed, kind: "absent" | "under" | "over" | "ok"}
+function nightTally(state, party, night) {
+  var present = isPresent(party, night);
+  var needed = neededOnNight(party, night);
+  var placed = partySlots(state, party.id, night).length;
+  var kind = "ok";
+  if (!present && placed === 0) kind = "absent";
+  else if (placed < needed) kind = "under";
+  else if (placed > needed) kind = "over";
+  return { night: night, present: present, needed: needed, placed: placed, kind: kind };
+}
+
+// nightTally for every night of the event, in event order; [] when party is null.
+function partyTallies(state, party) {
+  if (!party) return [];
+  return state.event.nights.map(function (night) { return nightTally(state, party, night); });
+}
+
 // --- texts ---
 
 function placesNoun(n) {
@@ -502,6 +521,26 @@ function pluralPlaces(n) {
 // "chýba" for 1 and 5+, "chýbajú" for 2 to 4.
 function missingVerb(n) {
   return n >= 2 && n <= 4 ? "chýbajú" : "chýba";
+}
+
+// Short text on the signpost chip.
+function tallyChipText(t) {
+  if (t.kind === "absent") return "nie ste tu";
+  return "máte " + t.placed + "/" + t.needed + (t.kind === "under" ? " !" : "");
+}
+
+// Full sentence for screen readers (aria-label of the signpost).
+function tallyLabel(t) {
+  var d = Math.abs(t.placed - t.needed);
+  if (t.kind === "absent") return "V túto noc tu nie ste";
+  if (t.kind === "under") {
+    return "Máte " + pluralPlaces(t.placed) + ", potrebujete " + t.needed + ", " + missingVerb(d) + " " + pluralPlaces(d);
+  }
+  if (t.kind === "over") {
+    if (!t.present) return "V túto noc tu nie ste, ale máte " + pluralPlaces(t.placed);
+    return "Máte " + pluralPlaces(t.placed) + ", potrebujete " + t.needed + ", o " + pluralPlaces(d) + " viac";
+  }
+  return "Máte " + pluralPlaces(t.placed) + ", presne toľko, koľko potrebujete";
 }
 
 // Status of my party: the first night with missing places (red), else the first night with extra
@@ -1178,6 +1217,8 @@ function errorText(error, state) {
     stoveDark: "#9E9E9E", stoveLight: "#E3E3E3", stovePipe: "#6E6E6E", skin: "#F2C9A0", eye: "#3A2A1E",
     tight: "#E0A33A", picked: "#3AA7E0"
   };
+  // Signpost tally chip per kind: [edge, face, text] keys of COLORS (same meaning as the status board).
+  var TALLY_COLORS = { under: ["redEdge", "red", "white"], over: ["amberEdge", "amber", "ink"], ok: ["greenEdge", "green", "white"] };
 
   // --- browser storage that survives a blocked localStorage ---
 
@@ -1870,6 +1911,7 @@ function errorText(error, state) {
     var w = (r[2] - gap * (nights.length - 1)) / nights.length;
     var total = totalSlots(state.layout);
     var hit = nightsHit(state.layout, NIGHTS_HIT_GROW);
+    var party = partyById(state, app.myParty);
     nights.forEach(function (night, i) {
       var info = nightInfo(night) || { label: night, dates: "" };
       var used = usedCount(state, night);
@@ -1880,12 +1922,23 @@ function errorText(error, state) {
       board(g, [x, r[1], w, r[3]], selected ? COLORS.selected : COLORS.wood, selected ? COLORS.highlight : COLORS.woodDark);
       var cx = x + w / 2, inner = w - 8;
       addText(g, cx, r[1] + 13, info.label, 9, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
-      addText(g, cx, r[1] + 23, info.dates, 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
+      var tally = party ? nightTally(state, party, night) : null;
+      if (!tally) {
+        addText(g, cx, r[1] + 23, info.dates, 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
+      } else if (tally.kind === "absent") {
+        addText(g, cx, r[1] + 23, tallyChipText(tally), 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
+      } else {
+        var tone = TALLY_COLORS[tally.kind];
+        rect(g, x + 5, r[1] + 16, w - 10, 10, COLORS[tone[0]]);
+        rect(g, x + 6, r[1] + 17, w - 12, 8, COLORS[tone[1]]);
+        addText(g, cx, r[1] + 24, tallyChipText(tally), 7, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: w - 14 });
+      }
       addText(g, cx, r[1] + 32, "obsadené", 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
       addText(g, cx, r[1] + 40, used + " z " + total, 8, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
       hitRect(g, [x - gap / 2, hit[1], w + gap, hit[3]]);
       makeButton(g, "Noc " + info.label + ", " + info.dates + ", obsadené " + used + " z " + total +
-        " miest" + (selected ? ", zvolená noc" : ""), "night-" + night, function () { selectNight(night); });
+        " miest" + (selected ? ", zvolená noc" : "") + (tally ? ". " + tallyLabel(tally) : ""),
+        "night-" + night, function () { selectNight(night); });
       g.setAttribute("aria-pressed", selected ? "true" : "false");
     });
   }

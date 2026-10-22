@@ -57,6 +57,7 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 - [ ] **Drawn from `/api/state`:** the event title and dates, the three night signposts with „obsadené X z 20“, the noticeboard, the my-party status and its warning are drawn inside the map. Change the data on another device and they change after the next poll.
 - [ ] **Slovak and informal everywhere:** every visible text (scene, panels, the code screen, the form, error and toast messages) is Slovak, uses tykanie and „ “ quotes. Provoke each error you can (taken slot, party not present, duplicate party name, empty name, rate limit, server stopped, expired cookie). No English server `message` ever shows up on the page.
 - [ ] **Readable on a phone (~380 px):** the date lines on the night signposts, „obsadené X z 20“, the „aktualizované pred … s“ line and above all the red missing-places sign are readable. If the red sign is too small, raise only its text size.
+- [ ] **Tally chips on the night signposts (T-013):** with a party chosen, the three signposts show a chip `máte X/Y` instead of the dates: red with „!“ when places are missing, orange when there are more, green when they match, and plain `nie ste tu` on nights outside the stay. Without a chosen party the signposts show the dates and no chips. The chips change after an assign or release and after switching party in „Kto si?“. The text is readable on a 380 px phone (pinch zoom allowed).
 - [ ] **Fonts:** Alegreya and Alegreya Sans load on the code screen and in the panels (also in the WhatsApp in-app browser). With no network to Google Fonts the fallback fonts look acceptable.
 - [ ] **Room labels:** the „Chodbička“ label is squeezed into the 54-unit corridor and „Letná kuchynka“ touches the stove pipe. Look at both on a phone.
 
@@ -91,6 +92,7 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 ## 8. Screen reader (VoiceOver on iPhone, TalkBack on Android)
 
 - [ ] **Beds:** announced as buttons with the label „<bed>, <room>, v <night> <who>, N voľných“. The sheet is announced as a dialog and focus returns to the bed when it closes.
+- [ ] **Night signposts (T-013):** with a party chosen, each signpost also reads the tally sentence (e.g. „Máte 2 miesta, potrebujete 3, chýba 1 miesto“ or „V túto noc tu nie ste“) after the occupancy.
 - [ ] **Hidden summary:** the text summary after the map is reachable and read per room and bed. The night headings read „Noc Št → Pi“: check how the arrow is read (maybe „right arrow“) and consider „zo štvrtka na piatok“.
 - [ ] **Form:** the party form fields are announced with their labels and the field errors are read out.
 

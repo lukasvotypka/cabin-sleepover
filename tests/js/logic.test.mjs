@@ -252,6 +252,88 @@ test("status: kids sleeping with the parents are not counted", () => {
   assert.equal(L.myPartyStatus(s, p).kind, "ok");
 });
 
+// --- night tally (chips on the night signposts) ---
+
+const tallyOf = (s, p, night) => plain(L.nightTally(s, p, night));
+
+test("tally: under, over, ok and absent kinds with placed and needed", () => {
+  const p = party({ adults: 3, leave: SAT });   // Thursday and Friday nights
+  const s = stateWith([p], {
+    [THU]: hold(p.id, PAIR),                                   // 2 of 3
+    [FRI]: hold(p.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]),   // 4 of 3
+  });
+  assert.deepEqual(tallyOf(s, p, THU), { night: THU, present: true, needed: 3, placed: 2, kind: "under" });
+  assert.deepEqual(tallyOf(s, p, FRI), { night: FRI, present: true, needed: 3, placed: 4, kind: "over" });
+  assert.deepEqual(tallyOf(s, p, SAT), { night: SAT, present: false, needed: 0, placed: 0, kind: "absent" });
+  const full = stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]) });
+  assert.deepEqual(tallyOf(full, p, THU), { night: THU, present: true, needed: 3, placed: 3, kind: "ok" });
+});
+
+test("tally: kids in the parents' bed lower the needed places", () => {
+  const p = party({ adults: 2, kids: 1, kids_in_parents_bed: 1 });
+  const s = stateWith([p], { [THU]: hold(p.id, PAIR) });
+  const t = L.nightTally(s, p, THU);
+  assert.equal(t.needed, 2);
+  assert.equal(t.kind, "ok");
+  assert.equal(L.tallyChipText(t), "máte 2/2");
+});
+
+test("tally: not present but holding a slot is over", () => {
+  const p = party({ adults: 2, leave: FRI });
+  const s = stateWith([p], { [FRI]: hold(p.id, ["vlavo-okno-1"]) });
+  const t = L.nightTally(s, p, FRI);
+  assert.equal(t.kind, "over");
+  assert.equal(t.present, false);
+  assert.equal(L.tallyChipText(t), "máte 1/0");
+  assert.equal(L.tallyLabel(t), "V túto noc tu nie ste, ale máte 1 miesto");
+});
+
+test("tally: all chip texts", () => {
+  const t = (kind, placed, needed) => ({ night: THU, present: true, needed, placed, kind });
+  assert.equal(L.tallyChipText(t("under", 2, 3)), "máte 2/3 !");
+  assert.equal(L.tallyChipText(t("over", 4, 3)), "máte 4/3");
+  assert.equal(L.tallyChipText(t("ok", 3, 3)), "máte 3/3");
+  assert.equal(L.tallyChipText({ night: THU, present: false, needed: 0, placed: 0, kind: "absent" }), "nie ste tu");
+});
+
+test("tally: all label sentences with plural forms", () => {
+  const t = (kind, placed, needed, present = true) => ({ night: THU, present, needed, placed, kind });
+  assert.equal(L.tallyLabel(t("under", 2, 3)), "Máte 2 miesta, potrebujete 3, chýba 1 miesto");
+  assert.equal(L.tallyLabel(t("under", 0, 2)), "Máte 0 miest, potrebujete 2, chýbajú 2 miesta");
+  assert.equal(L.tallyLabel(t("under", 1, 6)), "Máte 1 miesto, potrebujete 6, chýba 5 miest");
+  assert.equal(L.tallyLabel(t("over", 4, 3)), "Máte 4 miesta, potrebujete 3, o 1 miesto viac");
+  assert.equal(L.tallyLabel(t("over", 5, 3)), "Máte 5 miest, potrebujete 3, o 2 miesta viac");
+  assert.equal(L.tallyLabel(t("over", 1, 0, false)), "V túto noc tu nie ste, ale máte 1 miesto");
+  assert.equal(L.tallyLabel(t("ok", 3, 3)), "Máte 3 miesta, presne toľko, koľko potrebujete");
+  assert.equal(L.tallyLabel(t("absent", 0, 0, false)), "V túto noc tu nie ste");
+});
+
+test("tally: partyTallies has one entry per event night, in order, and [] for null", () => {
+  const p = party({ adults: 2, leave: FRI });
+  const s = stateWith([p]);
+  assert.deepEqual(plain(L.partyTallies(s, p)).map((t) => t.night), [THU, FRI, SAT]);
+  assert.deepEqual(plain(L.partyTallies(s, p)).map((t) => t.kind), ["under", "absent", "absent"]);
+  assert.deepEqual(plain(L.partyTallies(s, null)), []);
+});
+
+test("tally: under and over agree with missingPlaces and extraPlaces on every night", () => {
+  const a = party({ adults: 3, leave: SAT });
+  const b = party({ id: "p-bbbbbb", name: "Riso", adults: 2, kids: 1, kids_in_parents_bed: 1, arrive: FRI });
+  const c = party({ id: "p-cccccc", name: "Mia", adults: 1, arrive: SAT, leave: "2026-11-01" });
+  const s = stateWith([a, b, c], {
+    [THU]: { ...hold(a.id, PAIR), ...hold(c.id, ["vlavo-okno-1"]) },   // c holds a slot before arriving
+    [FRI]: { ...hold(a.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]), ...hold(b.id, ["konica-dole-matrace-1"]) },
+    [SAT]: hold(b.id, ["konica-dole-matrace-1", "konica-dole-matrace-2"]),
+  });
+  for (const p of [a, b, c]) {
+    for (const night of s.event.nights) {
+      const t = L.nightTally(s, p, night);
+      assert.equal(t.kind === "under", L.missingPlaces(s, p, night) > 0, `${p.name} ${night} under`);
+      assert.equal(t.kind === "over", L.extraPlaces(s, p, night) > 0, `${p.name} ${night} over`);
+    }
+  }
+});
+
 // --- small text helpers ---
 
 test("ellipsize and the first status line", () => {
