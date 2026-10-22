@@ -1,7 +1,7 @@
 # T-014: „Kto je kto“: legend of parties and their colours
 
 - **Phase:** 1 (organizer request, 22. 10. 2026)
-- **Depends on:** T-012, T-013 (T-013 only for build order: both change the same files, see Notes)
+- **Depends on:** T-012, T-013, T-015 (T-013 and T-015 only for build order: they change the same files, see Notes)
 - **Size:** S
 
 ## Goal
@@ -85,6 +85,7 @@ function legendRows(state, myPartyId)
 
 ## Notes for developer
 - **Order with T-013:** T-013 (per-night tally chips on the signposts) changes `drawNights` in `static/index.html` and also edits `tests/js/logic.test.mjs`, `tests/manualne.md` and `proposal.md`. There is no functional overlap (T-013 shows numbers per night on the signposts, T-014 a list of parties in a panel), but the files are the same, so do not run them in parallel. Start T-014 after T-013 is in `done/` and committed. If T-013 is dropped or stuck, the orchestrator may remove it from `Depends on`; T-014 does not need anything from it.
+- **Order with T-015:** T-015 (minimum time for the loading leaf) also changes `static/index.html` (boot, `ensureScene`, `render`, `applyState`), `tests/js/logic.test.mjs`, `tests/manualne.md` and `proposal.md`. The organizer wants it first, so start T-014 only after T-015 is in `done/` and committed. No functional overlap; T-014 needs nothing from it. If `applyState` / `render` changed shape in T-015, call `panel.refresh` the same way the other panels do after T-015.
 - Party colours come from the server (`party.color`); never recompute them from the palette in the page. The palette squares on the sign are decoration only.
 - Reuse `parseIso`, `DAY_SHORT`, `htmlEl`, `clearNode`, `openPanel`, `keepFocus` and the `.party-row .swatch` look. Do not touch `openWho` beyond calling it.
 - The `legend` position is a default chosen by the product owner on free grass. If it collides with anything when drawn (it should not: the area x 10–84, y 250–330 is grass), note it in the dev log for the organizer instead of moving other elements.
