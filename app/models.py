@@ -19,6 +19,8 @@ from pydantic import (
     Field,
     StringConstraints,
     ValidationError,
+    ValidationInfo,
+    field_validator,
     model_validator,
 )
 
@@ -250,11 +252,15 @@ class PartyInput(_Model):
         str, _Text, Field(max_length=300), AfterValidator(_normalize_nfc), AfterValidator(_reject_control_chars_keep_newlines)
     ] = ""
 
-    @model_validator(mode="after")
-    def _check_kids(self) -> "PartyInput":
-        if self.kids_in_parents_bed > self.kids:
-            raise ValueError("kids sleeping in the parents’ bed cannot exceed the number of kids")
-        return self
+    @field_validator("kids_in_parents_bed")
+    @classmethod
+    def _check_kids(cls, value: int, info: ValidationInfo) -> int:
+        # A field-level check, so the error names `kids_in_parents_bed` (the page shows it next to that field).
+        # `kids` is validated before this field; when it failed, there is nothing to compare with.
+        kids = info.data.get("kids")
+        if kids is not None and value > kids:
+            raise ValueError("kids sleeping in the parents' bed cannot exceed the number of kids")
+        return value
 
 
 class PartyCreate(PartyInput):

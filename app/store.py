@@ -137,6 +137,7 @@ class Transaction:
         before: Any = None,
         after: Any = None,
         changes: Sequence[dict[str, Any]] | None = None,
+        **extra: Any,
     ) -> None:
         """Describe the write for `audit.yaml`. One action gives one audit document, even across several nights.
 
@@ -146,6 +147,7 @@ class Transaction:
         details: dict[str, Any] = {"party": party, "nights": list(nights), "slots": list(slots), "before": before, "after": after}
         if changes is not None:
             details["changes"] = list(changes)
+        details.update(extra)  # action-specific fields, e.g. `skipped` of assign-stay
         self.audit_details = details
 
 

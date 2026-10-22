@@ -286,11 +286,20 @@ async def test_move_from_a_slot_the_party_does_not_hold(app, group_client):
     assert error_of(resp)["code"] == "invalid"
 
 
-async def test_move_unknown_party_and_slot(group_client):
+async def test_move_unknown_party_and_slot(app, group_client):
     resp = await group_client.post(
         "/api/move", json={"party_id": "p-zzzzzz", "from_slot": A1, "to_slot": A2, "nights": [THU]}
     )
     assert (resp.status_code, error_of(resp)["params"]) == (404, {"party_id": "p-zzzzzz"})
+    ivan = await mk_party(group_client)
+    await group_client.post("/api/assign", json={"night": THU, "slots": [A1], "party_id": ivan["id"]})
+    before = snapshot(app)
+    resp = await group_client.post(
+        "/api/move", json={"party_id": ivan["id"], "from_slot": A1, "to_slot": "nope", "nights": [THU]}
+    )
+    err = error_of(resp)
+    assert (resp.status_code, err["code"], err["params"]) == (404, "unknown_slot", {"slot": "nope"})
+    assert snapshot(app) == before
 
 
 # --- create party ----------------------------------------------------------------------
@@ -370,6 +379,8 @@ async def test_create_party_duplicate_name_is_case_insensitive(app, group_client
         ({"leave": THU}, "leave"),
         ({"arrive": "2026-10-31", "leave": "2026-10-31"}, "leave"),
         ({"unknown_field": 1}, "unknown_field"),
+        ({"kids": 0, "kids_in_parents_bed": 1}, "kids_in_parents_bed"),
+        ({"kids": 1, "kids_in_parents_bed": 2}, "kids_in_parents_bed"),
     ],
 )
 async def test_create_party_invalid_input(app, group_client, overrides, field):
@@ -417,6 +428,31 @@ async def test_update_party_shortening_frees_slots_outside_the_stay(app, group_c
     ]
     assert body["state"]["sleeping"] == {THU: {A1: ivan["id"], A2: ivan["id"]}}
     assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)  # one write
+
+
+@pytest.mark.parametrize(
+    "overrides,field",
+    [({"kids": 0, "kids_in_parents_bed": 1}, "kids_in_parents_bed"), ({"adults": 99}, "adults")],
+)
+async def test_update_party_invalid_input(app, group_client, overrides, field):
+    ivan = await mk_party(group_client)
+    before = snapshot(app)
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(**overrides), headers=CLIENT)
+    assert resp.status_code == 422
+    err = error_of(resp)
+    assert (err["code"], err["params"]["field"]) == ("invalid", field)
+    assert snapshot(app) == before
+
+
+@pytest.mark.parametrize("party_id", ["x" * 5000, "nope", "p-short"])
+async def test_update_party_with_a_malformed_id_is_invalid(app, group_client, party_id):
+    before = snapshot(app)
+    resp = await group_client.put(f"/api/parties/{party_id}", json=party_body(), headers=CLIENT)
+    assert resp.status_code == 422
+    err = error_of(resp)
+    assert (err["code"], err["params"]["field"]) == ("invalid", "party_id")
+    assert len(resp.text) < 4000  # the long value is not echoed back
+    assert snapshot(app) == before
 
 
 async def test_update_party_errors(app, group_client):

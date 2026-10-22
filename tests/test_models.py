@@ -260,10 +260,15 @@ def test_counts_must_be_integers(bad):
 
 def test_kids_in_parents_bed_not_more_than_kids():
     assert party_input(kids=2, kids_in_parents_bed=2).kids_in_parents_bed == 2
-    with pytest.raises(ValidationError, match="kids sleeping in the parents’ bed"):
+    with pytest.raises(ValidationError, match="kids sleeping in the parents' bed") as err:
         party_input(kids=1, kids_in_parents_bed=2)
+    assert err.value.errors()[0]["loc"] == ("kids_in_parents_bed",)  # the error names the field
+    assert err.value.errors()[0]["msg"].isascii()
     with pytest.raises(ValidationError):
         party_input(kids=0, kids_in_parents_bed=1)
+    with pytest.raises(ValidationError) as err:  # an invalid `kids` is reported alone, with no comparison
+        party_input(kids=-1, kids_in_parents_bed=1)
+    assert [e["loc"] for e in err.value.errors()] == [("kids",)]
 
 
 def test_unknown_party_fields_rejected():

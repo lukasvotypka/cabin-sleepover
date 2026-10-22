@@ -10,8 +10,8 @@ Every response uses the envelope from "HTTP API" in proposal.md:
     {"ok": false, "error": {"code", "message", "params"}, "state": {...}}
 
 The server sends no Slovak text: the page maps `code` and `params` to its own texts.
-T-004 builds the write endpoints on `require_group`, `require_admin`, `enforce_write_limit`,
-`ok_response` and `RuleError`/`ApiError` from here.
+The write endpoints are built on `require_group`, `require_admin`, `enforce_write_limit`,
+`ok_response` and `RuleError`/`ApiError` defined here.
 """
 
 import hashlib
@@ -41,6 +41,7 @@ from app.models import (
     ConfigError,
     Layout,
     MoveRequest,
+    PartyId,
     Party,
     PartyCreate,
     PartyUpdate,
@@ -286,7 +287,6 @@ def enforce_write_limit(request: Request, _auth: Annotated[Auth, Depends(require
         )
 
 
-
 # --- write helpers ---------------------------------------------------------------------
 
 
@@ -321,6 +321,7 @@ def release_slot(state: State, night: str, slot: str) -> None:
     by_slot.pop(slot, None)
     if not by_slot:
         del state.sleeping[night]
+
 
 # --- request models ----------------------------------------------------------------
 
@@ -501,8 +502,8 @@ def create_app(
                 changes=[
                     {"night": n, "slot": s, "before": None, "after": body.party_id} for n in plan.nights for s in plan.slots
                 ],
+                skipped=plan.skipped,
             )
-            tx.audit_details["skipped"] = plan.skipped
         return ok_response(rt, tx.state, skipped=plan.skipped)
 
     @app.post("/api/clear", dependencies=[Limited])
@@ -559,7 +560,7 @@ def create_app(
         return ok_response(rt, tx.state, party=party.model_dump(mode="json"))
 
     @app.put("/api/parties/{party_id}", dependencies=[Limited])
-    async def update_party(request: Request, party_id: str, body: PartyUpdate, auth: Group) -> JSONResponse:
+    async def update_party(request: Request, party_id: PartyId, body: PartyUpdate, auth: Group) -> JSONResponse:
         async with rt.store.write(
             action="party-update", source=audit_source(auth, "formular"), client_id=client_id_of(request)
         ) as tx:
