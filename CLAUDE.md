@@ -41,6 +41,8 @@ Run one task per developer call. Tasks whose dependencies are all in `done/` may
 
 **Git (local only, no remote, never push):** only the orchestrator commits. Commit once per task when it reaches `done/`, staging only that task's files plus its task file, with the message `T-00x: <title>`. Agents never commit, but the reviewer and tester may use `git status` and `git diff` to see what changed since the last commit. When two tasks run in parallel, the diff contains both, so look at the files in the task's scope. Never commit `.env` or `data/`.
 
+**Trial server (restart after every task):** the organizer tries each change on a phone through Tailscale (`tailscale serve --https=8443` → `127.0.0.1:8010`, tailnet only). After each task is committed, the orchestrator restarts that server and tells the organizer. Kill whatever listens on port 8010, then from the repo root: `set -a; . ./.env; set +a; nohup uv run python -c "import uvicorn; from app.main import create_app; uvicorn.run(create_app(data_dir='/tmp/chata-try/data'), host='127.0.0.1', port=8010, workers=1)" > /tmp/chata-try/server.log 2>&1 &`, then check `/api/health`. Its data lives in `/tmp/chata-try/data`, separate from the real `data/`. Agents never use or kill ports 8000 and 8010; they run their own servers on other free ports.
+
 ## What this is
 
 A small web app for assigning sleeping places at a cabin (chata) for the event 29. 10. (Thursday) – 1. 11. 2026 (Sunday) (three nights, ~8–10 parties, 13–18 people, 20 slots of which 2 are "tight"). Friends tap a pixel-art top-down map to pick who sleeps where each night. There are no accounts. Access is a shared group code, plus an admin code for the organizer. The people use it from a WhatsApp link on mobile.

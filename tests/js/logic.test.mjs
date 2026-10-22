@@ -845,7 +845,7 @@ test("diagonal neighbours do not get overlapping hit areas", () => {
 
 test("page: language, viewport and zoom", () => {
   assert.match(html, /<html lang="sk">/);
-  assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
+  assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">/);
   assert.doesNotMatch(html, /user-scalable/);
   assert.doesNotMatch(html, /maximum-scale/);
 });
@@ -879,72 +879,73 @@ test("page: blinking has a reduced-motion rule and the free square is white or o
 // --- map zoom ---
 
 const SW = 380, SH = 412;
+const SB = { x: 0, y: 0, w: SW, h: SH };    // the bounds of a viewport that is exactly the scene
 const BOX = { left: 10, top: 20, width: 380, height: 412 };    // the svg on screen at 1x, one px per unit
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ""} ${a} != ${b}`);
 
 test("zoom: the whole view is 1x and not zoomed; its viewBox text is the scene", () => {
-  const v = plain(L.wholeView(SW, SH));
+  const v = plain(L.wholeView(SB));
   assert.deepEqual(v, { x: 0, y: 0, w: 380, h: 412 });
-  assert.equal(L.viewZoom(v, SW), 1);
-  assert.equal(L.isZoomed(v, SW), false);
+  assert.equal(L.viewZoom(v, SB), 1);
+  assert.equal(L.isZoomed(v, SB), false);
   assert.equal(L.viewBoxText(v), "0 0 380 412");
 });
 
 test("zoom: clampView keeps the aspect ratio, 1x to 4x, and stays inside the scene", () => {
-  const tooFar = plain(L.clampView({ x: -50, y: 900, w: 10, h: 10 }, SW, SH));
+  const tooFar = plain(L.clampView({ x: -50, y: 900, w: 10, h: 10 }, SB));
   near(tooFar.w, 95);
   near(tooFar.h, 103);
   near(tooFar.x, 0);
   near(tooFar.y, SH - 103);
-  const tooWide = plain(L.clampView({ x: 30, y: 30, w: 900, h: 900 }, SW, SH));
+  const tooWide = plain(L.clampView({ x: 30, y: 30, w: 900, h: 900 }, SB));
   assert.deepEqual(tooWide, { x: 0, y: 0, w: 380, h: 412 });
-  const right = plain(L.clampView({ x: 400, y: 0, w: 190, h: 206 }, SW, SH));
+  const right = plain(L.clampView({ x: 400, y: 0, w: 190, h: 206 }, SB));
   near(right.x, 190);
   assert.equal(L.ZOOM_MAX, 4);
 });
 
 test("zoom: zoomView keeps the point under the cursor in place", () => {
-  const whole = L.wholeView(SW, SH);
-  const v = plain(L.zoomView(whole, SW, SH, 2, 100, 150));
+  const whole = L.wholeView(SB);
+  const v = plain(L.zoomView(whole, SB, 2, 100, 150));
   near(v.w, 190);
   near(v.h, 206);
   // the point (100, 150) sits at the same fraction of the window as before
   near((100 - v.x) / v.w, 100 / 380);
   near((150 - v.y) / v.h, 150 / 412);
-  assert.equal(L.isZoomed(v, SW), true);
+  assert.equal(L.isZoomed(v, SB), true);
   // zooming in again around another point
-  const v2 = plain(L.zoomView(v, SW, SH, 2, 120, 160));
+  const v2 = plain(L.zoomView(v, SB, 2, 120, 160));
   near((120 - v2.x) / v2.w, (120 - v.x) / v.w);
   near((160 - v2.y) / v2.h, (160 - v.y) / v.h);
 });
 
 test("zoom: zoomView is clamped at 1x and at about 4x", () => {
-  let v = L.wholeView(SW, SH);
-  for (let i = 0; i < 20; i++) v = L.zoomView(v, SW, SH, 1.5, 200, 200);
+  let v = L.wholeView(SB);
+  for (let i = 0; i < 20; i++) v = L.zoomView(v, SB, 1.5, 200, 200);
   near(v.w, 95);
-  near(L.viewZoom(v, SW), 4);
-  for (let i = 0; i < 20; i++) v = L.zoomView(v, SW, SH, 1 / 1.5, 200, 200);
+  near(L.viewZoom(v, SB), 4);
+  for (let i = 0; i < 20; i++) v = L.zoomView(v, SB, 1 / 1.5, 200, 200);
   assert.deepEqual(plain(v), { x: 0, y: 0, w: 380, h: 412 });
   // zooming out at 1x changes nothing, also at a corner
-  assert.deepEqual(plain(L.zoomView(L.wholeView(SW, SH), SW, SH, 0.5, 379, 411)), { x: 0, y: 0, w: 380, h: 412 });
+  assert.deepEqual(plain(L.zoomView(L.wholeView(SB), SB, 0.5, 379, 411)), { x: 0, y: 0, w: 380, h: 412 });
 });
 
 test("zoom: panView and dragView move the window and never leave the scene", () => {
-  const z = L.zoomView(L.wholeView(SW, SH), SW, SH, 2, 190, 206);
+  const z = L.zoomView(L.wholeView(SB), SB, 2, 190, 206);
   assert.deepEqual(plain(z), { x: 95, y: 103, w: 190, h: 206 });
-  assert.deepEqual(plain(L.panView(z, SW, SH, 20, -30)), { x: 115, y: 73, w: 190, h: 206 });
-  assert.deepEqual(plain(L.panView(z, SW, SH, 999, 999)), { x: 190, y: 206, w: 190, h: 206 });
-  assert.deepEqual(plain(L.panView(z, SW, SH, -999, -999)), { x: 0, y: 0, w: 190, h: 206 });
+  assert.deepEqual(plain(L.panView(z, SB, 20, -30)), { x: 115, y: 73, w: 190, h: 206 });
+  assert.deepEqual(plain(L.panView(z, SB, 999, 999)), { x: 190, y: 206, w: 190, h: 206 });
+  assert.deepEqual(plain(L.panView(z, SB, -999, -999)), { x: 0, y: 0, w: 190, h: 206 });
   // dragging the map right by 38 screen px (the svg is 380 px wide) moves the window left by 19 units
-  const d = plain(L.dragView(z, SW, SH, BOX, 38, 0));
+  const d = plain(L.dragView(z, SB, BOX, 38, 0));
   near(d.x, 95 - 19);
   near(d.y, 103);
   // at 1x there is nowhere to go
-  assert.deepEqual(plain(L.dragView(L.wholeView(SW, SH), SW, SH, BOX, 80, 80)), { x: 0, y: 0, w: 380, h: 412 });
+  assert.deepEqual(plain(L.dragView(L.wholeView(SB), SB, BOX, 80, 80)), { x: 0, y: 0, w: 380, h: 412 });
 });
 
 test("zoom: scenePoint maps a screen point into the window", () => {
-  const whole = L.wholeView(SW, SH);
+  const whole = L.wholeView(SB);
   assert.deepEqual(plain(L.scenePoint(whole, BOX, 10, 20)), { x: 0, y: 0 });
   assert.deepEqual(plain(L.scenePoint(whole, BOX, 200, 226)), { x: 190, y: 206 });
   const z = { x: 95, y: 103, w: 190, h: 206 };
@@ -952,27 +953,27 @@ test("zoom: scenePoint maps a screen point into the window", () => {
 });
 
 test("zoom: a pinch zooms around the fingers' midpoint and pans with them", () => {
-  const whole = L.wholeView(SW, SH);
+  const whole = L.wholeView(SB);
   // fingers 100 px apart spread to 200 px, midpoint stays at screen (200, 226) = scene (190, 206)
-  const spread = plain(L.pinchView(whole, SW, SH, BOX,
+  const spread = plain(L.pinchView(whole, SB, BOX,
     { x: 200, y: 226, dist: 100 }, { x: 200, y: 226, dist: 200 }));
   assert.deepEqual(spread, { x: 95, y: 103, w: 190, h: 206 });
   // the same spread with the midpoint off center keeps the scene point under it
-  const off = plain(L.pinchView(whole, SW, SH, BOX,
+  const off = plain(L.pinchView(whole, SB, BOX,
     { x: 110, y: 120, dist: 100 }, { x: 110, y: 120, dist: 200 }));
   const p0 = L.scenePoint(whole, BOX, 110, 120), p1 = L.scenePoint(off, BOX, 110, 120);
   near(p1.x, p0.x);
   near(p1.y, p0.y);
   // moving both fingers without a distance change only pans
   const z = { x: 95, y: 103, w: 190, h: 206 };
-  const moved = plain(L.pinchView(z, SW, SH, BOX, { x: 200, y: 226, dist: 100 }, { x: 240, y: 226, dist: 100 }));
+  const moved = plain(L.pinchView(z, SB, BOX, { x: 200, y: 226, dist: 100 }, { x: 240, y: 226, dist: 100 }));
   near(moved.w, 190);
   near(moved.x, 95 - 20);     // 40 px right = 20 units left at 2x
   near(moved.y, 103);
   // pinching in past 1x stops at the whole scene; a zero distance changes nothing
-  assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: 200, y: 226, dist: 200 }, { x: 200, y: 226, dist: 10 })),
+  assert.deepEqual(plain(L.pinchView(z, SB, BOX, { x: 200, y: 226, dist: 200 }, { x: 200, y: 226, dist: 10 })),
     { x: 0, y: 0, w: 380, h: 412 });
-  assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: 1, y: 1, dist: 0 }, { x: 1, y: 1, dist: 50 })), z);
+  assert.deepEqual(plain(L.pinchView(z, SB, BOX, { x: 1, y: 1, dist: 0 }, { x: 1, y: 1, dist: 50 })), z);
 });
 
 test("zoom: wheelFactor zooms in for a negative delta, out for a positive one, and pinch is stronger", () => {
@@ -989,21 +990,21 @@ test("zoom: wheelFactor zooms in for a negative delta, out for a positive one, a
 test("zoom: revealRect pans the least that shows the rectangle", () => {
   const z = { x: 100, y: 100, w: 95, h: 103 };
   // already visible: unchanged
-  assert.deepEqual(plain(L.revealRect(z, SW, SH, [120, 120, 20, 20], 6)), z);
+  assert.deepEqual(plain(L.revealRect(z, SB, [120, 120, 20, 20], 6)), z);
   // to the right and below: the window moves so that the rect plus margin touches the edge
-  const r = plain(L.revealRect(z, SW, SH, [250, 250, 20, 20], 6));
+  const r = plain(L.revealRect(z, SB, [250, 250, 20, 20], 6));
   near(r.x, 250 + 20 + 6 - 95);
   near(r.y, 250 + 20 + 6 - 103);
   // to the left and above
-  const l = plain(L.revealRect(z, SW, SH, [40, 30, 20, 20], 6));
+  const l = plain(L.revealRect(z, SB, [40, 30, 20, 20], 6));
   near(l.x, 34);
   near(l.y, 24);
   // never leaves the scene
-  const edge = plain(L.revealRect(z, SW, SH, [370, 400, 10, 10], 6));
+  const edge = plain(L.revealRect(z, SB, [370, 400, 10, 10], 6));
   near(edge.x, 380 - 95);
   near(edge.y, 412 - 103);
   // a rectangle bigger than the window is shown from its corner
-  const big = plain(L.revealRect({ x: 0, y: 0, w: 95, h: 103 }, SW, SH, [150, 150, 200, 200], 6));
+  const big = plain(L.revealRect({ x: 0, y: 0, w: 95, h: 103 }, SB, [150, 150, 200, 200], 6));
   near(big.x, 150);
   near(big.y, 150);
 });
@@ -1016,23 +1017,23 @@ test("zoom: non-finite input never corrupts the view (iOS gesture events have no
   const whole = { x: 0, y: 0, w: 380, h: 412 };
   const z = { x: 95, y: 103, w: 190, h: 206 };
   for (const bad of [NaN, undefined, Infinity, "x"]) {
-    assert.deepEqual(plain(L.clampView({ x: bad, y: 0, w: 190, h: 206 }, SW, SH)), whole);
-    assert.deepEqual(plain(L.clampView({ x: 0, y: 0, w: bad, h: 206 }, SW, SH)), whole);
+    assert.deepEqual(plain(L.clampView({ x: bad, y: 0, w: 190, h: 206 }, SB)), whole);
+    assert.deepEqual(plain(L.clampView({ x: 0, y: 0, w: bad, h: 206 }, SB)), whole);
     // a bad point zooms around the center of the visible area
-    const v = plain(L.zoomView(z, SW, SH, 1.5, bad, bad));
+    const v = plain(L.zoomView(z, SB, 1.5, bad, bad));
     assert.ok(Object.values(v).every(Number.isFinite), JSON.stringify(v));
     near(v.x + v.w / 2, 190);
     near(v.y + v.h / 2, 206);
-    assert.deepEqual(plain(L.zoomView(z, SW, SH, bad, 100, 100)), z);
-    assert.deepEqual(plain(L.panView(z, SW, SH, bad, 5)), z);
-    assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: bad, y: 1, dist: 10 }, { x: 1, y: 1, dist: 20 })), z);
-    assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: 1, y: 1, dist: bad }, { x: 1, y: 1, dist: 20 })), z);
-    assert.deepEqual(plain(L.revealRect(z, SW, SH, [bad, 0, 10, 10], 6)), z);
+    assert.deepEqual(plain(L.zoomView(z, SB, bad, 100, 100)), z);
+    assert.deepEqual(plain(L.panView(z, SB, bad, 5)), z);
+    assert.deepEqual(plain(L.pinchView(z, SB, BOX, { x: bad, y: 1, dist: 10 }, { x: 1, y: 1, dist: 20 })), z);
+    assert.deepEqual(plain(L.pinchView(z, SB, BOX, { x: 1, y: 1, dist: bad }, { x: 1, y: 1, dist: 20 })), z);
+    assert.deepEqual(plain(L.revealRect(z, SB, [bad, 0, 10, 10], 6)), z);
   }
-  assert.equal(L.viewBoxText(L.zoomView(L.wholeView(SW, SH), SW, SH, 1.2, NaN, NaN)), "31.667 34.333 316.667 343.333");
+  assert.equal(L.viewBoxText(L.zoomView(L.wholeView(SB), SB, 1.2, NaN, NaN)), "31.667 34.333 316.667 343.333");
   // a garbage view (even from a bug) can never reach the viewBox text as NaN
-  assert.equal(L.viewBoxText(L.clampView({ x: NaN, y: NaN, w: NaN, h: NaN }, SW, SH)), "0 0 380 412");
-  assert.equal(L.viewBoxText(L.clampView(undefined, SW, SH)), "0 0 380 412");
+  assert.equal(L.viewBoxText(L.clampView({ x: NaN, y: NaN, w: NaN, h: NaN }, SB)), "0 0 380 412");
+  assert.equal(L.viewBoxText(L.clampView(undefined, SB)), "0 0 380 412");
 });
 
 test("page: the map is zoomed through the viewBox, with no CSS transform and a way back", () => {
@@ -1041,8 +1042,7 @@ test("page: the map is zoomed through the viewBox, with no CSS transform and a w
   assert.match(app, /setAttribute\("viewBox", viewBoxText\(/);
   assert.match(html, /shape-rendering": "crispEdges"/);
   assert.match(app, /addEventListener\("wheel", [\s\S]*passive: false/);
-  assert.match(html, /#scene svg \{[^}]*touch-action: pan-x pan-y;/);
-  assert.match(html, /#scene svg\.zoomed \{ touch-action: none; \}/);
+  assert.match(html, /#scene svg \{[^}]*touch-action: none;/);
   // two fingers must not become a page scroll: non-passive touch listeners cancel them
   assert.match(app, /addEventListener\("touchstart", holdTwoFingers, \{ passive: false \}\)/);
   assert.match(app, /addEventListener\("touchmove", holdTwoFingers, \{ passive: false \}\)/);
@@ -1050,4 +1050,177 @@ test("page: the map is zoomed through the viewBox, with no CSS transform and a w
   // the button's accessible name contains its visible text
   assert.match(app, /"aria-label": "Celá mapa – zobraziť celú mapu"[^;]*"Celá mapa"/);
   assert.match(html, /#scene svg:focus-visible \{ outline:/);
+});
+
+// --- full-screen map: the bounds follow the viewport ---
+
+// The scene's on-screen rectangle for bounds b in a viewport of vw x vh px (the svg fills the viewport).
+const sceneOnScreen = (b, vw, vh) => {
+  const s = vw / b.w;
+  return { left: -b.x * s, top: -b.y * s, right: (SW - b.x) * s, bottom: (SH - b.y) * s, scale: s };
+};
+
+test("fit: a viewport of the scene's own shape needs no grass", () => {
+  assert.deepEqual(plain(L.fitBounds(380, 412, SW, SH)), SB);
+  const b = plain(L.fitBounds(760, 824, SW, SH));
+  near(b.x, 0); near(b.y, 0); near(b.w, 380); near(b.h, 412);
+});
+
+test("fit: a tall phone gets grass above and below, the scene centered at full width", () => {
+  const b = plain(L.fitBounds(390, 750, SW, SH));
+  const s = 390 / 380;
+  near(b.w, 380);
+  near(b.h, 750 / s);
+  near(b.x, 0);
+  near(b.y, -((750 - 412 * s) / 2) / s);
+  near(b.y + b.h, SH - b.y);       // the same amount of grass below as above
+  assert.ok(b.y < 0 && b.y + b.h > SH);
+  // the viewport and the bounds have the same aspect ratio
+  near(b.w / b.h, 390 / 750);
+});
+
+test("fit: a landscape phone and a wide desktop get grass left and right, the scene whole and centered", () => {
+  for (const [vw, vh] of [[750, 390], [1280, 800], [3000, 300]]) {
+    const b = plain(L.fitBounds(vw, vh, SW, SH));
+    near(b.h, SH);
+    near(b.y, 0);
+    near(b.w / b.h, vw / vh);
+    assert.ok(b.x < 0 && b.x + b.w > SW, `${vw}x${vh}`);
+    near(b.x + b.w - SW, -b.x);   // centered
+  }
+  const d = plain(L.fitBounds(1280, 800, SW, SH));
+  near(d.w, 1280 / 800 * 412);
+});
+
+test("fit: the scene stays inside the safe area and is centered in it", () => {
+  const insets = { top: 47, right: 0, bottom: 34, left: 0 };
+  const b = plain(L.fitBounds(390, 844, SW, SH, insets));
+  const r = sceneOnScreen(b, 390, 844);
+  near(r.left, 0);
+  near(r.right, 390);
+  assert.ok(r.top >= 47 - 1e-6 && r.bottom <= 844 - 34 + 1e-6);
+  near(r.top - 47, 844 - 34 - r.bottom);
+  // the bounds still cover the whole viewport (grass behind the status bar and the toolbar)
+  near(b.w / b.h, 390 / 844);
+  // landscape with a notch on the left and the home bar: the scene clears the side insets
+  const land = sceneOnScreen(plain(L.fitBounds(844, 390, SW, SH, { top: 0, right: 47, bottom: 21, left: 47 })), 844, 390);
+  assert.ok(land.left >= 47 - 1e-6 && land.right <= 844 - 47 + 1e-6 && land.bottom <= 390 - 21 + 1e-6);
+  // insets that leave no room, or are garbage, are ignored
+  assert.deepEqual(plain(L.fitBounds(380, 412, SW, SH, { top: 300, bottom: 300, left: NaN, right: -5 })), SB);
+});
+
+test("fit: a bad viewport falls back to the scene", () => {
+  for (const bad of [0, -1, NaN, undefined, Infinity]) {
+    assert.deepEqual(plain(L.fitBounds(bad, 700, SW, SH)), SB);
+    assert.deepEqual(plain(L.fitBounds(390, bad, SW, SH)), SB);
+  }
+});
+
+test("fit: zoom 1x is the whole extended bounds, and zoom and pan are clamped to them", () => {
+  const B = L.fitBounds(390, 750, SW, SH);          // grass above and below
+  const whole = L.wholeView(B);
+  assert.deepEqual(plain(whole), plain(B));
+  assert.equal(L.isZoomed(whole, B), false);
+  near(L.viewZoom(whole, B), 1);
+  // zoom in around a point on the grass and out again
+  let v = L.zoomView(whole, B, 2, 190, B.y + 5);
+  near(L.viewZoom(v, B), 2);
+  near(v.w / v.h, B.w / B.h);
+  assert.ok(v.y >= B.y - 1e-9 && v.x >= B.x - 1e-9);
+  // panning stops at the bounds, not at the scene
+  const far = plain(L.panView(v, B, -999, -999));
+  near(far.x, B.x); near(far.y, B.y);
+  const farEnd = plain(L.panView(v, B, 999, 999));
+  near(farEnd.x + farEnd.w, B.x + B.w);
+  near(farEnd.y + farEnd.h, B.y + B.h);
+  assert.ok(far.y < 0 && farEnd.y + farEnd.h > SH, "the grass beyond the scene can be reached");
+  // 4x of the extended view is the limit, 1x the other
+  for (let i = 0; i < 30; i++) v = L.zoomView(v, B, 1.5, 190, 206);
+  near(L.viewZoom(v, B), 4);
+  for (let i = 0; i < 30; i++) v = L.zoomView(v, B, 1 / 1.5, 190, 206);
+  for (const k of ["x", "y", "w", "h"]) near(v[k], whole[k], k);
+  assert.equal(L.isZoomed(v, B), false);
+  // a pinch and a drag stay inside the bounds too
+  const box = { left: 0, top: 0, width: 390, height: 750 };
+  const p = plain(L.pinchView(whole, B, box, { x: 195, y: 375, dist: 100 }, { x: 195, y: 375, dist: 400 }));
+  near(L.viewZoom(p, B), 4);
+  const d = plain(L.dragView(p, B, box, 5000, 5000));
+  near(d.x, B.x); near(d.y, B.y);
+  const still = plain(L.dragView(whole, B, box, 80, 80));    // nowhere to go at 1x
+  for (const k of ["x", "y", "w", "h"]) near(still[k], whole[k], k);
+  // revealRect keeps a bed inside the bounds
+  const r = plain(L.revealRect(L.zoomView(whole, B, 4, 0, 0), B, [300, 400, 20, 10], 6));
+  assert.ok(r.x + r.w <= B.x + B.w + 1e-9 && r.y + r.h <= B.y + B.h + 1e-9);
+  assert.ok(r.x <= 300 && r.x + r.w >= 320);
+});
+
+test("fit: a resize keeps the view valid: whole stays whole, a zoomed view keeps zoom and center", () => {
+  const portrait = L.fitBounds(390, 750, SW, SH), landscape = L.fitBounds(750, 390, SW, SH);
+  assert.deepEqual(plain(L.refitView(L.wholeView(portrait), portrait, landscape)), plain(L.wholeView(landscape)));
+  const z = L.zoomView(L.wholeView(portrait), portrait, 2.5, 100, 120);
+  const rotated = plain(L.refitView(z, portrait, landscape));
+  near(L.viewZoom(rotated, landscape), 2.5);
+  near(rotated.w / rotated.h, landscape.w / landscape.h);
+  near(rotated.x + rotated.w / 2, z.x + z.w / 2);
+  near(rotated.y + rotated.h / 2, z.y + z.h / 2);
+  assert.ok(rotated.x >= landscape.x - 1e-9 && rotated.y >= landscape.y - 1e-9);
+  assert.ok(rotated.x + rotated.w <= landscape.x + landscape.w + 1e-9 && rotated.y + rotated.h <= landscape.y + landscape.h + 1e-9);
+  // a center near an edge that the new bounds do not have is pulled back inside
+  const corner = L.zoomView(L.wholeView(portrait), portrait, 4, portrait.x, portrait.y);
+  const back = plain(L.refitView(corner, portrait, landscape));
+  assert.ok(back.x >= landscape.x - 1e-9 && back.y >= landscape.y - 1e-9);
+  // garbage in, whole view out
+  assert.deepEqual(plain(L.refitView(undefined, portrait, landscape)), plain(L.wholeView(landscape)));
+  assert.deepEqual(plain(L.refitView({ x: NaN, y: 0, w: 50, h: 50 }, portrait, landscape)), plain(L.wholeView(landscape)));
+});
+
+test("page: the map fills the viewport (fixed full-height scene, safe areas, grass beyond the scene)", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.match(html, /#scene \{ position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100dvh; \}/);
+  assert.match(html, /body \{[^}]*overflow: hidden;/);
+  assert.match(html, /<meta name="theme-color" content="#79B35A">/);
+  assert.match(html, /\.zoom-reset \{[^}]*safe-area-inset-bottom/);
+  assert.match(html, /#toast \{[^}]*safe-area-inset-bottom/);
+  assert.match(html, /\.movebar \{[^}]*position: fixed;[^}]*safe-area-inset-top/);
+  assert.match(app, /fitBounds\(r\.width, r\.height, W, H, readInsets\(\)\)/);
+  assert.match(app, /new ResizeObserver\(/);
+  assert.match(app, /addEventListener\("resize", onResize\)/);
+  assert.match(app, /drawGround\(app\.layers\.ground, nb\)/);
+});
+
+test("fit: an extra top inset the size of the move bar keeps the whole scene below it, in every orientation", () => {
+  const BAR = 97;
+  for (const [vw, vh] of [[750, 390], [667, 375], [1280, 800], [390, 750]]) {
+    const b = plain(L.fitBounds(vw, vh, SW, SH, { top: BAR }));
+    const r = sceneOnScreen(b, vw, vh);
+    assert.ok(r.top >= BAR - 1e-6, `${vw}x${vh}: scene top ${r.top}`);
+    assert.ok(r.bottom <= vh + 1e-6 && r.left >= -1e-6 && r.right <= vw + 1e-6, `${vw}x${vh}`);
+    near(b.w / b.h, vw / vh);      // the bounds still cover the whole viewport
+  }
+  // landscape: without the bar the scene starts at the top, with it the scene shrinks to fit under it
+  const without = sceneOnScreen(plain(L.fitBounds(750, 390, SW, SH)), 750, 390);
+  const withBar = sceneOnScreen(plain(L.fitBounds(750, 390, SW, SH, { top: BAR })), 750, 390);
+  near(without.top, 0);
+  assert.ok(withBar.scale < without.scale);
+  // taking the bar away again returns the same bounds, and a zoomed view survives both changes
+  const on = L.fitBounds(750, 390, SW, SH, { top: BAR }), off = L.fitBounds(750, 390, SW, SH);
+  const z = L.zoomView(L.wholeView(off), off, 2, 190, 206);
+  const zz = plain(L.refitView(L.refitView(z, off, on), on, off));
+  near(L.viewZoom(zz, off), 2);
+  near(zz.x + zz.w / 2, z.x + z.w / 2);
+  near(zz.y + zz.h / 2, z.y + z.h / 2);
+});
+
+test("page: the move bar's height is a top inset while it shows, and the scene refits when it shows or hides", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.match(app, /if \(!bar\.hidden && bar\.offsetHeight > top\) top = bar\.offsetHeight;/);
+  assert.match(app, /observer\.observe\(moveBar\)/);
+  assert.match(app, /if \(app\.refit\) app\.refit\(\);/);
+  // panels: no overscroll chaining, a long sheet stays below the status bar, a tall code board scrolls from its top
+  assert.match(html, /html \{[^}]*overscroll-behavior: none;/);
+  assert.doesNotMatch(html, /body \{[^}]*overscroll-behavior/);
+  assert.match(html, /\.sheet \{[^}]*max-height: calc\(88dvh - env\(safe-area-inset-top, 0px\)\);[^}]*overscroll-behavior: contain;/);
+  assert.match(html, /\.code-screen \{[^}]*overscroll-behavior: contain;/);
+  assert.match(html, /\.board \{[^}]*margin: auto;/);
+  assert.doesNotMatch(html, /\.code-screen \{[^}]*align-items: center/);
 });

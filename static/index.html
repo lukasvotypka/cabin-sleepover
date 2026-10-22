@@ -2,7 +2,8 @@
 <html lang="sk">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#79B35A">
 <meta name="color-scheme" content="light dark">
 <title>Chata</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,8 +26,13 @@
   }
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.4 var(--font-text); }
+html { -webkit-text-size-adjust: 100%; background: #79B35A; overscroll-behavior: none; }
+/* The map fills the viewport and nothing scrolls, so the body shows only where the grass does (under the iPhone status bar). */
+body { margin: 0; overflow: hidden; background: #79B35A; color: var(--ink); font: 18px/1.4 var(--font-text); }
+.inset-probe {
+  position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
 [hidden] { display: none !important; }
 button, input, select, textarea { font: inherit; color: inherit; }
 .sr-only {
@@ -35,13 +41,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* --- scene (fixed colors, never inverted in dark mode) --- */
-#scene { position: relative; max-width: 560px; margin: 0 auto; }
-/* Zoomed in, one finger pans the map and two fingers pinch it, so the browser must not scroll or zoom the page there. */
-#scene svg { display: block; width: 100%; height: auto; image-rendering: pixelated; touch-action: pan-x pan-y; }
+#scene { position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100dvh; }
+/* The page has nothing to scroll, so the map owns every touch: one finger pans it when zoomed in (and does nothing at 1x),
+   two fingers pinch it, and the browser neither scrolls nor zooms the page there. */
+#scene svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+#scene svg:focus:not(:focus-visible) { outline: none; }     /* a mouse press focuses the svg: no ring around the whole screen */
 #scene svg:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
-#scene svg.zoomed { touch-action: none; }
 .zoom-reset {
-  position: absolute; right: 8px; bottom: 8px; min-width: 44px; min-height: 44px; padding: 6px 12px;
+  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); min-width: 44px; min-height: 44px; padding: 6px 12px;
   background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
   font-weight: 700; cursor: pointer; touch-action: manipulation;
 }
@@ -50,16 +57,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg g[role="button"] { cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
 #scene svg .hit { fill: transparent; }
 #scene svg g[role="button"]:focus-visible .hit { stroke: #FFD54A; stroke-width: 2; fill: rgba(255, 213, 74, .18); }
-.boot { padding: 48px 16px; text-align: center; color: var(--muted); }
+.boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; background: var(--bg); color: var(--muted); }
 
 /* --- code screen and panels --- */
 .code-screen {
-  position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px;
-  background-color: #79B35A; image-rendering: pixelated;
+  position: fixed; inset: 0; z-index: 30; display: flex; justify-content: center; overscroll-behavior: contain;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  overflow-y: auto; background-color: #79B35A; image-rendering: pixelated;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' shape-rendering='crispEdges'%3E%3Crect x='8' y='12' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='52' y='4' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='76' y='40' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='28' y='56' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='64' y='80' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='12' y='84' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='40' y='32' width='4' height='4' fill='%236AA14C'/%3E%3C/svg%3E");
 }
 .board {
-  width: 100%; max-width: 360px; padding: 20px; background: var(--surface); color: var(--ink);
+  width: 100%; max-width: 360px; margin: auto; padding: 20px;   /* auto margins center it, and a tall board still scrolls from its top */ background: var(--surface); color: var(--ink);
   border: 4px solid #5C4033; box-shadow: 0 0 0 4px #8A5A34, 8px 8px 0 4px rgba(0, 0, 0, .28);
 }
 .board h1, .sheet h2 { margin: 0 0 8px; font-family: var(--font-head); font-weight: 700; color: var(--forest); }
@@ -83,8 +91,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 #panelRoot .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(10, 15, 12, .5); }
 .sheet {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 560px; margin: 0 auto; max-height: 88vh; overflow-y: auto;
-  padding: 16px 16px 24px; background: var(--surface); color: var(--ink); border: 4px solid #5C4033; border-bottom: 0;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 560px; margin: 0 auto; max-height: 88vh; max-height: calc(88dvh - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain;
+  padding: 16px calc(16px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  background: var(--surface); color: var(--ink); border: 4px solid #5C4033; border-bottom: 0;
   transform: translateY(100%); transition: transform .2s ease-out;
 }
 .sheet.open { transform: none; }
@@ -116,8 +125,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 .movebar {
-  position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 560px;
-  margin: 0 auto; padding: 8px 12px; background: var(--surface); color: var(--ink); border-bottom: 4px solid #5C4033;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 560px;
+  margin: 0 auto; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); background: var(--surface); color: var(--ink); border-bottom: 4px solid #5C4033;
 }
 .movebar p { flex: 1 1 100%; margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 .seg { display: flex; flex: 1 1 auto; }
@@ -127,7 +136,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.secondary[aria-pressed="false"] { background: transparent; color: var(--forest); }
 
 #toast {
-  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 40; max-width: 536px; margin: 0 auto; padding: 12px 14px;
+  position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 40; max-width: 536px; margin: 0 auto; padding: 12px 14px;
   background: var(--surface); color: var(--ink); border: 4px solid #5C4033; border-left-width: 8px; font-weight: 500;
   box-shadow: 4px 4px 0 rgba(0, 0, 0, .28); cursor: pointer;
 }
@@ -699,50 +709,87 @@ function movedBeyond(x0, y0, x1, y1, limit) {
   return dx * dx + dy * dy > limit * limit;
 }
 
-// --- map zoom (the visible area of the scene: view = {x, y, w, h} in scene units) ---
+// --- map zoom (the visible area of the map: view = {x, y, w, h} in scene units) ---
+// The scene (W x H) is drawn inside the "bounds" {x, y, w, h}: the whole viewport in scene units, which is the scene
+// plus grass around it (see fitBounds). 1x is the whole bounds. A view always has the aspect ratio of the bounds.
 
-function wholeView(W, H) {
-  return { x: 0, y: 0, w: W, h: H };
-}
-
-function viewZoom(view, W) {
-  return W / view.w;
-}
-
-function isZoomed(view, W) {
-  return view.w < W - 0.001;
-}
-
-// Keeps the scene's aspect ratio, the zoom between 1 and ZOOM_MAX, and the area inside the scene.
-// A view with a missing or non-finite number (a bad event coordinate) falls back to the whole scene.
-function clampView(view, W, H) {
-  if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !isFinite(view.h) || !(view.w > 0)) return wholeView(W, H);
-  var w = Math.min(W, Math.max(W / ZOOM_MAX, view.w));
-  var h = w * H / W;
+// The bounds of a viewport of vw x vh CSS px that shows the W x H scene whole (contain) and centered in the
+// part of the viewport that is free of `insets` ({top, right, bottom, left} px, e.g. a notch). The bounds
+// cover the whole viewport, so the extra space around the scene is filled with the scene's grass.
+// Bad numbers fall back to the scene itself.
+function fitBounds(vw, vh, W, H, insets) {
+  if (!(vw > 0) || !(vh > 0) || !isFinite(vw) || !isFinite(vh)) return { x: 0, y: 0, w: W, h: H };
+  function inset(v) {
+    return v > 0 && isFinite(v) ? v : 0;
+  }
+  var ins = insets || {};
+  var t = inset(ins.top), r = inset(ins.right), b = inset(ins.bottom), l = inset(ins.left);
+  if (l + r > vw - 1) l = r = 0;       // an inset that leaves no room is ignored
+  if (t + b > vh - 1) t = b = 0;
+  var aw = vw - l - r, ah = vh - t - b;
+  var s = Math.min(aw / W, ah / H);    // px per scene unit
   return {
-    x: Math.min(W - w, Math.max(0, view.x)),
-    y: Math.min(H - h, Math.max(0, view.y)),
+    x: -(l + (aw - W * s) / 2) / s,
+    y: -(t + (ah - H * s) / 2) / s,
+    w: vw / s,
+    h: vh / s
+  };
+}
+
+function wholeView(bounds) {
+  return { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h };
+}
+
+function viewZoom(view, bounds) {
+  return bounds.w / view.w;
+}
+
+function isZoomed(view, bounds) {
+  return view.w < bounds.w - 0.001;
+}
+
+// Keeps the bounds' aspect ratio, the zoom between 1 and ZOOM_MAX, and the area inside the bounds.
+// A view with a missing or non-finite number (a bad event coordinate) falls back to the whole bounds.
+function clampView(view, bounds) {
+  if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !isFinite(view.h) || !(view.w > 0)) return wholeView(bounds);
+  var w = Math.min(bounds.w, Math.max(bounds.w / ZOOM_MAX, view.w));
+  var h = w * bounds.h / bounds.w;
+  return {
+    x: Math.min(bounds.x + bounds.w - w, Math.max(bounds.x, view.x)),
+    y: Math.min(bounds.y + bounds.h - h, Math.max(bounds.y, view.y)),
     w: w,
     h: h
   };
 }
 
+// The view after the bounds changed (a resize or a rotation): whole stays whole, a zoomed view keeps its zoom
+// factor and its center, as far as the new bounds allow.
+function refitView(view, oldBounds, newBounds) {
+  if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !(view.w > 0) || !isZoomed(view, oldBounds)) {
+    return wholeView(newBounds);
+  }
+  var w = newBounds.w * view.w / oldBounds.w;
+  var h = w * newBounds.h / newBounds.w;
+  var cx = view.x + view.w / 2, cy = view.y + view.h / 2;
+  return clampView({ x: cx - w / 2, y: cy - h / 2, w: w, h: h }, newBounds);
+}
+
 // Zooms by `factor` (above 1 zooms in) and keeps the scene point (px, py) at the same place on screen.
 // A bad factor changes nothing; a bad point means the center of the visible area.
-function zoomView(view, W, H, factor, px, py) {
-  if (!isFinite(factor) || !(factor > 0)) return clampView(view, W, H);
+function zoomView(view, bounds, factor, px, py) {
+  if (!isFinite(factor) || !(factor > 0)) return clampView(view, bounds);
   if (!isFinite(px)) px = view.x + view.w / 2;
   if (!isFinite(py)) py = view.y + view.h / 2;
-  var w = Math.min(W, Math.max(W / ZOOM_MAX, view.w / factor));
+  var w = Math.min(bounds.w, Math.max(bounds.w / ZOOM_MAX, view.w / factor));
   var fx = (px - view.x) / view.w, fy = (py - view.y) / view.h;
-  var h = w * H / W;
-  return clampView({ x: px - fx * w, y: py - fy * h, w: w, h: h }, W, H);
+  var h = w * bounds.h / bounds.w;
+  return clampView({ x: px - fx * w, y: py - fy * h, w: w, h: h }, bounds);
 }
 
 // Moves the visible area by (dx, dy) scene units.
-function panView(view, W, H, dx, dy) {
-  if (!isFinite(dx) || !isFinite(dy)) return clampView(view, W, H);
-  return clampView({ x: view.x + dx, y: view.y + dy, w: view.w, h: view.h }, W, H);
+function panView(view, bounds, dx, dy) {
+  if (!isFinite(dx) || !isFinite(dy)) return clampView(view, bounds);
+  return clampView({ x: view.x + dx, y: view.y + dy, w: view.w, h: view.h }, bounds);
 }
 
 // The scene point under a screen point. `box` is the svg's on-screen rectangle {left, top, width, height}.
@@ -754,25 +801,25 @@ function scenePoint(view, box, cx, cy) {
 }
 
 // Dragging the map by (dx, dy) screen px moves the visible area the other way.
-function dragView(view, W, H, box, dx, dy) {
+function dragView(view, bounds, box, dx, dy) {
   var k = view.w / box.width;
-  return panView(view, W, H, -dx * k, -dy * k);
+  return panView(view, bounds, -dx * k, -dy * k);
 }
 
 // A pinch from `from` to `to` ({x, y, dist}: midpoint and finger distance in screen px): the scene point that
 // was under the old midpoint ends up under the new one, so the fingers zoom and pan at once.
-function pinchView(view, W, H, box, from, to) {
+function pinchView(view, bounds, box, from, to) {
   if (!(from.dist > 0) || !(to.dist > 0) || !isFinite(from.dist) || !isFinite(to.dist)) return view;
   if (!isFinite(from.x) || !isFinite(from.y) || !isFinite(to.x) || !isFinite(to.y)) return view;
   var anchor = scenePoint(view, box, from.x, from.y);
-  var w = Math.min(W, Math.max(W / ZOOM_MAX, view.w * from.dist / to.dist));
-  var h = w * H / W;
+  var w = Math.min(bounds.w, Math.max(bounds.w / ZOOM_MAX, view.w * from.dist / to.dist));
+  var h = w * bounds.h / bounds.w;
   return clampView({
     x: anchor.x - (to.x - box.left) / box.width * w,
     y: anchor.y - (to.y - box.top) / box.height * h,
     w: w,
     h: h
-  }, W, H);
+  }, bounds);
 }
 
 // The zoom factor of one wheel event. A trackpad pinch arrives as a wheel with ctrlKey and small deltas.
@@ -783,8 +830,8 @@ function wheelFactor(deltaY, deltaMode, ctrlKey) {
 }
 
 // Pans the visible area the least that shows `r` ([x, y, w, h]) with `margin` around it (as far as the zoom allows).
-function revealRect(view, W, H, r, margin) {
-  if (!r.every(isFinite)) return clampView(view, W, H);
+function revealRect(view, bounds, r, margin) {
+  if (!r.every(isFinite)) return clampView(view, bounds);
   var dx = 0, dy = 0;
   var left = r[0] - margin, right = r[0] + r[2] + margin, top = r[1] - margin, bottom = r[1] + r[3] + margin;
   if (right - left > view.w) dx = r[0] - view.x;        // too big to fit: show its top-left corner
@@ -793,7 +840,7 @@ function revealRect(view, W, H, r, margin) {
   if (bottom - top > view.h) dy = r[1] - view.y;
   else if (top < view.y) dy = top - view.y;
   else if (bottom > view.y + view.h) dy = bottom - view.y - view.h;
-  return panView(view, W, H, dx, dy);
+  return panView(view, bounds, dx, dy);
 }
 
 function viewBoxText(view) {
@@ -1069,6 +1116,9 @@ function errorText(error, state) {
   var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
   var LONG_PRESS_MS = 500;
   var TOAST_MS = 6000;
+  // The grass around the scene: a tile with a few tufts, the same look as the code screen.
+  var GRASS_TILE = 96;
+  var GRASS_TUFTS = [[8, 12], [52, 4], [76, 40], [28, 56], [64, 80], [12, 84], [40, 32]];
   var COLORS = {
     grass: "#79B35A", tuft: "#6AA14C", path: "#D8C59A", roomEdge: "#5C4033", roomLabel: "#4A3426", window: "#9FD3F0",
     woodDark: "#5C4033", wood: "#B98B56", woodLight: "#D4A870", plank: "#6B4426", paper: "#F4EBD0", ink: "#2E1F14",
@@ -1131,7 +1181,10 @@ function errorText(error, state) {
     panel: null,
     layoutKey: null,
     layers: null,
-    view: null,          // the visible window of the scene (zoom and pan), see the zoom functions in the logic script
+    view: null,          // the visible window of the map (zoom and pan), see the zoom functions in the logic script
+    bounds: null,        // the whole viewport in scene units: the scene plus the grass around it (fitBounds)
+    insetProbe: null,
+    refit: null,         // recomputes the bounds after the viewport or the move bar changed
     svg: null,
     zoomReset: null,
     zoomCleanup: null,
@@ -1379,6 +1432,7 @@ function errorText(error, state) {
       "aria-label": "Mapa chaty. Rovnaké údaje sú aj ako text hneď za mapou."
     });
     app.layers = {
+      ground: svgEl(svg, "g", { "aria-hidden": "true" }),
       base: svgEl(svg, "g", { "aria-hidden": "true" }),
       beds: svgEl(svg, "g"),
       boards: svgEl(svg, "g"),
@@ -1391,10 +1445,8 @@ function errorText(error, state) {
   // --- zoom and pan: only the svg viewBox changes, the scene stays crisp ---
 
   function applyView() {
-    var W = app.sceneSize[0], zoomed = isZoomed(app.view, W);
     app.svg.setAttribute("viewBox", viewBoxText(app.view));
-    app.svg.classList.toggle("zoomed", zoomed);
-    app.zoomReset.hidden = !zoomed;
+    app.zoomReset.hidden = !isZoomed(app.view, app.bounds);
   }
 
   function setView(view) {
@@ -1403,7 +1455,21 @@ function errorText(error, state) {
   }
 
   function resetView() {
-    setView(wholeView(app.sceneSize[0], app.sceneSize[1]));
+    setView(wholeView(app.bounds));
+  }
+
+  // The safe-area insets (notch, home bar) in CSS px, read from a probe whose padding is the env() values.
+  function readInsets() {
+    if (!app.insetProbe) {
+      app.insetProbe = htmlEl("div", { "class": "inset-probe", "aria-hidden": "true" });
+      document.body.appendChild(app.insetProbe);
+    }
+    var cs = getComputedStyle(app.insetProbe);
+    // While the move bar shows, the scene must sit below it: the bar's height (it includes the safe-area top padding)
+    // is the top inset when that is larger.
+    var bar = $("moveBar"), top = parseFloat(cs.paddingTop);
+    if (!bar.hidden && bar.offsetHeight > top) top = bar.offsetHeight;
+    return { top: top, right: parseFloat(cs.paddingRight), bottom: parseFloat(cs.paddingBottom), left: parseFloat(cs.paddingLeft) };
   }
 
   function setupZoom(host, svg, W, H) {
@@ -1415,12 +1481,26 @@ function errorText(error, state) {
 
     var sizeChanged = !app.sceneSize || app.sceneSize[0] !== W || app.sceneSize[1] !== H;
     app.sceneSize = [W, H];
+    if (sizeChanged) app.bounds = app.view = null;
     app.svg = svg;
     app.zoomReset = htmlEl("button", { "class": "zoom-reset", type: "button", "aria-label": "Celá mapa – zobraziť celú mapu" }, "Celá mapa");
     host.appendChild(app.zoomReset);
     svg.setAttribute("tabindex", "-1");     // focus target after „Celá mapa“ hides itself
-    if (sizeChanged || !app.view) app.view = wholeView(W, H);
-    applyView();      // a redraw of the layout keeps the zoom
+    refit(true);      // a redraw of the layout keeps the zoom
+
+    // The map fills the viewport: the bounds follow its size (resize, rotation, the Safari toolbar). The zoom stays
+    // valid: a zoomed view keeps its factor and center, a whole view stays whole.
+    function refit(force) {
+      var r = host.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0) && app.bounds) return;      // hidden (the code screen): keep what we have
+      var nb = fitBounds(r.width, r.height, W, H, readInsets());
+      var old = app.bounds;
+      if (!force && old && old.x === nb.x && old.y === nb.y && old.w === nb.w && old.h === nb.h) return;
+      app.view = app.view && old ? refitView(app.view, old, nb) : wholeView(nb);
+      app.bounds = nb;
+      drawGround(app.layers.ground, nb);
+      applyView();
+    }
 
     function box() {
       var r = svg.getBoundingClientRect();
@@ -1444,7 +1524,7 @@ function errorText(error, state) {
       if (!isFinite(cx)) cx = r.left + r.width / 2;
       if (!isFinite(cy)) cy = r.top + r.height / 2;
       var p = scenePoint(app.view, r, cx, cy);
-      setView(zoomView(app.view, W, H, factor, p.x, p.y));
+      setView(zoomView(app.view, app.bounds, factor, p.x, p.y));
     }
     // After a key zoom the focused bed or sign must still be in view.
     function revealFocused() {
@@ -1452,7 +1532,7 @@ function errorText(error, state) {
       if (!node || !svg.contains(node) || !node.getBBox || node === svg) return;
       try {
         var b = node.getBBox();
-        setView(revealRect(app.view, W, H, [b.x, b.y, b.width, b.height], 6));
+        setView(revealRect(app.view, app.bounds, [b.x, b.y, b.width, b.height], 6));
       } catch (err) { /* not measurable: leave the view */ }
     }
 
@@ -1484,7 +1564,7 @@ function errorText(error, state) {
         if (!pinch) return;
         var now = measure();
         app.gestureAt = Date.now();
-        setView(pinchView(app.view, W, H, box(), pinch, now));
+        setView(pinchView(app.view, app.bounds, box(), pinch, now));
         pinch = now;
         return;
       }
@@ -1494,7 +1574,7 @@ function errorText(error, state) {
         capture(e.pointerId);   // the move goes on even if a redraw replaces the bed under the finger
       }
       if (drag.moved) {
-        if (isZoomed(app.view, W)) setView(dragView(app.view, W, H, box(), e.clientX - drag.lx, e.clientY - drag.ly));
+        if (isZoomed(app.view, app.bounds)) setView(dragView(app.view, app.bounds, box(), e.clientX - drag.lx, e.clientY - drag.ly));
         drag.lx = e.clientX;
         drag.ly = e.clientY;
       }
@@ -1525,9 +1605,17 @@ function errorText(error, state) {
     if (app.zoomCleanup) app.zoomCleanup();      // the layout was redrawn: drop the old svg's window listeners
     window.addEventListener("pointerup", release);
     window.addEventListener("pointercancel", release);
+    function onResize() { refit(false); }
+    window.addEventListener("resize", onResize);
+    var observer = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
+    var moveBar = $("moveBar");
+    if (observer) { observer.observe(host); observer.observe(moveBar); }      // the bar shows, hides and wraps
+    app.refit = function () { refit(false); };
     app.zoomCleanup = function () {
       window.removeEventListener("pointerup", release);
       window.removeEventListener("pointercancel", release);
+      window.removeEventListener("resize", onResize);
+      if (observer) observer.disconnect();
     };
 
     svg.addEventListener("click", function (e) {
@@ -1571,8 +1659,8 @@ function errorText(error, state) {
     svg.addEventListener("keydown", function (e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       var c = { x: app.view.x + app.view.w / 2, y: app.view.y + app.view.h / 2 };
-      if (e.key === "+" || e.key === "=") setView(zoomView(app.view, W, H, ZOOM_KEY_STEP, c.x, c.y));
-      else if (e.key === "-" || e.key === "_") setView(zoomView(app.view, W, H, 1 / ZOOM_KEY_STEP, c.x, c.y));
+      if (e.key === "+" || e.key === "=") setView(zoomView(app.view, app.bounds, ZOOM_KEY_STEP, c.x, c.y));
+      else if (e.key === "-" || e.key === "_") setView(zoomView(app.view, app.bounds, 1 / ZOOM_KEY_STEP, c.x, c.y));
       else if (e.key === "0") resetView();
       else return;
       revealFocused();
@@ -1583,11 +1671,11 @@ function errorText(error, state) {
     // shift the map under the finger.
     svg.addEventListener("focusin", function (e) {
       var node = e.target;
-      if (!isZoomed(app.view, W) || !node.getBBox || Date.now() - app.navKeyAt > 500) return;
+      if (!isZoomed(app.view, app.bounds) || !node.getBBox || Date.now() - app.navKeyAt > 500) return;
       try {
         if (!node.matches(":focus-visible")) return;
         var b = node.getBBox();
-        setView(revealRect(app.view, W, H, [b.x, b.y, b.width, b.height], 6));
+        setView(revealRect(app.view, app.bounds, [b.x, b.y, b.width, b.height], 6));
       } catch (err) { /* not measurable: leave the view */ }
     });
 
@@ -1595,6 +1683,24 @@ function errorText(error, state) {
       resetView();
       svg.focus({ preventScroll: true });
     });
+  }
+
+  // The grass around the scene, as far as the viewport shows it: a patterned rectangle over the whole bounds.
+  // The scene's own grass is drawn over it, so the two meet without a seam.
+  function drawGround(g, bounds) {
+    var pattern = g.querySelector("pattern");
+    if (!pattern) {
+      var defs = svgEl(g, "defs", {});
+      pattern = svgEl(defs, "pattern", { id: "grassTile", width: GRASS_TILE, height: GRASS_TILE, patternUnits: "userSpaceOnUse" });
+      rect(pattern, 0, 0, GRASS_TILE, GRASS_TILE, COLORS.grass);
+      GRASS_TUFTS.forEach(function (t) { rect(pattern, t[0], t[1], 4, 4, COLORS.tuft); });
+      svgEl(g, "rect", { "class": "ground", fill: "url(#grassTile)" });
+    }
+    var r = g.querySelector(".ground");
+    r.setAttribute("x", bounds.x - 2);
+    r.setAttribute("y", bounds.y - 2);
+    r.setAttribute("width", bounds.w + 4);
+    r.setAttribute("height", bounds.h + 4);
   }
 
   function drawBase(g, layout) {
@@ -2096,11 +2202,13 @@ function errorText(error, state) {
   function renderMoveBar() {
     var bar = $("moveBar"), m = app.move;
     bar.hidden = !m;
-    if (!m || !app.state) return;
-    var party = myParty(app.state);
-    $("moveText").textContent = moveBarText(party ? party.name : "");
-    $("moveThis").setAttribute("aria-pressed", m.all ? "false" : "true");
-    $("moveAll").setAttribute("aria-pressed", m.all ? "true" : "false");
+    if (m && app.state) {
+      var party = myParty(app.state);
+      $("moveText").textContent = moveBarText(party ? party.name : "");
+      $("moveThis").setAttribute("aria-pressed", m.all ? "false" : "true");
+      $("moveAll").setAttribute("aria-pressed", m.all ? "true" : "false");
+    }
+    if (app.refit) app.refit();      // the scene makes room for the bar (or takes it back)
   }
 
   function startMove(slot) {
