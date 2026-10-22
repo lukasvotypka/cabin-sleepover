@@ -1,0 +1,23 @@
+# Keep secrets, live data and everything the running app does not need out of the build context and the image.
+.env
+.env.*
+data/
+files/
+tests/
+tasks/
+.git/
+.gitignore
+.claude/
+.venv/
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+*.egg-info/
+**/.DS_Store
+CLAUDE.md
+proposal.md
+README.md
+deploy/
+Dockerfile
+compose.yaml
+.dockerignore

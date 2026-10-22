@@ -1,0 +1,29 @@
+# One service. Start with `docker compose up -d --build` (see README.md, section 4).
+# There is no .env file in a Docker deployment: the three secrets are plain environment variables that whoever
+# deploys the app supplies (exported in the shell, a root-only file given with `--env-file`, or the hosting
+# platform's secrets). Compose refuses to run if one is missing. Also needed: a ./data directory that the
+# container user can write.
+services:
+  chata:
+    build: .
+    image: chata:latest
+    # The port is published on the host's loopback only: the reverse proxy (Caddy) on this host is the only way in.
+    # The image trusts X-Forwarded-For from anyone (--forwarded-allow-ips=*), so never change this to "8010:8010".
+    ports:
+      - "127.0.0.1:8010:8010"
+    environment:
+      GROUP_CODE: ${GROUP_CODE:?set GROUP_CODE (the code you send to friends)}
+      ADMIN_CODE: ${ADMIN_CODE:?set ADMIN_CODE (the organizer's code, different from GROUP_CODE)}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (at least 32 random characters)}
+    # Run as this UID:GID so the mounted ./data is writable. If the owner of ./data is not 1000, set CHATA_UID and
+    # CHATA_GID in the shell next to the secrets.
+    user: "${CHATA_UID:-1000}:${CHATA_GID:-1000}"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config:ro      # edit config/chata.yaml, then `docker compose restart`, no rebuild
+    restart: unless-stopped
+    read_only: true                   # the root filesystem is read-only, only data/ and /tmp are writable
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

@@ -152,6 +152,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pform .opt { font-weight: 400; color: var(--muted); }
 .pform input, .pform select, .pform textarea, .summary-text {
   width: 100%; min-height: 48px; padding: 8px 12px; background: var(--surface2); color: var(--ink);
+  font-size: 16px; /* under 16 px iOS Safari zooms the page on focus */
   border: 3px solid var(--line); border-radius: 0;
 }
 .pform textarea, .summary-text { resize: vertical; line-height: 1.35; }
@@ -164,7 +165,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pform .row { display: flex; flex-wrap: wrap; gap: 8px; }
 .pform .row .btn { flex: 1 1 160px; }
 .sheet .done-list { margin: 0 0 12px; padding-left: 20px; }
-.summary-text { min-height: 280px; font-size: 14px; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; }
+.summary-text { min-height: 280px; font-size: 16px; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; }
 .copy-status { min-height: 1.4em; margin: 8px 0 0; font-weight: 700; color: var(--ok); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -730,7 +731,8 @@ function checkPartyPayload(p, event) {
   function bad(field, reason) {
     return { code: "invalid", params: reason ? { field: field, reason: reason } : { field: field } };
   }
-  if (!p.name || p.name.length > PARTY_LIMITS.name) return bad("name");
+  if (!p.name) return bad("name", "name_empty");
+  if (p.name.length > PARTY_LIMITS.name) return bad("name");
   if (!isCount(p.adults)) return bad("adults");
   if (!isCount(p.kids)) return bad("kids");
   if (!isCount(p.kids_in_parents_bed) || p.kids_in_parents_bed > p.kids) return bad("kids_in_parents_bed");
@@ -856,6 +858,12 @@ function hiddenSummary(state, night) {
 
 // --- error texts: the only place that turns a server `code` into Slovak ---
 
+// Slovak texts for an `invalid` error with a known `params.reason`; they win over the generic field text.
+var REASON_TEXTS = {
+  leave_not_after_arrive: "Odchod musí byť po príchode.",
+  name_empty: "Napíš meno partie."
+};
+
 var FIELD_NAMES = {
   name: "meno", adults: "počet dospelých", kids: "počet detí", kids_in_parents_bed: "deti spiace s rodičmi",
   arrive: "príchod", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka",
@@ -917,7 +925,7 @@ var ERROR_TEXTS = {
     return "Túto partiu sme nenašli. Vyber partiu znova.";
   },
   invalid: function (p) {
-    if (p.reason === "leave_not_after_arrive") return "Odchod musí byť po príchode.";
+    if (REASON_TEXTS.hasOwnProperty(paramText(p, "reason"))) return REASON_TEXTS[paramText(p, "reason")];
     var field = FIELD_NAMES.hasOwnProperty(paramText(p, "field")) ? FIELD_NAMES[paramText(p, "field")] : "";
     return field ? "Skontroluj pole „" + field + "“." : "Niečo v zadaní nesedí, skontroluj ho.";
   },

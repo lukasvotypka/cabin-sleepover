@@ -592,6 +592,34 @@ test("form pre-check names the field like the server does", () => {
   assert.equal(L.checkPartyPayload({ ...ok, note: "x".repeat(300) }, event), null);
 });
 
+test("an empty party name gets its own Slovak text, other name problems the generic one", () => {
+  const ok = L.partyPayload({ ...L.defaultPartyForm(event), name: "Ivan a Eva" });
+  const empty = L.checkPartyPayload({ ...ok, name: "" }, event);
+  assert.equal(empty.params.field, "name");
+  assert.equal(L.errorText(empty), "Napíš meno partie.");
+  // a whitespace-only name is trimmed to empty by partyPayload
+  const blank = L.partyPayload({ ...L.defaultPartyForm(event), name: "   " });
+  assert.equal(L.errorText(L.checkPartyPayload(blank, event)), "Napíš meno partie.");
+  // too long: still the generic field text
+  assert.equal(L.errorText(L.checkPartyPayload({ ...ok, name: "x".repeat(61) }, event)), "Skontroluj pole „meno“.");
+  // a server `invalid` for the name without a reason keeps the generic text
+  assert.equal(L.errorText(err("invalid", { field: "name" })), "Skontroluj pole „meno“.");
+  assert.equal(L.errorText(err("invalid", { field: "leave", reason: "leave_not_after_arrive" })), "Odchod musí byť po príchode.");
+});
+
+test("form inputs and the summary textarea are at least 16 px (no iOS zoom on focus)", () => {
+  const css = html.match(/<style[^>]*>([\s\S]*?)<\/style>/)[1];
+  const block = (start) => {
+    const found = css.split("}").find((r) => r.trim().startsWith(start));
+    assert.ok(found, "no CSS rule starting with " + start);
+    return found;
+  };
+  const px = (rule) => Number(rule.match(/font-size:\s*(\d+)px/)[1]);
+  assert.ok(px(block(".board input")) >= 16);
+  assert.ok(px(block(".pform input, .pform select, .pform textarea")) >= 16);
+  assert.ok(px(block(".summary-text { min-height")) >= 16);
+});
+
 test("form limits are the server limits", () => {
   assert.deepEqual(plain(L.PARTY_LIMITS), { name: 60, arrival_time: 60, note: 300, countMax: 20 });
   // the form takes its maxlength and min / max from these constants

@@ -69,7 +69,7 @@ Single uvicorn process with **one worker**, bound to `127.0.0.1` (default port 8
 - `config/chata.yaml`: event, nights, and the full layout (rooms, beds, slots, SVG coordinates for viewBox 380×412). Written by the organizer and sent to the page inside `/api/state`, so the map and the validation share one source. The layout is a guess from a preview, so keep it data-driven and never hardcode geometry in code. Bed `kind` (`bed2`, `bunk`, `mats`, `sofa`, `sofa1`, `stove`, `bed1`, `cot`) determines figure placement.
 - `config/app.yaml`: limits, model name, `backups_keep`.
 - `data/` (git-ignored, created on first start): `chata-data.yaml`, `audit.yaml` (one YAML document per write, separated by `---`), `backups/`. `data/` must never be served statically.
-- `deploy/`: systemd unit and Caddy example. `tests/manualne.md` is the manual checklist.
+- `Dockerfile`, `compose.yaml`: the deploy (organizer decision of 22. 10. 2026: Docker instead of systemd). Inside the container uvicorn listens on `0.0.0.0:8010`; compose publishes it only on host `127.0.0.1:8010`, passes the secrets as environment variables (no `.env`), mounts `./data` read-write and `./config` read-only. `deploy/Caddyfile` is the proxy example. `tests/manualne.md` is the manual checklist.
 
 ### Data model essentials
 
@@ -98,7 +98,7 @@ Success is `200 {"ok": true, "state": {...}}`. Errors are `{"ok": false, "error"
 
 ## Secrets
 
-`GROUP_CODE`, `ADMIN_CODE`, `SECRET_KEY` and optionally `ANTHROPIC_API_KEY` are environment variables loaded from `.env` (git-ignored; `.env.example` is committed). The API key must never appear on the page, in YAML or in the repo. Without it, phase 2 is disabled and its input is hidden.
+`GROUP_CODE`, `ADMIN_CODE`, `SECRET_KEY` and optionally `ANTHROPIC_API_KEY` are environment variables. For local development they come from `.env` (git-ignored; `.env.example` is committed). In Docker there is no `.env`: `compose.yaml` passes them as environment variables supplied by whoever deploys it. The API key must never appear on the page, in YAML or in the repo. Without it, phase 2 is disabled and its input is hidden.
 
 ## Testing (as specified)
 

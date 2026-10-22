@@ -39,7 +39,7 @@ Postav malú webovú aplikáciu na rozdelenie spania na chate. Kamaráti si na p
 | `config/app.yaml` | Limity a nastavenia aplikácie |
 | `data/` | `chata-data.yaml`, `audit.yaml`, `backups/`. Mimo gitu, vytvorí sa pri prvom štarte |
 | `tests/` | pytest a httpx pre backend, Node testy čistých funkcií stránky, ručný kontrolný zoznam |
-| `deploy/` | Príklad služby systemd a konfigurácie Caddy |
+| `Dockerfile`, `compose.yaml`, `deploy/` | Docker obraz a `compose.yaml` na spustenie, príklad konfigurácie Caddy (rozhodnutie organizátora z 22. 10. 2026: Docker namiesto systemd) |
 | `README.md` | Návod po anglicky (pre organizátora a vývoj): inštalácia, `.env`, spustenie, nasadenie, záloha a ručná oprava dát |
 | `pyproject.toml`, `.env.example` | Závislosti a vzor premenných prostredia |
 
@@ -371,7 +371,7 @@ Pri `ask` (chýba deň príchodu, nejasný počet ľudí) sa návrh neukáže, l
 
 ### Fáza 1 je hotová, keď
 
-- [ ] Organizátor podľa `README` na čistom serveri nainštaluje závislosti, vyplní `.env`, spustí službu cez systemd a sprístupní ju cez Caddy alebo nginx s HTTPS.
+- [ ] Organizátor podľa `README` na čistom serveri nastaví tajné hodnoty ako premenné prostredia (bez `.env`, ten je len na lokálny vývoj), spustí aplikáciu cez Docker (`docker compose`) a sprístupní ju cez Caddy alebo nginx s HTTPS.
 - [ ] Kamarát na mobile zadá kód, vyberie alebo pridá partiu a jedným ťuknutím sa zapíše na voľné miesto v jednu alebo všetky noci.
 - [ ] Zmena sa do 30 sekúnd ukáže na inom zariadení bez ručného obnovenia.
 - [ ] Dvaja ľudia naraz ťuknú na to isté voľné miesto: jeden uspeje, druhý dostane hlášku, kto ho má, a mapa sa vráti do správneho stavu.

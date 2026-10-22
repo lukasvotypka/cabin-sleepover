@@ -1,54 +1,91 @@
-# Manual checklist
+# Manual checklist (phase 1)
 
-Things that cannot be checked by pytest or Node tests. T-008 extends and finalizes this file.
-Items are grouped by the task that produced them.
+Things that pytest and the Node tests cannot check: the real server, real phones, two people at once, screen readers. Go through it once on the deployed copy (after following `README.md` on a clean server) and again after bigger changes. Tick a box only after you have seen it.
 
-## T-003: app, join, cookies, limits, state
+Devices to use: an iPhone with Safari, an Android phone with Chrome, a desktop browser, and a second phone for everything marked "two devices". Test with the final URL (and the WhatsApp in-app browser where noted).
 
-- [ ] Behind Caddy over HTTPS, join with the group code from the phone: the cookie is stored (`Secure`, `HttpOnly`, `SameSite=Lax`) and `GET /api/state` works after closing and reopening the tab. Check on iPhone Safari, Android Chrome, and the WhatsApp in-app browser (it may not keep cookies; note what happens).
-- [ ] uvicorn runs with `--proxy-headers --forwarded-allow-ips=127.0.0.1`: the wrong-code limit (10 per minute) is counted per real client IP, not for everyone together. Try 11 wrong codes from one phone, then a correct code from a second phone on other mobile data: it must still join.
-- [ ] Several friends on the same Wi-Fi join within one minute with the correct code: nobody gets `rate_limited` (only wrong codes count).
-- [ ] After changing `GROUP_CODE` in `.env` and restarting, an already joined phone gets the join dialog again (the old cookie no longer works). After changing only `ADMIN_CODE`, the group access stays and only admin access is lost.
-- [ ] After editing `config/chata.yaml` and restarting, an open tab and a reloaded tab show the new layout (the `ETag` changes, no stale 304).
-- [ ] `journalctl -u <service>` shows the app log lines (`join as ...`, `wrong code attempt from <ip>`), shows the real client IP behind the proxy, and never shows a code.
-- [ ] `GROUP_CODE`, `ADMIN_CODE` and `SECRET_KEY` (at least 32 characters) are loaded through systemd `EnvironmentFile=`. With one removed the service refuses to start and the English reason is in the journal.
-- [ ] From outside, `https://<host>/data/chata-data.yaml`, `/config/app.yaml`, `/.env`, `/files/mapa-nahlad.html`, `/docs` and `/openapi.json` all return 404 (also through the Caddy config, not only direct to uvicorn).
+Items that are only a question for the organizer are at the end, in "Decisions to confirm".
 
-## T-004: write endpoints
+## 1. Deploy, server and files
 
-- [ ] Two phones tap the same free bed within the same second: exactly one gets the bed, the other sees the „obsadené“ message naming the winner, and its map refreshes to show the winner. Nothing ends up half written.
-- [ ] A couple tapping „celý pobyt“ on a bed that is taken on one night: the free nights are written, the taken night is reported as skipped, and the map shows the same on the second phone after its next poll.
-- [ ] Shortening a party's stay in the form (phone): the page names the slots that will be freed first, and after saving they are free on the map of the other phone.
-- [ ] Behind Caddy, `data/audit.yaml` grows by one YAML document per write with the right `source` (`mapa` or `formular`) and an anonymous `client_id`, and `data/backups/` stays at 50 files after many writes (check after the first real evening of use).
-- [ ] 30 quick taps from one phone within a minute (for example clearing and assigning repeatedly): the 31st shows the Slovak „príliš veľa zmien“ style message, and the phone recovers after about a minute.
+- [ ] **Clean server:** following only `README.md` (install Docker, clone, supply the three secrets as environment variables, create `data/` with the right owner, `docker compose up -d --build`, add Caddy), the container becomes „healthy“ and the page opens. Note anything in the README that was wrong or missing.
+- [ ] **HTTPS works:** `https://<host>/` opens with a valid certificate, `http://` redirects to it, and the page works on a phone over mobile data.
+- [ ] **Final URL and sub-path:** under the real URL (and, if used, a sub-path such as `/chata/`) the page loads and the `api/...` calls work (relative paths).
+- [ ] **Non-root, read-only container:** `docker compose exec chata id` shows a non-root user. The app can write `data/` (the first start created `data/chata-data.yaml` with the right owner), and it cannot write elsewhere (`docker compose exec chata touch /app/x` fails). `ss -ltn` on the host shows port 8010 only on `127.0.0.1`, never on `0.0.0.0`.
+- [ ] **Restarts on failure and after reboot:** `docker kill <container>` brings it back within a few seconds, and after a reboot of the server the app is up again without a manual step (`restart: unless-stopped`). `docker compose top` shows one uvicorn process with `--workers 1`.
+- [ ] **Restart keeps the data:** assign a few places, `docker compose restart` (and once `docker compose down` followed by `docker compose up -d`), reload the page: everything is still there, and the version in `data/chata-data.yaml` did not go back.
+- [ ] **Secrets as environment variables:** `GROUP_CODE`, `ADMIN_CODE` and `SECRET_KEY` (at least 32 characters) reach the container only through the environment (`docker compose exec chata printenv GROUP_CODE`). With one of them missing, `docker compose up` refuses with a „set …“ message. With a too short `SECRET_KEY` the container exits and the English reason is in `docker compose logs`. The code values never show up in the logs. There is no `.env` on the server (not in the project directory and not in the image: `docker compose exec chata ls -a /app`).
+- [ ] **Corrupt data file:** stop the container, break `data/chata-data.yaml` (a bad indent, then an unknown slot ID), start it. The app does not start, and `docker compose logs` shows an English message that names the file and the line or entry. After fixing the file (and `docker compose start`) it runs again.
+- [ ] **Timezone data:** `docker compose exec chata python -c "import zoneinfo; print(zoneinfo.ZoneInfo('Europe/Bratislava'))"` works, and the times in `audit.yaml` and in the page make sense.
+- [ ] **Audit and backup are created:** after a real write behind Caddy, `data/audit.yaml` grew by one YAML document with the right `source` (`mapa` or `formular`) and an anonymous `client_id`, and `data/backups/` holds a new copy. After many writes (check after the first real evening of use) `data/backups/` stays at 50 files.
+- [ ] **Backup restore drill:** copy `data/` away (README, "Back up"), make a change on the page, then follow README "Restore from `data/backups/`" (`docker compose stop`, copy a backup over `chata-data.yaml`, `chown`, `docker compose start`): the page shows the restored state.
+- [ ] **Hand fix:** README "Fix the data by hand" works as written (stop, edit, start, and a mistake is reported at start).
+- [ ] **Changed layout:** after editing `config/chata.yaml` and `docker compose restart` (no rebuild), an open tab and a reloaded tab show the new layout (the `ETag` changes, no stale 304).
+- [ ] **Not reachable from outside:** `https://<host>/data/chata-data.yaml`, `/data/audit.yaml`, `/config/app.yaml`, `/.env`, `/files/mapa-nahlad.html`, `/docs` and `/openapi.json` all return 404, also through the Caddy config and not only straight to the container.
 
-## T-005: scene frame, code screen, „Kto si?“
+## 2. Group code, cookie and limits
 
-- [ ] On a real phone (iPhone Safari and Android Chrome, ~380 px wide) the scene fills the width and the small sign texts are readable: the date lines on the three night signposts, „obsadené X z 20“, the „aktualizované pred … s“ line, and above all the red „V sobotu vám chýba 1 miesto“ sign. If the red sign is too small to read, raise only its text size.
-- [ ] Tapping the three night signposts, the red sign, the amber sign, the noticeboard and the „?“ icon with a thumb works on the first tap, also when the tap lands slightly above or below a signpost (44 px minimum). Pinch-zoom still works.
-- [ ] Alegreya and Alegreya Sans load from Google Fonts on the code screen and in the panels (WhatsApp in-app browser too). With no network to Google the fallback fonts look acceptable.
-- [ ] The page in dark mode on the phone: the scene keeps its colors, the code screen and panels turn dark and stay readable.
-- [ ] Two phones: after phone A changes the data (T-006), phone B shows it within 30 s without a reload, and „aktualizované pred … s“ counts up and resets after each poll. Returning to the tab from another app refreshes at once.
-- [ ] Opened from the WhatsApp link for the first time: the code screen appears, after the correct code „Kto si?“ opens, and after choosing a party the noticeboard is open. Close the page, open it from the link again: the party and the collapsed or open noticeboard are remembered.
-- [ ] Deployed under the final URL (and, if used, a sub-path such as `/chata/`): the page loads and `api/...` calls work (relative paths).
+- [ ] **Group code works:** opened from the WhatsApp link for the first time, the code screen appears. A wrong code shows a Slovak message, the correct code opens „Kto si?“.
+- [ ] **Cookie is kept:** behind Caddy over HTTPS the cookie is stored (`Secure`, `HttpOnly`, `SameSite=Lax`) and the page works after closing and reopening the tab. Check iPhone Safari, Android Chrome and the WhatsApp in-app browser (it may not keep cookies, note what happens).
+- [ ] **Remembered choices:** after choosing a party the noticeboard is open. Close the page and open it from the link again: the party and the collapsed or open noticeboard are remembered.
+- [ ] **Wrong-code limit is per real client IP:** 11 wrong codes from one phone give the „príliš veľa pokusov“ message. A second phone on other mobile data can still join with the correct code. This proves `X-Forwarded-For` is trusted only from Caddy.
+- [ ] **Shared Wi-Fi:** several friends on the same Wi-Fi join within one minute with the correct code, and nobody gets the limit message (only wrong codes count).
+- [ ] **Changing a code:** after changing `GROUP_CODE` where you keep it and running `docker compose up -d` (a plain `restart` does not pick up new values), an already joined phone gets the code screen again. After changing only `ADMIN_CODE`, the group access stays.
+- [ ] **Write limit:** 30 quick taps from one phone within a minute (for example clearing and assigning repeatedly): the 31st shows the Slovak „príliš veľa zmien“ style message, and the phone recovers after about a minute.
+- [ ] **Logs:** `docker compose logs` shows the app lines (`join as ...`, `wrong code attempt from <ip>`) once each (not doubled), with the real client IP behind the proxy (not the Docker gateway address).
 
-## T-006: beds, bed sheet, assign / clear / move
+## 3. Two devices
 
-- [ ] Long press on a bed with a finger (iPhone Safari and Android Chrome) shows the small board with the occupants' names and does not open the sheet. A resting finger emits tiny `pointermove` events, so check that the long press really fires and is not cancelled by finger jitter (it was only checked with synthetic touch events). A short tap opens the sheet.
-- [ ] Two phones tap „Zapísať nás sem“ on the same free bed within the same second: the slower one sees „Toto miesto má … už …“ in the toast, its pending figure disappears and the map shows the winner.
-- [ ] On a phone, the tap targets of the small beds (cots, 1-bed, bunks, about 32-40 px wide) can be hit with a thumb on the first or second try. If not, widen the bed hit areas (Q9).
-- [ ] Move mode on a phone: after the sheet closes the bar appears above the scene and the scene may jump down a little. Check that the next tap still lands on the intended bed, and that „Zrušiť“ and „Táto noc / Všetky noci“ are easy to hit.
-- [ ] Pending state („ukladám“, semi-transparent figures) is visible for a moment on a slow mobile connection (throttle to 3G), and the map returns to the server state after a rejection.
-- [ ] Screen reader (VoiceOver and TalkBack): beds are announced as buttons with the label „<bed>, <room>, v <night> <who>, N voľných“, the sheet is announced as a dialog and focus returns to the bed on close.
-- [ ] The „Chodbička“ room label is squeezed to fit the 54-unit corridor and the „Letná kuchynka“ label touches the stove pipe. Look at both on a phone and decide with the organizer whether to shorten the names in `config/chata.yaml`.
-- [ ] Pinch-zoom on the map and on the open sheet still works on iPhone and Android.
+- [ ] **Same free slot at once:** two phones tap „Zapísať nás sem“ on the same free bed within the same second. Exactly one gets it. The other sees the „Toto miesto má … už …“ message naming the winner, its pending figure disappears and its map is correct again. Nothing ends up half written.
+- [ ] **Overlapping places at once:** two parties take overlapping places at the same moment (for example both want the same double bed on one night). Exactly one booking wins whole, the other is rejected whole, and no party holds only half of its request.
+- [ ] **A change shows up within 30 s:** after phone A changes the data, phone B shows it within 30 s without a reload, and „aktualizované pred … s“ counts up and resets after each poll. Returning to the tab from another app refreshes at once.
+- [ ] **Shortened stay on two phones:** phone A confirms the freed places, phone B shows them free after its next poll.
+- [ ] **Pending state:** „ukladám“ (semi-transparent figures) is visible for a moment on a slow connection (throttle to 3G), and the map returns to the server state after a rejection.
 
-## T-007: party form, „Prehľad na poslanie“, hidden summary
+## 4. Booking on the map
 
-- [ ] „Kopírovať“ in the „Prehľad na poslanie“ panel on iPhone Safari, Android Chrome and the WhatsApp in-app browser: tap it, paste into a WhatsApp chat, and check the text is complete (all nights, the „Chýbajú miesta“ block, the page link, no code). Where `navigator.clipboard` is blocked, the text must be selected and the Slovak „Text je označený, skopíruj ho.“ shown. Tested only in desktop headless Chrome (clipboard and `execCommand` fallback both worked).
-- [ ] The textarea in that panel uses 14 px: check whether iOS Safari zooms the page when it gets focus (it does for fonts under 16 px). If it does, raise `.summary-text` to 16 px.
-- [ ] The party form on a phone: the number fields bring up the numeric keyboard, the Slovak error text appears right under the field with the keyboard open (not hidden behind it), and the „Uložiť“ button stays reachable. Opening the form from the sheet's „Upraviť príchod a odchod“ puts focus on the name field: check it does not feel odd with the keyboard.
-- [ ] Edit of your own party goes board → „Kto si?“ → „Upraviť partiu“ (two taps, intended): confirm with the organizer that this is clear enough.
-- [ ] Shortening a stay on two phones: phone A confirms the freed places, phone B shows them free after its next poll (within 30 s).
-- [ ] Screen reader (VoiceOver, TalkBack): the hidden text summary after the map is reachable and read per room and bed; the night headings read „Noc Št → Pi“ (the arrow may be read as „right arrow“, consider „zo štvrtka na piatok“); the party form fields are announced with their labels and the field errors are read out.
-- [ ] Wording of the WhatsApp text (headings, „(N voľné)“, „Chýbajú miesta:“, „Tu sa zapíšeš:“) is the developer's own: the organizer should read one real text and approve or change the phrases.
+- [ ] **A couple fills a double bed with one tap:** „Zapísať nás sem“ on a double bed puts both people in with one tap (one figure per slot, the bed looks full).
+- [ ] **All nights:** a couple using „celý pobyt“ on a bed that is taken on one night: the free nights are written, the taken night is reported as skipped, and the second phone shows the same after its next poll.
+- [ ] **Amber note:** when a party holds more places than it needs for a night, the amber note appears in the scene, and it disappears when the extra place is cleared.
+- [ ] **Move:** moving a booking for one night, and for all nights, both work. Afterwards the old place is free and the new one is held on the other phone as well.
+- [ ] **Move mode on a phone:** after the sheet closes the bar appears above the scene and the scene may jump down a little. The next tap still lands on the intended bed, and „Zrušiť“ and „Táto noc / Všetky noci“ are easy to hit.
+- [ ] **Stay shortening:** shortening a party's stay in the form on a phone: the page names the slots that will be freed first, and after saving they are free on the map of the other phone.
+- [ ] **Missing places:** the red „V sobotu vám chýba 1 miesto“ style sign shows when a party needs more places than it holds, and goes away when it has enough.
+
+## 5. What the page shows, and its language
+
+- [ ] **Drawn from `/api/state`:** the event title and dates, the three night signposts with „obsadené X z 20“, the noticeboard, the my-party status and its warning are drawn inside the map. Change the data on another device and they change after the next poll.
+- [ ] **Slovak and informal everywhere:** every visible text (scene, panels, the code screen, the form, error and toast messages) is Slovak, uses tykanie and „ “ quotes. Provoke each error you can (taken slot, party not present, duplicate party name, empty name, rate limit, server stopped, expired cookie). No English server `message` ever shows up on the page.
+- [ ] **Readable on a phone (~380 px):** the date lines on the night signposts, „obsadené X z 20“, the „aktualizované pred … s“ line and above all the red missing-places sign are readable. If the red sign is too small, raise only its text size.
+- [ ] **Fonts:** Alegreya and Alegreya Sans load on the code screen and in the panels (also in the WhatsApp in-app browser). With no network to Google Fonts the fallback fonts look acceptable.
+- [ ] **Room labels:** the „Chodbička“ label is squeezed into the 54-unit corridor and „Letná kuchynka“ touches the stove pipe. Look at both on a phone.
+
+## 6. Phones, desktop, modes and zoom
+
+- [ ] **iPhone Safari, Android Chrome and desktop, each in light and dark mode:** the map and all panels work. In dark mode the scene keeps its colors, and the code screen and panels turn dark and stay readable.
+- [ ] **Pinch-zoom works** on the map and on the open sheet, on iPhone and on Android.
+- [ ] **No zoom on focus:** on iPhone Safari, tapping the code field, any field of the party form and the „Prehľad na poslanie“ text does not zoom the page (all are 16 px or larger).
+- [ ] **Reduced motion:** with „Reduce motion“ on in the system settings the blinking of free places and the signs stops.
+- [ ] **Touch targets:** the three night signposts, the red and amber signs, the noticeboard and its „?“ icon, the letter icon and the panel buttons are hit with a thumb on the first tap, also when the tap lands slightly above or below a signpost (44 px, `tasks/QUESTIONS.md` Q9). The small beds (cots, 1-bed, bunks, about 32–40 px wide) can be hit on the first or second try. If not, widen the bed hit areas.
+- [ ] **Long press:** a long press on a bed with a finger (iPhone Safari and Android Chrome) shows the small board with the occupants' names and does not open the sheet. A resting finger emits tiny `pointermove` events, so check the long press is not cancelled by finger jitter (so far only synthetic touches were tried). A short tap opens the sheet.
+
+## 7. Party form and „Prehľad na poslanie“
+
+- [ ] **Party form on a phone:** the number fields bring up the numeric keyboard, the Slovak error text appears right under the field with the keyboard open (not hidden behind it), and „Uložiť“ stays reachable. An empty name shows „Napíš meno partie.“. Opening the form from the sheet's „Upraviť príchod a odchod“ puts focus on the name field: check this does not feel odd with the keyboard.
+- [ ] **Copy:** „Kopírovať“ on iPhone Safari, Android Chrome and the WhatsApp in-app browser: paste into a WhatsApp chat and check the text is complete (all nights, the „Chýbajú miesta“ block, the page link, no code). Where `navigator.clipboard` is blocked, the text is selected and the Slovak „Text je označený, skopíruj ho.“ is shown. (So far tried only in desktop headless Chrome.)
+- [ ] **Texts match the map:** „Prehľad na poslanie“ and the hidden text summary agree with what the map shows (same parties and places, per night).
+
+## 8. Screen reader (VoiceOver on iPhone, TalkBack on Android)
+
+- [ ] **Beds:** announced as buttons with the label „<bed>, <room>, v <night> <who>, N voľných“. The sheet is announced as a dialog and focus returns to the bed when it closes.
+- [ ] **Hidden summary:** the text summary after the map is reachable and read per room and bed. The night headings read „Noc Št → Pi“: check how the arrow is read (maybe „right arrow“) and consider „zo štvrtka na piatok“.
+- [ ] **Form:** the party form fields are announced with their labels and the field errors are read out.
+
+## Decisions to confirm with the organizer
+
+These are not defects, they are the developer's own choices that need a human opinion.
+
+- [ ] Editing your own party goes board → „Kto si?“ → „Upraviť partiu“ (two taps, intended). Is that clear enough?
+- [ ] Read one real „Prehľad na poslanie“ text and approve or change the phrases (headings, „(N voľné)“, „Chýbajú miesta:“, „Tu sa zapíšeš:“).
+- [ ] Shorten „Chodbička“ and „Letná kuchynka“ in `config/chata.yaml` if the labels look bad (no code change needed).
+- [ ] The open decisions listed in `README.md` (section 6) still have the defaults.

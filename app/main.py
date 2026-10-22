@@ -94,7 +94,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     if missing:
         raise ConfigError(
             f"missing environment variable(s): {', '.join(missing)} "
-            "(set them in the environment, or load .env via systemd EnvironmentFile= or `uvicorn --env-file`; "
+            "(set them in the environment: in Docker via compose `environment:`, locally via `uvicorn --env-file .env`; "
             "see .env.example)"
         )
     if len(values["SECRET_KEY"]) < MIN_SECRET_KEY_LEN:
