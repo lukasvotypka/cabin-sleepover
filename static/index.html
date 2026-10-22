@@ -35,8 +35,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* --- scene (fixed colors, never inverted in dark mode) --- */
-#scene { max-width: 560px; margin: 0 auto; }
-#scene svg { display: block; width: 100%; height: auto; image-rendering: pixelated; touch-action: manipulation; }
+#scene { position: relative; max-width: 560px; margin: 0 auto; }
+/* Zoomed in, one finger pans the map and two fingers pinch it, so the browser must not scroll or zoom the page there. */
+#scene svg { display: block; width: 100%; height: auto; image-rendering: pixelated; touch-action: pan-x pan-y; }
+#scene svg:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
+#scene svg.zoomed { touch-action: none; }
+.zoom-reset {
+  position: absolute; right: 8px; bottom: 8px; min-width: 44px; min-height: 44px; padding: 6px 12px;
+  background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
+  font-weight: 700; cursor: pointer; touch-action: manipulation;
+}
+.zoom-reset:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
 #scene svg text { font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; user-select: none; -webkit-user-select: none; }
 #scene svg g[role="button"] { cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
 #scene svg .hit { fill: transparent; }
@@ -213,6 +222,8 @@ var NOTICE_LINES = ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.",
 // Same limits as the server (PartyInput in app/models.py).
 var PARTY_LIMITS = { name: 60, arrival_time: 60, note: 300, countMax: 20 };
 var LONG_PRESS_SLOP = 10;   // px a finger may move during a long press
+var ZOOM_MAX = 4;           // the map zooms between 1 (whole scene) and this
+var ZOOM_KEY_STEP = 1.25;   // factor of one + or - key press
 
 // --- dates ---
 
@@ -688,6 +699,107 @@ function movedBeyond(x0, y0, x1, y1, limit) {
   return dx * dx + dy * dy > limit * limit;
 }
 
+// --- map zoom (the visible area of the scene: view = {x, y, w, h} in scene units) ---
+
+function wholeView(W, H) {
+  return { x: 0, y: 0, w: W, h: H };
+}
+
+function viewZoom(view, W) {
+  return W / view.w;
+}
+
+function isZoomed(view, W) {
+  return view.w < W - 0.001;
+}
+
+// Keeps the scene's aspect ratio, the zoom between 1 and ZOOM_MAX, and the area inside the scene.
+// A view with a missing or non-finite number (a bad event coordinate) falls back to the whole scene.
+function clampView(view, W, H) {
+  if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !isFinite(view.h) || !(view.w > 0)) return wholeView(W, H);
+  var w = Math.min(W, Math.max(W / ZOOM_MAX, view.w));
+  var h = w * H / W;
+  return {
+    x: Math.min(W - w, Math.max(0, view.x)),
+    y: Math.min(H - h, Math.max(0, view.y)),
+    w: w,
+    h: h
+  };
+}
+
+// Zooms by `factor` (above 1 zooms in) and keeps the scene point (px, py) at the same place on screen.
+// A bad factor changes nothing; a bad point means the center of the visible area.
+function zoomView(view, W, H, factor, px, py) {
+  if (!isFinite(factor) || !(factor > 0)) return clampView(view, W, H);
+  if (!isFinite(px)) px = view.x + view.w / 2;
+  if (!isFinite(py)) py = view.y + view.h / 2;
+  var w = Math.min(W, Math.max(W / ZOOM_MAX, view.w / factor));
+  var fx = (px - view.x) / view.w, fy = (py - view.y) / view.h;
+  var h = w * H / W;
+  return clampView({ x: px - fx * w, y: py - fy * h, w: w, h: h }, W, H);
+}
+
+// Moves the visible area by (dx, dy) scene units.
+function panView(view, W, H, dx, dy) {
+  if (!isFinite(dx) || !isFinite(dy)) return clampView(view, W, H);
+  return clampView({ x: view.x + dx, y: view.y + dy, w: view.w, h: view.h }, W, H);
+}
+
+// The scene point under a screen point. `box` is the svg's on-screen rectangle {left, top, width, height}.
+function scenePoint(view, box, cx, cy) {
+  return {
+    x: view.x + (cx - box.left) / box.width * view.w,
+    y: view.y + (cy - box.top) / box.height * view.h
+  };
+}
+
+// Dragging the map by (dx, dy) screen px moves the visible area the other way.
+function dragView(view, W, H, box, dx, dy) {
+  var k = view.w / box.width;
+  return panView(view, W, H, -dx * k, -dy * k);
+}
+
+// A pinch from `from` to `to` ({x, y, dist}: midpoint and finger distance in screen px): the scene point that
+// was under the old midpoint ends up under the new one, so the fingers zoom and pan at once.
+function pinchView(view, W, H, box, from, to) {
+  if (!(from.dist > 0) || !(to.dist > 0) || !isFinite(from.dist) || !isFinite(to.dist)) return view;
+  if (!isFinite(from.x) || !isFinite(from.y) || !isFinite(to.x) || !isFinite(to.y)) return view;
+  var anchor = scenePoint(view, box, from.x, from.y);
+  var w = Math.min(W, Math.max(W / ZOOM_MAX, view.w * from.dist / to.dist));
+  var h = w * H / W;
+  return clampView({
+    x: anchor.x - (to.x - box.left) / box.width * w,
+    y: anchor.y - (to.y - box.top) / box.height * h,
+    w: w,
+    h: h
+  }, W, H);
+}
+
+// The zoom factor of one wheel event. A trackpad pinch arrives as a wheel with ctrlKey and small deltas.
+function wheelFactor(deltaY, deltaMode, ctrlKey) {
+  var px = deltaMode === 1 ? deltaY * 16 : deltaMode === 2 ? deltaY * 400 : deltaY;
+  px = Math.max(-100, Math.min(100, px));
+  return Math.exp(-px * (ctrlKey ? 0.01 : 0.002));
+}
+
+// Pans the visible area the least that shows `r` ([x, y, w, h]) with `margin` around it (as far as the zoom allows).
+function revealRect(view, W, H, r, margin) {
+  if (!r.every(isFinite)) return clampView(view, W, H);
+  var dx = 0, dy = 0;
+  var left = r[0] - margin, right = r[0] + r[2] + margin, top = r[1] - margin, bottom = r[1] + r[3] + margin;
+  if (right - left > view.w) dx = r[0] - view.x;        // too big to fit: show its top-left corner
+  else if (left < view.x) dx = left - view.x;
+  else if (right > view.x + view.w) dx = right - view.x - view.w;
+  if (bottom - top > view.h) dy = r[1] - view.y;
+  else if (top < view.y) dy = top - view.y;
+  else if (bottom > view.y + view.h) dy = bottom - view.y - view.h;
+  return panView(view, W, H, dx, dy);
+}
+
+function viewBoxText(view) {
+  return [view.x, view.y, view.w, view.h].map(function (n) { return String(Math.round(n * 1000) / 1000); }).join(" ");
+}
+
 // --- party form ---
 
 function defaultPartyForm(event) {
@@ -1019,6 +1131,16 @@ function errorText(error, state) {
     panel: null,
     layoutKey: null,
     layers: null,
+    view: null,          // the visible window of the scene (zoom and pan), see the zoom functions in the logic script
+    svg: null,
+    zoomReset: null,
+    zoomCleanup: null,
+    gestureId: 0,        // bumped when a pinch or a drag starts, so pending long-press timers give up
+    gestureAt: 0,        // when a pinch or Safari gesture last did something
+    navKeyAt: 0,         // when a key that moves focus (not Enter, Space or Escape) was last pressed
+    sceneSize: null,
+    pinching: false,     // two or more fingers are down on the map
+    blockClick: false,   // a drag just ended: its click must not count as a tap
     ageNode: null,
     ageMax: 0
   };
@@ -1263,6 +1385,216 @@ function errorText(error, state) {
       tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
     };
     drawBase(app.layers.base, layout);
+    setupZoom(host, svg, vb[0], vb[1]);
+  }
+
+  // --- zoom and pan: only the svg viewBox changes, the scene stays crisp ---
+
+  function applyView() {
+    var W = app.sceneSize[0], zoomed = isZoomed(app.view, W);
+    app.svg.setAttribute("viewBox", viewBoxText(app.view));
+    app.svg.classList.toggle("zoomed", zoomed);
+    app.zoomReset.hidden = !zoomed;
+  }
+
+  function setView(view) {
+    app.view = view;
+    applyView();
+  }
+
+  function resetView() {
+    setView(wholeView(app.sceneSize[0], app.sceneSize[1]));
+  }
+
+  function setupZoom(host, svg, W, H) {
+    var pointers = {};          // id -> {x, y} of the fingers or the mouse button held down on the map
+    var drag = null;            // {sx, sy, lx, ly, moved} of the current gesture
+    var pinch = null;           // the last {x, y, dist} while two fingers are down
+    var blockTimer = null;
+    var gestureScale = 1;
+
+    var sizeChanged = !app.sceneSize || app.sceneSize[0] !== W || app.sceneSize[1] !== H;
+    app.sceneSize = [W, H];
+    app.svg = svg;
+    app.zoomReset = htmlEl("button", { "class": "zoom-reset", type: "button", "aria-label": "Celá mapa – zobraziť celú mapu" }, "Celá mapa");
+    host.appendChild(app.zoomReset);
+    svg.setAttribute("tabindex", "-1");     // focus target after „Celá mapa“ hides itself
+    if (sizeChanged || !app.view) app.view = wholeView(W, H);
+    applyView();      // a redraw of the layout keeps the zoom
+
+    function box() {
+      var r = svg.getBoundingClientRect();
+      return { left: r.left, top: r.top, width: r.width || 1, height: r.height || 1 };
+    }
+    function ids() { return Object.keys(pointers); }
+    function measure() {
+      var a = pointers[ids()[0]], b = pointers[ids()[1]];
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dist: Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)) };
+    }
+    function capture(id) {
+      try { svg.setPointerCapture(id); } catch (e) { /* the pointer is gone */ }
+    }
+    function endPress() {      // a pinch or a drag is no long press: pending timers give up
+      app.gestureId++;
+      app.gestureAt = Date.now();
+    }
+    // The point may be missing (iOS gesture events have no coordinates): zoom around the center of the map then.
+    function zoomAround(factor, cx, cy) {
+      var r = box();
+      if (!isFinite(cx)) cx = r.left + r.width / 2;
+      if (!isFinite(cy)) cy = r.top + r.height / 2;
+      var p = scenePoint(app.view, r, cx, cy);
+      setView(zoomView(app.view, W, H, factor, p.x, p.y));
+    }
+    // After a key zoom the focused bed or sign must still be in view.
+    function revealFocused() {
+      var node = document.activeElement;
+      if (!node || !svg.contains(node) || !node.getBBox || node === svg) return;
+      try {
+        var b = node.getBBox();
+        setView(revealRect(app.view, W, H, [b.x, b.y, b.width, b.height], 6));
+      } catch (err) { /* not measurable: leave the view */ }
+    }
+
+    svg.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (e.isPrimary) {      // the first finger: forget fingers whose release was lost (e.g. a redrawn bed)
+        pointers = {};
+        pinch = null;
+      }
+      app.blockClick = false;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (ids().length === 1) {
+        drag = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, moved: false };
+      } else if (ids().length === 2) {
+        app.pinching = true;
+        endPress();
+        if (drag) drag.moved = true;      // two fingers are never a tap
+        pinch = measure();
+        ids().forEach(function (id) { capture(Number(id)); });
+      }
+    });
+
+    svg.addEventListener("pointermove", function (e) {
+      var p = pointers[e.pointerId];
+      if (!p || !drag) return;
+      p.x = e.clientX;
+      p.y = e.clientY;
+      if (ids().length >= 2) {
+        if (!pinch) return;
+        var now = measure();
+        app.gestureAt = Date.now();
+        setView(pinchView(app.view, W, H, box(), pinch, now));
+        pinch = now;
+        return;
+      }
+      if (!drag.moved && movedBeyond(drag.sx, drag.sy, e.clientX, e.clientY, LONG_PRESS_SLOP)) {
+        drag.moved = true;      // beyond the tap tolerance: no tap, no long press from here on
+        endPress();
+        capture(e.pointerId);   // the move goes on even if a redraw replaces the bed under the finger
+      }
+      if (drag.moved) {
+        if (isZoomed(app.view, W)) setView(dragView(app.view, W, H, box(), e.clientX - drag.lx, e.clientY - drag.ly));
+        drag.lx = e.clientX;
+        drag.ly = e.clientY;
+      }
+    });
+
+    function release(e) {
+      if (!pointers[e.pointerId]) return;
+      delete pointers[e.pointerId];
+      var left = ids();
+      pinch = null;
+      if (left.length === 1 && drag) {      // one finger stays: it goes on panning from where it is
+        drag.lx = pointers[left[0]].x;
+        drag.ly = pointers[left[0]].y;
+      }
+      if (left.length < 2 && app.pinching) {
+        app.pinching = false;
+        app.gestureAt = Date.now();
+      }
+      if (left.length === 0 && drag) {
+        if (drag.moved && e.type === "pointerup") {      // the click that follows a drag is not a tap
+          app.blockClick = true;
+          clearTimeout(blockTimer);
+          blockTimer = setTimeout(function () { app.blockClick = false; }, 100);
+        }
+        drag = null;
+      }
+    }
+    if (app.zoomCleanup) app.zoomCleanup();      // the layout was redrawn: drop the old svg's window listeners
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    app.zoomCleanup = function () {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+
+    svg.addEventListener("click", function (e) {
+      if (!app.blockClick) return;
+      app.blockClick = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+
+    svg.addEventListener("wheel", function (e) {
+      e.preventDefault();       // the page neither scrolls nor zooms over the map
+      zoomAround(wheelFactor(e.deltaY, e.deltaMode, e.ctrlKey), e.clientX, e.clientY);
+    }, { passive: false });
+
+    // Safari on a Mac sends a trackpad pinch as gesture events, not as wheel events.
+    svg.addEventListener("gesturestart", function (e) {
+      e.preventDefault();
+      gestureScale = 1;
+      endPress();
+    });
+    svg.addEventListener("gesturechange", function (e) {
+      e.preventDefault();
+      endPress();
+      if (ids().length || !(e.scale > 0)) return;     // fingers handled by the pointer events are not zoomed twice
+      zoomAround(e.scale / gestureScale, e.clientX, e.clientY);
+      gestureScale = e.scale;
+    });
+    svg.addEventListener("gestureend", function (e) {
+      e.preventDefault();
+      endPress();
+    });
+
+    // With two or more fingers the page must neither scroll nor zoom: the browser would otherwise claim an uneven
+    // pinch (one finger still) as a scroll and cancel the pointers. One finger at 1x still scrolls the page.
+    function holdTwoFingers(e) {
+      if (e.touches.length >= 2 && e.cancelable) e.preventDefault();
+    }
+    svg.addEventListener("touchstart", holdTwoFingers, { passive: false });
+    svg.addEventListener("touchmove", holdTwoFingers, { passive: false });
+
+    svg.addEventListener("keydown", function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var c = { x: app.view.x + app.view.w / 2, y: app.view.y + app.view.h / 2 };
+      if (e.key === "+" || e.key === "=") setView(zoomView(app.view, W, H, ZOOM_KEY_STEP, c.x, c.y));
+      else if (e.key === "-" || e.key === "_") setView(zoomView(app.view, W, H, 1 / ZOOM_KEY_STEP, c.x, c.y));
+      else if (e.key === "0") resetView();
+      else return;
+      revealFocused();
+      e.preventDefault();
+    });
+
+    // A bed reached with Tab must be in view. A tap or click, or focus returning after a panel closes, must not
+    // shift the map under the finger.
+    svg.addEventListener("focusin", function (e) {
+      var node = e.target;
+      if (!isZoomed(app.view, W) || !node.getBBox || Date.now() - app.navKeyAt > 500) return;
+      try {
+        if (!node.matches(":focus-visible")) return;
+        var b = node.getBBox();
+        setView(revealRect(app.view, W, H, [b.x, b.y, b.width, b.height], 6));
+      } catch (err) { /* not measurable: leave the view */ }
+    });
+
+    app.zoomReset.addEventListener("click", function () {
+      resetView();
+      svg.focus({ preventScroll: true });
+    });
   }
 
   function drawBase(g, layout) {
@@ -1586,10 +1918,13 @@ function errorText(error, state) {
       app.suppressClick = false;
       cancel();
       if (e.pointerType === "mouse") return;
+      if (app.pinching || Date.now() - app.gestureAt < LONG_PRESS_MS) return;      // just after a pinch: not a press
       startX = e.clientX;
       startY = e.clientY;
+      var gesture = app.gestureId;
       timer = setTimeout(function () {
         timer = null;
+        if (app.pinching || gesture !== app.gestureId) return;      // a pinch or a drag started: not a long press
         app.suppressClick = true;
         showTip(bed);
       }, LONG_PRESS_MS);
@@ -2296,6 +2631,9 @@ function errorText(error, state) {
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && app.move && !app.panel) cancelMove();
   });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" && e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") app.navKeyAt = Date.now();
+  }, true);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") poll();
   });

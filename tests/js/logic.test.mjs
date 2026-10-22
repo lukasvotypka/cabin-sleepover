@@ -875,3 +875,179 @@ test("page: blinking has a reduced-motion rule and the free square is white or o
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none/);
   assert.match(html, /tight: "#E0A33A"/);
 });
+
+// --- map zoom ---
+
+const SW = 380, SH = 412;
+const BOX = { left: 10, top: 20, width: 380, height: 412 };    // the svg on screen at 1x, one px per unit
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ""} ${a} != ${b}`);
+
+test("zoom: the whole view is 1x and not zoomed; its viewBox text is the scene", () => {
+  const v = plain(L.wholeView(SW, SH));
+  assert.deepEqual(v, { x: 0, y: 0, w: 380, h: 412 });
+  assert.equal(L.viewZoom(v, SW), 1);
+  assert.equal(L.isZoomed(v, SW), false);
+  assert.equal(L.viewBoxText(v), "0 0 380 412");
+});
+
+test("zoom: clampView keeps the aspect ratio, 1x to 4x, and stays inside the scene", () => {
+  const tooFar = plain(L.clampView({ x: -50, y: 900, w: 10, h: 10 }, SW, SH));
+  near(tooFar.w, 95);
+  near(tooFar.h, 103);
+  near(tooFar.x, 0);
+  near(tooFar.y, SH - 103);
+  const tooWide = plain(L.clampView({ x: 30, y: 30, w: 900, h: 900 }, SW, SH));
+  assert.deepEqual(tooWide, { x: 0, y: 0, w: 380, h: 412 });
+  const right = plain(L.clampView({ x: 400, y: 0, w: 190, h: 206 }, SW, SH));
+  near(right.x, 190);
+  assert.equal(L.ZOOM_MAX, 4);
+});
+
+test("zoom: zoomView keeps the point under the cursor in place", () => {
+  const whole = L.wholeView(SW, SH);
+  const v = plain(L.zoomView(whole, SW, SH, 2, 100, 150));
+  near(v.w, 190);
+  near(v.h, 206);
+  // the point (100, 150) sits at the same fraction of the window as before
+  near((100 - v.x) / v.w, 100 / 380);
+  near((150 - v.y) / v.h, 150 / 412);
+  assert.equal(L.isZoomed(v, SW), true);
+  // zooming in again around another point
+  const v2 = plain(L.zoomView(v, SW, SH, 2, 120, 160));
+  near((120 - v2.x) / v2.w, (120 - v.x) / v.w);
+  near((160 - v2.y) / v2.h, (160 - v.y) / v.h);
+});
+
+test("zoom: zoomView is clamped at 1x and at about 4x", () => {
+  let v = L.wholeView(SW, SH);
+  for (let i = 0; i < 20; i++) v = L.zoomView(v, SW, SH, 1.5, 200, 200);
+  near(v.w, 95);
+  near(L.viewZoom(v, SW), 4);
+  for (let i = 0; i < 20; i++) v = L.zoomView(v, SW, SH, 1 / 1.5, 200, 200);
+  assert.deepEqual(plain(v), { x: 0, y: 0, w: 380, h: 412 });
+  // zooming out at 1x changes nothing, also at a corner
+  assert.deepEqual(plain(L.zoomView(L.wholeView(SW, SH), SW, SH, 0.5, 379, 411)), { x: 0, y: 0, w: 380, h: 412 });
+});
+
+test("zoom: panView and dragView move the window and never leave the scene", () => {
+  const z = L.zoomView(L.wholeView(SW, SH), SW, SH, 2, 190, 206);
+  assert.deepEqual(plain(z), { x: 95, y: 103, w: 190, h: 206 });
+  assert.deepEqual(plain(L.panView(z, SW, SH, 20, -30)), { x: 115, y: 73, w: 190, h: 206 });
+  assert.deepEqual(plain(L.panView(z, SW, SH, 999, 999)), { x: 190, y: 206, w: 190, h: 206 });
+  assert.deepEqual(plain(L.panView(z, SW, SH, -999, -999)), { x: 0, y: 0, w: 190, h: 206 });
+  // dragging the map right by 38 screen px (the svg is 380 px wide) moves the window left by 19 units
+  const d = plain(L.dragView(z, SW, SH, BOX, 38, 0));
+  near(d.x, 95 - 19);
+  near(d.y, 103);
+  // at 1x there is nowhere to go
+  assert.deepEqual(plain(L.dragView(L.wholeView(SW, SH), SW, SH, BOX, 80, 80)), { x: 0, y: 0, w: 380, h: 412 });
+});
+
+test("zoom: scenePoint maps a screen point into the window", () => {
+  const whole = L.wholeView(SW, SH);
+  assert.deepEqual(plain(L.scenePoint(whole, BOX, 10, 20)), { x: 0, y: 0 });
+  assert.deepEqual(plain(L.scenePoint(whole, BOX, 200, 226)), { x: 190, y: 206 });
+  const z = { x: 95, y: 103, w: 190, h: 206 };
+  assert.deepEqual(plain(L.scenePoint(z, BOX, 200, 226)), { x: 95 + 95, y: 103 + 103 });
+});
+
+test("zoom: a pinch zooms around the fingers' midpoint and pans with them", () => {
+  const whole = L.wholeView(SW, SH);
+  // fingers 100 px apart spread to 200 px, midpoint stays at screen (200, 226) = scene (190, 206)
+  const spread = plain(L.pinchView(whole, SW, SH, BOX,
+    { x: 200, y: 226, dist: 100 }, { x: 200, y: 226, dist: 200 }));
+  assert.deepEqual(spread, { x: 95, y: 103, w: 190, h: 206 });
+  // the same spread with the midpoint off center keeps the scene point under it
+  const off = plain(L.pinchView(whole, SW, SH, BOX,
+    { x: 110, y: 120, dist: 100 }, { x: 110, y: 120, dist: 200 }));
+  const p0 = L.scenePoint(whole, BOX, 110, 120), p1 = L.scenePoint(off, BOX, 110, 120);
+  near(p1.x, p0.x);
+  near(p1.y, p0.y);
+  // moving both fingers without a distance change only pans
+  const z = { x: 95, y: 103, w: 190, h: 206 };
+  const moved = plain(L.pinchView(z, SW, SH, BOX, { x: 200, y: 226, dist: 100 }, { x: 240, y: 226, dist: 100 }));
+  near(moved.w, 190);
+  near(moved.x, 95 - 20);     // 40 px right = 20 units left at 2x
+  near(moved.y, 103);
+  // pinching in past 1x stops at the whole scene; a zero distance changes nothing
+  assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: 200, y: 226, dist: 200 }, { x: 200, y: 226, dist: 10 })),
+    { x: 0, y: 0, w: 380, h: 412 });
+  assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: 1, y: 1, dist: 0 }, { x: 1, y: 1, dist: 50 })), z);
+});
+
+test("zoom: wheelFactor zooms in for a negative delta, out for a positive one, and pinch is stronger", () => {
+  assert.ok(L.wheelFactor(-100, 0, false) > 1);
+  assert.ok(L.wheelFactor(100, 0, false) < 1);
+  near(L.wheelFactor(-30, 0, false) * L.wheelFactor(30, 0, false), 1);
+  assert.equal(L.wheelFactor(0, 0, false), 1);
+  assert.ok(L.wheelFactor(-5, 0, true) > L.wheelFactor(-5, 0, false));
+  // line mode counts like pixels, and one huge event cannot jump the whole range
+  assert.ok(L.wheelFactor(-3, 1, false) > 1.05);
+  assert.ok(L.wheelFactor(-100000, 0, false) <= Math.exp(0.2) + 1e-9);
+});
+
+test("zoom: revealRect pans the least that shows the rectangle", () => {
+  const z = { x: 100, y: 100, w: 95, h: 103 };
+  // already visible: unchanged
+  assert.deepEqual(plain(L.revealRect(z, SW, SH, [120, 120, 20, 20], 6)), z);
+  // to the right and below: the window moves so that the rect plus margin touches the edge
+  const r = plain(L.revealRect(z, SW, SH, [250, 250, 20, 20], 6));
+  near(r.x, 250 + 20 + 6 - 95);
+  near(r.y, 250 + 20 + 6 - 103);
+  // to the left and above
+  const l = plain(L.revealRect(z, SW, SH, [40, 30, 20, 20], 6));
+  near(l.x, 34);
+  near(l.y, 24);
+  // never leaves the scene
+  const edge = plain(L.revealRect(z, SW, SH, [370, 400, 10, 10], 6));
+  near(edge.x, 380 - 95);
+  near(edge.y, 412 - 103);
+  // a rectangle bigger than the window is shown from its corner
+  const big = plain(L.revealRect({ x: 0, y: 0, w: 95, h: 103 }, SW, SH, [150, 150, 200, 200], 6));
+  near(big.x, 150);
+  near(big.y, 150);
+});
+
+test("zoom: viewBoxText rounds to three decimals and joins with spaces", () => {
+  assert.equal(L.viewBoxText({ x: 1 / 3, y: 2.5, w: 95, h: 103.00049 }), "0.333 2.5 95 103");
+});
+
+test("zoom: non-finite input never corrupts the view (iOS gesture events have no coordinates)", () => {
+  const whole = { x: 0, y: 0, w: 380, h: 412 };
+  const z = { x: 95, y: 103, w: 190, h: 206 };
+  for (const bad of [NaN, undefined, Infinity, "x"]) {
+    assert.deepEqual(plain(L.clampView({ x: bad, y: 0, w: 190, h: 206 }, SW, SH)), whole);
+    assert.deepEqual(plain(L.clampView({ x: 0, y: 0, w: bad, h: 206 }, SW, SH)), whole);
+    // a bad point zooms around the center of the visible area
+    const v = plain(L.zoomView(z, SW, SH, 1.5, bad, bad));
+    assert.ok(Object.values(v).every(Number.isFinite), JSON.stringify(v));
+    near(v.x + v.w / 2, 190);
+    near(v.y + v.h / 2, 206);
+    assert.deepEqual(plain(L.zoomView(z, SW, SH, bad, 100, 100)), z);
+    assert.deepEqual(plain(L.panView(z, SW, SH, bad, 5)), z);
+    assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: bad, y: 1, dist: 10 }, { x: 1, y: 1, dist: 20 })), z);
+    assert.deepEqual(plain(L.pinchView(z, SW, SH, BOX, { x: 1, y: 1, dist: bad }, { x: 1, y: 1, dist: 20 })), z);
+    assert.deepEqual(plain(L.revealRect(z, SW, SH, [bad, 0, 10, 10], 6)), z);
+  }
+  assert.equal(L.viewBoxText(L.zoomView(L.wholeView(SW, SH), SW, SH, 1.2, NaN, NaN)), "31.667 34.333 316.667 343.333");
+  // a garbage view (even from a bug) can never reach the viewBox text as NaN
+  assert.equal(L.viewBoxText(L.clampView({ x: NaN, y: NaN, w: NaN, h: NaN }, SW, SH)), "0 0 380 412");
+  assert.equal(L.viewBoxText(L.clampView(undefined, SW, SH)), "0 0 380 412");
+});
+
+test("page: the map is zoomed through the viewBox, with no CSS transform and a way back", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.doesNotMatch(html, /transform\s*:\s*scale|\.style\.transform/);
+  assert.match(app, /setAttribute\("viewBox", viewBoxText\(/);
+  assert.match(html, /shape-rendering": "crispEdges"/);
+  assert.match(app, /addEventListener\("wheel", [\s\S]*passive: false/);
+  assert.match(html, /#scene svg \{[^}]*touch-action: pan-x pan-y;/);
+  assert.match(html, /#scene svg\.zoomed \{ touch-action: none; \}/);
+  // two fingers must not become a page scroll: non-passive touch listeners cancel them
+  assert.match(app, /addEventListener\("touchstart", holdTwoFingers, \{ passive: false \}\)/);
+  assert.match(app, /addEventListener\("touchmove", holdTwoFingers, \{ passive: false \}\)/);
+  assert.match(app, /e\.touches\.length >= 2 && e\.cancelable\) e\.preventDefault\(\)/);
+  // the button's accessible name contains its visible text
+  assert.match(app, /"aria-label": "Celá mapa – zobraziť celú mapu"[^;]*"Celá mapa"/);
+  assert.match(html, /#scene svg:focus-visible \{ outline:/);
+});

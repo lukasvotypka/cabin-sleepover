@@ -63,7 +63,12 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 ## 6. Phones, desktop, modes and zoom
 
 - [ ] **iPhone Safari, Android Chrome and desktop, each in light and dark mode:** the map and all panels work. In dark mode the scene keeps its colors, and the code screen and panels turn dark and stay readable.
-- [ ] **Pinch-zoom works** on the map and on the open sheet, on iPhone and on Android.
+- [ ] **Pinch zoom and pan of the map (touch):** on iPhone Safari and Android Chrome, also inside the WhatsApp in-app browser, two fingers zoom the map around the fingers (between the whole map and about 4x), the fingers' movement pans it, and the page itself does not zoom. Zoomed in, one finger drags the map. Let go and tap: nothing opens after a drag.
+- [ ] **Wheel and trackpad zoom (desktop):** the mouse wheel and a trackpad pinch (also in Safari on a Mac) zoom the map around the pointer, the page does not scroll over the map, and zoomed in a mouse drag pans. The keys `+`, `-` and `0` zoom and reset when a bed has focus, and Tab keeps the focused bed in view.
+- [ ] **Tapping a small bed while zoomed:** zoom in on the cots and the 1-bed beds, a short tap opens the sheet, a long press shows the names, a drag only pans. The zoom stays through the 30 s refresh, writes and night switches.
+- [ ] **„Celá mapa“:** the button appears only when zoomed in, is easy to hit with a thumb, and returns to the whole map. With „Reduce motion“ on there is no animation (there is none anyway).
+- [ ] **Two-finger pan feel at the zoom limits (T-010 tester note):** at 4x and at the whole map, drag two fingers together without spreading them. The zoom should not drift by more than a few percent (the first finger's move arrives before the second's, which can nudge the zoom once at a limit).
+- [ ] **Page pinch-zoom elsewhere:** pinch-zoom still works on the open sheet and the panels (only the map takes the pinch for itself).
 - [ ] **No zoom on focus:** on iPhone Safari, tapping the code field, any field of the party form and the „Prehľad na poslanie“ text does not zoom the page (all are 16 px or larger).
 - [ ] **Reduced motion:** with „Reduce motion“ on in the system settings the blinking of free places and the signs stops.
 - [ ] **Touch targets:** the three night signposts, the red and amber signs, the noticeboard and its „?“ icon, the letter icon and the panel buttons are hit with a thumb on the first tap, also when the tap lands slightly above or below a signpost (44 px, `tasks/QUESTIONS.md` Q9). The small beds (cots, 1-bed, bunks, about 32–40 px wide) can be hit on the first or second try. If not, widen the bed hit areas.
