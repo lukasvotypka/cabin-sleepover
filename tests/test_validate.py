@@ -1,0 +1,473 @@
+import pytest
+
+from app import validate as v
+from app.models import PartyCreate
+from app.validate import RuleError
+from tests.conftest import FRI, SAT, SUN, THU
+
+A1, A2 = "vlavo-manzelska-1", "vlavo-manzelska-2"
+OKNO = "vlavo-okno-1"
+MAT1, MAT2 = "konica-dole-matrac-1", "konica-dole-matrac-2"
+
+
+@pytest.fixture
+def riso(make_party):
+    return make_party(name="Riso a Ben", id="p-riso01")
+
+
+@pytest.fixture
+def ivan(make_party):
+    return make_party(name="Ivan a Eva", id="p-ivan01", adults=2)
+
+
+def err(fn, *args, **kwargs) -> RuleError:
+    with pytest.raises(RuleError) as exc:
+        fn(*args, **kwargs)
+    return exc.value
+
+
+# --- RuleError and helpers ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "code,status",
+    [("bad_code", 401), ("forbidden", 403), ("signup_closed", 403), ("slot_taken", 409), ("not_present", 409),
+     ("duplicate_name", 409), ("unknown_slot", 404), ("unknown_party", 404), ("invalid", 422),
+     ("rate_limited", 429)],
+)
+def test_rule_error_carries_status(code, status):
+    e = RuleError(code, "message")
+    assert (e.code, e.status, e.message, e.params) == (code, status, "message", {})
+
+
+def test_rule_error_carries_params():
+    assert RuleError("invalid", "m", {"field": "night"}).params == {"field": "night"}
+
+
+def _rule_error_call_strings():
+    """Every string literal passed to RuleError(...) or _invalid(...) in app/validate.py, with the call name."""
+    import ast
+    import inspect
+
+    found = []
+    for node in ast.walk(ast.parse(inspect.getsource(v))):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) in ("RuleError", "_invalid"):
+            args = list(node.args) + [kw.value for kw in node.keywords]
+            keys = [kw.arg for kw in node.keywords]
+            for arg in args:
+                for sub in ast.walk(arg):
+                    if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+                        found.append((node.func.id, sub.value))
+            found.extend((node.func.id, k) for k in keys if k)
+    return found
+
+
+def test_rule_error_texts_are_english_ascii_for_every_call():
+    """The server sends no Slovak text: every literal given to RuleError/_invalid is plain ASCII."""
+    found = _rule_error_call_strings()
+    assert len(found) > 30
+    assert [text for _, text in found if not text.isascii()] == []
+
+
+def test_every_error_code_used_in_validate_is_known():
+    codes = {text for name, text in _rule_error_call_strings() if name == "RuleError" and text in v.ERROR_STATUS}
+    assert {"slot_taken", "not_present", "duplicate_name", "unknown_slot", "unknown_party", "invalid",
+            "signup_closed"} <= codes
+
+
+def test_runtime_messages_are_ascii_for_all_rule_errors(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso], {SAT: {A1: riso.id}, FRI: {A1: ivan.id}})
+    calls = [
+        lambda: v.check_signup_open(make_state(signup_open=False), False),
+        lambda: v.check_assign(state, layout, SAT, [A1], ivan.id),
+        lambda: v.check_assign(state, layout, SAT, ["x"], ivan.id),
+        lambda: v.check_assign(state, layout, SAT, [A1], "p-zzzzzz"),
+        lambda: v.check_assign(state, layout, SUN, [A1], ivan.id),
+        lambda: v.check_move(state, layout, ivan.id, A1, OKNO, [SAT]),
+        lambda: v.check_move(state, layout, ivan.id, A1, OKNO, [FRI, FRI]),
+        lambda: v.check_party_name(state, "ivan a eva"),
+        lambda: v.check_stay(layout, SAT, FRI),
+    ]
+    for call in calls:
+        e = err(call)
+        assert e.message.isascii()
+        assert all(str(k).isascii() for k in e.params)
+
+
+# --- presence and needed slots --------------------------------------------
+
+
+def test_presence_is_arrive_inclusive_leave_exclusive(make_party):
+    p = make_party(arrive=FRI, leave=SUN)
+    assert [v.is_present(p, n) for n in (THU, FRI, SAT, SUN)] == [False, True, True, False]
+
+
+def test_party_nights(layout, make_party):
+    assert v.party_nights(make_party(arrive=FRI, leave=SUN), layout) == [FRI, SAT]
+    assert v.party_nights(make_party(arrive=THU, leave=FRI), layout) == [THU]
+
+
+@pytest.mark.parametrize(
+    "adults,kids,kib,expected", [(2, 0, 0, 2), (2, 2, 0, 4), (2, 2, 1, 3), (1, 3, 3, 1), (0, 1, 1, 0)]
+)
+def test_needed_slots(make_party, adults, kids, kib, expected):
+    assert v.needed_slots(make_party(adults=adults, kids=kids, kids_in_parents_bed=kib)) == expected
+
+
+# --- locked signup ----------------------------------------------------------
+
+
+def test_signup_closed_blocks_without_admin(make_state):
+    e = err(v.check_signup_open, make_state(signup_open=False), is_admin=False)
+    assert (e.code, e.status) == ("signup_closed", 403)
+
+
+def test_signup_closed_passes_with_admin(make_state):
+    v.check_signup_open(make_state(signup_open=False), is_admin=True)
+
+
+def test_signup_open_passes_for_everyone(make_state):
+    v.check_signup_open(make_state(signup_open=True), is_admin=False)
+
+
+# --- assign ------------------------------------------------------------------
+
+
+def test_assign_free_slots_returns_all(layout, make_state, ivan):
+    state = make_state([ivan])
+    assert v.check_assign(state, layout, FRI, [A1, A2], ivan.id) == [A1, A2]
+
+
+def test_assign_extra_slots_are_not_refused(layout, make_state, make_party):
+    solo = make_party(adults=1)
+    state = make_state([solo])
+    assert v.check_assign(state, layout, FRI, [A1, A2, OKNO], solo.id) == [A1, A2, OKNO]
+
+
+def test_assign_unknown_slot(layout, make_state, ivan):
+    e = err(v.check_assign, make_state([ivan]), layout, FRI, [A1, "no-such-slot"], ivan.id)
+    assert (e.code, e.status) == ("unknown_slot", 404)
+    assert e.params == {"slot": "no-such-slot"}
+
+
+def test_assign_unknown_party(layout, make_state, ivan):
+    e = err(v.check_assign, make_state([ivan]), layout, FRI, [A1], "p-zzzzzz")
+    assert (e.code, e.status) == ("unknown_party", 404)
+    assert e.params == {"party_id": "p-zzzzzz"}
+
+
+def test_assign_night_outside_event(layout, make_state, ivan):
+    e = err(v.check_assign, make_state([ivan]), layout, SUN, [A1], ivan.id)
+    assert (e.code, e.status) == ("invalid", 422)
+    assert e.params == {"reason": "night_outside_event", "field": "night", "night": SUN}
+    assert err(v.check_assign, make_state([ivan]), layout, "not-a-date", [A1], ivan.id).code == "invalid"
+
+
+def test_assign_empty_or_duplicate_slots_invalid(layout, make_state, ivan):
+    state = make_state([ivan])
+    e = err(v.check_assign, state, layout, FRI, [], ivan.id)
+    assert (e.code, e.params) == ("invalid", {"reason": "empty_list", "field": "slots"})
+    e = err(v.check_assign, state, layout, FRI, [A1, A1], ivan.id)
+    assert (e.code, e.params["reason"]) == ("invalid", "duplicate_slot")
+
+
+def test_assign_not_present(layout, make_state, make_party):
+    late = make_party(arrive=FRI, leave=SUN)
+    state = make_state([late])
+    e = err(v.check_assign, state, layout, THU, [A1], late.id)
+    assert (e.code, e.status) == ("not_present", 409)
+    assert e.params == {"night": THU, "party_id": late.id, "party_name": late.name}
+    # on the night of departure the party is no longer present
+    assert err(v.check_assign, state, layout, SUN, [A1], late.id).code == "invalid"
+    leaves_sat = make_party(arrive=THU, leave=SAT)
+    assert err(v.check_assign, make_state([leaves_sat]), layout, SAT, [A1], leaves_sat.id).code == "not_present"
+    assert v.check_assign(state, layout, FRI, [A1], late.id) == [A1]
+
+
+def test_assign_slot_taken_names_party_and_day(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso], {SAT: {A1: riso.id}})
+    e = err(v.check_assign, state, layout, SAT, [A1], ivan.id)
+    assert (e.code, e.status) == ("slot_taken", 409)
+    assert e.params == {"night": SAT, "slot": A1, "party_id": riso.id, "party_name": "Riso a Ben", "own": False}
+
+
+def test_assign_only_same_night_conflicts(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso], {SAT: {A1: riso.id}})
+    assert v.check_assign(state, layout, FRI, [A1], ivan.id) == [A1]
+
+
+def test_assign_multi_slot_one_taken_rejects_whole_request(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso], {SAT: {A2: riso.id}})
+    e = err(v.check_assign, state, layout, SAT, [A1, A2], ivan.id)
+    assert e.code == "slot_taken"
+    assert e.params["slot"] == A2 and e.params["party_name"] == "Riso a Ben"
+
+
+def test_assign_own_slot_is_taken(layout, make_state, ivan):
+    state = make_state([ivan], {SAT: {A1: ivan.id}})
+    e = err(v.check_assign, state, layout, SAT, [A1], ivan.id)
+    assert e.code == "slot_taken" and e.params["own"] is True
+
+
+def test_assign_does_not_mutate_state(layout, make_state, ivan):
+    state = make_state([ivan])
+    v.check_assign(state, layout, FRI, [A1, A2], ivan.id)
+    assert state.sleeping == {}
+
+
+# --- assign-stay -------------------------------------------------------------
+
+
+def test_stay_all_nights_free(layout, make_state, make_party):
+    p = make_party(arrive=THU, leave=SUN)
+    plan = v.check_assign_stay(make_state([p]), layout, [A1, A2], p.id)
+    assert plan.nights == [THU, FRI, SAT] and plan.skipped == [] and plan.slots == [A1, A2]
+
+
+def test_stay_uses_only_party_nights(layout, make_state, make_party):
+    p = make_party(arrive=FRI, leave=SAT)
+    plan = v.check_assign_stay(make_state([p]), layout, [A1], p.id)
+    assert plan.nights == [FRI] and plan.skipped == []
+
+
+def test_stay_skips_whole_night_when_one_of_two_slots_taken(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso], {FRI: {A2: riso.id}})
+    plan = v.check_assign_stay(state, layout, [A1, A2], ivan.id)
+    assert plan.nights == [THU, SAT]
+    assert plan.skipped == [FRI]
+
+
+def test_stay_every_night_skipped_is_slot_taken(layout, make_state, ivan, riso):
+    sleeping = {n: {A1: riso.id} for n in (THU, FRI, SAT)}
+    e = err(v.check_assign_stay, make_state([ivan, riso], sleeping), layout, [A1, A2], ivan.id)
+    assert (e.code, e.status) == ("slot_taken", 409)
+    assert e.params["party_name"] == "Riso a Ben"
+    assert e.params["skipped"] == [THU, FRI, SAT]
+
+
+def test_stay_every_night_skipped_with_different_slots_taken(layout, make_state, ivan, riso):
+    sleeping = {THU: {A1: riso.id}, FRI: {A2: riso.id}, SAT: {A1: riso.id}}
+    assert err(v.check_assign_stay, make_state([ivan, riso], sleeping), layout, [A1, A2], ivan.id).code == "slot_taken"
+
+
+def test_stay_unknown_slot_and_party_and_invalid_lists(layout, make_state, ivan):
+    state = make_state([ivan])
+    assert err(v.check_assign_stay, state, layout, [A1, "x"], ivan.id).code == "unknown_slot"
+    assert err(v.check_assign_stay, state, layout, [A1], "p-zzzzzz").code == "unknown_party"
+    assert err(v.check_assign_stay, state, layout, [], ivan.id).code == "invalid"
+    assert err(v.check_assign_stay, state, layout, [A1, A1], ivan.id).code == "invalid"
+
+
+# --- clear -------------------------------------------------------------------
+
+
+def test_clear_returns_holder(layout, make_state, ivan):
+    state = make_state([ivan], {FRI: {A1: ivan.id}})
+    assert v.check_clear(state, layout, FRI, A1) == ivan.id
+
+
+def test_clear_free_slot_is_noop_marker(layout, make_state, ivan):
+    assert v.check_clear(make_state([ivan]), layout, FRI, A1) is None
+
+
+def test_clear_unknown_slot_or_night(layout, make_state):
+    state = make_state()
+    e = err(v.check_clear, state, layout, FRI, "no-such-slot")
+    assert (e.code, e.status) == ("unknown_slot", 404)
+    e = err(v.check_clear, state, layout, SUN, A1)
+    assert (e.code, e.status) == ("invalid", 422)
+
+
+# --- move --------------------------------------------------------------------
+
+
+def test_move_single_night(layout, make_state, ivan):
+    state = make_state([ivan], {FRI: {A1: ivan.id}})
+    assert v.check_move(state, layout, ivan.id, A1, OKNO, [FRI]) == [FRI]
+
+
+def test_move_all_nights(layout, make_state, ivan):
+    state = make_state([ivan], {n: {A1: ivan.id} for n in (THU, FRI, SAT)})
+    assert v.check_move(state, layout, ivan.id, A1, OKNO, [THU, FRI, SAT]) == [THU, FRI, SAT]
+
+
+def test_move_target_taken_in_one_of_several_nights_rejects_all(layout, make_state, ivan, riso):
+    sleeping = {THU: {A1: ivan.id}, FRI: {A1: ivan.id}, SAT: {A1: ivan.id, OKNO: riso.id}}
+    state = make_state([ivan, riso], sleeping)
+    e = err(v.check_move, state, layout, ivan.id, A1, OKNO, [THU, FRI, SAT])
+    assert (e.code, e.status) == ("slot_taken", 409)
+    assert e.params == {"night": SAT, "slot": OKNO, "party_id": riso.id, "party_name": "Riso a Ben", "own": False}
+    # without the conflicting night the move would pass
+    assert v.check_move(state, layout, ivan.id, A1, OKNO, [THU, FRI]) == [THU, FRI]
+
+
+def test_move_party_must_hold_from_slot_in_every_night(layout, make_state, ivan):
+    state = make_state([ivan], {THU: {A1: ivan.id}, FRI: {A1: ivan.id}})
+    e = err(v.check_move, state, layout, ivan.id, A1, OKNO, [THU, FRI, SAT])
+    assert (e.code, e.status) == ("invalid", 422)
+    assert e.params["reason"] == "not_holding"
+    assert (e.params["night"], e.params["slot"], e.params["party_id"]) == (SAT, A1, ivan.id)
+
+
+def test_move_from_slot_held_by_other_party(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso], {FRI: {A1: riso.id}})
+    assert err(v.check_move, state, layout, ivan.id, A1, OKNO, [FRI]).code == "invalid"
+
+
+def test_move_nights_must_be_nonempty_and_valid(layout, make_state, ivan):
+    state = make_state([ivan], {FRI: {A1: ivan.id}})
+    e = err(v.check_move, state, layout, ivan.id, A1, OKNO, [])
+    assert (e.code, e.params["reason"], e.params["field"]) == ("invalid", "empty_list", "nights")
+    assert err(v.check_move, state, layout, ivan.id, A1, OKNO, [FRI, SUN]).code == "invalid"
+
+
+def test_move_unknown_slot_and_party(layout, make_state, ivan):
+    state = make_state([ivan], {FRI: {A1: ivan.id}})
+    assert err(v.check_move, state, layout, ivan.id, A1, "x", [FRI]).code == "unknown_slot"
+    assert err(v.check_move, state, layout, ivan.id, "x", OKNO, [FRI]).code == "unknown_slot"
+    assert err(v.check_move, state, layout, "p-zzzzzz", A1, OKNO, [FRI]).code == "unknown_party"
+
+
+def test_move_duplicate_nights_invalid(layout, make_state, ivan):
+    state = make_state([ivan], {FRI: {A1: ivan.id}})
+    e = err(v.check_move, state, layout, ivan.id, A1, OKNO, [FRI, FRI])
+    assert (e.code, e.params["reason"], e.params["field"]) == ("invalid", "duplicate_night", "nights")
+
+
+def test_move_to_same_slot_is_invalid(layout, make_state, ivan):
+    state = make_state([ivan], {FRI: {A1: ivan.id}})
+    e = err(v.check_move, state, layout, ivan.id, A1, A1, [FRI])
+    assert (e.code, e.params["reason"]) == ("invalid", "same_slot")
+
+
+# --- parties ------------------------------------------------------------------
+
+
+def create(name="New party", arrive=THU, leave=SUN, **kw):
+    return PartyCreate(name=name, adults=2, kids=0, kids_in_parents_bed=0, arrive=arrive, leave=leave, **kw)
+
+
+def test_duplicate_name_is_case_insensitive(layout, make_state, ivan):
+    state = make_state([ivan])
+    e = err(v.check_party_create, state, layout, create(name="IVAN A EVA"))
+    assert (e.code, e.status) == ("duplicate_name", 409)
+    assert e.params == {"field": "name", "name": "Ivan a Eva", "party_id": ivan.id, "party_name": "Ivan a Eva"}
+    assert err(v.check_party_create, state, layout, create(name="  ivan a eva ")).code == "duplicate_name"
+    v.check_party_create(state, layout, create(name="Ivan a Eva 2"))
+
+
+def test_duplicate_name_ignores_unicode_composition(layout, make_state, make_party):
+    nfd = make_party(name="Mari\u0301a a Ja\u0301n")  # built with combining accents (NFD), as stored by hand
+    state = make_state([nfd])
+    nfc = "Mar\u00eda a J\u00e1n"
+    assert err(v.check_party_create, state, layout, create(name=nfc)).code == "duplicate_name"
+    assert err(v.check_party_create, state, layout, create(name=nfc.upper())).code == "duplicate_name"
+    # renaming to the composed form of its own name is not a duplicate
+    assert v.check_party_update(state, layout, nfd.id, create(name=nfc)) == []
+
+
+def test_duplicate_name_ignores_own_name_on_rename(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso])
+    # changing the case of its own name is fine
+    assert v.check_party_update(state, layout, ivan.id, create(name="IVAN A EVA")) == []
+    # another party’s name is not
+    e = err(v.check_party_update, state, layout, ivan.id, create(name="riso a ben"))
+    assert e.code == "duplicate_name"
+
+
+def test_update_unknown_party(layout, make_state, ivan):
+    assert err(v.check_party_update, make_state([ivan]), layout, "p-zzzzzz", create()).code == "unknown_party"
+
+
+@pytest.mark.parametrize(
+    "arrive,leave",
+    [(THU, SUN), (FRI, SAT), (SAT, SUN), (THU, FRI)],
+)
+def test_valid_stays(layout, arrive, leave):
+    v.check_stay(layout, arrive, leave)
+
+
+@pytest.mark.parametrize(
+    "arrive,leave",
+    [
+        ("2026-10-28", SAT),   # arrival outside arrive_days
+        (SUN, SUN),            # arrival is not in arrive_days
+        (THU, THU),            # departure is not in leave_days
+        (THU, "2026-11-02"),   # departure outside leave_days
+        (SAT, SAT),            # departure is not in leave_days
+        (FRI, FRI),
+    ],
+)
+def test_invalid_stays(layout, arrive, leave):
+    e = err(v.check_stay, layout, arrive, leave)
+    assert (e.code, e.status) == ("invalid", 422)
+
+
+def test_leave_must_be_after_arrive(layout):
+    # SAT is a valid arrive and leave day, but departure may not be before or equal to arrival
+    assert err(v.check_stay, layout, SAT, FRI).params["reason"] == "leave_not_after_arrive"
+    assert err(v.check_stay, layout, SAT, SAT).code == "invalid"
+
+
+def test_create_checks_stay(layout, make_state):
+    assert err(v.check_party_create, make_state(), layout, create(arrive=SAT, leave=FRI)).code == "invalid"
+
+
+def test_stay_shortening_lists_slots_outside_new_stay(layout, make_state, ivan, riso):
+    sleeping = {
+        THU: {A1: ivan.id, A2: ivan.id, OKNO: riso.id},
+        FRI: {A1: ivan.id, A2: ivan.id},
+        SAT: {A2: ivan.id, A1: ivan.id},
+    }
+    state = make_state([ivan, riso], sleeping)
+    freed = v.stay_shortening(state, layout, ivan.id, FRI, SAT)
+    # order: night, then slot order in chata.yaml; other parties’ slots are untouched
+    assert freed == [
+        {"night": THU, "slot": A1},
+        {"night": THU, "slot": A2},
+        {"night": SAT, "slot": A1},
+        {"night": SAT, "slot": A2},
+    ]
+
+
+def test_stay_shortening_nothing_when_stay_not_shortened(layout, make_state, ivan):
+    state = make_state([ivan], {THU: {A1: ivan.id}, FRI: {A1: ivan.id}})
+    assert v.stay_shortening(state, layout, ivan.id, THU, SUN) == []
+
+
+def test_update_returns_freed_for_shortened_stay(layout, make_state, ivan):
+    state = make_state([ivan], {THU: {A1: ivan.id}, FRI: {A1: ivan.id}, SAT: {A1: ivan.id}})
+    freed = v.check_party_update(state, layout, ivan.id, create(name="Ivan a Eva", arrive=THU, leave=SAT))
+    assert freed == [{"night": SAT, "slot": A1}]
+
+
+def test_update_without_shortening_frees_nothing_even_if_party_shrinks(layout, make_state, ivan):
+    state = make_state([ivan], {THU: {A1: ivan.id, A2: ivan.id}})
+    smaller = PartyCreate(name="Ivan a Eva", adults=1, kids=0, kids_in_parents_bed=0, arrive=THU, leave=SUN)
+    assert v.check_party_update(state, layout, ivan.id, smaller) == []
+
+
+def test_delete_frees_all_slots_of_party(layout, make_state, ivan, riso):
+    state = make_state([ivan, riso], {THU: {A1: ivan.id, OKNO: riso.id}, SAT: {MAT1: ivan.id}})
+    assert v.check_party_delete(state, layout, ivan.id) == [
+        {"night": THU, "slot": A1},
+        {"night": SAT, "slot": MAT1},
+    ]
+    assert err(v.check_party_delete, state, layout, "p-zzzzzz").code == "unknown_party"
+
+
+# --- module purity ----------------------------------------------------------
+
+
+def test_validate_module_has_no_io_or_fastapi_imports():
+    import ast
+    import inspect
+
+    tree = ast.parse(inspect.getsource(v))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    assert imported <= {"collections", "dataclasses", "typing", "unicodedata", "app"}

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Náhľad pixelovej mapy chaty</title>
+<style>
+:root{--text-primary:#1D2A23;--text-secondary:#5A6B60;--surface-1:#EEF2EA;--border:#CCD5C8;--bg-accent:#DCEBFA;--text-accent:#185FA5;--border-accent:#378ADD;--radius:8px;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--text-primary:#E5EAE2;--text-secondary:#9AA99F;--surface-1:#1D2521;--border:#34423B;--bg-accent:#0C2C4A;--text-accent:#85B7EB;--border-accent:#378ADD}body{background:#141A17}}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text-primary)}
+.wrap{max-width:420px;margin:0 auto;padding:16px}
+button{font:inherit;color:inherit;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer}
+.nb{display:flex;gap:6px;margin:0 0 10px}
+.nb button{flex:1;padding:6px 4px;font-size:13px;line-height:1.3}
+.nb button.on{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+#map svg{display:block;width:100%;height:auto;border-radius:12px;image-rendering:pixelated}
+.bed{cursor:pointer}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.25}}
+.free{animation:bl 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.free{animation:none}}
+.lg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.lg span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);padding:2px 8px;border:0.5px solid var(--border);border-radius:var(--radius)}
+.lg i{width:9px;height:9px;display:inline-block}
+</style></head><body><div class="wrap">
+<p style="color:var(--text-secondary);font-size:13px;margin:0 0 10px">Náhľad s vymysleným obsadením. Noci podľa termínu 29. 10. – 1. 11.</p>
+<div class="nb" id="nb"></div>
+<div id="map"></div>
+<div id="info" style="margin-top:10px;padding:10px 12px;background:var(--surface-1);border-radius:var(--radius);font-size:13px;color:var(--text-secondary);min-height:44px">Ťukni na posteľ a uvidíš, kto na nej spí.</div>
+<div class="lg" id="lg"></div>
+</div>
+<script>
+const P={lu:['Lukas a Adam','#2F7D6D'],iv:['Ivan a Eva','#D07A2B'],ku:['Kubo a Vilčo','#6D5BA8'],vi:['Vikto s rodinou','#3E6FB0'],ri:['Riso a Ben','#9C4A7A'],ro:['Roman s dieťaťom','#5E8A2E'],mr:['Mrco','#C0603A'],ma:['Matej','#2E8AA0']};
+const NIGHTS=[['Št → Pi','29./30. 10.'],['Pi → So','30./31. 10.'],['So → Ne','31. 10./1. 11.']];
+const B=[
+{id:'KH1',n:'Manželská posteľ',r:'Konica, podkrovie',x:28,y:46,w:44,h:30,k:'bed2',s:2},
+{id:'KH2',n:'Jednomiestna posteľ',r:'Konica, podkrovie',x:118,y:44,w:24,h:34,k:'bed1',s:1},
+{id:'KD1',n:'Matrace na zemi',r:'Konica, dole',x:24,y:132,w:124,h:26,k:'mats',s:3},
+{id:'L1',n:'Manželská posteľ',r:'Izba vľavo',x:128,y:220,w:44,h:30,k:'bed2',s:2},
+{id:'L2',n:'Posteľ pod oknom',r:'Izba vľavo',x:186,y:220,w:24,h:34,k:'bed1',s:1},
+{id:'L3',n:'Lehátko 1',r:'Izba vľavo',x:130,y:272,w:20,h:36,k:'cot',s:1},
+{id:'L4',n:'Lehátko 2',r:'Izba vľavo',x:158,y:272,w:20,h:36,k:'cot',s:1},
+{id:'C1',n:'Rozkladací gauč',r:'Chodbička',x:226,y:226,w:32,h:58,k:'sofa',s:2,t:1},
+{id:'P1',n:'Poschodová 1',r:'Izba vpravo',x:276,y:220,w:24,h:42,k:'bunk',s:2},
+{id:'P2',n:'Poschodová 2',r:'Izba vpravo',x:308,y:220,w:24,h:42,k:'bunk',s:2},
+{id:'P5',n:'Gauč',r:'Izba vpravo',x:336,y:272,w:28,h:36,k:'sofa1',s:1},
+{id:'K1',n:'Na peci',r:'Letná kuchynka',x:22,y:352,w:56,h:28,k:'stove',s:2,t:1}];
+const A=[
+{L1:['lu','lu*'],KH1:['iv','iv'],KH2:['mr']},
+{L1:['lu','lu*'],KH1:['iv','iv'],KH2:['mr'],P1:['ku','ku*'],P2:['vi','vi*'],L2:['vi'],C1:['ri','ri*'],KD1:['ro','ro*'],L4:['ma']},
+{L1:['lu','lu*'],KH1:['iv','iv'],KH2:['mr'],P2:['vi','vi*'],L2:['vi'],C1:['ri','ri*'],L4:['ma']}];
+let night=1,sel=null;
+const R=(x,y,w,h,f,extra='')=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}" ${extra}/>`;
+function pos(b){const{x,y,w,h,k}=b;switch(k){case'bed2':return[[x+7,y+8],[x+w-17,y+8]];case'mats':return[[x+10,y+7],[x+56,y+7],[x+102,y+7]];case'bunk':return[[x+7,y+4],[x+7,y+24]];case'sofa':return[[x+11,y+8],[x+11,y+32]];case'stove':return[[x+10,y+8],[x+36,y+8]];default:return[[x+w/2-5,y+10]]}}
+function furn(b){const{x,y,w,h,k}=b;let s='';
+if(k==='bed2'||k==='bed1'||k==='cot'){s+=R(x,y,w,h,'#8A5A34')+R(x+2,y+2,w-4,h-4,k==='cot'?'#B9C7CF':'#F4F1E8')+R(x+3,y+3,w-6,6,'#FFFFFF');if(k!=='cot')s+=R(x+2,y+h-10,w-4,8,'#C9A27A');}
+else if(k==='mats'){for(let i=0;i<3;i++)s+=R(x+i*46,y,32,h,'#7E8FA0')+R(x+i*46+2,y+2,28,h-4,'#C7D3DD');}
+else if(k==='bunk'){s+=R(x,y,w,h,'#6B4426')+R(x+2,y+2,w-4,16,'#F4F1E8')+R(x+2,y+22,w-4,18,'#E6DFCC')+R(x,y+19,w,2,'#6B4426');}
+else if(k==='sofa'||k==='sofa1'){s+=R(x,y,w,h,'#7A3E48')+R(x+4,y+4,w-8,h-8,'#B4606C');}
+else if(k==='stove'){s+=R(x,y,w,h,'#9E9E9E')+R(x+2,y+2,w-4,h-4,'#E3E3E3')+R(x+w-12,y-6,8,8,'#6E6E6E');}
+return s}
+function sprite(px,py,id){const kid=id.endsWith('*'),c=P[id.replace('*','')][1];return kid?R(px+1,py+3,8,6,c)+R(px+2,py,6,4,'#F2C9A0'):R(px,py+5,10,7,c)+R(px+2,py,6,5,'#F2C9A0')+R(px+3,py+2,1,1,'#3A2A1E')+R(px+6,py+2,1,1,'#3A2A1E')}
+function room(x,y,w,h,floor,label){return R(x,y,w,h,'#5C4033')+R(x+4,y+4,w-8,h-8,floor)+`<text x="${x+7}" y="${y+16}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#4A3426">${label}</text>`}
+function draw(){
+let s=`<svg viewBox="0 0 380 412" shape-rendering="crispEdges" role="img"><title>Mapa chaty</title><desc>Pohľad zhora na konicu, dom a letnú kuchynku s posteľami</desc>`;
+s+=R(0,0,380,412,'#79B35A');
+for(let i=0;i<70;i++){const gx=(i*53)%372,gy=(i*97)%404;s+=R(gx,gy,4,4,'#6AA14C')}
+s+=R(240,316,16,96,'#D8C59A')+R(60,396,196,12,'#D8C59A')+R(84,174,12,160,'#D8C59A')+R(96,280,24,12,'#D8C59A');
+s+=room(10,26,152,70,'#D9B98A','Konica, podkrovie');
+s+=room(10,96,152,80,'#C9A67A','Konica, dole');
+s+=R(80,172,20,6,'#C9A67A');
+s+=room(118,196,102,124,'#E8D2A6','Izba vľavo');
+s+=room(216,196,54,124,'#DCC59B','Chodba');
+s+=room(266,196,106,124,'#E8D2A6','Izba vpravo');
+s+=R(218,240,4,20,'#DCC59B')+R(264,240,4,20,'#DCC59B')+R(238,316,20,4,'#DCC59B');
+s+=R(186,196,24,4,'#9FD3F0')+R(300,196,24,4,'#9FD3F0');
+s+=room(10,334,100,62,'#CFD8DC','Kuchynka');
+s+=R(80,334,20,4,'#CFD8DC');
+const occ=A[night];
+for(const b of B){const p=pos(b),who=occ[b.id]||[];
+s+=`<g class="bed" data-b="${b.id}">`+furn(b);
+if(sel===b.id)s+=R(b.x-3,b.y-3,b.w+6,3,'#FFD54A')+R(b.x-3,b.y+b.h,b.w+6,3,'#FFD54A')+R(b.x-3,b.y,3,b.h,'#FFD54A')+R(b.x+b.w,b.y,3,b.h,'#FFD54A');
+p.forEach((q,i)=>{if(who[i])s+=sprite(q[0],q[1],who[i]);else s+=`<rect class="free" x="${q[0]+1}" y="${q[1]+2}" width="8" height="8" fill="none" stroke="${b.t&&i===b.s-1?'#E0A33A':'#FFFFFF'}" stroke-width="2"/>`});
+s+=R(b.x-4,b.y-4,b.w+8,b.h+8,'transparent')+`</g>`}
+s+=`</svg>`;document.getElementById('map').innerHTML=s}
+function nb(){const box=document.getElementById('nb');box.innerHTML='';NIGHTS.forEach((n,i)=>{const used=Object.values(A[i]).reduce((a,v)=>a+v.length,0);const b=document.createElement('button');b.className=i===night?'on':'';b.innerHTML=`${n[0]}<br><span style="font-size:11px;color:var(--text-secondary)">${used} z 20 miest</span>`;b.onclick=()=>{night=i;nb();draw();info()};box.appendChild(b)})}
+function info(){const el=document.getElementById('info');if(!sel){el.textContent='Ťukni na posteľ a uvidíš, kto na nej spí.';return}const b=B.find(x=>x.id===sel);let h=`<div style="color:var(--text-primary);font-weight:500;margin-bottom:4px">${b.n} · ${b.r}</div>`;NIGHTS.forEach((n,i)=>{const w=A[i][b.id]||[];const free=b.s-w.length;const uniq=[...new Set(w.map(x=>x.replace('*','')))];h+=`<div style="${i===night?'color:var(--text-primary)':''}">${n[0]}: ${uniq.length?uniq.map(u=>`<span style="color:${P[u][1]}">■</span> ${P[u][0]}`).join(', '):'voľné'}${uniq.length&&free>0?` (+${free} voľné)`:''}</div>`});el.innerHTML=h}
+document.getElementById('map').addEventListener('click',e=>{const g=e.target.closest('.bed');sel=g?g.dataset.b:null;draw();info()});
+document.getElementById('lg').innerHTML=Object.values(P).map(p=>`<span><i style="background:${p[1]}"></i>${p[0]}</span>`).join('')+`<span><i style="border:2px solid #E0A33A;width:5px;height:5px"></i>tesné miesto</span>`;
+nb();draw();
+</script></body></html>
