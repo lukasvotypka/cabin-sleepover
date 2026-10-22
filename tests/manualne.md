@@ -21,3 +21,13 @@ Items are grouped by the task that produced them.
 - [ ] Shortening a party's stay in the form (phone): the page names the slots that will be freed first, and after saving they are free on the map of the other phone.
 - [ ] Behind Caddy, `data/audit.yaml` grows by one YAML document per write with the right `source` (`mapa` or `formular`) and an anonymous `client_id`, and `data/backups/` stays at 50 files after many writes (check after the first real evening of use).
 - [ ] 30 quick taps from one phone within a minute (for example clearing and assigning repeatedly): the 31st shows the Slovak „príliš veľa zmien“ style message, and the phone recovers after about a minute.
+
+## T-005: scene frame, code screen, „Kto si?“
+
+- [ ] On a real phone (iPhone Safari and Android Chrome, ~380 px wide) the scene fills the width and the small sign texts are readable: the date lines on the three night signposts, „obsadené X z 20“, the „aktualizované pred … s“ line, and above all the red „V sobotu vám chýba 1 miesto“ sign. If the red sign is too small to read, raise only its text size.
+- [ ] Tapping the three night signposts, the red sign, the amber sign, the noticeboard and the „?“ icon with a thumb works on the first tap, also when the tap lands slightly above or below a signpost (44 px minimum). Pinch-zoom still works.
+- [ ] Alegreya and Alegreya Sans load from Google Fonts on the code screen and in the panels (WhatsApp in-app browser too). With no network to Google the fallback fonts look acceptable.
+- [ ] The page in dark mode on the phone: the scene keeps its colors, the code screen and panels turn dark and stay readable.
+- [ ] Two phones: after phone A changes the data (T-006), phone B shows it within 30 s without a reload, and „aktualizované pred … s“ counts up and resets after each poll. Returning to the tab from another app refreshes at once.
+- [ ] Opened from the WhatsApp link for the first time: the code screen appears, after the correct code „Kto si?“ opens, and after choosing a party the noticeboard is open. Close the page, open it from the link again: the party and the collapsed or open noticeboard are remembered.
+- [ ] Deployed under the final URL (and, if used, a sub-path such as `/chata/`): the page loads and `api/...` calls work (relative paths).

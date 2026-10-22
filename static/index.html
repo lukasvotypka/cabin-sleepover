@@ -1,11 +1,1028 @@
 <!DOCTYPE html>
 <html lang="sk">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chata 29. 10. – 1. 11.</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Chata</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&amp;family=Alegreya+Sans:wght@400;500;700&amp;display=swap">
+<style>
+:root {
+  --bg: #E8ECE4; --surface: #F8FAF5; --surface2: #EEF2EA; --ink: #1D2A23; --muted: #5A6B60;
+  --line: #CCD5C8; --forest: #22392F; --moss: #5B7A4A; --amber: #C98A1C; --amber-soft: #F3E3C0;
+  --warn: #B4472F; --warn-soft: #F4D9D1; --ok: #3D7A55;
+  --font-head: "Alegreya", Georgia, "Times New Roman", serif;
+  --font-text: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141A17; --surface: #1D2521; --surface2: #242E29; --ink: #E5EAE2; --muted: #9AA99F;
+    --line: #34423B; --forest: #CFE0D3; --moss: #93B47F; --amber: #E7AE4A; --amber-soft: #3A2F1A;
+    --warn: #E8826B; --warn-soft: #3B221C; --ok: #7CC49A;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.4 var(--font-text); }
+[hidden] { display: none !important; }
+button, input { font: inherit; color: inherit; }
+
+/* --- scene (fixed colors, never inverted in dark mode) --- */
+#scene { max-width: 560px; margin: 0 auto; }
+#scene svg { display: block; width: 100%; height: auto; image-rendering: pixelated; touch-action: manipulation; }
+#scene svg text { font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; user-select: none; -webkit-user-select: none; }
+#scene svg g[role="button"] { cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
+#scene svg .hit { fill: transparent; }
+#scene svg g[role="button"]:focus-visible .hit { stroke: #FFD54A; stroke-width: 2; fill: rgba(255, 213, 74, .18); }
+.boot { padding: 48px 16px; text-align: center; color: var(--muted); }
+
+/* --- code screen and panels --- */
+.code-screen {
+  position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background-color: #79B35A; image-rendering: pixelated;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' shape-rendering='crispEdges'%3E%3Crect x='8' y='12' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='52' y='4' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='76' y='40' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='28' y='56' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='64' y='80' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='12' y='84' width='4' height='4' fill='%236AA14C'/%3E%3Crect x='40' y='32' width='4' height='4' fill='%236AA14C'/%3E%3C/svg%3E");
+}
+.board {
+  width: 100%; max-width: 360px; padding: 20px; background: var(--surface); color: var(--ink);
+  border: 4px solid #5C4033; box-shadow: 0 0 0 4px #8A5A34, 8px 8px 0 4px rgba(0, 0, 0, .28);
+}
+.board h1, .sheet h2 { margin: 0 0 8px; font-family: var(--font-head); font-weight: 700; color: var(--forest); }
+.board h1 { font-size: 32px; }
+.board p { margin: 0 0 14px; }
+.board label { display: block; margin-bottom: 4px; font-weight: 700; }
+.board input {
+  width: 100%; min-height: 48px; padding: 8px 12px; background: var(--surface2); border: 3px solid var(--line); border-radius: 0; font-size: 20px;
+}
+.board input:focus { outline: none; border-color: var(--moss); }
+.error { min-height: 1.4em; margin: 8px 0 12px !important; color: var(--warn); font-weight: 700; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 18px;
+  background: var(--forest); color: var(--surface); border: 3px solid var(--forest); border-radius: 0;
+  font-weight: 700; cursor: pointer; touch-action: manipulation;
+}
+.btn.secondary { background: transparent; color: var(--forest); }
+.btn:disabled { opacity: .6; cursor: default; }
+.board .btn { width: 100%; }
+.btn:focus-visible, .party-row:focus-visible, .close:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+#panelRoot .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(10, 15, 12, .5); }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 560px; margin: 0 auto; max-height: 88vh; overflow-y: auto;
+  padding: 16px 16px 24px; background: var(--surface); color: var(--ink); border: 4px solid #5C4033; border-bottom: 0;
+  transform: translateY(100%); transition: transform .2s ease-out;
+}
+.sheet.open { transform: none; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sheet h2 { margin: 0; font-size: 26px; }
+.close { min-width: 44px; min-height: 44px; background: transparent; border: 3px solid var(--line); border-radius: 0; cursor: pointer; }
+.sheet p { margin: 0 0 12px; color: var(--muted); }
+.party-list { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.party-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 12px; text-align: left;
+  background: var(--surface2); border: 3px solid var(--line); border-radius: 0; cursor: pointer; touch-action: manipulation;
+}
+.party-row[aria-current="true"] { border-color: var(--moss); }
+.party-row .swatch { flex: none; width: 16px; height: 16px; background: var(--muted); border: 2px solid rgba(0, 0, 0, .35); }
+.party-row .name { flex: 1; font-weight: 500; overflow-wrap: anywhere; }
+.party-row .mark { color: var(--moss); font-weight: 700; }
+.sheet .note { color: var(--ink); background: var(--amber-soft); padding: 8px 12px; border-left: 4px solid var(--amber); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
 </head>
 <body>
-  <p>Stránka sa pripravuje.</p>
+<noscript><p class="boot">Stránka potrebuje zapnutý JavaScript.</p></noscript>
+<div id="boot" class="boot" role="status">Načítavam…</div>
+<main id="scene" hidden></main>
+
+<div id="codeScreen" class="code-screen" hidden>
+  <form class="board" id="codeForm" autocomplete="off" novalidate>
+    <h1>Chata</h1>
+    <p>Zadaj kód, ktorý ti poslal organizátor.</p>
+    <label for="codeInput">Kód skupiny</label>
+    <input id="codeInput" name="code" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="codeError">
+    <p id="codeError" class="error" role="alert"></p>
+    <button id="codeButton" class="btn" type="submit">Vstúpiť</button>
+  </form>
+</div>
+
+<div id="panelRoot"></div>
+
+<script id="logic">
+// Pure page logic: no DOM, no browser globals. Tested in Node (tests/js/logic.test.mjs).
+
+var DAY_NAMES = ["nedeľa", "pondelok", "utorok", "streda", "štvrtok", "piatok", "sobota"];
+var DAY_SHORT = ["Ne", "Po", "Ut", "St", "Št", "Pi", "So"];
+var DAY_LOCATIVE = ["v nedeľu", "v pondelok", "v utorok", "v stredu", "vo štvrtok", "v piatok", "v sobotu"];
+var FALLBACK_ERROR = "Niečo sa nepodarilo, skús to znova.";
+
+// --- dates ---
+
+function two(n) {
+  return (n < 10 ? "0" : "") + n;
+}
+
+// "2026-10-31" -> {y, m, d, dow} (dow: 0 = Sunday), or null for anything that is not a real date.
+function parseIso(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+  if (!m) return null;
+  var y = +m[1], mo = +m[2], d = +m[3];
+  var t = new Date(Date.UTC(y, mo - 1, d));
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+  return { y: y, m: mo, d: d, dow: t.getUTCDay() };
+}
+
+function addDays(iso, n) {
+  var p = parseIso(iso);
+  if (!p) return null;
+  var t = new Date(Date.UTC(p.y, p.m - 1, p.d + n));
+  return t.getUTCFullYear() + "-" + two(t.getUTCMonth() + 1) + "-" + two(t.getUTCDate());
+}
+
+// "29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)" from the first arrive day and the last leave day.
+function eventDateText(event) {
+  var first = event && event.arrive_days && parseIso(event.arrive_days[0]);
+  var last = event && event.leave_days && parseIso(event.leave_days[event.leave_days.length - 1]);
+  if (!first || !last) return "";
+  return first.d + ". " + first.m + ". (" + DAY_NAMES[first.dow] + ") – " +
+    last.d + ". " + last.m + ". " + last.y + " (" + DAY_NAMES[last.dow] + ")";
+}
+
+// {label: "Št → Pi", dates: "29./30. 10."} for the night that starts on `night`, or null.
+function nightInfo(night) {
+  var a = parseIso(night), b = parseIso(addDays(night, 1));
+  if (!a || !b) return null;
+  var dates = a.m === b.m ? a.d + "./" + b.d + ". " + a.m + "." : a.d + ". " + a.m + "./" + b.d + ". " + b.m + ".";
+  return { label: DAY_SHORT[a.dow] + " → " + DAY_SHORT[b.dow], dates: dates };
+}
+
+// "vo štvrtok", "v piatok", "v sobotu" for the day a night starts on ("" for a bad date).
+function dayLocative(iso) {
+  var p = parseIso(iso);
+  return p ? DAY_LOCATIVE[p.dow] : "";
+}
+
+function capitalize(text) {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+// --- layout ---
+
+function slotIds(layout) {
+  var ids = [];
+  layout.rooms.forEach(function (room) {
+    room.beds.forEach(function (bed) {
+      bed.slots.forEach(function (slot) { ids.push(slot); });
+    });
+  });
+  return ids;
+}
+
+function totalSlots(layout) {
+  return slotIds(layout).length;
+}
+
+function bedOfSlot(layout, slot) {
+  for (var i = 0; i < layout.rooms.length; i++) {
+    for (var j = 0; j < layout.rooms[i].beds.length; j++) {
+      if (layout.rooms[i].beds[j].slots.indexOf(slot) !== -1) return layout.rooms[i].beds[j];
+    }
+  }
+  return null;
+}
+
+// The door is drawn in the floor color of the room that contains its top-left corner. When two
+// rooms overlap there, the later one in the list wins, as it is painted on top.
+function doorFloorColor(layout, door) {
+  var color = null;
+  layout.rooms.forEach(function (room) {
+    var r = room.rect;
+    if (door[0] >= r[0] && door[0] < r[0] + r[2] && door[1] >= r[1] && door[1] < r[1] + r[3]) color = room.floor;
+  });
+  return color;
+}
+
+// Hit area of a scene element: the rect grown up and down into the free gap up to the neighbours
+// (`topLimit`, `bottomLimit`), and at least `minHeight` tall. Returns [x, y, w, h].
+function expandHit(rect, topLimit, bottomLimit, minHeight) {
+  var top = topLimit <= rect[1] ? topLimit : rect[1];
+  var bottom = bottomLimit >= rect[1] + rect[3] ? bottomLimit : rect[1] + rect[3];
+  var h = bottom - top;
+  if (h < minHeight) {
+    top -= (minHeight - h) / 2;
+    h = minHeight;
+  }
+  return [rect[0], top, rect[2], h];
+}
+
+// --- parties and nights ---
+
+function partyById(state, id) {
+  var list = (state && state.parties) || [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].id === id) return list[i];
+  }
+  return null;
+}
+
+// A party is present on night n if arrive <= n < leave (ISO dates compare as text).
+function isPresent(party, night) {
+  return party.arrive <= night && night < party.leave;
+}
+
+function neededSlots(party) {
+  return party.adults + party.kids - party.kids_in_parents_bed;
+}
+
+// Slots the party holds on a night, in layout order.
+function partySlots(state, partyId, night) {
+  var held = (state.sleeping && state.sleeping[night]) || {};
+  return slotIds(state.layout).filter(function (slot) { return held[slot] === partyId; });
+}
+
+function usedCount(state, night) {
+  return Object.keys((state.sleeping && state.sleeping[night]) || {}).length;
+}
+
+// What the party needs on a night: nothing when it is not at the cabin.
+function neededOnNight(party, night) {
+  return isPresent(party, night) ? neededSlots(party) : 0;
+}
+
+function missingPlaces(state, party, night) {
+  return Math.max(0, neededOnNight(party, night) - partySlots(state, party.id, night).length);
+}
+
+function extraPlaces(state, party, night) {
+  return Math.max(0, partySlots(state, party.id, night).length - neededOnNight(party, night));
+}
+
+// --- texts ---
+
+function placesNoun(n) {
+  if (n === 1) return "miesto";
+  if (n >= 2 && n <= 4) return "miesta";
+  return "miest";
+}
+
+function pluralPlaces(n) {
+  return n + " " + placesNoun(n);
+}
+
+// Status of my party: the first night with missing places (red), else the first night with extra
+// places (soft amber), else everything is fine. kind: "none" | "missing" | "extra" | "ok".
+function myPartyStatus(state, party) {
+  if (!party) return { kind: "none", night: null, count: 0, text: "" };
+  var nights = state.event.nights, i, n;
+  for (i = 0; i < nights.length; i++) {
+    n = missingPlaces(state, party, nights[i]);
+    if (n > 0) {
+      var verb = n >= 2 && n <= 4 ? "chýbajú" : "chýba";
+      return {
+        kind: "missing", night: nights[i], count: n,
+        text: capitalize(dayLocative(nights[i])) + " vám " + verb + " " + pluralPlaces(n)
+      };
+    }
+  }
+  for (i = 0; i < nights.length; i++) {
+    n = extraPlaces(state, party, nights[i]);
+    if (n > 0) {
+      return { kind: "extra", night: nights[i], count: n, text: "Máte o " + pluralPlaces(n) + " viac, než potrebujete" };
+    }
+  }
+  return { kind: "ok", night: null, count: 0, text: "Všetko máte" };
+}
+
+// "aktualizované pred 20 s"
+function updatedAgoText(thenMs, nowMs) {
+  var s = Math.max(0, Math.floor((nowMs - thenMs) / 1000));
+  if (s < 60) return "aktualizované pred " + s + " s";
+  if (s < 3600) return "aktualizované pred " + Math.floor(s / 60) + " min";
+  return "aktualizované pred " + Math.floor(s / 3600) + " h";
+}
+
+function ellipsize(text, max) {
+  text = String(text);
+  return text.length <= max ? text : text.slice(0, max - 1).replace(/\s+$/, "") + "…";
+}
+
+// The first line of the status board.
+function whoText(party) {
+  return party ? ellipsize("Si: " + party.name, 17) : "Kto si? Ťukni sem";
+}
+
+// Greedy word wrap into at most `maxLines` lines of at most `maxChars` characters.
+function wrapText(text, maxChars, maxLines) {
+  var lines = [], cur = "";
+  maxChars = Math.max(1, maxChars);
+  String(text).split(/\s+/).filter(Boolean).forEach(function (word) {
+    while (word.length > maxChars) {
+      if (cur) { lines.push(cur); cur = ""; }
+      lines.push(word.slice(0, maxChars));
+      word = word.slice(maxChars);
+    }
+    if (!cur) cur = word;
+    else if ((cur + " " + word).length <= maxChars) cur += " " + word;
+    else { lines.push(cur); cur = word; }
+  });
+  if (cur) lines.push(cur);
+  if (maxLines && lines.length > maxLines) {
+    lines = lines.slice(0, maxLines);
+    var last = lines[maxLines - 1];
+    lines[maxLines - 1] = last.length >= maxChars ? last.slice(0, maxChars - 1) + "…" : last + "…";
+  }
+  return lines;
+}
+
+// --- error texts: the only place that turns a server `code` into Slovak ---
+
+var FIELD_NAMES = {
+  name: "meno", adults: "počet dospelých", kids: "počet detí", kids_in_parents_bed: "deti spiace s rodičmi",
+  arrive: "príchod", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka",
+  night: "noc", nights: "noci", slot: "miesto", slots: "miesta", from_slot: "miesto", to_slot: "miesto",
+  party_id: "partia", code: "kód"
+};
+
+function paramText(params, key) {
+  var v = params[key];
+  return typeof v === "string" && v.trim() ? v.trim() : "";
+}
+
+function partyNameFrom(params, state) {
+  var name = paramText(params, "party_name");
+  if (name) return name;
+  var party = partyById(state, paramText(params, "party_id"));
+  return party ? party.name : "";
+}
+
+function waitText(seconds) {
+  if (typeof seconds !== "number" || !isFinite(seconds) || seconds < 1) return "";
+  var s = Math.ceil(seconds);
+  return s < 60 ? s + " s" : Math.ceil(s / 60) + " min";
+}
+
+var ERROR_TEXTS = {
+  bad_code: function () {
+    return "Kód nesedí, skús ho zadať znova.";
+  },
+  forbidden: function () {
+    return "Toto môže robiť len organizátor.";
+  },
+  signup_closed: function () {
+    return "Zápis je zatvorený, miesta sa dajú len prezerať.";
+  },
+  slot_taken: function (p, state) {
+    var when = dayLocative(paramText(p, "night"));
+    var who = partyNameFrom(p, state);
+    if (p.own === true) return "Toto miesto už " + (when ? when + " " : "") + "máte.";
+    if (who) return "Toto miesto má" + (when ? " " + when : "") + " už " + who + ".";
+    return "Toto miesto" + (when ? " " + when : "") + " je už obsadené.";
+  },
+  not_present: function (p, state) {
+    var when = dayLocative(paramText(p, "night"));
+    var who = partyNameFrom(p, state);
+    return (who ? "Partia „" + who + "“" : "Tvoja partia") + (when ? " " + when : " v túto noc") +
+      " nie je na chate. Uprav príchod alebo odchod.";
+  },
+  duplicate_name: function (p) {
+    var name = paramText(p, "name");
+    return (name ? "Partia „" + name + "“" : "Partia s takým menom") + " už existuje. Vymysli iné meno.";
+  },
+  unknown_slot: function (p, state) {
+    var bed = state && state.layout ? bedOfSlot(state.layout, paramText(p, "slot")) : null;
+    return (bed ? "Miesto pri posteli „" + bed.name + "“ sa nedá použiť." : "Také miesto na chate nie je.") +
+      " Obnov stránku.";
+  },
+  unknown_party: function () {
+    return "Túto partiu sme nenašli. Vyber partiu znova.";
+  },
+  invalid: function (p) {
+    var field = FIELD_NAMES.hasOwnProperty(paramText(p, "field")) ? FIELD_NAMES[paramText(p, "field")] : "";
+    return field ? "Skontroluj pole „" + field + "“." : "Niečo v zadaní nesedí, skontroluj ho.";
+  },
+  rate_limited: function (p) {
+    var wait = waitText(p.retry_after);
+    return wait ? "Príliš veľa pokusov za krátky čas, skús to o " + wait + "." : "Príliš veľa pokusov za krátky čas, chvíľu počkaj.";
+  }
+};
+
+// Slovak text for a server error `{code, message, params}`. The English `message` is never used.
+// A missing error (network failure) and an unknown code both give the generic text.
+function errorText(error, state) {
+  if (!error || typeof error !== "object" || typeof error.code !== "string") return FALLBACK_ERROR;
+  if (!ERROR_TEXTS.hasOwnProperty(error.code)) return FALLBACK_ERROR;
+  var params = error.params && typeof error.params === "object" ? error.params : {};
+  return ERROR_TEXTS[error.code](params, state || null) || FALLBACK_ERROR;
+}
+</script>
+
+<script id="app">
+(function () {
+  "use strict";
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var POLL_MS = 30000;
+  var AGE_TICK_MS = 5000;
+  var KEYS = { client: "chata.clientId", party: "chata.myParty", role: "chata.role", notice: "chata.noticeCollapsed" };
+  var NOTICE_LINES = ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.", "Presunúť sa dá cez posteľ."];
+  var COLORS = {
+    grass: "#79B35A", tuft: "#6AA14C", path: "#D8C59A", roomEdge: "#5C4033", roomLabel: "#4A3426", window: "#9FD3F0",
+    woodDark: "#5C4033", wood: "#B98B56", woodLight: "#D4A870", plank: "#6B4426", paper: "#F4EBD0", ink: "#2E1F14",
+    selected: "#F2D58A", highlight: "#FFD54A", red: "#B4472F", redEdge: "#6E2414", amber: "#F3E3C0", amberEdge: "#C98A1C",
+    green: "#3D7A55", greenEdge: "#1F4A31", white: "#FFFFFF"
+  };
+
+  // --- browser storage that survives a blocked localStorage ---
+
+  var memory = {};
+  var storage = {
+    get: function (key) {
+      try { return window.localStorage.getItem(key); } catch (e) { return key in memory ? memory[key] : null; }
+    },
+    set: function (key, value) {
+      try { window.localStorage.setItem(key, value); } catch (e) { memory[key] = value; }
+    },
+    remove: function (key) {
+      try { window.localStorage.removeItem(key); } catch (e) { delete memory[key]; }
+    }
+  };
+
+  function makeClientId() {
+    var bytes = new Uint8Array(12), out = "c-", i;
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    for (i = 0; i < bytes.length; i++) out += (bytes[i] < 16 ? "0" : "") + bytes[i].toString(16);
+    return out;
+  }
+
+  var clientId = storage.get(KEYS.client);
+  if (!clientId) {
+    clientId = makeClientId();
+    storage.set(KEYS.client, clientId);
+  }
+
+  // --- page state ---
+
+  var app = {
+    state: null,
+    etag: null,
+    fetchedAt: 0,
+    night: null,
+    myParty: storage.get(KEYS.party),
+    noticeCollapsed: storage.get(KEYS.notice) === "1",
+    askWho: false,       // open „Kto si?“ once the next state has arrived
+    codeOpen: false,
+    polling: false,
+    writeEpoch: 0,       // bumped when a write response is applied, so an older poll cannot overwrite it
+    panel: null,
+    layoutKey: null,
+    layers: null,
+    ageNode: null,
+    ageMax: 0
+  };
+  // The role from /api/join is kept for T-009 (admin). Nothing uses it yet.
+  app.role = storage.get(KEYS.role);
+
+  function $(id) { return document.getElementById(id); }
+
+  function htmlEl(tag, attrs, text) {
+    var node = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function svgEl(parent, tag, attrs, text) {
+    var node = document.createElementNS(SVG_NS, tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    if (text !== undefined) node.textContent = text;
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function clearNode(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  // --- requests ---
+
+  function request(method, path, body, etag) {
+    var headers = { "Accept": "application/json", "X-Client-Id": clientId };
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (etag) headers["If-None-Match"] = etag;
+    return fetch(path, {
+      method: method,
+      headers: headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",      // the browser then hands the 304 to this code
+      credentials: "same-origin"
+    }).then(function (res) {
+      var etagOut = res.headers.get("ETag");
+      if (res.status === 304) return { status: 304, json: null, etag: etagOut };
+      return res.json().then(
+        function (json) { return { status: res.status, json: json, etag: etagOut }; },
+        function () { return { status: res.status, json: null, etag: null }; }
+      );
+    });
+  }
+
+  // A write for the bed actions (T-006) and the party form (T-007). It applies the `state` that
+  // comes with a success and with an error (so the page rolls back to the server's truth) and
+  // resolves to {ok, error, json}. `error` is undefined for a network failure.
+  function write(method, path, body) {
+    return request(method, path, body).then(function (r) {
+      if (r.status === 401) showCodeScreen();
+      if (r.json && r.json.state) {
+        app.writeEpoch++;
+        applyState(r.json.state);
+      }
+      if (r.status === 200 && r.json && r.json.ok) return { ok: true, error: undefined, json: r.json };
+      return { ok: false, error: r.json ? r.json.error : undefined, json: r.json };
+    }, function () {
+      return { ok: false, error: undefined, json: null };
+    });
+  }
+
+  function poll() {
+    if (app.codeOpen || app.polling) return Promise.resolve();
+    app.polling = true;
+    var epoch = app.writeEpoch;
+    return request("GET", "api/state", undefined, app.etag).then(function (r) {
+      if (r.status === 401) { showCodeScreen(); return; }
+      if (epoch !== app.writeEpoch) return;   // a write finished meanwhile and its state is newer
+      if (r.status === 304) {
+        app.fetchedAt = Date.now();
+        renderAge();
+      } else if (r.status === 200 && r.json && r.json.ok && r.json.state) {
+        app.etag = r.etag;
+        applyState(r.json.state);
+      }
+    }).catch(function () {
+      // Offline or a bad reply: keep what is shown and try again on the next tick.
+    }).then(function () {
+      app.polling = false;
+      if (!app.state && !app.codeOpen) {
+        $("boot").textContent = "Nepodarilo sa načítať, skúšam znova…";
+        setTimeout(poll, 4000);
+      }
+    });
+  }
+
+  // --- applying state ---
+
+  function applyState(state) {
+    app.state = state;
+    app.fetchedAt = Date.now();
+    if (app.night === null || state.event.nights.indexOf(app.night) === -1) app.night = state.event.nights[0];
+    document.title = state.event.name;
+    if (app.myParty && !partyById(state, app.myParty)) {
+      forgetMyParty();
+      app.askWho = true;
+    }
+    render();
+    if (app.askWho) {
+      app.askWho = false;
+      openWho();
+    }
+    if (app.panel && app.panel.refresh) app.panel.refresh();
+  }
+
+  function forgetMyParty() {
+    app.myParty = null;
+    storage.remove(KEYS.party);
+  }
+
+  function setMyParty(id) {
+    app.myParty = id;
+    storage.set(KEYS.party, id);
+  }
+
+  function selectNight(night) {
+    app.night = night;
+    render();
+  }
+
+  // T-006 calls this when a bed is tapped: the first tap on any bed also collapses the noticeboard.
+  function collapseNotice() {
+    if (app.noticeCollapsed) return;
+    app.noticeCollapsed = true;
+    storage.set(KEYS.notice, "1");
+    renderBoards();
+  }
+
+  function expandNotice() {
+    app.noticeCollapsed = false;
+    storage.remove(KEYS.notice);
+    renderBoards();
+  }
+
+  // --- scene ---
+
+  function rect(parent, x, y, w, h, fill, attrs) {
+    var a = { x: x, y: y, width: w, height: h, fill: fill };
+    if (attrs) Object.keys(attrs).forEach(function (k) { a[k] = attrs[k]; });
+    return svgEl(parent, "rect", a);
+  }
+
+  // Sets the text of a scene label and squeezes it to `maxWidth` if the font makes it wider.
+  function setText(node, str, maxWidth) {
+    node.removeAttribute("textLength");
+    node.removeAttribute("lengthAdjust");
+    node.textContent = str;
+    if (!maxWidth || !node.getComputedTextLength) return;
+    try {
+      if (node.getComputedTextLength() > maxWidth) {
+        node.setAttribute("textLength", String(maxWidth));
+        node.setAttribute("lengthAdjust", "spacingAndGlyphs");
+      }
+    } catch (e) { /* not measurable (hidden): keep the natural width */ }
+  }
+
+  function addText(parent, x, y, str, size, fill, opts) {
+    opts = opts || {};
+    var node = svgEl(parent, "text", {
+      x: x, y: y, "font-size": size, fill: fill,
+      "text-anchor": opts.anchor || "start", "font-weight": opts.bold ? "700" : "400"
+    });
+    setText(node, str, opts.maxWidth);
+    return node;
+  }
+
+  // A scene element that can be tapped: role, focus, label and Enter/Space like a click.
+  function makeButton(g, label, key, onActivate) {
+    g.setAttribute("role", "button");
+    g.setAttribute("tabindex", "0");
+    g.setAttribute("aria-label", label);
+    g.setAttribute("data-key", key);
+    g.addEventListener("click", onActivate);
+    g.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        onActivate(e);
+      }
+    });
+    return g;
+  }
+
+  function hitRect(g, r) {
+    return rect(g, r[0], r[1], r[2], r[3], "transparent", { "class": "hit" });
+  }
+
+  // Wooden board: dark edge, face, light top edge and two plank lines.
+  function board(parent, r, face, edge) {
+    rect(parent, r[0], r[1], r[2], r[3], edge || COLORS.woodDark);
+    rect(parent, r[0] + 3, r[1] + 3, r[2] - 6, r[3] - 6, face);
+    rect(parent, r[0] + 3, r[1] + 3, r[2] - 6, 2, COLORS.woodLight, { opacity: ".55" });
+  }
+
+  function ensureScene() {
+    var layout = app.state.layout;
+    var key = JSON.stringify([layout.map, layout.rooms]);
+    $("boot").hidden = true;
+    $("scene").hidden = false;     // visible first: text is measured while drawing
+    if (app.layoutKey === key) return;
+    app.layoutKey = key;
+    var host = $("scene");
+    clearNode(host);
+    var vb = layout.map.viewbox;
+    var svg = svgEl(host, "svg", {
+      viewBox: "0 0 " + vb[0] + " " + vb[1], "shape-rendering": "crispEdges", role: "group", "aria-label": "Mapa chaty"
+    });
+    app.layers = {
+      base: svgEl(svg, "g", { "aria-hidden": "true" }),
+      beds: svgEl(svg, "g"),      // T-006 draws the beds and figures here
+      boards: svgEl(svg, "g")
+    };
+    drawBase(app.layers.base, layout);
+  }
+
+  function drawBase(g, layout) {
+    var W = layout.map.viewbox[0], H = layout.map.viewbox[1], i;
+    rect(g, 0, 0, W, H, COLORS.grass);
+    for (i = 0; i < 70; i++) rect(g, (i * 53) % (W - 8), (i * 97) % (H - 8), 4, 4, COLORS.tuft);
+    layout.map.paths.forEach(function (p) { rect(g, p[0], p[1], p[2], p[3], COLORS.path); });
+    layout.rooms.forEach(function (room) {
+      var r = room.rect;
+      rect(g, r[0], r[1], r[2], r[3], COLORS.roomEdge);
+      rect(g, r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8, room.floor);
+      addText(g, r[0] + 7, r[1] + 16, room.name, 11, COLORS.roomLabel, { maxWidth: r[2] - 14 });
+    });
+    layout.map.doors.forEach(function (d) {
+      rect(g, d[0], d[1], d[2], d[3], doorFloorColor(layout, d) || COLORS.path);
+    });
+    layout.map.windows.forEach(function (w) { rect(g, w[0], w[1], w[2], w[3], COLORS.window); });
+  }
+
+  function render() {
+    if (!app.state) return;
+    ensureScene();
+    renderBoards();
+  }
+
+  function renderBoards() {
+    var state = app.state, scene = state.layout.map.scene;
+    var active = document.activeElement;
+    var focusKey = active && active.getAttribute ? active.getAttribute("data-key") : null;
+    var g = app.layers.boards;
+    clearNode(g);
+    app.ageNode = null;
+    drawTitle(g, scene.title, state);
+    drawNights(g, scene, state);
+    drawNotice(g, scene.notice);
+    drawStatus(g, scene.status, state);
+    renderAge();
+    if (focusKey) {
+      var again = g.querySelector('[data-key="' + focusKey + '"]');
+      if (again && again.focus) again.focus({ preventScroll: true });
+    }
+  }
+
+  function drawTitle(parent, r, state) {
+    var dates = eventDateText(state.event);
+    var g = svgEl(parent, "g", { role: "img", "aria-label": state.event.name + ", " + dates });
+    board(g, r, COLORS.plank);
+    var cx = r[0] + r[2] / 2;
+    addText(g, cx, r[1] + 20, state.event.name, 12, COLORS.paper, { anchor: "middle", bold: true, maxWidth: r[2] - 16 });
+    addText(g, cx, r[1] + 34, dates, 7.5, COLORS.paper, { anchor: "middle", maxWidth: r[2] - 16 });
+    rect(g, r[0] + 6, r[1] + 6, 3, 3, COLORS.woodLight);
+    rect(g, r[0] + r[2] - 9, r[1] + 6, 3, 3, COLORS.woodLight);
+  }
+
+  function drawNights(parent, scene, state) {
+    var r = scene.nights, nights = state.event.nights, gap = 4;
+    var w = (r[2] - gap * (nights.length - 1)) / nights.length;
+    var total = totalSlots(state.layout);
+    var titleBottom = scene.title[1] + scene.title[3];
+    var hit = expandHit(r, titleBottom, scene.notice[1], 44);
+    nights.forEach(function (night, i) {
+      var info = nightInfo(night) || { label: night, dates: "" };
+      var used = usedCount(state, night);
+      var selected = night === app.night;
+      var x = r[0] + i * (w + gap);
+      var g = svgEl(parent, "g");
+      rect(g, x + w / 2 - 3, r[1] + r[3] - 2, 6, 8, COLORS.woodDark);   // post
+      board(g, [x, r[1], w, r[3]], selected ? COLORS.selected : COLORS.wood, selected ? COLORS.highlight : COLORS.woodDark);
+      var cx = x + w / 2, inner = w - 8;
+      addText(g, cx, r[1] + 13, info.label, 9, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
+      addText(g, cx, r[1] + 23, info.dates, 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
+      addText(g, cx, r[1] + 32, "obsadené", 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
+      addText(g, cx, r[1] + 40, used + " z " + total, 8, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
+      hitRect(g, [x - gap / 2, hit[1], w + gap, hit[3]]);
+      makeButton(g, "Noc " + info.label + ", " + info.dates + ", obsadené " + used + " z " + total +
+        " miest" + (selected ? ", zvolená noc" : ""), "night-" + night, function () { selectNight(night); });
+      g.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
+  }
+
+  function drawNotice(parent, r) {
+    var g = svgEl(parent, "g");
+    if (app.noticeCollapsed) {
+      var box = [r[0] + r[2] - 44, r[1], 44, 44];
+      board(g, [box[0] + 4, box[1] + 4, 36, 36], COLORS.plank);
+      addText(g, box[0] + 22, box[1] + 30, "?", 22, COLORS.paper, { anchor: "middle", bold: true });
+      hitRect(g, box);
+      makeButton(g, "Návod. Ťuknutím ho rozbalíš.", "notice", expandNotice);
+      return;
+    }
+    board(g, r, COLORS.paper, COLORS.woodDark);
+    rect(g, r[0] + 6, r[1] + 6, 3, 3, COLORS.red);
+    rect(g, r[0] + r[2] - 9, r[1] + 6, 3, 3, COLORS.red);
+    addText(g, r[0] + 12, r[1] + 20, "Návod", 9, COLORS.ink, { bold: true });
+    NOTICE_LINES.forEach(function (line, i) {
+      rect(g, r[0] + 12, r[1] + 32 + i * 12, 3, 3, COLORS.red);
+      addText(g, r[0] + 20, r[1] + 36 + i * 12, line, 7.5, COLORS.ink, { maxWidth: r[2] - 32 });
+    });
+    hitRect(g, r);
+    makeButton(g, "Návod: " + NOTICE_LINES.join(" ") + " Ťuknutím ho zbalíš.", "notice", collapseNotice);
+  }
+
+  function drawStatus(parent, r, state) {
+    var half = r[3] / 2;
+    var party = partyById(state, app.myParty);
+    var status = myPartyStatus(state, party);
+
+    // top row: who am I and how fresh is the data
+    var top = [r[0], r[1], r[2], half];
+    var g = svgEl(parent, "g");
+    board(g, [top[0], top[1] + 2, top[2], top[3] - 4], COLORS.plank);
+    addText(g, top[0] + 8, top[1] + 18, whoText(party), 8, COLORS.paper, { bold: true, maxWidth: r[2] - 16 });
+    app.ageNode = addText(g, top[0] + 8, top[1] + 32, "", 6, COLORS.paper, { maxWidth: r[2] - 16 });
+    app.ageMax = r[2] - 16;
+    hitRect(g, top);
+    makeButton(g, (party ? "Si: " + party.name + ". " : "Partia nie je vybratá. ") + "Ťuknutím vyberieš partiu.", "who", openWho);
+
+    // bottom row: the status of my party
+    var bot = [r[0], r[1] + half, r[2], half];
+    var b = svgEl(parent, "g");
+    var inner = [bot[0], bot[1] + 2, bot[2], bot[3] - 4];
+    if (status.kind === "missing") {
+      board(b, inner, COLORS.red, COLORS.redEdge);
+      rect(b, inner[0] + 8, inner[1] + 8, 20, 20, COLORS.white);       // exclamation mark sign
+      rect(b, inner[0] + 17, inner[1] + 11, 2, 9, COLORS.red);
+      rect(b, inner[0] + 17, inner[1] + 22, 2, 3, COLORS.red);
+      drawLines(b, wrapText(status.text, 14, 3), inner[0] + 34, inner[1] + 14, 6.5, COLORS.white, inner[2] - 40);
+      hitRect(b, bot);
+      makeButton(b, status.text + ". Ťuknutím zvolíš túto noc.", "status", function () { selectNight(status.night); });
+    } else if (status.kind === "extra") {
+      board(b, inner, COLORS.amber, COLORS.amberEdge);
+      drawLines(b, wrapText(status.text, 19, 3), inner[0] + 8, inner[1] + 14, 6.5, COLORS.ink, inner[2] - 16);
+      hitRect(b, bot);
+      makeButton(b, status.text + ". Ťuknutím zvolíš túto noc.", "status", function () { selectNight(status.night); });
+    } else if (status.kind === "ok") {
+      board(b, inner, COLORS.green, COLORS.greenEdge);
+      [[0, 6], [3, 9], [6, 12], [9, 9], [12, 6], [15, 3], [18, 0]].forEach(function (p) {   // pixel check mark
+        rect(b, inner[0] + 10 + p[0], inner[1] + 12 + p[1], 3, 3, COLORS.white);
+      });
+      addText(b, inner[0] + 38, inner[1] + 23, "Všetko máte", 7, COLORS.white, { bold: true, maxWidth: inner[2] - 44 });
+      b.setAttribute("role", "img");
+      b.setAttribute("aria-label", status.text);
+    } else {
+      board(b, inner, COLORS.plank);
+      drawLines(b, wrapText("Najprv si vyber partiu", 19, 2), inner[0] + 8, inner[1] + 17, 7, COLORS.paper, inner[2] - 16);
+      hitRect(b, bot);
+      makeButton(b, "Najprv si vyber partiu. Ťuknutím ju vyberieš.", "status", openWho);
+    }
+  }
+
+  function drawLines(parent, lines, x, y, size, fill, maxWidth) {
+    lines.forEach(function (line, i) {
+      addText(parent, x, y + i * (size + 2.5), line, size, fill, { maxWidth: maxWidth });
+    });
+  }
+
+  function renderAge() {
+    if (!app.ageNode || !app.fetchedAt) return;
+    setText(app.ageNode, updatedAgoText(app.fetchedAt, Date.now()), app.ageMax);
+  }
+
+  // --- panels that slide over the scene ---
+
+  function closePanel() {
+    var p = app.panel;
+    if (!p) return;
+    app.panel = null;
+    document.removeEventListener("keydown", p.onKey, true);
+    clearNode($("panelRoot"));
+    if (p.returnFocus && p.returnFocus.focus && document.contains(p.returnFocus)) p.returnFocus.focus({ preventScroll: true });
+  }
+
+  // `build(body, panel)` fills the panel; it may set `panel.refresh` to redraw on new state.
+  function openPanel(title, build) {
+    closePanel();
+    var root = $("panelRoot");
+    var backdrop = htmlEl("div", { "class": "backdrop" });
+    var sheet = htmlEl("div", { "class": "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "panelTitle" });
+    var head = htmlEl("div", { "class": "sheet-head" });
+    head.appendChild(htmlEl("h2", { id: "panelTitle" }, title));
+    var close = htmlEl("button", { "class": "close", type: "button", "aria-label": "Zavrieť" }, "✕");
+    head.appendChild(close);
+    var body = htmlEl("div");
+    sheet.appendChild(head);
+    sheet.appendChild(body);
+    root.appendChild(backdrop);
+    root.appendChild(sheet);
+
+    var panel = { returnFocus: document.activeElement, refresh: null, onKey: null };
+    panel.onKey = function (e) {
+      if (e.key === "Escape") { e.preventDefault(); closePanel(); return; }
+      if (e.key !== "Tab") return;
+      var items = sheet.querySelectorAll("button:not([disabled]), input, [tabindex='0']");
+      if (!items.length) return;
+      var first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", panel.onKey, true);
+    backdrop.addEventListener("click", closePanel);
+    close.addEventListener("click", closePanel);
+    app.panel = panel;
+    build(body, panel);
+    window.requestAnimationFrame(function () {
+      sheet.classList.add("open");
+      var firstButton = body.querySelector("button");
+      (firstButton || close).focus({ preventScroll: true });
+    });
+    return panel;
+  }
+
+  // Hook for T-007: it replaces this with the party form.
+  var hooks = {
+    addParty: function (body) {
+      var note = body.querySelector(".note");
+      if (note) note.textContent = "Formulár partie pribudne čoskoro.";
+    }
+  };
+
+  function openWho() {
+    openPanel("Kto si?", function (body, panel) {
+      body.appendChild(htmlEl("p", null, "Vyber partiu, za ktorú sa zapisuješ."));
+      var list = htmlEl("ul", { "class": "party-list" });
+      body.appendChild(list);
+      var add = htmlEl("button", { "class": "btn", type: "button" }, "Pridať partiu");
+      body.appendChild(add);
+      body.appendChild(htmlEl("p", { "class": "note", hidden: "" }));
+      add.addEventListener("click", function () {
+        var note = body.querySelector(".note");
+        note.hidden = false;
+        hooks.addParty(body);
+      });
+      panel.refresh = function () {
+        clearNode(list);
+        var parties = app.state ? app.state.parties : [];
+        if (!parties.length) {
+          list.appendChild(htmlEl("li", { "class": "muted" }, "Zatiaľ tu nikto nie je. Pridaj prvú partiu."));
+        }
+        parties.forEach(function (party) {
+          var li = htmlEl("li");
+          var row = htmlEl("button", { "class": "party-row", type: "button", "aria-current": party.id === app.myParty ? "true" : "false" });
+          var swatch = htmlEl("span", { "class": "swatch", "aria-hidden": "true" });
+          swatch.style.background = party.color;
+          row.appendChild(swatch);
+          row.appendChild(htmlEl("span", { "class": "name" }, party.name));
+          if (party.id === app.myParty) row.appendChild(htmlEl("span", { "class": "mark", "aria-hidden": "true" }, "✓"));
+          row.addEventListener("click", function () {
+            setMyParty(party.id);
+            closePanel();
+            render();
+          });
+          li.appendChild(row);
+          list.appendChild(li);
+        });
+      };
+      panel.refresh();
+    });
+  }
+
+  // --- code screen ---
+
+  function showCodeScreen() {
+    if (app.codeOpen) return;
+    app.codeOpen = true;
+    closePanel();
+    $("boot").hidden = true;
+    $("scene").hidden = true;
+    $("codeScreen").hidden = false;
+    $("codeInput").focus();
+  }
+
+  function hideCodeScreen() {
+    app.codeOpen = false;
+    $("codeScreen").hidden = true;
+    $("codeError").textContent = "";
+  }
+
+  $("codeForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = $("codeInput"), button = $("codeButton"), errorNode = $("codeError");
+    var code = input.value.trim();
+    if (!code) {
+      errorNode.textContent = "Najprv napíš kód.";
+      input.focus();
+      return;
+    }
+    button.disabled = true;
+    errorNode.textContent = "";
+    request("POST", "api/join", { code: code }).then(function (r) {
+      if (r.status === 200 && r.json && r.json.ok) {
+        if (r.json.role) {
+          app.role = r.json.role;
+          storage.set(KEYS.role, r.json.role);
+        }
+        input.value = "";
+        app.askWho = !app.myParty;
+        app.etag = null;
+        hideCodeScreen();
+        $("boot").textContent = "Načítavam…";
+        $("boot").hidden = !!app.state;
+        $("scene").hidden = !app.state;
+        poll();
+      } else {
+        errorNode.textContent = errorText(r.json ? r.json.error : undefined, null);
+        input.focus();
+      }
+    }, function () {
+      errorNode.textContent = errorText(undefined, null);
+    }).then(function () {
+      button.disabled = false;
+    });
+  });
+
+  // --- start ---
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") poll();
+  });
+  setInterval(function () {
+    if (document.visibilityState === "visible") poll();
+  }, POLL_MS);
+  setInterval(renderAge, AGE_TICK_MS);
+  poll();
+})();
+</script>
 </body>
 </html>
