@@ -90,6 +90,56 @@ button, input { font: inherit; color: inherit; }
 .party-row .mark { color: var(--moss); font-weight: 700; }
 .sheet .note { color: var(--ink); background: var(--amber-soft); padding: 8px 12px; border-left: 4px solid var(--amber); }
 
+/* --- beds, figures, move bar, toast --- */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+#scene svg .free { animation: blink 1.6s ease-in-out infinite; }
+#scene svg .pending { opacity: .5; }
+#scene svg g.bed { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+#scene svg g.bed .ring { display: none; pointer-events: none; }
+#scene svg g.bed:focus-visible .ring { display: block; }
+#scene svg g.bed:focus-visible .hit { stroke: none; fill: rgba(58, 167, 224, .15); }
+@media (prefers-reduced-motion: reduce) {
+  #scene svg .free { animation: none; }
+}
+
+.movebar {
+  position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 560px;
+  margin: 0 auto; padding: 8px 12px; background: var(--surface); color: var(--ink); border-bottom: 4px solid #5C4033;
+}
+.movebar p { flex: 1 1 100%; margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.seg { display: flex; flex: 1 1 auto; }
+.seg .btn { flex: 1 1 0; padding: 8px 10px; }
+.seg .btn + .btn { border-left-width: 0; }
+.btn[aria-pressed="true"] { background: var(--forest); color: var(--surface); }
+.btn.secondary[aria-pressed="false"] { background: transparent; color: var(--forest); }
+
+#toast {
+  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 40; max-width: 536px; margin: 0 auto; padding: 12px 14px;
+  background: var(--surface); color: var(--ink); border: 4px solid #5C4033; border-left-width: 8px; font-weight: 500;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .28); cursor: pointer;
+}
+#toast.error { border-left-color: var(--warn); }
+#toast.info { border-left-color: var(--moss); }
+
+.sheet .sub { margin: 0 0 8px; }
+.night { margin: 0 0 10px; padding: 4px 0 8px; border-top: 2px solid var(--line); }
+.night-head {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 6px 10px; text-align: left;
+  background: transparent; border: 0; border-radius: 0; font-weight: 700; color: var(--forest); cursor: pointer; touch-action: manipulation;
+}
+.night.on .night-head { background: var(--surface2); border-left: 4px solid var(--moss); }
+.night-head:focus-visible, .slot-row .btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 10px; min-height: 36px; }
+.slot-row .who { flex: 1 1 140px; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.slot-row .swatch { flex: none; width: 14px; height: 14px; border: 2px solid rgba(0, 0, 0, .35); background: var(--muted); }
+.slot-row .swatch.free { background: transparent; border: 2px solid var(--muted); }
+.slot-row .tight { color: var(--amber); font-weight: 700; }
+.slot-row .confirm { flex: 1 1 100%; margin: 0; color: var(--ink); font-weight: 700; }
+.slot-row .btn { padding: 6px 12px; }
+.slot-row .btn.secondary { border-width: 2px; }
+.actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.actions .btn { width: 100%; }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
@@ -98,7 +148,16 @@ button, input { font: inherit; color: inherit; }
 <body>
 <noscript><p class="boot">Stránka potrebuje zapnutý JavaScript.</p></noscript>
 <div id="boot" class="boot" role="status">Načítavam…</div>
+<div id="moveBar" class="movebar" role="region" aria-label="Presun" hidden>
+  <p id="moveText"></p>
+  <div class="seg" role="group" aria-label="Ktoré noci presunúť">
+    <button id="moveThis" class="btn secondary" type="button" aria-pressed="true">Táto noc</button>
+    <button id="moveAll" class="btn secondary" type="button" aria-pressed="false">Všetky noci</button>
+  </div>
+  <button id="moveCancel" class="btn secondary" type="button">Zrušiť</button>
+</div>
 <main id="scene" hidden></main>
+<div id="toast" role="status" aria-live="polite" hidden></div>
 
 <div id="codeScreen" class="code-screen" hidden>
   <form class="board" id="codeForm" autocomplete="off" novalidate>
@@ -207,17 +266,80 @@ function doorFloorColor(layout, door) {
   return color;
 }
 
-// Hit area of a scene element: the rect grown up and down into the free gap up to the neighbours
-// (`topLimit`, `bottomLimit`), and at least `minHeight` tall. Returns [x, y, w, h].
-function expandHit(rect, topLimit, bottomLimit, minHeight) {
-  var top = topLimit <= rect[1] ? topLimit : rect[1];
-  var bottom = bottomLimit >= rect[1] + rect[3] ? bottomLimit : rect[1] + rect[3];
-  var h = bottom - top;
-  if (h < minHeight) {
-    top -= (minHeight - h) / 2;
-    h = minHeight;
+// Hit area of a tappable element: `rect` grown by at most caps.up/down/left/right, never into an
+// obstacle and never out of `bounds` ([width, height], optional). An obstacle is {rect, shared}. A
+// shared obstacle is another tappable element that grows too, so only half of the gap is taken and
+// the two hit areas can never overlap. A fixed obstacle (a board, a room) gives up the whole gap.
+// An obstacle that already overlaps the rect stops all growth. Returns [x, y, w, h].
+function growRect(rect, obstacles, caps, bounds) {
+  var x = rect[0], y = rect[1], w = rect[2], h = rect[3];
+  var up = caps.up, down = caps.down, left = caps.left, right = caps.right;
+  obstacles.forEach(function (o) {
+    var r = o.rect, f = o.shared ? 0.5 : 1;
+    var overlapX = r[0] < x + w && r[0] + r[2] > x;
+    var overlapY = r[1] < y + h && r[1] + r[3] > y;
+    if (overlapX && overlapY) { up = down = left = right = 0; return; }
+    if (overlapX && r[1] + r[3] <= y) up = Math.min(up, (y - r[1] - r[3]) * f);
+    if (overlapX && r[1] >= y + h) down = Math.min(down, (r[1] - y - h) * f);
+    if (overlapY && r[0] + r[2] <= x) left = Math.min(left, (x - r[0] - r[2]) * f);
+    if (overlapY && r[0] >= x + w) right = Math.min(right, (r[0] - x - w) * f);
+  });
+  // A neighbour diagonally across a corner: stop the vertical growth toward it so that the two grown
+  // rects cannot meet at the corner. A shared one takes half of the vertical gap.
+  obstacles.forEach(function (o) {
+    var r = o.rect;
+    if ((r[0] < x + w && r[0] + r[2] > x) || (r[1] < y + h && r[1] + r[3] > y)) return;
+    var below = r[1] >= y + h;
+    var gapX = r[0] >= x + w ? r[0] - x - w : x - r[0] - r[2];
+    var gapY = below ? r[1] - y - h : y - r[1] - r[3];
+    var growX = r[0] >= x + w ? right : left;
+    if (o.shared ? 2 * (r[0] >= x + w ? caps.right : caps.left) <= gapX : growX <= gapX) return;   // too far apart to meet
+    var limit = o.shared ? gapY * 0.5 : gapY;
+    if (below) down = Math.min(down, limit);
+    else up = Math.min(up, limit);
+  });
+  if (bounds) {
+    up = Math.min(up, y);
+    left = Math.min(left, x);
+    down = Math.min(down, bounds[1] - y - h);
+    right = Math.min(right, bounds[0] - x - w);
   }
-  return [rect[0], top, rect[2], h];
+  up = Math.max(0, up); down = Math.max(0, down); left = Math.max(0, left); right = Math.max(0, right);
+  return [x - left, y - up, w + left + right, h + up + down];
+}
+
+// The rects of the scene boards from `map.scene` (title, nights, notice, status, ...), except `skip`.
+function sceneRects(layout, skip) {
+  var scene = layout.map.scene, out = [];
+  Object.keys(scene).forEach(function (key) {
+    if (key !== skip) out.push(scene[key]);
+  });
+  return out;
+}
+
+// Hit area of a signpost row: grows up and down into the grass gap, by at most `grow` units, and
+// never into a scene board, a room or a bed.
+function nightsHit(layout, grow) {
+  var obstacles = [];
+  sceneRects(layout, "nights").forEach(function (r) { obstacles.push({ rect: r, shared: false }); });
+  layout.rooms.forEach(function (room) {
+    obstacles.push({ rect: room.rect, shared: false });
+    room.beds.forEach(function (bed) { obstacles.push({ rect: bed.rect, shared: false }); });
+  });
+  return growRect(layout.map.scene.nights, obstacles, { up: grow, down: grow, left: 0, right: 0 }, layout.map.viewbox);
+}
+
+// Hit area of a bed: its rect grown by at most `grow` units on every side. It keeps half of the gap to
+// a neighbouring bed and stops at the scene boards, so no two hit areas overlap.
+function bedHit(layout, bed, grow) {
+  var obstacles = [];
+  layout.rooms.forEach(function (room) {
+    room.beds.forEach(function (other) {
+      if (other.id !== bed.id) obstacles.push({ rect: other.rect, shared: true });
+    });
+  });
+  sceneRects(layout).forEach(function (r) { obstacles.push({ rect: r, shared: false }); });
+  return growRect(bed.rect, obstacles, { up: grow, down: grow, left: grow, right: grow }, layout.map.viewbox);
 }
 
 // --- parties and nights ---
@@ -339,6 +461,151 @@ function wrapText(text, maxChars, maxLines) {
   return lines;
 }
 
+// --- beds, figures and slot actions ---
+
+// Where the figure of each slot of a bed stands, ported from `pos()` of the approved preview.
+// Offsets are from the bed rect; kinds without a special layout (bed1, sofa1, cot) get one figure.
+function figurePositions(bed) {
+  var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2];
+  switch (bed.kind) {
+    case "bed2": return [[x + 7, y + 8], [x + w - 17, y + 8]];
+    case "mats": return [[x + 10, y + 7], [x + 56, y + 7], [x + 102, y + 7]];
+    case "bunk": return [[x + 7, y + 4], [x + 7, y + 24]];
+    case "sofa": return [[x + 11, y + 8], [x + 11, y + 32]];
+    case "stove": return [[x + 10, y + 8], [x + 36, y + 8]];
+    default: return [[x + w / 2 - 5, y + 10]];
+  }
+}
+
+// The figure of slot number `index` of a bed. A bed with more slots than positions reuses the last one.
+function figurePosition(bed, index) {
+  var list = figurePositions(bed);
+  return list[Math.min(index, list.length - 1)];
+}
+
+// Adult or kid figure for the party's `index`-th slot on a night (slots in layout order, Q2): the first
+// `adults` are adults, then the kids who need their own place, and any extra place is an adult again.
+// Kids who sleep with their parents have no slot, so they have no figure.
+function figureKind(party, index) {
+  var kidsOwnBed = Math.max(0, party.kids - party.kids_in_parents_bed);
+  return index >= party.adults && index < party.adults + kidsOwnBed ? "kid" : "adult";
+}
+
+// {party, kind} for who sleeps in a slot on a night, or null for a free slot. `party` is null for an
+// id that is not in the state.
+function slotOccupant(state, slot, night) {
+  var id = ((state.sleeping && state.sleeping[night]) || {})[slot];
+  if (!id) return null;
+  var party = partyById(state, id);
+  var kind = party ? figureKind(party, partySlots(state, id, night).indexOf(slot)) : "adult";
+  return { party: party, kind: kind };
+}
+
+function isFreeSlot(state, slot, night) {
+  return !((state.sleeping && state.sleeping[night]) || {})[slot];
+}
+
+// The slots one tap on a bed takes for my party on a night (Q3): the first free slots of the bed in
+// config order. The count is what the party still lacks that night, at least 1, and at most what is free.
+function slotsToTake(state, party, bed, night) {
+  var free = bed.slots.filter(function (slot) { return isFreeSlot(state, slot, night); });
+  var want = Math.max(1, missingPlaces(state, party, night));
+  return free.slice(0, Math.min(want, free.length));
+}
+
+// The nights in which the party holds a slot (used by move with all nights), in event order.
+function holdingNights(state, partyId, slot) {
+  return state.event.nights.filter(function (night) {
+    return ((state.sleeping && state.sleeping[night]) || {})[slot] === partyId;
+  });
+}
+
+// The nights an assign for the whole stay will probably write: present, and every slot free.
+// The server decides; this only draws the pending figures.
+function stayNights(state, party, slots) {
+  return state.event.nights.filter(function (night) {
+    return isPresent(party, night) && slots.every(function (slot) { return isFreeSlot(state, slot, night); });
+  });
+}
+
+// The first slot of a bed that is free in every one of the nights (the target of a move), or null.
+function moveTarget(state, bed, nights) {
+  for (var i = 0; i < bed.slots.length; i++) {
+    var slot = bed.slots[i];
+    if (nights.every(function (night) { return isFreeSlot(state, slot, night); })) return slot;
+  }
+  return null;
+}
+
+// The state with unconfirmed changes drawn on top: ops are {night, slot, party_id} and party_id null
+// frees the slot. Returns {state, pending} where pending holds the "night|slot" keys of the ops.
+function withPending(state, ops) {
+  var sleeping = {}, pending = {};
+  Object.keys(state.sleeping || {}).forEach(function (night) {
+    sleeping[night] = Object.assign({}, state.sleeping[night]);
+  });
+  ops.forEach(function (op) {
+    var held = sleeping[op.night] || (sleeping[op.night] = {});
+    if (op.party_id) held[op.slot] = op.party_id;
+    else delete held[op.slot];
+    pending[op.night + "|" + op.slot] = true;
+  });
+  return { state: Object.assign({}, state, { sleeping: sleeping }), pending: pending };
+}
+
+function lowerFirst(text) {
+  return text ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+}
+
+// "0 voľných", "1 voľné", "3 voľné", "5 voľných"
+function freeText(n) {
+  return n + (n >= 1 && n <= 4 ? " voľné" : " voľných");
+}
+
+// Screen-reader label of a bed for a night, e.g. "Manželská posteľ, izba vľavo, v sobotu Ivan a Eva, 0 voľných".
+function bedLabel(state, room, bed, night) {
+  var names = [], free = 0;
+  bed.slots.forEach(function (slot) {
+    var who = slotOccupant(state, slot, night);
+    if (!who) { free++; return; }
+    var name = who.party ? who.party.name : "neznáma partia";
+    if (names.indexOf(name) === -1) names.push(name);
+  });
+  return bed.name + ", " + lowerFirst(room.name) + ", " + dayLocative(night) + " " +
+    (names.length ? names.join(", ") : "nikto") + ", " + freeText(free);
+}
+
+// "Zapísať nás sem (2 miesta)", or just the label when nothing can be taken.
+function assignLabel(count) {
+  return count > 0 ? "Zapísať nás sem (" + pluralPlaces(count) + ")" : "Zapísať nás sem";
+}
+
+// "A", "A a B", "A, B a C"
+function joinList(items) {
+  if (items.length <= 1) return items.join("");
+  return items.slice(0, -1).join(", ") + " a " + items[items.length - 1];
+}
+
+// Why the assign actions are off when my party is not at the cabin on the night.
+function notPresentText(night) {
+  return capitalize(dayLocative(night)) + " nie ste na chate.";
+}
+
+// Nights `assign-stay` left out because a slot was taken.
+function skippedText(nights) {
+  var when = nights.map(dayLocative);
+  if (!when.length) return "";
+  return capitalize(joinList(when)) + " je to tu obsadené, " + (when.length === 1 ? "tú noc" : "tie noci") + " sme vynechali.";
+}
+
+function releaseConfirmText(partyName) {
+  return "Toto miesto má " + partyName + ". Naozaj ho uvoľniť?";
+}
+
+function moveBarText(partyName) {
+  return "Ťukni na nové miesto pre " + partyName;
+}
+
 // --- error texts: the only place that turns a server `code` into Slovak ---
 
 var FIELD_NAMES = {
@@ -429,12 +696,20 @@ function errorText(error, state) {
   var POLL_MS = 30000;
   var AGE_TICK_MS = 5000;
   var KEYS = { client: "chata.clientId", party: "chata.myParty", role: "chata.role", notice: "chata.noticeCollapsed" };
+  var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
+  var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
+  var LONG_PRESS_MS = 500;
+  var TOAST_MS = 6000;
   var NOTICE_LINES = ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.", "Presunúť sa dá cez posteľ."];
   var COLORS = {
     grass: "#79B35A", tuft: "#6AA14C", path: "#D8C59A", roomEdge: "#5C4033", roomLabel: "#4A3426", window: "#9FD3F0",
     woodDark: "#5C4033", wood: "#B98B56", woodLight: "#D4A870", plank: "#6B4426", paper: "#F4EBD0", ink: "#2E1F14",
     selected: "#F2D58A", highlight: "#FFD54A", red: "#B4472F", redEdge: "#6E2414", amber: "#F3E3C0", amberEdge: "#C98A1C",
-    green: "#3D7A55", greenEdge: "#1F4A31", white: "#FFFFFF"
+    green: "#3D7A55", greenEdge: "#1F4A31", white: "#FFFFFF",
+    bedFrame: "#8A5A34", sheet: "#F4F1E8", sheetHead: "#FFFFFF", sheetFoot: "#C9A27A", mat: "#7E8FA0", matTop: "#C7D3DD",
+    cotFrame: "#B9C7CF", bunkDark: "#6B4426", bunkTop: "#F4F1E8", bunkLow: "#E6DFCC", sofaDark: "#7A3E48", sofaLight: "#B4606C",
+    stoveDark: "#9E9E9E", stoveLight: "#E3E3E3", stovePipe: "#6E6E6E", skin: "#F2C9A0", eye: "#3A2A1E",
+    tight: "#E0A33A", picked: "#3AA7E0"
   };
 
   // --- browser storage that survives a blocked localStorage ---
@@ -479,6 +754,12 @@ function errorText(error, state) {
     codeOpen: false,
     polling: false,
     writeEpoch: 0,       // bumped when a write response is applied, so an older poll cannot overwrite it
+    pending: [],         // unconfirmed changes {night, slot, party_id} drawn on top of the state
+    selectedBed: null,   // id of the bed whose sheet is open
+    move: null,          // move mode: {partyId, fromSlot, all}
+    suppressClick: false, // set by a long press so that its click does not open the sheet
+    tipTimer: null,
+    toastTimer: null,
     panel: null,
     layoutKey: null,
     layers: null,
@@ -534,16 +815,30 @@ function errorText(error, state) {
   // A write for the bed actions (T-006) and the party form (T-007). It applies the `state` that
   // comes with a success and with an error (so the page rolls back to the server's truth) and
   // resolves to {ok, error, json}. `error` is undefined for a network failure.
-  function write(method, path, body) {
+  // `ops` are the pending changes of this write: they are dropped just before the answer is applied.
+  function write(method, path, body, ops) {
+    function settle() {
+      if (ops) app.pending = app.pending.filter(function (op) { return ops.indexOf(op) === -1; });
+    }
     return request(method, path, body).then(function (r) {
+      settle();
       if (r.status === 401) showCodeScreen();
+      var ok = r.status === 200 && r.json && r.json.ok;
       if (r.json && r.json.state) {
         app.writeEpoch++;
+        // A write response has no ETag header, so forget the old one and let the poll below fetch the
+        // new one. The poll after that gets a 304.
+        app.etag = r.etag || null;
         applyState(r.json.state);
+        if (ok) poll();
+      } else {
+        render();
       }
-      if (r.status === 200 && r.json && r.json.ok) return { ok: true, error: undefined, json: r.json };
+      if (ok) return { ok: true, error: undefined, json: r.json };
       return { ok: false, error: r.json ? r.json.error : undefined, json: r.json };
     }, function () {
+      settle();
+      render();
       return { ok: false, error: undefined, json: null };
     });
   }
@@ -584,6 +879,7 @@ function errorText(error, state) {
       forgetMyParty();
       app.askWho = true;
     }
+    if (app.move && !partyById(state, app.move.partyId)) app.move = null;
     render();
     if (app.askWho) {
       app.askWho = false;
@@ -605,9 +901,10 @@ function errorText(error, state) {
   function selectNight(night) {
     app.night = night;
     render();
+    if (app.panel && app.panel.refresh) app.panel.refresh();
   }
 
-  // T-006 calls this when a bed is tapped: the first tap on any bed also collapses the noticeboard.
+  // The first tap on any bed also collapses the noticeboard.
   function collapseNotice() {
     if (app.noticeCollapsed) return;
     app.noticeCollapsed = true;
@@ -695,8 +992,9 @@ function errorText(error, state) {
     });
     app.layers = {
       base: svgEl(svg, "g", { "aria-hidden": "true" }),
-      beds: svgEl(svg, "g"),      // T-006 draws the beds and figures here
-      boards: svgEl(svg, "g")
+      beds: svgEl(svg, "g"),
+      boards: svgEl(svg, "g"),
+      tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
     };
     drawBase(app.layers.base, layout);
   }
@@ -718,16 +1016,46 @@ function errorText(error, state) {
     layout.map.windows.forEach(function (w) { rect(g, w[0], w[1], w[2], w[3], COLORS.window); });
   }
 
+  // The element below `root` with this data-key, or null.
+  function byKey(root, key) {
+    var found = null;
+    Array.prototype.forEach.call(root.querySelectorAll("[data-key]"), function (node) {
+      if (node.getAttribute("data-key") === key) found = node;
+    });
+    return found;
+  }
+
+  // Runs `redraw`, which rebuilds the nodes below `root`, and gives keyboard focus back to the element
+  // with the same data-key. If that element is gone, focus goes to `fallback(root)` when given.
+  function keepFocus(root, redraw, fallback) {
+    var active = document.activeElement;
+    var key = active && root.contains(active) && active.getAttribute ? active.getAttribute("data-key") : null;
+    redraw();
+    if (!key) return;
+    var again = byKey(root, key) || (fallback ? fallback(root) : null);
+    if (again && again.focus) again.focus({ preventScroll: true });
+  }
+
   function render() {
     if (!app.state) return;
     ensureScene();
-    renderBoards();
+    keepFocus($("scene"), function () {
+      drawBoards();
+      drawBeds();
+    });
+    renderMoveBar();
   }
 
   function renderBoards() {
+    keepFocus($("scene"), drawBoards);
+  }
+
+  function renderBeds() {
+    keepFocus($("scene"), drawBeds);
+  }
+
+  function drawBoards() {
     var state = app.state, scene = state.layout.map.scene;
-    var active = document.activeElement;
-    var focusKey = active && active.getAttribute ? active.getAttribute("data-key") : null;
     var g = app.layers.boards;
     clearNode(g);
     app.ageNode = null;
@@ -736,10 +1064,6 @@ function errorText(error, state) {
     drawNotice(g, scene.notice);
     drawStatus(g, scene.status, state);
     renderAge();
-    if (focusKey) {
-      var again = g.querySelector('[data-key="' + focusKey + '"]');
-      if (again && again.focus) again.focus({ preventScroll: true });
-    }
   }
 
   function drawTitle(parent, r, state) {
@@ -757,8 +1081,7 @@ function errorText(error, state) {
     var r = scene.nights, nights = state.event.nights, gap = 4;
     var w = (r[2] - gap * (nights.length - 1)) / nights.length;
     var total = totalSlots(state.layout);
-    var titleBottom = scene.title[1] + scene.title[3];
-    var hit = expandHit(r, titleBottom, scene.notice[1], 44);
+    var hit = nightsHit(state.layout, NIGHTS_HIT_GROW);
     nights.forEach(function (night, i) {
       var info = nightInfo(night) || { label: night, dates: "" };
       var used = usedCount(state, night);
@@ -855,6 +1178,143 @@ function errorText(error, state) {
     });
   }
 
+  // --- beds and figures ---
+
+  // The state with the unconfirmed changes on top: {state, pending}.
+  function viewState() {
+    return withPending(app.state, app.pending);
+  }
+
+  // Furniture of a bed by `kind`, ported from `furn()` of the approved preview.
+  function drawFurniture(g, bed) {
+    var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3], i;
+    switch (bed.kind) {
+      case "bed2":
+      case "bed1":
+      case "cot":
+        rect(g, x, y, w, h, COLORS.bedFrame);
+        rect(g, x + 2, y + 2, w - 4, h - 4, bed.kind === "cot" ? COLORS.cotFrame : COLORS.sheet);
+        rect(g, x + 3, y + 3, w - 6, 6, COLORS.sheetHead);
+        if (bed.kind !== "cot") rect(g, x + 2, y + h - 10, w - 4, 8, COLORS.sheetFoot);
+        break;
+      case "mats":
+        for (i = 0; i < bed.slots.length; i++) {
+          rect(g, x + i * 46, y, 32, h, COLORS.mat);
+          rect(g, x + i * 46 + 2, y + 2, 28, h - 4, COLORS.matTop);
+        }
+        break;
+      case "bunk":
+        rect(g, x, y, w, h, COLORS.bunkDark);
+        rect(g, x + 2, y + 2, w - 4, 16, COLORS.bunkTop);
+        rect(g, x + 2, y + 22, w - 4, 18, COLORS.bunkLow);
+        rect(g, x, y + 19, w, 2, COLORS.bunkDark);
+        break;
+      case "sofa":
+      case "sofa1":
+        rect(g, x, y, w, h, COLORS.sofaDark);
+        rect(g, x + 4, y + 4, w - 8, h - 8, COLORS.sofaLight);
+        break;
+      case "stove":
+        rect(g, x, y, w, h, COLORS.stoveDark);
+        rect(g, x + 2, y + 2, w - 4, h - 4, COLORS.stoveLight);
+        rect(g, x + w - 12, y - 6, 8, 8, COLORS.stovePipe);
+        break;
+    }
+  }
+
+  // A pixel figure in the party color, ported from `sprite()` of the preview. Kids are smaller.
+  function drawFigure(g, px, py, color, kind) {
+    if (kind === "kid") {
+      rect(g, px + 1, py + 3, 8, 6, color);
+      rect(g, px + 2, py, 6, 4, COLORS.skin);
+      return;
+    }
+    rect(g, px, py + 5, 10, 7, color);
+    rect(g, px + 2, py, 6, 5, COLORS.skin);
+    rect(g, px + 3, py + 2, 1, 1, COLORS.eye);
+    rect(g, px + 6, py + 2, 1, 1, COLORS.eye);
+  }
+
+  function drawBeds() {
+    var g = app.layers.beds, layout = app.state.layout;
+    var view = viewState();
+    clearNode(g);
+    layout.rooms.forEach(function (room) {
+      room.beds.forEach(function (bed) { drawBed(g, layout, view, room, bed); });
+    });
+  }
+
+  function drawBed(parent, layout, view, room, bed) {
+    var night = app.night, st = view.state;
+    var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3];
+    var g = svgEl(parent, "g", { "class": "bed" });
+    hitRect(g, bedHit(layout, bed, BED_HIT_GROW));      // first, so figures keep their hover titles
+    drawFurniture(g, bed);
+    bed.slots.forEach(function (slot, i) {
+      var pos = figurePosition(bed, i), who = slotOccupant(st, slot, night);
+      var sg = svgEl(g, "g", view.pending[night + "|" + slot] ? { "class": "pending" } : null);
+      if (who) {
+        var color = who.party ? who.party.color : COLORS.mat;
+        if (who.party && who.party.id === app.myParty) {      // the yellow frame of my party
+          rect(sg, pos[0] - 1, pos[1] - 1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });
+        }
+        svgEl(sg, "title", null, who.party ? who.party.name : "neznáma partia");
+        drawFigure(sg, pos[0], pos[1], color, who.kind);
+      } else {
+        rect(sg, pos[0] + 1, pos[1] + 2, 8, 8, "none", {
+          "class": "free", stroke: bed.tight.indexOf(slot) !== -1 ? COLORS.tight : COLORS.white, "stroke-width": 2
+        });
+      }
+    });
+    if (app.selectedBed === bed.id) rect(g, x - 3, y - 3, w + 6, h + 6, "none", { stroke: COLORS.picked, "stroke-width": 2 });
+    rect(g, x - 3, y - 3, w + 6, h + 6, "none", { "class": "ring", stroke: COLORS.picked, "stroke-width": 2 });
+    makeButton(g, bedLabel(st, room, bed, night) + ". Ťuknutím otvoríš.", "bed-" + bed.id, function () {
+      if (app.suppressClick) { app.suppressClick = false; return; }
+      onBedTap(room, bed);
+    });
+    watchLongPress(g, bed);
+  }
+
+  // A long press on touch shows who sleeps in the bed (a hover title does not exist there).
+  function watchLongPress(g, bed) {
+    var timer = null;
+    function cancel() {
+      if (timer) { clearTimeout(timer); timer = null; }
+    }
+    g.addEventListener("pointerdown", function (e) {
+      app.suppressClick = false;
+      cancel();
+      if (e.pointerType === "mouse") return;
+      timer = setTimeout(function () {
+        timer = null;
+        app.suppressClick = true;
+        showTip(bed);
+      }, LONG_PRESS_MS);
+    });
+    ["pointerup", "pointercancel", "pointerleave", "pointermove"].forEach(function (name) { g.addEventListener(name, cancel); });
+    g.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  }
+
+  function showTip(bed) {
+    var st = viewState().state, names = [];
+    bed.slots.forEach(function (slot) {
+      var who = slotOccupant(st, slot, app.night);
+      var name = who ? (who.party ? who.party.name : "neznáma partia") : null;
+      if (name && names.indexOf(name) === -1) names.push(name);
+    });
+    var g = app.layers.tip;
+    clearNode(g);
+    if (!names.length) return;
+    var text = ellipsize(names.join(", "), 28), vb = st.layout.map.viewbox, h = 18;
+    var w = Math.min(vb[0] - 4, text.length * 5.4 + 14);
+    var x = Math.max(2, Math.min(vb[0] - w - 2, bed.rect[0] + bed.rect[2] / 2 - w / 2));
+    var y = bed.rect[1] - h - 4 < 2 ? bed.rect[1] + bed.rect[3] + 4 : bed.rect[1] - h - 4;
+    board(g, [x, y, w, h], COLORS.paper, COLORS.woodDark);
+    addText(g, x + w / 2, y + 12, text, 8, COLORS.ink, { anchor: "middle", bold: true, maxWidth: w - 10 });
+    clearTimeout(app.tipTimer);
+    app.tipTimer = setTimeout(function () { clearNode(g); }, 2500);
+  }
+
   function renderAge() {
     if (!app.ageNode || !app.fetchedAt) return;
     setText(app.ageNode, updatedAgoText(app.fetchedAt, Date.now()), app.ageMax);
@@ -868,12 +1328,19 @@ function errorText(error, state) {
     app.panel = null;
     document.removeEventListener("keydown", p.onKey, true);
     clearNode($("panelRoot"));
-    if (p.returnFocus && p.returnFocus.focus && document.contains(p.returnFocus)) p.returnFocus.focus({ preventScroll: true });
+    if (p.onClose) p.onClose();
+    // The scene is redrawn while a panel is open, so find the opener again by its key.
+    var target = p.returnKey && app.layers ? byKey($("scene"), p.returnKey) : null;
+    if (!target && p.returnFocus && document.contains(p.returnFocus)) target = p.returnFocus;
+    if (target && target.focus) target.focus({ preventScroll: true });
   }
 
   // `build(body, panel)` fills the panel; it may set `panel.refresh` to redraw on new state.
-  function openPanel(title, build) {
+  // `opts.returnKey` is the data-key of the scene element that gets focus back on close, and
+  // `opts.onClose` runs after the panel is gone.
+  function openPanel(title, build, opts) {
     closePanel();
+    hideToast();      // a message would sit on top of the sheet buttons
     var root = $("panelRoot");
     var backdrop = htmlEl("div", { "class": "backdrop" });
     var sheet = htmlEl("div", { "class": "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "panelTitle" });
@@ -887,7 +1354,11 @@ function errorText(error, state) {
     root.appendChild(backdrop);
     root.appendChild(sheet);
 
-    var panel = { returnFocus: document.activeElement, refresh: null, onKey: null };
+    opts = opts || {};
+    var panel = {
+      returnFocus: document.activeElement, returnKey: opts.returnKey || null, onClose: opts.onClose || null,
+      refresh: null, onKey: null
+    };
     panel.onKey = function (e) {
       if (e.key === "Escape") { e.preventDefault(); closePanel(); return; }
       if (e.key !== "Tab") return;
@@ -910,13 +1381,243 @@ function errorText(error, state) {
     return panel;
   }
 
-  // Hook for T-007: it replaces this with the party form.
+  // Hooks for T-007: it replaces these with the party form.
   var hooks = {
     addParty: function (body) {
       var note = body.querySelector(".note");
       if (note) note.textContent = "Formulár partie pribudne čoskoro.";
+    },
+    // Opens the party form to change arrival and departure.
+    editParty: function () {
+      showToast("Formulár partie pribudne čoskoro.", "info");
     }
   };
+
+  // --- toast ---
+
+  function hideToast() {
+    $("toast").hidden = true;
+  }
+
+  function showToast(text, kind) {
+    var node = $("toast");
+    node.textContent = text;
+    node.className = kind || "info";
+    node.hidden = false;
+    clearTimeout(app.toastTimer);
+    app.toastTimer = setTimeout(hideToast, TOAST_MS);
+  }
+
+  // --- slot actions with optimistic UI ---
+
+  // Draws the pending changes at once, sends the write, and reports a rejection in Slovak. The map
+  // already shows the server's state when the promise settles (see write()). Resolves to the write result.
+  function runWrite(path, body, ops) {
+    app.pending = app.pending.concat(ops);
+    renderBeds();
+    return write("POST", path, body, ops).then(function (res) {
+      if (res.ok) return res;
+      var e = res.error;
+      // Tapping a place the party already holds changes nothing and is not an error.
+      if (e && e.code === "slot_taken" && e.params && e.params.own === true) return res;
+      showToast(errorText(e, app.state), "error");
+      return res;
+    });
+  }
+
+  function myParty(st) {
+    return partyById(st, app.myParty);
+  }
+
+  function assignHere(bed, stay) {
+    var st = viewState().state, party = myParty(st), night = app.night;
+    if (!party) { closePanel(); openWho(); return; }
+    if (!isPresent(party, night)) return;
+    var slots = slotsToTake(st, party, bed, night);
+    if (!slots.length) return;
+    var ops = [], nights = stay ? stayNights(st, party, slots) : [night];
+    nights.forEach(function (n) {
+      slots.forEach(function (slot) { ops.push({ night: n, slot: slot, party_id: party.id }); });
+    });
+    closePanel();
+    var run = stay
+      ? runWrite("api/assign-stay", { slots: slots, party_id: party.id }, ops)
+      : runWrite("api/assign", { night: night, slots: slots, party_id: party.id }, ops);
+    run.then(function (res) {
+      var skipped = res.ok && res.json && res.json.skipped;
+      if (skipped && skipped.length) showToast(skippedText(skipped), "info");
+    });
+  }
+
+  function clearSlot(slot) {
+    var night = app.night;
+    closePanel();
+    runWrite("api/clear", { night: night, slot: slot }, [{ night: night, slot: slot, party_id: null }]);
+  }
+
+  // --- move mode ---
+
+  function renderMoveBar() {
+    var bar = $("moveBar"), m = app.move;
+    bar.hidden = !m;
+    if (!m || !app.state) return;
+    var party = myParty(app.state);
+    $("moveText").textContent = moveBarText(party ? party.name : "");
+    $("moveThis").setAttribute("aria-pressed", m.all ? "false" : "true");
+    $("moveAll").setAttribute("aria-pressed", m.all ? "true" : "false");
+  }
+
+  function startMove(slot) {
+    app.move = { partyId: app.myParty, fromSlot: slot, all: false };
+    closePanel();
+    renderMoveBar();
+    $("moveThis").focus({ preventScroll: true });
+  }
+
+  function cancelMove() {
+    app.move = null;
+    renderMoveBar();
+  }
+
+  function moveTo(bed) {
+    var m = app.move, st = viewState().state;
+    var nights = m.all ? holdingNights(st, m.partyId, m.fromSlot) : [app.night];
+    if (!nights.length || nights.some(function (n) { return holdingNights(st, m.partyId, m.fromSlot).indexOf(n) === -1; })) {
+      showToast("Tú noc nespíte na pôvodnom mieste. Prepni noc alebo zvoľ „Všetky noci“.", "error");
+      return;
+    }
+    var target = moveTarget(st, bed, nights);
+    if (!target) {
+      showToast("Tu nie je voľné miesto.", "error");
+      return;
+    }
+    var ops = [];
+    nights.forEach(function (n) {
+      ops.push({ night: n, slot: m.fromSlot, party_id: null });
+      ops.push({ night: n, slot: target, party_id: m.partyId });
+    });
+    app.move = null;
+    renderMoveBar();
+    runWrite("api/move", { party_id: m.partyId, from_slot: m.fromSlot, to_slot: target, nights: nights }, ops);
+  }
+
+  function onBedTap(room, bed) {
+    collapseNotice();
+    if (app.move) moveTo(bed);
+    else openBedSheet(room, bed);
+  }
+
+  // --- the bed sheet ---
+
+  function openBedSheet(room, bed) {
+    openPanel(bed.name, function (body, panel) {
+      var confirm = null;     // {slot, partyId, night} while „Naozaj ho uvoľniť?“ is asked
+
+      function button(text, key, onClick, secondary, label) {
+        var b = htmlEl("button", { "class": "btn" + (secondary ? " secondary" : ""), type: "button", "data-key": key }, text);
+        if (label) b.setAttribute("aria-label", label);
+        b.addEventListener("click", onClick);
+        return b;
+      }
+
+      function focusKey(key) {
+        var node = byKey(body, key);
+        if (node) node.focus({ preventScroll: true });
+      }
+
+      function slotRow(st, slot, i, night) {
+        var who = slotOccupant(st, slot, night), name = who ? (who.party ? who.party.name : "neznáma partia") : "voľné";
+        var rowText = (bed.slots.length > 1 ? "Miesto " + (i + 1) + ": " : "") + name;
+        var row = htmlEl("div", { "class": "slot-row" });
+        var label = htmlEl("span", { "class": "who" });
+        var swatch = htmlEl("span", { "class": "swatch" + (who ? "" : " free"), "aria-hidden": "true" });
+        if (who && who.party) swatch.style.background = who.party.color;
+        label.appendChild(swatch);
+        label.appendChild(htmlEl("span", null, rowText));
+        if (!who && bed.tight.indexOf(slot) !== -1) label.appendChild(htmlEl("span", { "class": "tight" }, "(tesné)"));
+        row.appendChild(label);
+        if (who && night === app.night) slotActions(row, st, slot, who, rowText);
+        return row;
+      }
+
+      function slotActions(row, st, slot, who, rowText) {
+        var pid = who.party ? who.party.id : null, mine = pid !== null && pid === app.myParty;
+        var name = who.party ? who.party.name : "neznáma partia";
+        if (confirm && confirm.slot === slot && confirm.partyId === pid && confirm.night === app.night) {
+          row.appendChild(htmlEl("p", { "class": "confirm" }, releaseConfirmText(name)));
+          row.appendChild(button("Uvoľniť", "yes-" + slot, function () { clearSlot(slot); }, false, "Naozaj uvoľniť: " + rowText));
+          row.appendChild(button("Nie", "no-" + slot, function () { confirm = null; panel.refresh(); focusKey("clear-" + slot); }, true));
+          return;
+        }
+        row.appendChild(button("Uvoľniť", "clear-" + slot, function () {
+          if (mine) clearSlot(slot);
+          else { confirm = { slot: slot, partyId: pid, night: app.night }; panel.refresh(); focusKey("no-" + slot); }
+        }, true, "Uvoľniť " + rowText));
+        if (mine) row.appendChild(button("Presunúť", "move-" + slot, function () { startMove(slot); }, true, "Presunúť " + rowText));
+      }
+
+      function nightSection(st, night) {
+        var info = nightInfo(night) || { label: night, dates: "" };
+        var sec = htmlEl("section", { "class": "night" + (night === app.night ? " on" : "") });
+        var head = htmlEl("button", {
+          "class": "night-head", type: "button", "data-key": "night-" + night, "aria-pressed": night === app.night ? "true" : "false"
+        }, info.label + " · " + info.dates);
+        head.addEventListener("click", function () { selectNight(night); });
+        sec.appendChild(head);
+        bed.slots.forEach(function (slot, i) { sec.appendChild(slotRow(st, slot, i, night)); });
+        return sec;
+      }
+
+      function addActions(st) {
+        var night = app.night, party = myParty(st), box = htmlEl("div", { "class": "actions" });
+        var present = party ? isPresent(party, night) : true;
+        var take = party && present ? slotsToTake(st, party, bed, night) : [];
+        var blocked = !!party && take.length === 0;
+        var assign = button(assignLabel(take.length), "assign", function () { assignHere(bed, false); });
+        var stay = button("Na všetky naše noci", "stay", function () { assignHere(bed, true); }, true);
+        assign.disabled = blocked;
+        stay.disabled = blocked;
+        box.appendChild(assign);
+        box.appendChild(stay);
+        if (party && !present) {
+          box.appendChild(htmlEl("p", { "class": "note" }, notPresentText(night)));
+          box.appendChild(button("Upraviť príchod a odchod", "edit-party", function () {
+            closePanel();
+            hooks.editParty(party.id);
+          }, true));
+        } else if (blocked) {
+          box.appendChild(htmlEl("p", { "class": "note" }, "Táto posteľ je v túto noc plná."));
+        }
+        body.appendChild(box);
+      }
+
+      function fill() {
+        clearNode(body);
+        var st = viewState().state;
+        if (confirm) {      // drop the question when the place changed hands or the night changed
+          var who = slotOccupant(st, confirm.slot, app.night), pid = who && who.party ? who.party.id : null;
+          if (confirm.night !== app.night || pid !== confirm.partyId) confirm = null;
+        }
+        body.appendChild(htmlEl("p", { "class": "sub" }, room.name));
+        st.event.nights.forEach(function (night) { body.appendChild(nightSection(st, night)); });
+        addActions(st);
+      }
+
+      panel.refresh = function () {
+        keepFocus(body, fill, function () { return body.querySelector("button:not([disabled])"); });
+      };
+      app.selectedBed = bed.id;
+      renderBeds();
+      fill();
+    }, {
+      returnKey: "bed-" + bed.id,
+      onClose: function () {
+        if (app.selectedBed !== bed.id) return;
+        app.selectedBed = null;
+        if (app.state) renderBeds();
+      }
+    });
+  }
 
   function openWho() {
     openPanel("Kto si?", function (body, panel) {
@@ -932,6 +1633,10 @@ function errorText(error, state) {
         hooks.addParty(body);
       });
       panel.refresh = function () {
+        // A new state rebuilds the rows, so focus returns to the same party (or to the first button).
+        keepFocus(list, function () { fillParties(list); }, function () { return add; });
+      };
+      function fillParties(list) {
         clearNode(list);
         var parties = app.state ? app.state.parties : [];
         if (!parties.length) {
@@ -939,7 +1644,9 @@ function errorText(error, state) {
         }
         parties.forEach(function (party) {
           var li = htmlEl("li");
-          var row = htmlEl("button", { "class": "party-row", type: "button", "aria-current": party.id === app.myParty ? "true" : "false" });
+          var row = htmlEl("button", {
+            "class": "party-row", type: "button", "data-key": "party-" + party.id, "aria-current": party.id === app.myParty ? "true" : "false"
+          });
           var swatch = htmlEl("span", { "class": "swatch", "aria-hidden": "true" });
           swatch.style.background = party.color;
           row.appendChild(swatch);
@@ -953,7 +1660,7 @@ function errorText(error, state) {
           li.appendChild(row);
           list.appendChild(li);
         });
-      };
+      }
       panel.refresh();
     });
   }
@@ -1014,6 +1721,13 @@ function errorText(error, state) {
 
   // --- start ---
 
+  $("moveThis").addEventListener("click", function () { if (app.move) { app.move.all = false; renderMoveBar(); } });
+  $("moveAll").addEventListener("click", function () { if (app.move) { app.move.all = true; renderMoveBar(); } });
+  $("moveCancel").addEventListener("click", cancelMove);
+  $("toast").addEventListener("click", hideToast);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && app.move && !app.panel) cancelMove();
+  });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") poll();
   });

@@ -31,3 +31,14 @@ Items are grouped by the task that produced them.
 - [ ] Two phones: after phone A changes the data (T-006), phone B shows it within 30 s without a reload, and „aktualizované pred … s“ counts up and resets after each poll. Returning to the tab from another app refreshes at once.
 - [ ] Opened from the WhatsApp link for the first time: the code screen appears, after the correct code „Kto si?“ opens, and after choosing a party the noticeboard is open. Close the page, open it from the link again: the party and the collapsed or open noticeboard are remembered.
 - [ ] Deployed under the final URL (and, if used, a sub-path such as `/chata/`): the page loads and `api/...` calls work (relative paths).
+
+## T-006: beds, bed sheet, assign / clear / move
+
+- [ ] Long press on a bed with a finger (iPhone Safari and Android Chrome) shows the small board with the occupants' names and does not open the sheet. A resting finger emits tiny `pointermove` events, so check that the long press really fires and is not cancelled by finger jitter (it was only checked with synthetic touch events). A short tap opens the sheet.
+- [ ] Two phones tap „Zapísať nás sem“ on the same free bed within the same second: the slower one sees „Toto miesto má … už …“ in the toast, its pending figure disappears and the map shows the winner.
+- [ ] On a phone, the tap targets of the small beds (cots, 1-bed, bunks, about 32-40 px wide) can be hit with a thumb on the first or second try. If not, widen the bed hit areas (Q9).
+- [ ] Move mode on a phone: after the sheet closes the bar appears above the scene and the scene may jump down a little. Check that the next tap still lands on the intended bed, and that „Zrušiť“ and „Táto noc / Všetky noci“ are easy to hit.
+- [ ] Pending state („ukladám“, semi-transparent figures) is visible for a moment on a slow mobile connection (throttle to 3G), and the map returns to the server state after a rejection.
+- [ ] Screen reader (VoiceOver and TalkBack): beds are announced as buttons with the label „<bed>, <room>, v <night> <who>, N voľných“, the sheet is announced as a dialog and focus returns to the bed on close.
+- [ ] The „Chodbička“ room label is squeezed to fit the 54-unit corridor and the „Letná kuchynka“ label touches the stove pipe. Look at both on a phone and decide with the organizer whether to shorten the names in `config/chata.yaml`.
+- [ ] Pinch-zoom on the map and on the open sheet still works on iPhone and Android.
