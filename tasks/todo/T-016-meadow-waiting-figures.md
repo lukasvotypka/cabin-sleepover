@@ -1,7 +1,7 @@
 # T-016: People without a bed wait as figures on the meadow
 
 - **Phase:** 1 (organizer request, 22. 10. 2026)
-- **Depends on:** T-013, T-014, T-015 (T-014 and T-015 only for build order: they change the same files, see Notes)
+- **Depends on:** T-013, T-014, T-015, T-018 (T-014 and T-015 only for build order: they change the same files, see Notes; T-018 adds the shirt letter to `drawFigure`)
 - **Size:** S
 
 ## Goal
@@ -56,7 +56,7 @@ With the decided rect (124 wide) the capacity is 9. A real party needs at most a
 ## Drawing (`drawMeadow`)
 - Read the rect from `state.layout.map.scene.meadow`. Never hardcode the position.
 - One `<g>` with `role="img"`, `aria-label = meadowLabel(n)` and `pointer-events="none"`. It is not a button and has no hit area. Nothing is drawn (no group at all) when `n` is 0.
-- Each cell: `drawFigure(g, x, y, party.color, kind)`, the same sprite as in the beds. No yellow frame (that marks held places).
+- Each cell: `drawFigure(g, x, y, party.color, kind, shirtChar(party.name))`, the same sprite as in the beds, including the shirt letter from T-018. No yellow frame (that marks held places).
 - Overflow: at `morePos` a small `board(...)` chip (`COLORS.plank`, about 12 × 12) with `"+" + more` in `COLORS.paper`, bold, size about 7, through `addText` (which uses `textContent`).
 - `shape-rendering="crispEdges"` stays. Do not change the furniture, beds, boards or hit rects.
 
@@ -87,7 +87,7 @@ With the decided rect (124 wide) the capacity is 9. A real party needs at most a
   - section 8: VoiceOver/TalkBack reads „Na lúke čakajú 2 ľudia z vašej partie bez postele“ (or the right form for the count) and does not stop on the meadow as a button.
 
 ## Notes for developer
-- **Order:** T-014 (legend) and T-015 (loading intro) change the same files (`static/index.html`, `tests/js/logic.test.mjs`, `tests/manualne.md`, `proposal.md`, and for T-014 also `config/chata.yaml`, `app/models.py`, `tests/test_models.py`). Start T-016 only after both are in `done/` and committed. T-016 needs nothing from them functionally. If T-014 is dropped, the orchestrator may remove it from `Depends on`. In that case the `meadow` line goes after `key` in the proposal example.
+- **Order:** T-014 (legend) and T-015 (loading intro) change the same files (`static/index.html`, `tests/js/logic.test.mjs`, `tests/manualne.md`, `proposal.md`, and for T-014 also `config/chata.yaml`, `app/models.py`, `tests/test_models.py`). Start T-016 only after both are in `done/` and committed. T-016 needs nothing from them functionally. T-018 (shirt letter) changes `drawFigure` and adds `shirtChar`, which the meadow figures use, so start only after T-018 is in `done/` too. If T-014 is dropped, the orchestrator may remove it from `Depends on`. In that case the `meadow` line goes after `key` in the proposal example.
 - **Why this rect:** `[112, 381, 124, 14]` is the grass strip under the letter and key icons (which end at y 380), right of the summer kitchen (ends at x 110), left of the entrance path (x 240) and above the bottom path (y 396). It is more than `BED_HIT_GROW` (8) away from every bed, so `bedHit` and `nightsHit` give the same rects as before. Check this with the existing tests. Do not change their expected values. If it collides with anything when drawn, note it in the dev log for the organizer instead of moving other elements.
 - `sceneRects()` returns every `map.scene` key, so `meadow` becomes a fixed obstacle for hit-area growth automatically. That is fine and has no effect at this distance.
 - Reuse `missingPlaces`, `partySlots`, `isPresent`, `figureKind`, `drawFigure`, `board`, `addText`, `viewState`. Do not duplicate the rules.

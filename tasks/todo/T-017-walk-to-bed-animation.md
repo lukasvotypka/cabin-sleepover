@@ -1,7 +1,7 @@
 # T-017: A waiting figure walks from the meadow to the bed
 
 - **Phase:** 1 (organizer request, 22. 10. 2026)
-- **Depends on:** T-016
+- **Depends on:** T-016, T-018
 - **Size:** S
 
 ## Goal
@@ -47,7 +47,7 @@ function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect)
 ## Behaviour
 1. In `assignHere`, keep the current flow (close the panel, push pending ops, `runWrite`). Before `runWrite`, compute `walkers(viewState().state before the ops, state with the ops, …)` for `app.night`. Skip all of this when `prefersReducedMotion()` (from T-015) is true.
 2. For each walker, add its key `night + "|" + slot` to `app.walking`. `drawBed` then draws **nothing** for that slot (neither the figure nor the blinking free square) while the key is there. The meadow (T-016) already shows one figure fewer, so the figure exists only once on screen.
-3. Each walker is a `<g>` in the `walk` layer holding `drawFigure(g, 0, 0, color, kind)`. A `requestAnimationFrame` loop sets `transform="translate(x y)"` to `walkPath(from, to, WALK_STEPS)[i]` with `i = min(WALK_STEPS − 1, floor(elapsed · WALK_STEPS / WALK_MS))`. The positions are integers, so the pixels stay crisp.
+3. Each walker is a `<g>` in the `walk` layer holding `drawFigure(g, 0, 0, color, kind, shirtChar(party.name))` (the shirt letter from T-018, so the figure looks the same on the meadow, on the way and in the bed). A `requestAnimationFrame` loop sets `transform="translate(x y)"` to `walkPath(from, to, WALK_STEPS)[i]` with `i = min(WALK_STEPS − 1, floor(elapsed · WALK_STEPS / WALK_MS))`. The positions are integers, so the pixels stay crisp.
 4. At `WALK_MS`: remove the walker, delete its key and `renderBeds()`. If the server has not answered yet, the figure stands there semi-transparent („ukladám“, `.pending`), as today.
 5. **Rejection:** when `runWrite` resolves with `!res.ok`, cancel the walkers of this tap (remove the nodes, delete the keys) before or together with the redraw. The figure is back on the meadow by the normal rollback, and the toast shows the server's reason as today. A `slot_taken` with `params.own === true` is not an error, so treat it like success. A rejection that arrives after landing needs nothing extra: the normal redraw moves the figure back to the meadow at once (no reverse walk).
 6. `selectNight`, `showCodeScreen` and a 401 cancel all walks, so no figure is left on the wrong night. Polls and other redraws during a walk do not cancel it, because the `walk` layer is never cleared by `drawBeds`.
