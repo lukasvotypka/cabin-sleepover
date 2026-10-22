@@ -238,7 +238,7 @@ Panel nad mapou. Polia partie z `chata-data.yaml` (meno, dospelí, deti, deti sp
   - Paletu a načítavaciu animáciu vybral product owner na základe delegovania organizátora (22. 10. 2026). Názov `--forest` ostal, hoci je to teraz tmavý gaštan.
 - Scéna (mapa, tabule, smerovníky) má pevné farby a v tmavom režime sa neinvertuje. Text v scéne je pixelový alebo monospace, nie Alegreya.
 - Jesenné farby scény: tráva `#8E9B48`, chumáčiky trávy `#76823A`, chodníky `#D6BC8E`, spadnuté lístie na tráve (len farba na pozíciách chumáčikov) `#B5532A`, `#D69A2E` a `#8E3424`. Farby izieb v `config/chata.yaml` a 12 farieb partií ostávajú.
-- Pri načítavaní stránka ukáže pixelový lístok, ktorý padá na trávu, a text „Načítavam…“ na malej drevenej ceduľke. Pri chybe načítania lístok zostane ležať na zemi. S `prefers-reduced-motion` je lístok nehybný.
+- Pri načítavaní stránka ukáže pixelový lístok, ktorý padá na trávu, a text „Načítavam…“ na malej drevenej ceduľke. Pri chybe načítania lístok zostane ležať na zemi. S `prefers-reduced-motion` je lístok nehybný. Lístok je vidno aspoň jeden pád (asi 2,4 s od otvorenia stránky, s `prefers-reduced-motion` 0,8 s), potom sa načítavanie rozplynie a ukáže sa mapa. Ak sa dáta načítavajú dlhšie, mapa sa ukáže hneď, ako prídu. Obrazovka s kódom a chyba načítania sa ukážu hneď, bez čakania.
 - Paleta 12 farieb partií, priraďuje ju server pri vytvorení partie v tomto poradí: `#2F7D6D, #D07A2B, #6D5BA8, #C08A1E, #3E6FB0, #9C4A7A, #5E8A2E, #8A6A4A, #2E8AA0, #C0603A, #7A7F2B, #A04848`.
 - Na mobile scéna zaberá celú šírku, spodný panel sa vysúva zdola, všetky ovládacie prvky (postele, smerovníky, ikony, tlačidlá) majú aspoň 44 px.
 

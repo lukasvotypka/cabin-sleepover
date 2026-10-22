@@ -60,7 +60,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; background: var(--bg); color: var(--muted); }
 
 /* Loading view: a falling pixel leaf on the scene grass, with the text on a small wooden sign. Translate only, so pixels stay crisp. */
-#boot { flex-direction: column; gap: 12px; background: #8E9B48; }
+#boot { flex-direction: column; gap: 12px; background: #8E9B48; z-index: 15; }
+/* Fade after the minimum time. pointer-events: none lets taps reach the map underneath. */
+#boot.boot--fade { opacity: 0; pointer-events: none; transition: opacity .3s linear; }
 #boot svg { display: block; width: 64px; height: 96px; }
 #boot .leaf { transform-box: fill-box; transform-origin: center; animation: leafFall 2.4s step-end infinite; }
 #bootText {
@@ -83,6 +85,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   #boot .leaf { animation: none; transform: translate(0, 28px); }
+  #boot.boot--fade { transition: none; }
 }
 /* A failed load: the leaf stops and lies on the ground. */
 #boot.boot--error .leaf { animation: none; transform: translate(0, 56px); opacity: 1; }
@@ -1189,6 +1192,25 @@ function errorText(error, state) {
   var params = error.params && typeof error.params === "object" ? error.params : {};
   return ERROR_TEXTS[error.code](params, state || null) || FALLBACK_ERROR;
 }
+
+// --- loading intro: the loading view stays for about one leaf fall, measured from page start ---
+
+var BOOT_MIN_MS = 2400;          // one leafFall cycle in the CSS (#boot .leaf); keep the two equal
+var BOOT_MIN_REDUCED_MS = 800;   // still leaf with prefers-reduced-motion
+var BOOT_FADE_MS = 300;          // fade of the loading view after the minimum (the CSS transition of .boot--fade)
+
+// BOOT_MIN_REDUCED_MS when reducedMotion is true, else BOOT_MIN_MS.
+function bootMinMs(reducedMotion) {
+  return reducedMotion ? BOOT_MIN_REDUCED_MS : BOOT_MIN_MS;
+}
+
+// How many ms the loading view must still stay: max(0, minMs - (nowMs - startMs)), never more than minMs.
+// Any non-finite argument returns 0, so a broken clock never holds the map back.
+function bootRemaining(startMs, nowMs, minMs) {
+  if (typeof startMs !== "number" || typeof nowMs !== "number" || typeof minMs !== "number") return 0;
+  if (!isFinite(startMs) || !isFinite(nowMs) || !isFinite(minMs)) return 0;
+  return Math.min(minMs, Math.max(0, minMs - (nowMs - startMs)));
+}
 </script>
 
 <script id="app">
@@ -1259,6 +1281,9 @@ function errorText(error, state) {
     myParty: storage.get(KEYS.party),
     noticeCollapsed: storage.get(KEYS.notice) === "1",
     askWho: false,       // open „Kto si?“ once the next state has arrived
+    introStart: 0,       // performance.now() when the intro clock started (page start, or the join)
+    introTimer: null,    // the one pending timer that reveals the map
+    introDone: false,    // true after the first reveal: from then on the loading view never comes back
     codeOpen: false,
     polling: false,
     writeEpoch: 0,       // bumped when a write response is applied, so an older poll cannot overwrite it
@@ -1408,12 +1433,57 @@ function errorText(error, state) {
       app.askWho = true;
     }
     if (app.move && !partyById(state, app.move.partyId)) app.move = null;
-    render();
-    if (app.askWho) {
-      app.askWho = false;
-      openWho();
+    if (!app.introDone) {
+      revealWhenReady();
+      return;
     }
+    render();
+    openWhoIfAsked();
     if (app.panel && app.panel.refresh) app.panel.refresh();
+  }
+
+  function openWhoIfAsked() {
+    if (!app.askWho) return;
+    app.askWho = false;
+    openWho();
+  }
+
+  // --- loading intro ---
+
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  // First reveal of the map: wait until the loading view has been up for its minimum time. Later states
+  // during the wait only update app.state; there is never more than one timer.
+  function revealWhenReady() {
+    if (app.introDone || app.introTimer !== null || app.codeOpen) return;
+    var wait = bootRemaining(app.introStart, performance.now(), bootMinMs(prefersReducedMotion()));
+    app.introTimer = setTimeout(function () {
+      app.introTimer = null;
+      if (app.introDone || !app.state || app.codeOpen) return;
+      app.introDone = true;
+      render();
+      hideBoot();
+      openWhoIfAsked();
+      if (app.panel && app.panel.refresh) app.panel.refresh();
+    }, wait);
+  }
+
+  // Fade the loading view out, or hide it at once with reduced motion.
+  function hideBoot() {
+    var boot = $("boot");
+    boot.classList.remove("boot--error");
+    if (boot.hidden) return;
+    if (prefersReducedMotion()) {
+      boot.hidden = true;
+      return;
+    }
+    boot.classList.add("boot--fade");
+    setTimeout(function () {
+      boot.hidden = true;
+      boot.classList.remove("boot--fade");
+    }, BOOT_FADE_MS);
   }
 
   // A move belongs to the party that started it, so a change of *moja partia* ends it.
@@ -1511,7 +1581,6 @@ function errorText(error, state) {
   function ensureScene() {
     var layout = app.state.layout;
     var key = JSON.stringify([layout.map, layout.rooms]);
-    $("boot").hidden = true;
     showScene(true);     // visible first: text is measured while drawing
     if (app.layoutKey === key) return;
     app.layoutKey = key;
@@ -1832,7 +1901,7 @@ function errorText(error, state) {
   }
 
   function render() {
-    if (!app.state || app.codeOpen) return;     // the code screen covers the scene: leave it hidden
+    if (!app.state || app.codeOpen || !app.introDone) return;     // the code screen and the loading view come first
     ensureScene();
     keepFocus($("scene"), function () {
       drawBoards();
@@ -2785,6 +2854,10 @@ function errorText(error, state) {
     hideToast();
     app.move = null;
     renderMoveBar();
+    if (app.introTimer !== null) {
+      clearTimeout(app.introTimer);
+      app.introTimer = null;
+    }
     $("boot").hidden = true;
     showScene(false);
     $("codeScreen").hidden = false;
@@ -2820,8 +2893,11 @@ function errorText(error, state) {
         hideCodeScreen();
         $("bootText").textContent = "Načítavam…";
         $("boot").classList.remove("boot--error");
-        $("boot").hidden = !!app.state;
-        showScene(!!app.state);
+        // Before the first reveal (no state yet, or one that was only stored) the loading view shows again
+        // and the intro clock restarts, so the intro plays once, after the code.
+        $("boot").hidden = app.introDone;
+        if (!app.introDone) app.introStart = performance.now();
+        showScene(app.introDone);
         poll();
       } else {
         errorNode.textContent = errorText(r.json ? r.json.error : undefined, null);

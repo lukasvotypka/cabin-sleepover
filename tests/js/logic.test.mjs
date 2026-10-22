@@ -1329,3 +1329,46 @@ test("page: the move bar's height is a top inset while it shows, and the scene r
   assert.match(html, /\.board \{[^}]*margin: auto;/);
   assert.doesNotMatch(html, /\.code-screen \{[^}]*align-items: center/);
 });
+
+// --- loading intro (T-015) ---
+
+test("bootRemaining: the loading view stays for the rest of the minimum, measured from the start", () => {
+  assert.equal(L.bootRemaining(0, 500, 2400), 1900);
+  assert.equal(L.bootRemaining(0, 2400, 2400), 0);
+  assert.equal(L.bootRemaining(0, 5000, 2400), 0);
+  // restart after the join: a non-zero start
+  assert.equal(L.bootRemaining(10000, 10500, 2400), 1900);
+  // a clock that runs backwards never gives more than the minimum
+  assert.equal(L.bootRemaining(1000, 500, 2400), 2400);
+  // a broken clock never holds the map back
+  assert.equal(L.bootRemaining(NaN, 500, 2400), 0);
+  assert.equal(L.bootRemaining(0, NaN, 2400), 0);
+  assert.equal(L.bootRemaining(0, 500, undefined), 0);
+  assert.equal(L.bootRemaining(undefined, undefined, undefined), 0);
+  assert.equal(L.bootRemaining(0, Infinity, 2400), 0);
+});
+
+test("bootMinMs: a shorter minimum with reduced motion", () => {
+  assert.equal(L.bootMinMs(false), 2400);
+  assert.equal(L.bootMinMs(true), 800);
+  assert.equal(L.BOOT_MIN_MS, 2400);
+  assert.equal(L.BOOT_MIN_REDUCED_MS, 800);
+  assert.equal(L.BOOT_FADE_MS, 300);
+});
+
+test("BOOT_MIN_MS equals the leafFall duration in the CSS, and BOOT_FADE_MS the fade transition", () => {
+  const rule = html.match(/#boot \.leaf \{[^}]*animation: leafFall ([\d.]+)s/);
+  assert.ok(rule, "the #boot .leaf rule must set a leafFall duration");
+  assert.equal(Math.round(parseFloat(rule[1]) * 1000), L.BOOT_MIN_MS);
+  const fade = html.match(/#boot\.boot--fade \{[^}]*transition: opacity ([\d.]+)s/);
+  assert.ok(fade, "the .boot--fade rule must set an opacity transition");
+  assert.equal(Math.round(parseFloat(fade[1]) * 1000), L.BOOT_FADE_MS);
+  assert.match(html, /#boot\.boot--fade \{[^}]*pointer-events: none;/);
+});
+
+test("page: the intro constants are used by name, with no magic numbers in the app script", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.match(app, /bootRemaining\(app\.introStart, performance\.now\(\), bootMinMs\(/);
+  assert.match(app, /BOOT_FADE_MS/);
+  assert.doesNotMatch(app, /\b(2400|800|300)\b/);
+});
