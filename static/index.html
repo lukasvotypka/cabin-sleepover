@@ -141,6 +141,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .party-row .swatch { flex: none; width: 16px; height: 16px; background: var(--muted); border: 2px solid rgba(0, 0, 0, .35); }
 .party-row .name { flex: 1; font-weight: 500; overflow-wrap: anywhere; }
 .party-row .mark { color: var(--moss); font-weight: 700; }
+.legend-list { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.legend-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; background: var(--surface2); border: 3px solid var(--line); }
+.legend-row .swatch { flex: none; width: 16px; height: 16px; background: var(--muted); border: 2px solid rgba(0, 0, 0, .35); }
+.legend-text { flex: 1; min-width: 0; }
+.legend-name { font-weight: 700; overflow-wrap: anywhere; }
+.legend-me, .legend-meta, .legend-empty { font-weight: 400; color: var(--muted); }
+.legend-meta { font-size: 15px; }
 .sheet .note { color: var(--ink); background: var(--amber-soft); padding: 8px 12px; border-left: 4px solid var(--amber); }
 
 /* --- beds, figures, move bar, toast --- */
@@ -219,7 +226,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .copy-status { min-height: 1.4em; margin: 8px 0 0; font-weight: 700; color: var(--ok); }
 
 @media (prefers-color-scheme: dark) {
-  .party-row .swatch, .slot-row .swatch { border-color: rgba(241, 231, 217, .55); }
+  .party-row .swatch, .slot-row .swatch, .legend-row .swatch { border-color: rgba(241, 231, 217, .55); }
   .slot-row .swatch.free { border-color: var(--muted); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1005,6 +1012,31 @@ function errorField(error) {
 function dayOptionText(iso) {
   var p = parseIso(iso);
   return p ? capitalize(DAY_NAMES[p.dow]) + " " + p.d + ". " + p.m + "." : String(iso);
+}
+
+// "2 dospelí, 1 dieťa" / "2 dospelí, 2 deti (1 spí s rodičmi)" / "1 dospelý" for the „Kto je kto“ list.
+function peopleText(party) {
+  var a = party.adults, k = party.kids, b = party.kids_in_parents_bed;
+  var text = a === 1 ? "1 dospelý" : a >= 2 && a <= 4 ? a + " dospelí" : a + " dospelých";
+  if (k > 0) text += ", " + (k === 1 ? "1 dieťa" : k >= 2 && k <= 4 ? k + " deti" : k + " detí");
+  if (b > 0) text += " (" + b + (b >= 2 && b <= 4 ? " spia" : " spí") + " s rodičmi)";
+  return text;
+}
+
+// "Št 29. 10. – Ne 1. 11." from the arrive and leave days (the raw string for a date that does not parse).
+function stayText(party) {
+  function one(iso) {
+    var p = parseIso(iso);
+    return p ? DAY_SHORT[p.dow] + " " + p.d + ". " + p.m + "." : String(iso);
+  }
+  return one(party.arrive) + " – " + one(party.leave);
+}
+
+// One row per party, in `state.parties` order (creation order, which is also the palette order).
+function legendRows(state, myPartyId) {
+  return ((state && state.parties) || []).map(function (p) {
+    return { id: p.id, name: p.name, color: p.color, people: peopleText(p), stay: stayText(p), mine: p.id === myPartyId };
+  });
 }
 
 // The slots the party holds on nights outside a new stay (what the server will free): {night, slot},
@@ -1946,6 +1978,7 @@ function bootRemaining(startMs, nowMs, minMs) {
     drawNotice(g, scene.notice);
     drawStatus(g, scene.status, state);
     drawLetter(g, scene.letter);
+    drawLegend(g, scene.legend);
     renderAge();
   }
 
@@ -1962,6 +1995,21 @@ function bootRemaining(startMs, nowMs, minMs) {
     rect(g, x + 13, y + 14, 6, 6, COLORS.red);                  // the seal
     hitRect(g, r);
     makeButton(g, "Prehľad na poslanie. Ťuknutím otvoríš text, ktorý môžeš poslať do WhatsAppu.", "letter", openSummary);
+  }
+
+  // The „Kto je kto“ sign: a small board with three colour squares, each next to a paper line. The squares are
+  // decoration (the first three palette colours), not party data. The hit area is the whole `map.scene.legend` rect.
+  function drawLegend(parent, r) {
+    var g = svgEl(parent, "g");
+    board(g, r, COLORS.plank);
+    var x = r[0] + 7, y = r[1] + 8;
+    ["#2F7D6D", "#D07A2B", "#6D5BA8"].forEach(function (color, i) {
+      var ry = y + i * 10;
+      rect(g, x, ry, 6, 6, color);
+      rect(g, x + 10, ry + 1, 16 + (i === 1 ? -4 : i === 2 ? -8 : 0), 4, COLORS.paper);
+    });
+    hitRect(g, r);
+    makeButton(g, "Kto je kto. Ťuknutím uvidíš partie a ich farby.", "legend", openLegend);
   }
 
   function drawTitle(parent, r, state) {
@@ -2587,6 +2635,43 @@ function bootRemaining(startMs, nowMs, minMs) {
       }
       panel.refresh();
     }, { returnKey: "who" });
+  }
+
+  // „Kto je kto“: a read-only list of the parties with the colour of their figures.
+  function openLegend() {
+    openPanel("Kto je kto", function (body, panel) {
+      body.appendChild(htmlEl("p", null, "Farba postavičky na mape patrí partii."));
+      var list = htmlEl("ul", { "class": "legend-list" });
+      body.appendChild(list);
+      body.appendChild(htmlEl("p", null, "Menšia postavička je dieťa. Žltý rámik majú miesta tvojej partie."));
+      var actions = htmlEl("div", { "class": "actions" });
+      var choose = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "choose-party" }, "Vybrať moju partiu");
+      choose.addEventListener("click", function () {
+        closePanel();
+        openWho();
+      });
+      actions.appendChild(choose);
+      body.appendChild(actions);
+      panel.refresh = function () {
+        clearNode(list);
+        var rows = app.state ? legendRows(app.state, app.myParty) : [];
+        if (!rows.length) list.appendChild(htmlEl("li", { "class": "legend-empty" }, "Zatiaľ tu nikto nie je."));
+        rows.forEach(function (row) {
+          var li = htmlEl("li", { "class": "legend-row" });
+          var swatch = htmlEl("span", { "class": "swatch", "aria-hidden": "true" });
+          swatch.style.background = row.color;
+          var text = htmlEl("div", { "class": "legend-text" });
+          var name = htmlEl("div", { "class": "legend-name" }, row.name);
+          if (row.mine) name.appendChild(htmlEl("span", { "class": "legend-me" }, " (vy)"));
+          text.appendChild(name);
+          text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · " + row.stay));
+          li.appendChild(swatch);
+          li.appendChild(text);
+          list.appendChild(li);
+        });
+      };
+      panel.refresh();
+    }, { returnKey: "legend" });
   }
 
   // --- party form ---

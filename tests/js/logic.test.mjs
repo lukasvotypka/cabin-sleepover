@@ -438,7 +438,8 @@ const realBeds = {
   "vpravo-gauc": ["sofa1", [336, 272, 28, 36], 1], "kuchynka-pec": ["stove", [22, 352, 56, 28], 2],
 };
 const scene = { title: [176, 10, 196, 44], nights: [176, 60, 196, 44], notice: [176, 112, 196, 66], status: [278, 322, 94, 88],
-  locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44] };
+  locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
+  legend: [24, 264, 44, 44] };
 const realLayout = {
   event,
   map: { viewbox: [380, 412], doors, scene },
@@ -728,6 +729,42 @@ test("arrive and leave options", () => {
   assert.equal(L.dayOptionText("2026-11-01"), "Nedeľa 1. 11.");
 });
 
+// --- „Kto je kto“ legend ---
+
+test("peopleText: adults, kids and kids sleeping with the parents", () => {
+  const p = (adults, kids = 0, kids_in_parents_bed = 0) => L.peopleText({ adults, kids, kids_in_parents_bed });
+  assert.equal(p(1), "1 dospelý");
+  assert.equal(p(3), "3 dospelí");
+  assert.equal(p(5), "5 dospelých");
+  assert.equal(p(0), "0 dospelých");
+  assert.equal(p(2, 1), "2 dospelí, 1 dieťa");
+  assert.equal(p(2, 2), "2 dospelí, 2 deti");
+  assert.equal(p(2, 5), "2 dospelí, 5 detí");
+  assert.equal(p(2, 2, 1), "2 dospelí, 2 deti (1 spí s rodičmi)");
+  assert.equal(p(2, 3, 2), "2 dospelí, 3 deti (2 spia s rodičmi)");
+  assert.equal(p(2, 5, 5), "2 dospelí, 5 detí (5 spí s rodičmi)");
+});
+
+test("stayText: short weekday and date, across months, raw fallback", () => {
+  assert.equal(L.stayText({ arrive: THU, leave: "2026-11-01" }), "Št 29. 10. – Ne 1. 11.");
+  assert.equal(L.stayText({ arrive: FRI, leave: SAT }), "Pi 30. 10. – So 31. 10.");
+  assert.equal(L.stayText({ arrive: "nonsense", leave: SAT }), "nonsense – So 31. 10.");
+});
+
+test("legendRows: one row per party in state order, party colour, mine only for my party", () => {
+  const parties = [
+    { id: "p-aaaaaa", name: "Riso a Ben", color: "#2F7D6D", adults: 2, kids: 1, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01" },
+    { id: "p-bbbbbb", name: "Eva", color: "#D07A2B", adults: 1, kids: 0, kids_in_parents_bed: 0, arrive: FRI, leave: SAT }
+  ];
+  const rows = plain(L.legendRows({ parties }, "p-bbbbbb"));
+  assert.deepEqual(rows, [
+    { id: "p-aaaaaa", name: "Riso a Ben", color: "#2F7D6D", people: "2 dospelí, 1 dieťa", stay: "Št 29. 10. – Ne 1. 11.", mine: false },
+    { id: "p-bbbbbb", name: "Eva", color: "#D07A2B", people: "1 dospelý", stay: "Pi 30. 10. – So 31. 10.", mine: true }
+  ]);
+  assert.ok(plain(L.legendRows({ parties }, null)).every((r) => r.mine === false));
+  assert.deepEqual(plain(L.legendRows({ parties: [] }, "p-aaaaaa")), []);
+});
+
 // --- slots freed by a changed stay ---
 
 const stayState = () => {
@@ -910,8 +947,8 @@ test("bed hit areas contain the bed, never overlap each other or a scene board",
 
 test("a bed hit area follows the bed rect from the config", () => {
   assert.deepEqual(plain(L.bedHit(realLayout, bedById("vlavo-okno"), 8)), [179, 212, 39, 50]);   // half the gap to its neighbours
-  const moved = { ...realLayout, rooms: realLayout.rooms.map((r) => ({ ...r, beds: r.beds.map((b) => (b.id === "vlavo-okno" ? { ...b, rect: [20, 250, 24, 34] } : b)) })) };
-  assert.deepEqual(plain(L.bedHit(moved, moved.rooms[2].beds[1], 8)), [12, 246, 40, 46]);   // stops at the locked sign above
+  const moved = { ...realLayout, rooms: realLayout.rooms.map((r) => ({ ...r, beds: r.beds.map((b) => (b.id === "vlavo-okno" ? { ...b, rect: [20, 312, 24, 34] } : b)) })) };
+  assert.deepEqual(plain(L.bedHit(moved, moved.rooms[2].beds[1], 8)), [12, 308, 40, 41]);   // stops at the legend sign above and at half the gap to a bed below
 });
 
 test("diagonal neighbours do not get overlapping hit areas", () => {

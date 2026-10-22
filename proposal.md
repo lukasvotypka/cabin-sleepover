@@ -203,6 +203,7 @@ Scéna má voľné trávnaté plochy, na ktorých sú tieto prvky. Ich pozície 
 - **Tabuľka s partiou a stavom:** „Si: Ivan a Eva“ (ťuknutím sa mení), čas posledného načítania („aktualizované pred 20 s“) a upozornenie. Keď mojej partii v niektorej noci chýba miesto, ukáže sa výrazná červená ceduľa s výkričníkom, napríklad „V sobotu vám chýba 1 miesto“, a ťuknutím na ňu sa zvolí táto noc. Keď má partia v niektorej noci viac miest, než potrebuje, ukáže sa jemná oranžová poznámka, napríklad „Máte o 1 miesto viac, než potrebujete“ (server to neodmieta). Keď je všetko v poriadku, ukáže sa zelená značka „Všetko máte“.
 - **Zamknutý zápis (fáza 2):** keď je `signup_open` false, v scéne je ceduľa „Zápis je zatvorený“ a miesta sa dajú len prezerať.
 - **Prehľad na poslanie:** malá ikona listu v scéne otvorí panel s textom do WhatsAppu a tlačidlom **Kopírovať**. Text vyrába čistá funkcia: názov a termín, pre každú noc izby s menami partií a na konci upozornenia na partie s chýbajúcimi miestami a odkaz na stránku.
+- **Kto je kto:** malá tabuľka s farebnými štvorčekmi v scéne otvorí panel so zoznamom partií: farba postavičky, meno, počet ľudí a príchod a odchod. Je len na pozeranie, partiu si vyberáš v „Kto si?“.
 - **Admin (fáza 2):** po zadaní admin kódu sa v scéne objaví ikona kľúča, ktorá otvorí panel (zámka zápisu, export, zmazanie partie).
 
 ### Mapa
@@ -268,6 +269,7 @@ map:
     locked: [16, 190, 62, 56]    # ceduľa „Zápis je zatvorený“
     letter: [128, 336, 44, 44]   # ikona listu, prehľad na poslanie
     key:    [184, 336, 44, 44]   # ikona kľúča, iba pre admina
+    legend: [24, 264, 44, 44]    # ikona „Kto je kto“, legenda farieb partií
 
 rooms:
   - id: konica-hore

@@ -17,6 +17,7 @@ map:
     locked: [16, 190, 62, 56]    # ceduľa „Zápis je zatvorený“
     letter: [128, 336, 44, 44]   # ikona listu, prehľad na poslanie
     key:    [184, 336, 44, 44]   # ikona kľúča, iba pre admina
+    legend: [24, 264, 44, 44]    # ikona „Kto je kto“, legenda farieb partií
 
 rooms:
   - id: konica-hore

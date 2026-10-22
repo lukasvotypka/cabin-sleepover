@@ -144,6 +144,7 @@ class SceneRects(_Model):
     locked: Rect
     letter: Rect
     key: Rect
+    legend: Rect
 
 
 class MapLayout(_Model):
