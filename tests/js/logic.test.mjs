@@ -610,6 +610,11 @@ test("assign button label names the party when one is chosen", () => {
   assert.equal(L.assignLabel(2, null), "Zapísať nás sem (2 miesta)");
 });
 
+test("bed panel warns when the party already has enough places", () => {
+  assert.equal(L.enoughAlreadyText("Ivan a Eva"),
+    "Partia „Ivan a Eva“ už má dosť miest. Ak pridávaš niekoho iného, prepni si hore na jeho partiu.");
+});
+
 test("reasons and confirmations in Slovak", () => {
   assert.equal(L.notPresentText(SAT), "V sobotu nie si na chate.");
   assert.equal(L.notPresentText(THU), "Vo štvrtok nie si na chate.");
@@ -2355,6 +2360,14 @@ test("page: a night switch, the code screen and a rejected write cancel the walk
   assert.match(body("moveTo"), /cancelWalkersAt\(n, m\.fromSlot\)/);
 });
 
+test("page: the bed panel warns before a tap would overfill an already-complete party", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  const body = app.match(/function addActions\(st\) \{([\s\S]*?)\n\s*\}\n/)[1];
+  assert.match(body, /missingPlaces\(st, party, night\) === 0/);
+  assert.match(body, /enoughAlreadyText\(party\.name\)/);
+  assert.match(body, /openWho\(\{ returnKey: "bed-" \+ bed\.id \}\)/);
+});
+
 // --- regression guard: singular tykanie only, never the plural "vy" forms (T-020) ---
 
 // The plural 2nd person reads exactly like vykanie, which the brief forbids. This checker lives in the test
@@ -2422,6 +2435,7 @@ test("guard, text producers: no function or table of the logic block yields a pl
   add([null, party()].map((x) => L.whoText(x)));
   [0, 1, 2, 5].forEach((n) => add(L.assignLabel(n)));
   [0, 1, 2, 5].forEach((n) => add(L.assignLabel(n, "Ivan a Eva")));
+  add(L.enoughAlreadyText("Ivan a Eva"));
 
   add(L.NOTICE_LINES);
   add(L.MOVE_TEXTS);

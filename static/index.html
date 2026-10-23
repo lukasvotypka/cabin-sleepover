@@ -911,6 +911,12 @@ function notPresentText(night) {
   return capitalize(dayLocative(night)) + " nie si na chate.";
 }
 
+// Shown in the bed panel when the selected party already has everything it needs that night, so the
+// tap about to happen would add an extra place — usually a sign the wrong party is still selected.
+function enoughAlreadyText(partyName) {
+  return "Partia „" + partyName + "“ už má dosť miest. Ak pridávaš niekoho iného, prepni si hore na jeho partiu.";
+}
+
 // Nights `assign-stay` left out because a slot was taken.
 function skippedText(nights) {
   var when = nights.map(dayLocative);
@@ -3365,6 +3371,12 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
           }, true));
         } else if (blocked) {
           box.appendChild(htmlEl("p", { "class": "note" }, "Táto posteľ je v túto noc plná."));
+        } else if (party && missingPlaces(st, party, night) === 0) {
+          box.appendChild(htmlEl("p", { "class": "note" }, enoughAlreadyText(party.name)));
+          box.appendChild(button("Zmeniť partiu", "switch-party", function () {
+            closePanel();
+            openWho({ returnKey: "bed-" + bed.id });
+          }, true));
         }
         body.appendChild(box);
       }
@@ -3397,7 +3409,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     });
   }
 
-  function openWho() {
+  function openWho(opts) {
     openPanel("Kto si?", function (body, panel) {
       body.appendChild(htmlEl("p", null, "Vyber partiu, za ktorú sa zapisuješ."));
       var list = htmlEl("ul", { "class": "party-list" });
@@ -3453,7 +3465,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
         });
       }
       panel.refresh();
-    }, { returnKey: "who" });
+    }, { returnKey: (opts && opts.returnKey) || "who" });
   }
 
   // The shirt letter at 2 CSS px per pixel, for the legend swatch: the same mark as on the map.
