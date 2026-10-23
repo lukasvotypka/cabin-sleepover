@@ -243,7 +243,7 @@ def check_stay(layout: Layout, arrive: str, leave: str) -> None:
 
 
 def _party_entries(state: State, layout: Layout, party_id: str, keep: Callable[[str], bool] | None = None) -> list[dict[str, str]]:
-    """The party’s {night, slot} entries, ordered by night, then by slot order in chata.yaml.
+    """The party’s {night, slot} entries, ordered by night, then by slot order in cabin.yaml.
 
     Nights for which `keep(night)` is true are skipped.
     """

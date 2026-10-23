@@ -20,7 +20,7 @@ vm.runInContext(logicSource, L);
 // Values from the vm realm have other prototypes, so compare them as plain JSON.
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-// --- fixtures (the real event and a layout shaped like config/chata.yaml, 20 slots) ---
+// --- fixtures (the real event and a layout shaped like config/cabin.yaml, 20 slots) ---
 
 const THU = "2026-10-29", FRI = "2026-10-30", SAT = "2026-10-31";
 
@@ -36,20 +36,20 @@ const bed = (id, name, count) => ({
   slots: Array.from({ length: count }, (_, i) => `${id}-${i + 1}`),
 });
 const rooms = [
-  { id: "konica-hore", name: "Konica, podkrovie", rect: [10, 26, 152, 70], floor: "#D9B98A",
-    beds: [bed("konica-hore-manzelska", "Manželská posteľ", 2), bed("konica-hore-jedno", "Jednomiestna posteľ", 1)] },
-  { id: "konica-dole", name: "Konica, dole", rect: [10, 96, 152, 80], floor: "#C9A67A",
-    beds: [bed("konica-dole-matrace", "Matrace na zemi", 3)] },
-  { id: "vlavo", name: "Izba vľavo", rect: [118, 196, 102, 124], floor: "#E8D2A6",
-    beds: [bed("vlavo-manzelska", "Manželská posteľ", 2), bed("vlavo-okno", "Posteľ pod oknom", 1),
-      bed("vlavo-lehatko-1", "Lehátko 1", 1), bed("vlavo-lehatko-2", "Lehátko 2", 1)] },
-  { id: "chodba", name: "Chodbička", rect: [216, 196, 54, 124], floor: "#DCC59B",
-    beds: [bed("chodba-gauc", "Rozkladací gauč", 2)] },
-  { id: "vpravo", name: "Izba vpravo", rect: [266, 196, 106, 124], floor: "#E8D2A6",
-    beds: [bed("vpravo-poschodova-1", "Poschodová 1", 2), bed("vpravo-poschodova-2", "Poschodová 2", 2),
-      bed("vpravo-gauc", "Gauč", 1)] },
-  { id: "kuchynka", name: "Letná kuchynka", rect: [10, 334, 100, 62], floor: "#CFD8DC",
-    beds: [bed("kuchynka-pec", "Na peci", 2)] },
+  { id: "konica-upper", name: "Konica, podkrovie", rect: [10, 26, 152, 70], floor: "#D9B98A",
+    beds: [bed("konica-upper-double", "Manželská posteľ", 2), bed("konica-upper-single", "Jednomiestna posteľ", 1)] },
+  { id: "konica-lower", name: "Konica, dole", rect: [10, 96, 152, 80], floor: "#C9A67A",
+    beds: [bed("konica-lower-mats", "Matrace na zemi", 3)] },
+  { id: "left", name: "Izba vľavo", rect: [118, 196, 102, 124], floor: "#E8D2A6",
+    beds: [bed("left-double", "Manželská posteľ", 2), bed("left-window", "Posteľ pod oknom", 1),
+      bed("left-cot-1", "Lehátko 1", 1), bed("left-cot-2", "Lehátko 2", 1)] },
+  { id: "hallway", name: "Chodbička", rect: [216, 196, 54, 124], floor: "#DCC59B",
+    beds: [bed("hallway-sofa", "Rozkladací gauč", 2)] },
+  { id: "right", name: "Izba vpravo", rect: [266, 196, 106, 124], floor: "#E8D2A6",
+    beds: [bed("right-bunk-1", "Poschodová 1", 2), bed("right-bunk-2", "Poschodová 2", 2),
+      bed("right-sofa", "Gauč", 1)] },
+  { id: "kitchen", name: "Letná kuchynka", rect: [10, 334, 100, 62], floor: "#CFD8DC",
+    beds: [bed("kitchen-stove", "Na peci", 2)] },
 ];
 const doors = [[218, 240, 4, 20], [264, 240, 4, 20], [238, 316, 20, 4], [80, 172, 20, 6], [80, 334, 20, 4]];
 const layout = { event, map: { viewbox: [380, 412], doors }, rooms };
@@ -131,21 +131,21 @@ test("total slots come from the layout", () => {
 });
 
 test("used count per night", () => {
-  const s = stateWith([party()], { [FRI]: hold("p-aaaaaa", ["vlavo-manzelska-1", "vlavo-manzelska-2"]) });
+  const s = stateWith([party()], { [FRI]: hold("p-aaaaaa", ["left-double-1", "left-double-2"]) });
   assert.equal(L.usedCount(s, THU), 0);
   assert.equal(L.usedCount(s, FRI), 2);
 });
 
 test("slots of a party per night, in layout order", () => {
   const s = stateWith([party()], {
-    [THU]: { "vlavo-manzelska-2": "p-aaaaaa", "konica-hore-jedno-1": "p-aaaaaa", "chodba-gauc-1": "p-other" },
+    [THU]: { "left-double-2": "p-aaaaaa", "konica-upper-single-1": "p-aaaaaa", "hallway-sofa-1": "p-other" },
   });
-  assert.deepEqual(plain(L.partySlots(s, "p-aaaaaa", THU)), ["konica-hore-jedno-1", "vlavo-manzelska-2"]);
+  assert.deepEqual(plain(L.partySlots(s, "p-aaaaaa", THU)), ["konica-upper-single-1", "left-double-2"]);
   assert.deepEqual(plain(L.partySlots(s, "p-aaaaaa", FRI)), []);
 });
 
 test("bed of a slot", () => {
-  assert.equal(L.bedOfSlot(layout, "vlavo-okno-1").name, "Posteľ pod oknom");
+  assert.equal(L.bedOfSlot(layout, "left-window-1").name, "Posteľ pod oknom");
   assert.equal(L.bedOfSlot(layout, "nope"), null);
 });
 
@@ -160,9 +160,9 @@ test("doors take the floor color of the room that contains their top-left corner
 test("missing and extra places per party and night", () => {
   const p = party({ adults: 2 });
   const s = stateWith([p], {
-    [THU]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]),
-    [FRI]: hold(p.id, ["vlavo-manzelska-1"]),
-    [SAT]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2", "vlavo-okno-1"]),
+    [THU]: hold(p.id, ["left-double-1", "left-double-2"]),
+    [FRI]: hold(p.id, ["left-double-1"]),
+    [SAT]: hold(p.id, ["left-double-1", "left-double-2", "left-window-1"]),
   });
   assert.equal(L.missingPlaces(s, p, THU), 0);
   assert.equal(L.extraPlaces(s, p, THU), 0);
@@ -197,7 +197,7 @@ test("relative refresh time", () => {
 
 // --- my-party status ---
 
-const PAIR = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
+const PAIR = ["left-double-1", "left-double-2"];
 
 test("status: no party chosen", () => {
   assert.equal(L.myPartyStatus(stateWith([]), null).kind, "none");
@@ -206,7 +206,7 @@ test("status: no party chosen", () => {
 test("status: missing 1 place on Saturday is red and names the night", () => {
   const p = party({ adults: 2 });
   const s = stateWith([p], {
-    [THU]: hold(p.id, PAIR), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, ["vlavo-manzelska-1"]),
+    [THU]: hold(p.id, PAIR), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, ["left-double-1"]),
   });
   assert.deepEqual(plain(L.myPartyStatus(s, p)),
     { kind: "missing", night: SAT, count: 1, text: "V sobotu ti chýba 1 miesto" });
@@ -214,7 +214,7 @@ test("status: missing 1 place on Saturday is red and names the night", () => {
 
 test("status: the first night with missing places wins, with verb forms", () => {
   const p = party({ adults: 3 });
-  const s = stateWith([p], { [FRI]: hold(p.id, ["vlavo-manzelska-1"]) });
+  const s = stateWith([p], { [FRI]: hold(p.id, ["left-double-1"]) });
   assert.equal(L.myPartyStatus(s, p).night, THU);
   assert.equal(L.myPartyStatus(s, p).text, "Vo štvrtok ti chýbajú 3 miesta");
   const big = party({ adults: 6, arrive: THU, leave: FRI });
@@ -223,7 +223,7 @@ test("status: the first night with missing places wins, with verb forms", () => 
 
 test("status: 1 extra place is a soft amber note", () => {
   const p = party({ adults: 2, leave: FRI });   // present on the Thursday night only
-  const s = stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]) });
+  const s = stateWith([p], { [THU]: hold(p.id, [...PAIR, "left-window-1"]) });
   assert.deepEqual(plain(L.myPartyStatus(s, p)),
     { kind: "extra", night: THU, count: 1, text: "Máš o 1 miesto viac, než potrebuješ" });
 });
@@ -231,8 +231,8 @@ test("status: 1 extra place is a soft amber note", () => {
 test("status: missing wins over extra, even when the extra night is earlier", () => {
   const p = party({ adults: 2, leave: SAT });   // Thursday and Friday nights
   const s = stateWith([p], {
-    [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]),   // 1 extra on Thursday
-    [FRI]: hold(p.id, ["vlavo-manzelska-1"]),      // 1 missing on Friday
+    [THU]: hold(p.id, [...PAIR, "left-window-1"]),   // 1 extra on Thursday
+    [FRI]: hold(p.id, ["left-double-1"]),      // 1 missing on Friday
   });
   const status = L.myPartyStatus(s, p);
   assert.equal(status.kind, "missing");
@@ -242,7 +242,7 @@ test("status: missing wins over extra, even when the extra night is earlier", ()
 
 test("status: 2 extra places use the plural form", () => {
   const p = party({ adults: 1, leave: FRI });
-  const s = stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]) });
+  const s = stateWith([p], { [THU]: hold(p.id, [...PAIR, "left-window-1"]) });
   assert.equal(L.myPartyStatus(s, p).text, "Máš o 2 miesta viac, než potrebuješ");
 });
 
@@ -266,12 +266,12 @@ test("tally: under, over, ok and absent kinds with placed and needed", () => {
   const p = party({ adults: 3, leave: SAT });   // Thursday and Friday nights
   const s = stateWith([p], {
     [THU]: hold(p.id, PAIR),                                   // 2 of 3
-    [FRI]: hold(p.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]),   // 4 of 3
+    [FRI]: hold(p.id, [...PAIR, "left-window-1", "left-cot-1-1"]),   // 4 of 3
   });
   assert.deepEqual(tallyOf(s, p, THU), { night: THU, present: true, needed: 3, placed: 2, kind: "under" });
   assert.deepEqual(tallyOf(s, p, FRI), { night: FRI, present: true, needed: 3, placed: 4, kind: "over" });
   assert.deepEqual(tallyOf(s, p, SAT), { night: SAT, present: false, needed: 0, placed: 0, kind: "absent" });
-  const full = stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]) });
+  const full = stateWith([p], { [THU]: hold(p.id, [...PAIR, "left-window-1"]) });
   assert.deepEqual(tallyOf(full, p, THU), { night: THU, present: true, needed: 3, placed: 3, kind: "ok" });
 });
 
@@ -286,7 +286,7 @@ test("tally: kids in the parents' bed lower the needed places", () => {
 
 test("tally: not present but holding a slot is over", () => {
   const p = party({ adults: 2, leave: FRI });
-  const s = stateWith([p], { [FRI]: hold(p.id, ["vlavo-okno-1"]) });
+  const s = stateWith([p], { [FRI]: hold(p.id, ["left-window-1"]) });
   const t = L.nightTally(s, p, FRI);
   assert.equal(t.kind, "over");
   assert.equal(t.present, false);
@@ -327,9 +327,9 @@ test("tally: under and over agree with missingPlaces and extraPlaces on every ni
   const b = party({ id: "p-bbbbbb", name: "Riso", adults: 2, kids: 1, kids_in_parents_bed: 1, arrive: FRI });
   const c = party({ id: "p-cccccc", name: "Mia", adults: 1, arrive: SAT, leave: "2026-11-01" });
   const s = stateWith([a, b, c], {
-    [THU]: { ...hold(a.id, PAIR), ...hold(c.id, ["vlavo-okno-1"]) },   // c holds a slot before arriving
-    [FRI]: { ...hold(a.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]), ...hold(b.id, ["konica-dole-matrace-1"]) },
-    [SAT]: hold(b.id, ["konica-dole-matrace-1", "konica-dole-matrace-2"]),
+    [THU]: { ...hold(a.id, PAIR), ...hold(c.id, ["left-window-1"]) },   // c holds a slot before arriving
+    [FRI]: { ...hold(a.id, [...PAIR, "left-window-1", "left-cot-1-1"]), ...hold(b.id, ["konica-lower-mats-1"]) },
+    [SAT]: hold(b.id, ["konica-lower-mats-1", "konica-lower-mats-2"]),
   });
   for (const p of [a, b, c]) {
     for (const night of s.event.nights) {
@@ -373,7 +373,7 @@ test("every server code gives a Slovak text that is not the fallback", () => {
 });
 
 test("slot_taken names the night and the holder", () => {
-  const text = L.errorText(err("slot_taken", { night: SAT, slot: "vlavo-manzelska-1", party_id: "p-7f3k2a", party_name: "Riso a Ben" }));
+  const text = L.errorText(err("slot_taken", { night: SAT, slot: "left-double-1", party_id: "p-7f3k2a", party_name: "Riso a Ben" }));
   assert.equal(text, "Toto miesto má v sobotu už Riso a Ben.");
 });
 
@@ -398,7 +398,7 @@ test("params fill the other texts", () => {
     "Príliš veľa pokusov za krátky čas, skús to o 12 s.");
   assert.equal(L.errorText(err("rate_limited", { retry_after: 90 })),
     "Príliš veľa pokusov za krátky čas, skús to o 2 min.");
-  assert.equal(L.errorText(err("unknown_slot", { slot: "vlavo-okno-1" }), stateWith([])),
+  assert.equal(L.errorText(err("unknown_slot", { slot: "left-window-1" }), stateWith([])),
     "Miesto pri posteli „Posteľ pod oknom“ sa nedá použiť. Obnov stránku.");
 });
 
@@ -433,15 +433,15 @@ test("the English message never appears in the result", () => {
   assert.ok(!L.errorText({ message }, null).includes(message));
 });
 
-// --- beds on the map: a layout with the real geometry of config/chata.yaml ---
+// --- beds on the map: a layout with the real geometry of config/cabin.yaml ---
 
 const realBeds = {
-  "konica-hore-manzelska": ["bed2", [28, 46, 44, 30], 2], "konica-hore-jedno": ["bed1", [118, 44, 24, 34], 1],
-  "konica-dole-matrace": ["mats", [24, 132, 124, 26], 3], "vlavo-manzelska": ["bed2", [128, 220, 44, 30], 2],
-  "vlavo-okno": ["bed1", [186, 220, 24, 34], 1], "vlavo-lehatko-1": ["cot", [130, 272, 20, 36], 1],
-  "vlavo-lehatko-2": ["cot", [158, 272, 20, 36], 1], "chodba-gauc": ["sofa", [226, 226, 32, 58], 2],
-  "vpravo-poschodova-1": ["bunk", [276, 220, 24, 42], 2], "vpravo-poschodova-2": ["bunk", [308, 220, 24, 42], 2],
-  "vpravo-gauc": ["sofa1", [336, 272, 28, 36], 1], "kuchynka-pec": ["stove", [22, 352, 56, 28], 2],
+  "konica-upper-double": ["bed2", [28, 46, 44, 30], 2], "konica-upper-single": ["bed1", [118, 44, 24, 34], 1],
+  "konica-lower-mats": ["mats", [24, 132, 124, 26], 3], "left-double": ["bed2", [128, 220, 44, 30], 2],
+  "left-window": ["bed1", [186, 220, 24, 34], 1], "left-cot-1": ["cot", [130, 272, 20, 36], 1],
+  "left-cot-2": ["cot", [158, 272, 20, 36], 1], "hallway-sofa": ["sofa", [226, 226, 32, 58], 2],
+  "right-bunk-1": ["bunk", [276, 220, 24, 42], 2], "right-bunk-2": ["bunk", [308, 220, 24, 42], 2],
+  "right-sofa": ["sofa1", [336, 272, 28, 36], 1], "kitchen-stove": ["stove", [22, 352, 56, 28], 2],
 };
 const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [176, 112, 196, 82], status: [278, 322, 94, 88],
   locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
@@ -463,29 +463,29 @@ const overlap = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1
 
 test("figure positions per bed kind match pos() of the approved preview", () => {
   const pos = (id) => plain(L.figurePositions(bedById(id)));
-  assert.deepEqual(pos("vlavo-manzelska"), [[135, 228], [155, 228]]);                       // bed2: x+7 and x+w-17, y+8
-  assert.deepEqual(pos("konica-hore-manzelska"), [[35, 54], [55, 54]]);
-  assert.deepEqual(pos("vpravo-poschodova-1"), [[283, 224], [283, 244]]);                   // bunk: top and bottom
-  assert.deepEqual(pos("konica-dole-matrace"), [[34, 139], [80, 139], [126, 139]]);         // mats: three in a row
-  assert.deepEqual(pos("chodba-gauc"), [[237, 234], [237, 258]]);                           // sofa: one above the other
-  assert.deepEqual(pos("kuchynka-pec"), [[32, 360], [58, 360]]);                            // stove
+  assert.deepEqual(pos("left-double"), [[135, 228], [155, 228]]);                       // bed2: x+7 and x+w-17, y+8
+  assert.deepEqual(pos("konica-upper-double"), [[35, 54], [55, 54]]);
+  assert.deepEqual(pos("right-bunk-1"), [[283, 224], [283, 244]]);                   // bunk: top and bottom
+  assert.deepEqual(pos("konica-lower-mats"), [[34, 139], [80, 139], [126, 139]]);         // mats: three in a row
+  assert.deepEqual(pos("hallway-sofa"), [[237, 234], [237, 258]]);                           // sofa: one above the other
+  assert.deepEqual(pos("kitchen-stove"), [[32, 360], [58, 360]]);                            // stove
 });
 
 test("one-slot kinds get a single centred figure", () => {
   const pos = (id) => plain(L.figurePositions(bedById(id)));
-  assert.deepEqual(pos("konica-hore-jedno"), [[125, 54]]);   // bed1: x+w/2-5, y+10
-  assert.deepEqual(pos("vlavo-lehatko-1"), [[135, 282]]);    // cot
-  assert.deepEqual(pos("vpravo-gauc"), [[345, 282]]);        // sofa1
+  assert.deepEqual(pos("konica-upper-single"), [[125, 54]]);   // bed1: x+w/2-5, y+10
+  assert.deepEqual(pos("left-cot-1"), [[135, 282]]);    // cot
+  assert.deepEqual(pos("right-sofa"), [[345, 282]]);        // sofa1
 });
 
 test("a bed with more slots than positions reuses the last position", () => {
-  assert.deepEqual(plain(L.figurePosition(bedById("vlavo-okno"), 0)), [193, 230]);
-  assert.deepEqual(plain(L.figurePosition(bedById("vlavo-okno"), 3)), [193, 230]);
-  assert.deepEqual(plain(L.figurePosition(bedById("vlavo-manzelska"), 1)), [155, 228]);
+  assert.deepEqual(plain(L.figurePosition(bedById("left-window"), 0)), [193, 230]);
+  assert.deepEqual(plain(L.figurePosition(bedById("left-window"), 3)), [193, 230]);
+  assert.deepEqual(plain(L.figurePosition(bedById("left-double"), 1)), [155, 228]);
 });
 
 test("figures move with the bed rect from the config", () => {
-  const moved = { ...bedById("vlavo-manzelska"), rect: [200, 100, 44, 30] };
+  const moved = { ...bedById("left-double"), rect: [200, 100, 44, 30] };
   assert.deepEqual(plain(L.figurePositions(moved)), [[207, 108], [227, 108]]);
 });
 
@@ -498,99 +498,99 @@ test("adult or kid figure per held slot (Q2)", () => {
 
 test("slot occupant: party and figure kind, null for a free slot", () => {
   const family = party({ adults: 1, kids: 1 });
-  const s = realState([family], { [SAT]: { "vlavo-manzelska-1": family.id, "vlavo-manzelska-2": family.id } });
-  assert.equal(L.slotOccupant(s, "vlavo-manzelska-1", SAT).kind, "adult");
-  assert.equal(L.slotOccupant(s, "vlavo-manzelska-2", SAT).kind, "kid");
-  assert.equal(L.slotOccupant(s, "vlavo-manzelska-2", SAT).party.name, "Ivan a Eva");
-  assert.equal(L.slotOccupant(s, "vlavo-manzelska-1", FRI), null);
+  const s = realState([family], { [SAT]: { "left-double-1": family.id, "left-double-2": family.id } });
+  assert.equal(L.slotOccupant(s, "left-double-1", SAT).kind, "adult");
+  assert.equal(L.slotOccupant(s, "left-double-2", SAT).kind, "kid");
+  assert.equal(L.slotOccupant(s, "left-double-2", SAT).party.name, "Ivan a Eva");
+  assert.equal(L.slotOccupant(s, "left-double-1", FRI), null);
 });
 
 // --- slots to take (Q3) ---
 
 test("a couple missing 2 on an empty double bed takes both slots", () => {
   const p = party({ adults: 2 });
-  assert.deepEqual(plain(L.slotsToTake(realState([p]), p, bedById("vlavo-manzelska"), SAT)),
-    ["vlavo-manzelska-1", "vlavo-manzelska-2"]);
+  assert.deepEqual(plain(L.slotsToTake(realState([p]), p, bedById("left-double"), SAT)),
+    ["left-double-1", "left-double-2"]);
 });
 
 test("a couple missing 2 on a double bed with 1 free takes the 1 free slot", () => {
   const p = party({ adults: 2 }), other = party({ id: "p-bbbbbb", name: "Riso a Ben" });
-  const s = realState([p, other], { [SAT]: { "vlavo-manzelska-1": other.id } });
-  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("vlavo-manzelska"), SAT)), ["vlavo-manzelska-2"]);
+  const s = realState([p, other], { [SAT]: { "left-double-1": other.id } });
+  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("left-double"), SAT)), ["left-double-2"]);
 });
 
 test("a party that lacks nothing still takes 1 extra place", () => {
   const p = party({ adults: 2 });
-  const s = realState([p], { [SAT]: hold(p.id, ["konica-hore-manzelska-1", "konica-hore-manzelska-2"]) });
+  const s = realState([p], { [SAT]: hold(p.id, ["konica-upper-double-1", "konica-upper-double-2"]) });
   assert.equal(L.missingPlaces(s, p, SAT), 0);
-  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("vlavo-manzelska"), SAT)), ["vlavo-manzelska-1"]);
+  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("left-double"), SAT)), ["left-double-1"]);
 });
 
 test("a full bed gives no slots", () => {
   const p = party({ adults: 2 }), other = party({ id: "p-bbbbbb", name: "Riso a Ben" });
-  const s = realState([p, other], { [SAT]: hold(other.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]) });
-  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("vlavo-manzelska"), SAT)), []);
+  const s = realState([p, other], { [SAT]: hold(other.id, ["left-double-1", "left-double-2"]) });
+  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("left-double"), SAT)), []);
 });
 
 test("a party of 3 on three free mats takes all 3", () => {
   const p = party({ adults: 2, kids: 1 });
-  assert.deepEqual(plain(L.slotsToTake(realState([p]), p, bedById("konica-dole-matrace"), SAT)),
-    ["konica-dole-matrace-1", "konica-dole-matrace-2", "konica-dole-matrace-3"]);
+  assert.deepEqual(plain(L.slotsToTake(realState([p]), p, bedById("konica-lower-mats"), SAT)),
+    ["konica-lower-mats-1", "konica-lower-mats-2", "konica-lower-mats-3"]);
 });
 
 test("a party already holding one of two needed places takes one more", () => {
   const p = party({ adults: 2 });
-  const s = realState([p], { [SAT]: hold(p.id, ["konica-hore-jedno-1"]) });
-  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("vlavo-manzelska"), SAT)), ["vlavo-manzelska-1"]);
+  const s = realState([p], { [SAT]: hold(p.id, ["konica-upper-single-1"]) });
+  assert.deepEqual(plain(L.slotsToTake(s, p, bedById("left-double"), SAT)), ["left-double-1"]);
 });
 
 test("nights in which a party holds a slot", () => {
   const p = party();
-  const s = realState([p], { [THU]: hold(p.id, ["vlavo-okno-1"]), [FRI]: hold("p-other", ["vlavo-okno-1"]), [SAT]: hold(p.id, ["vlavo-okno-1"]) });
-  assert.deepEqual(plain(L.holdingNights(s, p.id, "vlavo-okno-1")), [THU, SAT]);
-  assert.deepEqual(plain(L.holdingNights(s, p.id, "chodba-gauc-1")), []);
+  const s = realState([p], { [THU]: hold(p.id, ["left-window-1"]), [FRI]: hold("p-other", ["left-window-1"]), [SAT]: hold(p.id, ["left-window-1"]) });
+  assert.deepEqual(plain(L.holdingNights(s, p.id, "left-window-1")), [THU, SAT]);
+  assert.deepEqual(plain(L.holdingNights(s, p.id, "hallway-sofa-1")), []);
 });
 
 test("nights an assign for the whole stay will write", () => {
   const p = party({ arrive: THU, leave: "2026-11-01" });
-  const s = realState([p], { [FRI]: hold("p-other", ["vlavo-okno-1"]) });
-  assert.deepEqual(plain(L.stayNights(s, p, ["vlavo-okno-1"])), [THU, SAT]);   // Friday is taken
+  const s = realState([p], { [FRI]: hold("p-other", ["left-window-1"]) });
+  assert.deepEqual(plain(L.stayNights(s, p, ["left-window-1"])), [THU, SAT]);   // Friday is taken
   const late = party({ arrive: FRI, leave: "2026-11-01" });
-  assert.deepEqual(plain(L.stayNights(realState([late]), late, ["vlavo-okno-1"])), [FRI, SAT]);   // not there on Thursday
+  assert.deepEqual(plain(L.stayNights(realState([late]), late, ["left-window-1"])), [FRI, SAT]);   // not there on Thursday
 });
 
 test("move target is the first slot free in every night of the move", () => {
-  const bed = bedById("vlavo-manzelska");
-  const s = realState([], { [THU]: hold("p-x", ["vlavo-manzelska-1"]), [FRI]: hold("p-y", ["vlavo-manzelska-2"]) });
-  assert.equal(L.moveTarget(s, bed, [THU]), "vlavo-manzelska-2");
-  assert.equal(L.moveTarget(s, bed, [FRI]), "vlavo-manzelska-1");
+  const bed = bedById("left-double");
+  const s = realState([], { [THU]: hold("p-x", ["left-double-1"]), [FRI]: hold("p-y", ["left-double-2"]) });
+  assert.equal(L.moveTarget(s, bed, [THU]), "left-double-2");
+  assert.equal(L.moveTarget(s, bed, [FRI]), "left-double-1");
   assert.equal(L.moveTarget(s, bed, [THU, FRI]), null);
-  assert.equal(L.moveTarget(s, bed, [SAT]), "vlavo-manzelska-1");
+  assert.equal(L.moveTarget(s, bed, [SAT]), "left-double-1");
 });
 
 test("pending changes are drawn on top of the state without changing it", () => {
-  const s = realState([party()], { [SAT]: { "vlavo-okno-1": "p-aaaaaa", "chodba-gauc-1": "p-other" } });
+  const s = realState([party()], { [SAT]: { "left-window-1": "p-aaaaaa", "hallway-sofa-1": "p-other" } });
   const view = L.withPending(s, [
-    { night: SAT, slot: "vlavo-okno-1", party_id: null },
-    { night: FRI, slot: "vlavo-manzelska-1", party_id: "p-aaaaaa" },
+    { night: SAT, slot: "left-window-1", party_id: null },
+    { night: FRI, slot: "left-double-1", party_id: "p-aaaaaa" },
   ]);
-  assert.deepEqual(plain(view.state.sleeping), { [SAT]: { "chodba-gauc-1": "p-other" }, [FRI]: { "vlavo-manzelska-1": "p-aaaaaa" } });
-  assert.deepEqual(plain(view.pending), { [`${SAT}|vlavo-okno-1`]: true, [`${FRI}|vlavo-manzelska-1`]: true });
-  assert.deepEqual(plain(s.sleeping), { [SAT]: { "vlavo-okno-1": "p-aaaaaa", "chodba-gauc-1": "p-other" } });
+  assert.deepEqual(plain(view.state.sleeping), { [SAT]: { "hallway-sofa-1": "p-other" }, [FRI]: { "left-double-1": "p-aaaaaa" } });
+  assert.deepEqual(plain(view.pending), { [`${SAT}|left-window-1`]: true, [`${FRI}|left-double-1`]: true });
+  assert.deepEqual(plain(s.sleeping), { [SAT]: { "left-window-1": "p-aaaaaa", "hallway-sofa-1": "p-other" } });
   assert.deepEqual(plain(L.withPending(s, []).pending), {});
 });
 
 // --- bed texts ---
 
 test("bed screen-reader label", () => {
-  const room = rooms[2], bed = bedById("vlavo-manzelska");
+  const room = rooms[2], bed = bedById("left-double");
   const p = party();
-  const full = realState([p], { [SAT]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]) });
+  const full = realState([p], { [SAT]: hold(p.id, ["left-double-1", "left-double-2"]) });
   assert.equal(L.bedLabel(full, room, bed, SAT), "Manželská posteľ, izba vľavo, v sobotu Ivan a Eva, 0 voľných");
   assert.equal(L.bedLabel(realState([p]), room, bed, FRI), "Manželská posteľ, izba vľavo, v piatok nikto, 2 voľné");
-  const half = realState([p], { [THU]: hold(p.id, ["vlavo-manzelska-1"]) });
+  const half = realState([p], { [THU]: hold(p.id, ["left-double-1"]) });
   assert.equal(L.bedLabel(half, room, bed, THU), "Manželská posteľ, izba vľavo, vo štvrtok Ivan a Eva, 1 voľné");
-  assert.equal(L.bedLabel(realState([p]), rooms[1], bedById("konica-dole-matrace"), THU), "Matrace na zemi, konica, dole, vo štvrtok nikto, 3 voľné");
+  assert.equal(L.bedLabel(realState([p]), rooms[1], bedById("konica-lower-mats"), THU), "Matrace na zemi, konica, dole, vo štvrtok nikto, 3 voľné");
 });
 
 test("free places in Slovak", () => {
@@ -621,17 +621,17 @@ test("skipped nights of assign-stay are reported in Slovak", () => {
 
 test("move plan: one night, all nights and the two reasons it fails", () => {
   const p = party();
-  const s = realState([p], { [THU]: hold(p.id, ["vlavo-okno-1"]), [SAT]: hold(p.id, ["vlavo-okno-1"]) });
-  const move = { partyId: p.id, fromSlot: "vlavo-okno-1", all: false };
-  const target = bedById("vlavo-manzelska");
-  assert.deepEqual(plain(L.planMove(s, move, target, THU)), { nights: [THU], target: "vlavo-manzelska-1" });
-  assert.deepEqual(plain(L.planMove(s, { ...move, all: true }, target, FRI)), { nights: [THU, SAT], target: "vlavo-manzelska-1" });
+  const s = realState([p], { [THU]: hold(p.id, ["left-window-1"]), [SAT]: hold(p.id, ["left-window-1"]) });
+  const move = { partyId: p.id, fromSlot: "left-window-1", all: false };
+  const target = bedById("left-double");
+  assert.deepEqual(plain(L.planMove(s, move, target, THU)), { nights: [THU], target: "left-double-1" });
+  assert.deepEqual(plain(L.planMove(s, { ...move, all: true }, target, FRI)), { nights: [THU, SAT], target: "left-double-1" });
   // not sleeping in the old place on the selected night
   assert.equal(L.planMove(s, move, target, FRI).error, "Tú noc na pôvodnom mieste nespíš. Prepni noc alebo zvoľ „Všetky noci“.");
   // the old place is not held on any night
-  assert.equal(L.planMove(s, { ...move, fromSlot: "chodba-gauc-1", all: true }, target, THU).error, L.MOVE_TEXTS.not_held);
+  assert.equal(L.planMove(s, { ...move, fromSlot: "hallway-sofa-1", all: true }, target, THU).error, L.MOVE_TEXTS.not_held);
   // no free slot in every night
-  const busy = realState([p], { [THU]: { ...hold(p.id, ["vlavo-okno-1"]), ...hold("p-x", ["vlavo-manzelska-1", "vlavo-manzelska-2"]) } });
+  const busy = realState([p], { [THU]: { ...hold(p.id, ["left-window-1"]), ...hold("p-x", ["left-double-1", "left-double-2"]) } });
   assert.equal(L.planMove(busy, move, target, THU).error, "Tu nie je voľné miesto.");
 });
 
@@ -848,7 +848,7 @@ test("tableCellText: all four kinds, also 1/0 for a night outside the stay", () 
   assert.equal(L.tableCellText(t("over", 4, 3)), "4/3");
   assert.equal(L.tableCellText(t("absent", 0, 0)), "–");
   const p = party({ adults: 2, leave: FRI });
-  const s = stateWith([p], { [FRI]: hold(p.id, ["vlavo-okno-1"]) });
+  const s = stateWith([p], { [FRI]: hold(p.id, ["left-window-1"]) });
   assert.equal(L.tableCellText(L.nightTally(s, p, FRI)), "1/0");
 });
 
@@ -858,9 +858,9 @@ const tableState = () => {
   const b = tp("p-bbbbbb", "Novákovci s veľmi dlhým menom", { color: "#6D5BA8", adults: 2, kids: 1, kids_in_parents_bed: 1 });
   const c = tp("p-cccccc", "<b>Eva</b>", { color: "#C0603A", adults: 1, arrive: FRI, leave: SAT });
   return stateWith([a, b, c], {
-    [THU]: { ...hold(a.id, PAIR), ...hold(b.id, ["vlavo-okno-1", "vlavo-lehatko-1-1"]) },
-    [FRI]: hold(a.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]),
-    [SAT]: hold(c.id, ["vlavo-lehatko-2-1"]),
+    [THU]: { ...hold(a.id, PAIR), ...hold(b.id, ["left-window-1", "left-cot-1-1"]) },
+    [FRI]: hold(a.id, [...PAIR, "left-window-1", "left-cot-1-1"]),
+    [SAT]: hold(c.id, ["left-cot-2-1"]),
   });
 };
 
@@ -941,9 +941,9 @@ test("partyTableSummary: every cell kind with the plural forms, (ty) only for my
   const b = tp("p-bbbbbb", "Eva", { adults: 2, leave: FRI });
   const c = tp("p-cccccc", "Mrco", { adults: 4 });
   const s = stateWith([a, b, c], {
-    [THU]: { ...hold(a.id, ["vlavo-okno-1", "vlavo-lehatko-1-1", "vlavo-lehatko-2-1"]), ...hold(b.id, PAIR) },
-    [FRI]: { ...hold(a.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]), ...hold(b.id, ["vlavo-lehatko-2-1"]) },
-    [SAT]: hold(c.id, ["vlavo-okno-1", "vlavo-lehatko-1-1", "vlavo-lehatko-2-1"]),
+    [THU]: { ...hold(a.id, ["left-window-1", "left-cot-1-1", "left-cot-2-1"]), ...hold(b.id, PAIR) },
+    [FRI]: { ...hold(a.id, [...PAIR, "left-window-1", "left-cot-1-1"]), ...hold(b.id, ["left-cot-2-1"]) },
+    [SAT]: hold(c.id, ["left-window-1", "left-cot-1-1", "left-cot-2-1"]),
   });
   assert.deepEqual(plain(L.partyTableSummary(s, "p-aaaaaa")), [
     "Ivan a Eva (ty): Št → Pi 3 z 3, Pi → So 4 z 3, o 1 miesto viac, So → Ne nie je tu",
@@ -1050,26 +1050,26 @@ const stayState = () => {
   const p = party({ arrive: THU, leave: "2026-11-01" });
   const other = party({ id: "p-bbbbbb", name: "Riso a Ben" });
   return realState([p, other], {
-    [THU]: { ...hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]), "vlavo-okno-1": other.id },
-    [FRI]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]),
-    [SAT]: { ...hold(p.id, ["vlavo-okno-1", "chodba-gauc-1"]), "vlavo-manzelska-1": other.id },
+    [THU]: { ...hold(p.id, ["left-double-1", "left-double-2"]), "left-window-1": other.id },
+    [FRI]: hold(p.id, ["left-double-1", "left-double-2"]),
+    [SAT]: { ...hold(p.id, ["left-window-1", "hallway-sofa-1"]), "left-double-1": other.id },
   });
 };
 
 test("leave moved from Sunday to Saturday frees Saturday", () => {
   assert.deepEqual(plain(L.freedByStay(stayState(), "p-aaaaaa", THU, SAT)),
-    [{ night: SAT, slot: "vlavo-okno-1" }, { night: SAT, slot: "chodba-gauc-1" }]);
+    [{ night: SAT, slot: "left-window-1" }, { night: SAT, slot: "hallway-sofa-1" }]);
 });
 
 test("arrive moved from Thursday to Friday frees Thursday", () => {
   assert.deepEqual(plain(L.freedByStay(stayState(), "p-aaaaaa", FRI, "2026-11-01")),
-    [{ night: THU, slot: "vlavo-manzelska-1" }, { night: THU, slot: "vlavo-manzelska-2" }]);
+    [{ night: THU, slot: "left-double-1" }, { night: THU, slot: "left-double-2" }]);
 });
 
 test("a longer or unchanged stay frees nothing, and other parties' slots stay", () => {
   assert.deepEqual(plain(L.freedByStay(stayState(), "p-aaaaaa", THU, "2026-11-01")), []);
-  assert.deepEqual(plain(L.freedByStay(stayState(), "p-bbbbbb", THU, FRI)), [{ night: SAT, slot: "vlavo-manzelska-1" }]);
-  assert.deepEqual(plain(L.freedByStay(stayState(), "p-bbbbbb", FRI, SAT)), [{ night: THU, slot: "vlavo-okno-1" }, { night: SAT, slot: "vlavo-manzelska-1" }]);
+  assert.deepEqual(plain(L.freedByStay(stayState(), "p-bbbbbb", THU, FRI)), [{ night: SAT, slot: "left-double-1" }]);
+  assert.deepEqual(plain(L.freedByStay(stayState(), "p-bbbbbb", FRI, SAT)), [{ night: THU, slot: "left-window-1" }, { night: SAT, slot: "left-double-1" }]);
 });
 
 test("freed places are listed per night with the bed name", () => {
@@ -1085,9 +1085,9 @@ const summaryState = () => {
   const ivan = party(), riso = party({ id: "p-bbbbbb", name: "Riso a Ben", adults: 1, kids: 1, color: "#2F7D6D" });
   const late = party({ id: "p-cccccc", name: "Jana", adults: 1, arrive: FRI, leave: "2026-11-01", color: "#6D5BA8" });
   return realState([ivan, riso, late], {
-    [THU]: { ...hold(ivan.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]), "konica-dole-matrace-1": riso.id },
-    [FRI]: { "vlavo-manzelska-1": ivan.id, "chodba-gauc-1": late.id },
-    [SAT]: { ...hold(ivan.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]), "vlavo-okno-1": riso.id, "vlavo-lehatko-1-1": riso.id, "konica-hore-jedno-1": late.id },
+    [THU]: { ...hold(ivan.id, ["left-double-1", "left-double-2"]), "konica-lower-mats-1": riso.id },
+    [FRI]: { "left-double-1": ivan.id, "hallway-sofa-1": late.id },
+    [SAT]: { ...hold(ivan.id, ["left-double-1", "left-double-2"]), "left-window-1": riso.id, "left-cot-1-1": riso.id, "konica-upper-single-1": late.id },
   });
 };
 
@@ -1124,16 +1124,16 @@ test("summary text for a sample state", () => {
     "- Ivan a Eva: v piatok chýba 1 miesto",
     "- Riso a Ben: vo štvrtok chýba 1 miesto, v piatok chýbajú 2 miesta",
     "",
-    "Tu sa zapíšeš: https://chata.example/",
+    "Tu sa zapíšeš: https://cabin.example/",
   ].join("\n");
-  assert.equal(L.summaryText(summaryState(), "https://chata.example/"), expected);
+  assert.equal(L.summaryText(summaryState(), "https://cabin.example/"), expected);
 });
 
 test("summary text has no warnings when everybody has a place, and never a code", () => {
   const p = party({ adults: 1, arrive: THU, leave: FRI });
-  const text = L.summaryText(realState([p], { [THU]: { "vlavo-okno-1": p.id } }), "https://chata.example/");
+  const text = L.summaryText(realState([p], { [THU]: { "left-window-1": p.id } }), "https://cabin.example/");
   assert.doesNotMatch(text, /Chýbajú/);
-  assert.match(text, /Tu sa zapíšeš: https:\/\/chata\.example\/$/);
+  assert.match(text, /Tu sa zapíšeš: https:\/\/cabin\.example\/$/);
   assert.doesNotMatch(text, /kód|code/i);
 });
 
@@ -1154,7 +1154,7 @@ test("hidden summary for the selected night", () => {
 
 test("the WhatsApp text and the hidden summary give the same parties per bed and night as the slot data", () => {
   const s = summaryState();
-  const lines = L.summaryText(s, "https://chata.example/").split("\n");
+  const lines = L.summaryText(s, "https://cabin.example/").split("\n");
   s.event.nights.forEach((night) => {
     const hidden = L.hiddenSummary(s, night);
     const start = lines.findIndex((line) => line.startsWith(L.nightInfo(night).label));
@@ -1268,8 +1268,8 @@ test("bed hit areas contain the bed, never overlap each other or a scene board",
 });
 
 test("a bed hit area follows the bed rect from the config", () => {
-  assert.deepEqual(plain(L.bedHit(realLayout, bedById("vlavo-okno"), 8)), [179, 212, 39, 50]);   // half the gap to its neighbours
-  const moved = { ...realLayout, rooms: realLayout.rooms.map((r) => ({ ...r, beds: r.beds.map((b) => (b.id === "vlavo-okno" ? { ...b, rect: [20, 312, 24, 34] } : b)) })) };
+  assert.deepEqual(plain(L.bedHit(realLayout, bedById("left-window"), 8)), [179, 212, 39, 50]);   // half the gap to its neighbours
+  const moved = { ...realLayout, rooms: realLayout.rooms.map((r) => ({ ...r, beds: r.beds.map((b) => (b.id === "left-window" ? { ...b, rect: [20, 312, 24, 34] } : b)) })) };
   assert.deepEqual(plain(L.bedHit(moved, moved.rooms[2].beds[1], 8)), [12, 308, 40, 41]);   // stops at the legend sign above and at half the gap to a bed below
 });
 
@@ -1308,7 +1308,7 @@ test("page: no header, list view or overview switch", () => {
 
 test("page: no bed, room or slot geometry or names are hardcoded in the page code", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
-  assert.doesNotMatch(app + logicSource, /konica|vlavo|vpravo|chodba|kuchynka|manzelska|matrace/i);
+  assert.doesNotMatch(app + logicSource, /konica|hallway|kitchen|["'`](left|right)["'`]|(left|right)-(double|window|cot|bunk|sofa)/i);
 });
 
 test("page: blinking has a reduced-motion rule and the free square is white or orange", () => {
@@ -2129,16 +2129,16 @@ test("waitingFigures: nobody without a party, on an absent night, or with all pl
   const late = party({ arrive: FRI });
   assert.deepEqual(plain(L.waitingFigures(stateWith([late]), late, THU)), []);
   const full = party();
-  const st = stateWith([full], { [THU]: hold(full.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]) });
+  const st = stateWith([full], { [THU]: hold(full.id, ["left-double-1", "left-double-2"]) });
   assert.deepEqual(plain(L.waitingFigures(st, full, THU)), []);
-  const over = stateWith([full], { [THU]: hold(full.id, ["vlavo-manzelska-1", "vlavo-manzelska-2", "vlavo-okno-1"]) });
+  const over = stateWith([full], { [THU]: hold(full.id, ["left-double-1", "left-double-2", "left-window-1"]) });
   assert.deepEqual(plain(L.waitingFigures(over, full, THU)), []);
 });
 
 test("waitingFigures: adults first, then the kids, after the places already held", () => {
   const p = party({ adults: 2, kids: 1 });
   assert.deepEqual(plain(L.waitingFigures(stateWith([p]), p, THU)), [{ kind: "adult" }, { kind: "adult" }, { kind: "kid" }]);
-  const one = stateWith([p], { [THU]: hold(p.id, ["vlavo-okno-1"]) });
+  const one = stateWith([p], { [THU]: hold(p.id, ["left-window-1"]) });
   assert.deepEqual(plain(L.waitingFigures(one, p, THU)), [{ kind: "adult" }, { kind: "kid" }]);
   assert.deepEqual(plain(L.waitingFigures(one, p, FRI)), [{ kind: "adult" }, { kind: "adult" }, { kind: "kid" }]);
 });
@@ -2273,11 +2273,11 @@ const walkFor = (p, before, after, bedId, slots, rect = realLayout.map.scene.mea
 test("walkers: two adults tapping a double bed walk from the first two meadow cells to its two places", () => {
   const p = party();
   const before = realState([p]);
-  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
+  const slots = ["left-double-1", "left-double-2"];
   const after = realState([p], { [THU]: hold(p.id, slots) });
   const cells = plain(L.meadowLayout(realLayout.map.scene.meadow, 2).cells);
-  const bed = bedById("vlavo-manzelska");
-  assert.deepEqual(walkFor(p, before, after, "vlavo-manzelska", slots), [
+  const bed = bedById("left-double");
+  assert.deepEqual(walkFor(p, before, after, "left-double", slots), [
     { slot: slots[0], from: cells[0], to: plain(L.figurePosition(bed, 0)), kind: "adult", color: p.color },
     { slot: slots[1], from: cells[1], to: plain(L.figurePosition(bed, 1)), kind: "adult", color: p.color },
   ]);
@@ -2285,42 +2285,42 @@ test("walkers: two adults tapping a double bed walk from the first two meadow ce
 
 test("walkers: the kinds come from the state after the tap", () => {
   const p = party({ adults: 1, kids: 1 });
-  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
-  const out = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, slots) }), "vlavo-manzelska", slots);
+  const slots = ["left-double-1", "left-double-2"];
+  const out = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, slots) }), "left-double", slots);
   assert.deepEqual(out.map((w) => w.kind), ["adult", "kid"]);
   // One of two tapped: only the first figure walks, the kid is still waiting.
-  const one = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, [slots[0]]) }), "vlavo-manzelska", [slots[0]]);
+  const one = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, [slots[0]]) }), "left-double", [slots[0]]);
   assert.equal(one.length, 1);
   assert.equal(one[0].kind, "adult");
 });
 
 test("walkers: nobody walks without a party, or when nothing is waiting", () => {
   const p = party();
-  const slots = ["vlavo-okno-1"];
+  const slots = ["left-window-1"];
   const after = realState([p], { [THU]: hold(p.id, slots) });
-  assert.deepEqual(walkFor(null, realState([p]), after, "vlavo-okno", slots), []);
+  assert.deepEqual(walkFor(null, realState([p]), after, "left-window", slots), []);
   // Both places held already, an extra place taken: nothing was waiting.
-  const held = realState([p], { [THU]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]) });
-  const extra = realState([p], { [THU]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2", "vlavo-okno-1"]) });
-  assert.deepEqual(walkFor(p, held, extra, "vlavo-okno", slots), []);
+  const held = realState([p], { [THU]: hold(p.id, ["left-double-1", "left-double-2"]) });
+  const extra = realState([p], { [THU]: hold(p.id, ["left-double-1", "left-double-2", "left-window-1"]) });
+  assert.deepEqual(walkFor(p, held, extra, "left-window", slots), []);
   // The party is not there on that night.
   const late = party({ arrive: FRI });
-  assert.deepEqual(walkFor(late, realState([late]), realState([late], { [THU]: hold(late.id, slots) }), "vlavo-okno", slots), []);
+  assert.deepEqual(walkFor(late, realState([late]), realState([late], { [THU]: hold(late.id, slots) }), "left-window", slots), []);
 });
 
 test("walkers: a slot that will not hold the party has no walker", () => {
   const p = party();
-  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
-  assert.deepEqual(walkFor(p, realState([p]), realState([p]), "vlavo-manzelska", slots), []);
+  const slots = ["left-double-1", "left-double-2"];
+  assert.deepEqual(walkFor(p, realState([p]), realState([p]), "left-double", slots), []);
 });
 
 test("walkers: on an overflowing meadow the figure after the drawn cells starts at the badge", () => {
   const p = party({ adults: 3 });
-  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
+  const slots = ["left-double-1", "left-double-2"];
   const narrow = [0, 0, 28, 14];       // two cells: one figure and the badge
   const layout = plain(L.meadowLayout(narrow, 3));
   assert.equal(layout.cells.length, 1);
-  const out = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, slots) }), "vlavo-manzelska", slots, narrow);
+  const out = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, slots) }), "left-double", slots, narrow);
   assert.deepEqual(out.map((w) => w.from), [layout.cells[0], layout.morePos]);
 });
 
@@ -2402,9 +2402,9 @@ test("guard, text producers: no function or table of the logic block yields a pl
   const p = party({ adults: 2 });
   const big = party({ adults: 6 });
   add(L.myPartyStatus(stateWith([p]), null));
-  add(L.myPartyStatus(stateWith([p], { [SAT]: hold(p.id, ["vlavo-okno-1"]) }), p));
+  add(L.myPartyStatus(stateWith([p], { [SAT]: hold(p.id, ["left-window-1"]) }), p));
   add(L.myPartyStatus(stateWith([big]), big));
-  add(L.myPartyStatus(stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, PAIR) }), p));
+  add(L.myPartyStatus(stateWith([p], { [THU]: hold(p.id, [...PAIR, "left-window-1"]), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, PAIR) }), p));
   add(L.myPartyStatus(stateWith([p], { [THU]: hold(p.id, PAIR), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, PAIR) }), p));
 
   [1, 2, 5].forEach((n) => add(L.meadowLabel(n)));
@@ -2427,7 +2427,7 @@ test("guard, text producers: no function or table of the logic block yields a pl
   for (const code of Object.keys(L.ERROR_TEXTS)) {
     add(L.errorText({ code, message: "x" }, s));
     add(L.errorText({ code, message: "x", params: {} }, null));
-    add(L.errorText({ code, message: "x", params: { night: SAT, slot: "vlavo-okno-1", party_id: "p-aaaaaa", party_name: "Ivan a Eva",
+    add(L.errorText({ code, message: "x", params: { night: SAT, slot: "left-window-1", party_id: "p-aaaaaa", party_name: "Ivan a Eva",
       name: "Ivan a Eva", field: "arrive", reason: "name_empty", retry_after: 12 } }, s));
   }
   add(L.errorText(err("slot_taken", { night: FRI, party_id: "p-aaaaaa", party_name: "Ivan a Eva", own: true }), s));
@@ -2438,7 +2438,7 @@ test("guard, text producers: no function or table of the logic block yields a pl
   add(L.partyTableSummary(summaryState(), "p-aaaaaa"));
   add(L.partyTableRows(summaryState(), null).map((r) => L.legendNightsText(r)));
   add([1, 2, 5].map((n) => L.moreText(n)));
-  add(L.summaryText(summaryState(), "https://chata.example/"));
+  add(L.summaryText(summaryState(), "https://cabin.example/"));
   add(L.titleLabel(event));
   add([THU, FRI, SAT].map((n) => L.hiddenSummary(summaryState(), n)));
 
@@ -2504,9 +2504,9 @@ test("furniture stays inside its room floor and clear of windows and doors", () 
 });
 
 test("the stove pipe sticks out sideways, not up into the room name", () => {
-  const stove = bedById("kuchynka-pec");
+  const stove = bedById("kitchen-stove");
   const pipe = L.stovePipeRect(stove);
   assert.ok(pipe[1] >= stove.rect[1], "the pipe must not rise above the stove");
   assert.deepEqual(plain(L.furnitureBounds(stove)), [22, 352, 62, 28]);
-  assert.deepEqual(plain(L.furnitureBounds(bedById("konica-dole-matrace"))), [24, 132, 124, 26]);
+  assert.deepEqual(plain(L.furnitureBounds(bedById("konica-lower-mats"))), [24, 132, 124, 26]);
 });

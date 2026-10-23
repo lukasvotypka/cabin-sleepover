@@ -1,4 +1,4 @@
-# Chata: who sleeps where
+# Cabin sleepover: who sleeps where
 
 A small web app for sorting out sleeping places at the cabin for the event 29. 10. – 1. 11. 2026 (three nights). Friends open a link from WhatsApp, enter a shared group code and tap a pixel-art map of the cabin to say who sleeps where each night. There are no accounts and no database: everything lives in a few readable YAML files, so you can back them up by copying and fix them in an editor if you ever have to.
 
@@ -12,12 +12,12 @@ Where things are:
 | --- | --- |
 | `app/` | the backend (`main.py` routes, `store.py` YAML storage, `validate.py` all the rules, ...) |
 | `static/index.html` | the whole page (the pixel map, panels, texts) |
-| `config/chata.yaml` | event dates, nights and the cabin layout (rooms, beds, slots, map coordinates) |
+| `config/cabin.yaml` | event dates, nights and the cabin layout (rooms, beds, slots, map coordinates) |
 | `config/app.yaml` | limits and `backups_keep` |
 | `data/` | the live data, created on first start, never committed, never served |
 | `Dockerfile`, `compose.yaml` | the Docker image and its one-service compose file |
 | `deploy/` | Caddy example (with the nginx equivalent) |
-| `tests/` | pytest, Node tests of the page logic, and the manual checklist `tests/manualne.md` |
+| `tests/` | pytest, Node tests of the page logic, and the manual checklist `tests/manual.md` |
 
 ## 1. Install (for development and local runs)
 
@@ -77,11 +77,11 @@ uv run pytest                  # backend
 node --test tests/js/          # page logic, no browser, no uv needed
 ```
 
-What the tests cannot cover (two phones at once, iPhone Safari, the real deployment, ...) is in `tests/manualne.md`.
+What the tests cannot cover (two phones at once, iPhone Safari, the real deployment, ...) is in `tests/manual.md`.
 
 ## 4. Deploy with Docker and Caddy
 
-The app runs as one Docker container (`Dockerfile`, `compose.yaml`), and Caddy in front of it gives you HTTPS. The examples assume the project in `/opt/chrapa-poll` and a domain `chata.example.com`. You need Docker Engine 28 or newer with the compose plugin on the server (install it from Docker's official packages). Older engines on Linux let other machines on the same local network reach ports published on `127.0.0.1`, and because the app trusts the forwarded client address, such a machine could get around the wrong-code limit.
+The app runs as one Docker container (`Dockerfile`, `compose.yaml`), and Caddy in front of it gives you HTTPS. The examples assume the project in `/opt/chrapa-poll` and a domain `cabin.example.com`. You need Docker Engine 28 or newer with the compose plugin on the server (install it from Docker's official packages). Older engines on Linux let other machines on the same local network reach ports published on `127.0.0.1`, and because the app trusts the forwarded client address, such a machine could get around the wrong-code limit.
 
 What you get: the image is built from the official `python:3.12-slim` with the locked dependencies installed by uv (`uv sync --frozen --no-dev`). The container runs as a non-root user with a read-only root filesystem, and only `data/` (read-write) and `config/` (read-only) are mounted from the project directory. The image holds no secrets, no data and no tests. The secrets are given to the container as environment variables when it starts (there is no `.env` in a Docker deployment).
 
@@ -99,12 +99,12 @@ What you get: the image is built from the official `python:3.12-slim` with the l
    The container needs three environment variables: `GROUP_CODE`, `ADMIN_CODE` (different from the group code) and `SECRET_KEY` (at least 32 characters, see section 2 for how to generate one). `compose.yaml` refuses to run if one is missing. How you supply them is up to you: export them in the shell, or let your hosting platform or secrets manager set them. A simple way on one server is a root-only file **outside** the project, given to compose with `--env-file`:
 
    ```sh
-   sudo install -d -m 700 /etc/chata
-   sudo nano /etc/chata/secrets.env      # three lines: GROUP_CODE=..., ADMIN_CODE=..., SECRET_KEY=...
-   sudo chmod 600 /etc/chata/secrets.env
+   sudo install -d -m 700 /etc/cabin
+   sudo nano /etc/cabin/secrets.env      # three lines: GROUP_CODE=..., ADMIN_CODE=..., SECRET_KEY=...
+   sudo chmod 600 /etc/cabin/secrets.env
    ```
 
-   Then run every compose command as `sudo docker compose --env-file /etc/chata/secrets.env ...` (`sudo` because the file is readable by root only; if you prefer, make the file owned by the deploying user instead) (the examples below show the plain `docker compose ...` for short; add the option, or export the variables first, for `up`, `down` and `config`; `stop`, `start` and `restart` work without them).
+   Then run every compose command as `sudo docker compose --env-file /etc/cabin/secrets.env ...` (`sudo` because the file is readable by root only; if you prefer, make the file owned by the deploying user instead) (the examples below show the plain `docker compose ...` for short; add the option, or export the variables first, for `up`, `down` and `config`; `stop`, `start` and `restart` work without them).
 
    Do **not** keep a file called `.env` next to `compose.yaml` on the server. Compose reads such a file automatically to fill in `${...}` values, so it would silently supply (or override) the secrets, and it would leave them in the project directory. `--env-file` replaces that default, so an old `.env` is ignored, but the cleanest server has none.
 
@@ -115,7 +115,7 @@ What you get: the image is built from the official `python:3.12-slim` with the l
    sudo chown 1000:1000 data         # the container user (UID 1000) must be able to write here
    ```
 
-   Create `data/` yourself, as above: if Docker creates it, it belongs to root and the app cannot write to it. If the owner of `data/` has another UID, run the container as that user instead by setting `CHATA_UID` and `CHATA_GID` next to the secrets (in the same secrets file or exported).
+   Create `data/` yourself, as above: if Docker creates it, it belongs to root and the app cannot write to it. If the owner of `data/` has another UID, run the container as that user instead by setting `CABIN_UID` and `CABIN_GID` next to the secrets (in the same secrets file or exported).
 
 3. Build and start:
 
@@ -135,9 +135,9 @@ What you get: the image is built from the official `python:3.12-slim` with the l
 
    Two settings work together, and both are needed. Caddy **overwrites** `X-Forwarded-For` with the real client IP, and uvicorn runs with `--proxy-headers`, so the wrong-code limit counts per real client. Without that every client would look the same and one person's wrong codes would lock everybody out of joining. Inside Docker the requests come from the bridge gateway, not from `127.0.0.1`, so uvicorn has to trust `X-Forwarded-For` from any address (`--forwarded-allow-ips=*`). That is safe only because `compose.yaml` publishes the port on the host's `127.0.0.1` only (`127.0.0.1:8010:8010`). **Never publish it as `8010:8010`**, because then anyone on the internet could fake the header.
 
-6. Open `https://chata.example.com/`, enter the group code, and send the link and the code to your friends.
+6. Open `https://cabin.example.com/`, enter the group code, and send the link and the code to your friends.
 
-The page uses relative paths for the API, so it also works under a sub-path such as `https://example.com/chata/` (see the comment in `deploy/Caddyfile`). The default is the root of its own (sub)domain.
+The page uses relative paths for the API, so it also works under a sub-path such as `https://example.com/cabin/` (see the comment in `deploy/Caddyfile`). The default is the root of its own (sub)domain.
 
 ## 5. Where the data lives
 
@@ -145,9 +145,9 @@ Everything is in `data/` next to the app (git-ignored, created on first start, a
 
 | File | What it holds |
 | --- | --- |
-| `data/chata-data.yaml` | the parties and who sleeps where: the live data, with a `version` counter |
+| `data/cabin-data.yaml` | the parties and who sleeps where: the live data, with a `version` counter |
 | `data/audit.yaml` | one YAML document per write, separated by `---`: time, version, action, source, anonymous client id, party, nights, slots, before and after |
-| `data/backups/` | a copy of the data file taken before every write, named `chata-data-<UTC time>-v<version>.yaml`; the last 50 are kept (`backups_keep` in `config/app.yaml`) |
+| `data/backups/` | a copy of the data file taken before every write, named `cabin-data-<UTC time>-v<version>.yaml`; the last 50 are kept (`backups_keep` in `config/app.yaml`) |
 
 Every write is atomic (temp file, `fsync`, rename), so a crash cannot leave a half-written file.
 
@@ -156,7 +156,7 @@ Every write is atomic (temp file, `fsync`, rename), so a crash cannot leave a ha
 Copy the directory:
 
 ```sh
-sudo cp -a /opt/chrapa-poll/data /root/chata-data-backup-$(date +%F)   # while the container runs is fine
+sudo cp -a /opt/chrapa-poll/data /root/cabin-data-backup-$(date +%F)   # while the container runs is fine
 ```
 
 It is plain files, so rsync, a cron job or a snapshot work equally well.
@@ -168,25 +168,25 @@ It is plain files, so rsync, a cron job or a snapshot work equally well.
 
    ```sh
    cd /opt/chrapa-poll/data
-   sudo cp backups/chata-data-<time>-v<version>.yaml chata-data.yaml
-   sudo chown 1000:1000 chata-data.yaml      # use the UID the container runs as
+   sudo cp backups/cabin-data-<time>-v<version>.yaml cabin-data.yaml
+   sudo chown 1000:1000 cabin-data.yaml      # use the UID the container runs as
    ```
 
 3. `docker compose start`, then check `docker compose logs --tail 20` and open the page.
 
-To start from nothing, stop the container, delete `data/chata-data.yaml` and start it again: a fresh empty file is created.
+To start from nothing, stop the container, delete `data/cabin-data.yaml` and start it again: a fresh empty file is created.
 
 ### Fix the data by hand
 
 Only while the container is **stopped**. The app reads the file on every request, so a half-finished edit would be served at once, and a write that runs at the same moment would overwrite your edit:
 
 1. `cd /opt/chrapa-poll && docker compose stop`
-2. Edit `data/chata-data.yaml`. Keep dates and times in quotes (`"2026-10-29"`), or YAML turns them into dates. Slot IDs and nights must exist in `config/chata.yaml`. `sleeping` is `night → slot → party id`, one party per slot.
-3. Make sure the file is still owned by the container user (`sudo chown 1000:1000 data/chata-data.yaml`), then `docker compose start`. On start the app validates the file against the models and the layout. If something is wrong, it refuses to start and names the exact line or entry in `docker compose logs --tail 30` (the container keeps restarting until the file is fixed). Fix it, or restore a backup.
+2. Edit `data/cabin-data.yaml`. Keep dates and times in quotes (`"2026-10-29"`), or YAML turns them into dates. Slot IDs and nights must exist in `config/cabin.yaml`. `sleeping` is `night → slot → party id`, one party per slot.
+3. Make sure the file is still owned by the container user (`sudo chown 1000:1000 data/cabin-data.yaml`), then `docker compose start`. On start the app validates the file against the models and the layout. If something is wrong, it refuses to start and names the exact line or entry in `docker compose logs --tail 30` (the container keeps restarting until the file is fixed). Fix it, or restore a backup.
 
 ### The map does not match the cabin
 
-The layout (rooms, beds, slots, coordinates) is a guess taken from a preview. To change it edit `config/chata.yaml` and restart the container (`docker compose restart`, no rebuild needed because `config/` is mounted). Open pages pick up the new layout on their next refresh. If you remove a slot that someone already sleeps in, the startup check stops the app and tells you which entries to fix first (see above). All text on the map (room and bed names) lives in that file too.
+The layout (rooms, beds, slots, coordinates) is a guess taken from a preview. To change it edit `config/cabin.yaml` and restart the container (`docker compose restart`, no rebuild needed because `config/` is mounted). Open pages pick up the new layout on their next refresh. If you remove a slot that someone already sleeps in, the startup check stops the app and tells you which entries to fix first (see above). All text on the map (room and bed names) lives in that file too.
 
 ### Trace a change
 
@@ -196,7 +196,7 @@ The layout (rooms, beds, slots, coordinates) is a guess taken from a preview. To
 grep -n -B3 -A12 'slot-id-here' /opt/chrapa-poll/data/audit.yaml
 ```
 
-`source` says where the change came from (`mapa` for a tap on the map, `formular` for the party form), `client_id` is a random anonymous id of the browser, and `before` and `after` show what changed. The backup taken before that write is in `data/backups/` and carries the previous version: the audit entry for `version: 12` belongs to the backup `...-v000011.yaml`.
+`source` says where the change came from (`map` for a tap on the map, `form` for the party form), `client_id` is a random anonymous id of the browser, and `before` and `after` show what changed. The backup taken before that write is in `data/backups/` and carries the previous version: the audit entry for `version: 12` belongs to the backup `...-v000011.yaml`.
 
 ## 6. Open decisions and the defaults used
 
@@ -204,8 +204,8 @@ These are listed in `proposal.md` ("Otvorené rozhodnutia"). They were not decid
 
 | Decision | Default used |
 | --- | --- |
-| Dates | decided: 29. 10. 2026 (Thu) – 1. 11. 2026 (Sun), nights 2026-10-29, 2026-10-30, 2026-10-31, only in `config/chata.yaml` |
-| Real layout of beds, doors and windows | as in the preview; send corrections, they are a change in `config/chata.yaml` only |
+| Dates | decided: 29. 10. 2026 (Thu) – 1. 11. 2026 (Sun), nights 2026-10-29, 2026-10-30, 2026-10-31, only in `config/cabin.yaml` |
+| Real layout of beds, doors and windows | as in the preview; send corrections, they are a change in `config/cabin.yaml` only |
 | Can a friend take a place on a night the party is not at the cabin? | no (error `not_present`): the party first edits its arrival and departure |
 | Signup deadline | signup is never locked in phase 1 |
 | Placement on the server | a Docker container with the port published on `127.0.0.1:8010` only, the app at the root of its own (sub)domain; a sub-path works too (relative API paths) |

@@ -115,7 +115,7 @@ def _duplicates(items: list[str]) -> list[str]:
     return dupes
 
 
-# --- cabin layout (config/chata.yaml) ------------------------------------
+# --- cabin layout (config/cabin.yaml) ------------------------------------
 
 
 class Event(_Model):
@@ -202,7 +202,7 @@ class Layout(_Model):
     # The cached properties below assume the layout is read-only after loading.
     @cached_property
     def slot_ids(self) -> tuple[str, ...]:
-        """All slots in the order of rooms, beds and slots in chata.yaml."""
+        """All slots in the order of rooms, beds and slots in cabin.yaml."""
         return tuple(s for r in self.rooms for b in r.beds for s in b.slots)
 
     @cached_property
@@ -231,7 +231,7 @@ class AppConfig(_Model):
     backups_keep: PositiveInt
 
 
-# --- parties and state (data/chata-data.yaml) ------------------------------------
+# --- parties and state (data/cabin-data.yaml) ------------------------------------
 
 _Text = StringConstraints(strict=True, strip_whitespace=True)
 
@@ -373,7 +373,7 @@ def _read_yaml(path: Path) -> Any:
         raise ConfigError(f"{path}: invalid YAML ({exc})") from exc
 
 
-def parse_layout(data: Any, source: str = "chata.yaml") -> Layout:
+def parse_layout(data: Any, source: str = "cabin.yaml") -> Layout:
     try:
         return Layout.model_validate(data)
     except ValidationError as exc:

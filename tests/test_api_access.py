@@ -63,7 +63,7 @@ def error_of(resp):
 
 def test_startup_creates_a_fresh_data_file(make_app, tmp_path):
     make_app()
-    data = yaml.safe_load((tmp_path / "data" / "chata-data.yaml").read_text(encoding="utf-8"))
+    data = yaml.safe_load((tmp_path / "data" / "cabin-data.yaml").read_text(encoding="utf-8"))
     assert data["version"] == 0
 
 
@@ -103,7 +103,7 @@ def test_env_values_are_stripped():
 def test_startup_runs_the_data_file_check(make_app, tmp_path):
     (tmp_path / "data").mkdir()
     bad = {"version": 3, "updated_at": "2026-10-25T19:02:11+02:00", "sleeping": {"2026-10-29": {"nope": "p-abcdef"}}}
-    (tmp_path / "data" / "chata-data.yaml").write_text(yaml.safe_dump(bad), encoding="utf-8")
+    (tmp_path / "data" / "cabin-data.yaml").write_text(yaml.safe_dump(bad), encoding="utf-8")
     with pytest.raises(StartupError, match="unknown slot"):
         make_app()
 
@@ -111,7 +111,7 @@ def test_startup_runs_the_data_file_check(make_app, tmp_path):
 def test_startup_stops_on_a_broken_config_file(make_app, tmp_path):
     config = tmp_path / "config"
     config.mkdir()
-    (config / "chata.yaml").write_text("rooms: []\n", encoding="utf-8")
+    (config / "cabin.yaml").write_text("rooms: []\n", encoding="utf-8")
     (config / "app.yaml").write_text((ROOT / "config" / "app.yaml").read_text(encoding="utf-8"), encoding="utf-8")
     with pytest.raises(ConfigError):
         make_app(config_dir=config)
@@ -163,13 +163,13 @@ async def test_static_folder_is_served(client):
 @pytest.mark.parametrize(
     "path",
     [
-        "/data/chata-data.yaml",
+        "/data/cabin-data.yaml",
         "/config/app.yaml",
         "/files/mapa-nahlad.html",
         "/.env",
-        "/static/../data/chata-data.yaml",
-        "/static/%2e%2e/data/chata-data.yaml",
-        "/static/..%2fdata/chata-data.yaml",
+        "/static/../data/cabin-data.yaml",
+        "/static/%2e%2e/data/cabin-data.yaml",
+        "/static/..%2fdata/cabin-data.yaml",
         "/static/../.env",
         "/static/",
         "/openapi.json",
@@ -396,7 +396,7 @@ async def test_state_content(group_client, layout):
 async def test_state_reflects_writes(group_client, app, make_party):
     rt = app.state.runtime
     party = make_party()
-    async with rt.store.write(action="party_create", source="formular", client_id=None) as tx:
+    async with rt.store.write(action="party_create", source="form", client_id=None) as tx:
         tx.state.parties.append(party)
     state = (await group_client.get("/api/state")).json()["state"]
     assert state["version"] == 1
@@ -442,14 +442,14 @@ def test_etag_differs_after_a_restored_backup(make_state):
     assert state_etag(current, "cfg") != state_etag(current, "other-cfg")
 
 
-async def test_etag_changes_when_chata_yaml_changes(make_app, make_client, tmp_path):
-    """After the organizer edits chata.yaml and restarts, an old ETag must not give 304 (stale map)."""
+async def test_etag_changes_when_cabin_yaml_changes(make_app, make_client, tmp_path):
+    """After the organizer edits cabin.yaml and restarts, an old ETag must not give 304 (stale map)."""
     config = tmp_path / "config-edited"
     shutil.copytree(ROOT / "config", config)
-    layout = yaml.safe_load((config / "chata.yaml").read_text(encoding="utf-8"))
+    layout = yaml.safe_load((config / "cabin.yaml").read_text(encoding="utf-8"))
     old_name = layout["rooms"][0]["name"]
     layout["rooms"][0]["name"] = old_name + " (nové)"
-    (config / "chata.yaml").write_text(yaml.safe_dump(layout, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    (config / "cabin.yaml").write_text(yaml.safe_dump(layout, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
     first, second = make_app(), make_app(config_dir=config)  # one data dir, two layouts
     async with make_client(first) as c1, make_client(second) as c2:

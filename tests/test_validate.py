@@ -5,9 +5,9 @@ from app.models import PartyCreate
 from app.validate import RuleError
 from tests.conftest import FRI, SAT, SUN, THU
 
-A1, A2 = "vlavo-manzelska-1", "vlavo-manzelska-2"
-OKNO = "vlavo-okno-1"
-MAT1, MAT2 = "konica-dole-matrac-1", "konica-dole-matrac-2"
+A1, A2 = "left-double-1", "left-double-2"
+OKNO = "left-window-1"
+MAT1, MAT2 = "konica-lower-mat-1", "konica-lower-mat-2"
 
 
 @pytest.fixture
@@ -421,7 +421,7 @@ def test_stay_shortening_lists_slots_outside_new_stay(layout, make_state, ivan, 
     }
     state = make_state([ivan, riso], sleeping)
     freed = v.stay_shortening(state, layout, ivan.id, FRI, SAT)
-    # order: night, then slot order in chata.yaml; other parties’ slots are untouched
+    # order: night, then slot order in cabin.yaml; other parties’ slots are untouched
     assert freed == [
         {"night": THU, "slot": A1},
         {"night": THU, "slot": A2},

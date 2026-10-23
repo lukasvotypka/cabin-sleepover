@@ -10,7 +10,7 @@ from app.main import create_app
 from app.models import AppConfig, Layout, Party, State, load_app_config, load_layout
 
 ROOT = Path(__file__).resolve().parent.parent
-CHATA_YAML = ROOT / "config" / "chata.yaml"
+CABIN_YAML = ROOT / "config" / "cabin.yaml"
 APP_YAML = ROOT / "config" / "app.yaml"
 
 THU, FRI, SAT = "2026-10-29", "2026-10-30", "2026-10-31"
@@ -19,19 +19,19 @@ SUN = "2026-11-01"
 
 @pytest.fixture(scope="session")
 def _layout_raw() -> dict:
-    with open(CHATA_YAML, encoding="utf-8") as fh:
+    with open(CABIN_YAML, encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 
 
 @pytest.fixture
 def layout_data(_layout_raw) -> dict:
-    """A fresh deep copy of the raw chata.yaml data that a test may modify."""
+    """A fresh deep copy of the raw cabin.yaml data that a test may modify."""
     return copy.deepcopy(_layout_raw)
 
 
 @pytest.fixture(scope="session")
 def layout() -> Layout:
-    return load_layout(CHATA_YAML)
+    return load_layout(CABIN_YAML)
 
 
 @pytest.fixture(scope="session")

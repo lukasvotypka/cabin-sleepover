@@ -15,7 +15,7 @@ Look at the task file. If `## Review round 1` is empty, this is round 1. If roun
 
 1. **Acceptance criteria**: is each one really met, including the tests it requires? Run the tests yourself (`Bash`) and report the result. Do not trust the Dev log.
 2. **Correctness against the proposal**: error codes and HTTP statuses, rules in `validate.py`, the lock → validate → write → version → audit order, atomic write and backups, race conditions, cookie flags, rate limits, date and night logic (`arrive ≤ n < leave`, needed slots = adults + kids − kids_in_parents_bed).
-3. **Project constraints**: Slovak informal UI with „ “, English code/comments/logs/server messages, no Slovak text sent from the server (the page maps error `code` + `params` to Slovak), no framework or build step, `textContent` instead of `innerHTML`, no game IP, YAML quoted dates and `safe_*` only, geometry only in `config/chata.yaml`, secrets only in env, `data/` never served.
+3. **Project constraints**: Slovak informal UI with „ “, English code/comments/logs/server messages, no Slovak text sent from the server (the page maps error `code` + `params` to Slovak), no framework or build step, `textContent` instead of `innerHTML`, no game IP, YAML quoted dates and `safe_*` only, geometry only in `config/cabin.yaml`, secrets only in env, `data/` never served.
 4. **Security and robustness**: input limits, injection into HTML or YAML, path handling, error messages that leak internals, behaviour when files are missing or corrupt.
 5. **Maintainability**: scope creep, duplicated rules outside `validate.py`, dead code, unclear names, missing or weak tests, accessibility (roles, labels, 44 px targets, reduced motion).
 

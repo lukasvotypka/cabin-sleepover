@@ -1,4 +1,4 @@
-"""The furniture drawn on the map must not cover room names, windows or doors in config/chata.yaml.
+"""The furniture drawn on the map must not cover room names, windows or doors in config/cabin.yaml.
 
 The geometry helpers live in the page logic (`<script id="logic">` of static/index.html), so this test
 runs them in Node against the real layout file. Node is a project requirement (`node --test tests/js/`).
@@ -42,7 +42,7 @@ def test_furniture_clear_of_labels_windows_and_doors():
     assert node, "Node is required for the page logic tests"
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     logic = re.search(r'<script id="logic">([\s\S]*?)</script>', html).group(1)
-    layout = yaml.safe_load((ROOT / "config" / "chata.yaml").read_text(encoding="utf-8"))
+    layout = yaml.safe_load((ROOT / "config" / "cabin.yaml").read_text(encoding="utf-8"))
     payload = json.dumps({"logic": logic, "layout": layout})
     done = subprocess.run([node, "-e", CHECK], input=payload, capture_output=True, text=True, check=False)
     assert done.returncode == 0, f"node failed\nstdout: {done.stdout}\nstderr: {done.stderr}"

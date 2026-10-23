@@ -1,6 +1,6 @@
 # Example Caddyfile. Replace the host name with your own (sub)domain whose DNS points to this server.
 # Caddy gets and renews the HTTPS certificate by itself.
-chata.example.com {
+cabin.example.com {
 	reverse_proxy 127.0.0.1:8010 {
 		# Always set the real client IP yourself (overwrite, never append). The app (in Docker, port published
 		# on 127.0.0.1 only, see compose.yaml) trusts this header and counts the wrong-code limit per IP.
@@ -11,20 +11,20 @@ chata.example.com {
 # The app uses relative API paths, so it can also live under a sub-path of a bigger site:
 #
 #   example.com {
-#   	handle_path /chata/* {
+#   	handle_path /cabin/* {
 #   		reverse_proxy 127.0.0.1:8010 {
 #   			header_up X-Forwarded-For {remote_host}
 #   		}
 #   	}
 #   }
 #
-# (and open https://example.com/chata/ with the trailing slash).
+# (and open https://example.com/cabin/ with the trailing slash).
 #
 # nginx equivalent (HTTPS certificates, for example with certbot, are set up separately):
 #
 #   server {
 #       listen 443 ssl;
-#       server_name chata.example.com;
+#       server_name cabin.example.com;
 #       # ssl_certificate / ssl_certificate_key ...
 #       location / {
 #           proxy_pass http://127.0.0.1:8010;

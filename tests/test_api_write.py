@@ -56,7 +56,7 @@ async def test_assign_writes_all_slots_in_one_write(app, group_client):
     assert body["state"]["version"] == before[0] + 1
     assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
     doc = audit_docs(app)[-1]
-    assert (doc["action"], doc["source"], doc["client_id"], doc["party"]) == ("assign", "mapa", "phone-1", ivan["id"])
+    assert (doc["action"], doc["source"], doc["client_id"], doc["party"]) == ("assign", "map", "phone-1", ivan["id"])
     assert doc["nights"] == [THU] and doc["slots"] == [A1, A2]
 
 
@@ -161,7 +161,7 @@ async def test_assign_stay_skips_a_night_with_a_taken_slot(app, group_client):
     }
     assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
     doc = audit_docs(app)[-1]
-    assert doc["action"] == "assign-stay" and doc["nights"] == [THU, SAT] and doc["slots"] == [A1, A2]
+    assert doc["action"] == "assign-stay" and doc["nights"] == [THU, SAT] and doc["slots"] == [A1, A2] and doc["source"] == "map"
     assert doc["skipped"] == [FRI]
 
 
@@ -210,7 +210,7 @@ async def test_clear_frees_the_slot(app, group_client):
     assert resp.json()["state"]["sleeping"] == {THU: {A2: ivan["id"]}}
     assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
     doc = audit_docs(app)[-1]
-    assert (doc["action"], doc["source"], doc["client_id"], doc["party"]) == ("clear", "mapa", "phone-2", ivan["id"])
+    assert (doc["action"], doc["source"], doc["client_id"], doc["party"]) == ("clear", "map", "phone-2", ivan["id"])
     assert (doc["before"], doc["after"]) == (ivan["id"], None)
 
 
@@ -245,7 +245,7 @@ async def test_move_in_several_nights(app, group_client):
     assert resp.json()["state"]["sleeping"] == {THU: {OKNO: ivan["id"]}, FRI: {OKNO: ivan["id"]}}
     assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
     doc = audit_docs(app)[-1]
-    assert doc["action"] == "move" and doc["nights"] == [THU, FRI] and doc["slots"] == [A1, OKNO]
+    assert doc["action"] == "move" and doc["nights"] == [THU, FRI] and doc["slots"] == [A1, OKNO] and doc["source"] == "map"
 
 
 async def test_move_is_all_or_nothing(app, group_client):
@@ -321,7 +321,7 @@ async def test_create_party(app, group_client):
     assert body["state"]["parties"] == [party]
     assert body["state"]["version"] == 1
     doc = audit_docs(app)[-1]
-    assert (doc["action"], doc["source"], doc["client_id"], doc["party"]) == ("party-create", "formular", "phone-3", party["id"])
+    assert (doc["action"], doc["source"], doc["client_id"], doc["party"]) == ("party-create", "form", "phone-3", party["id"])
     assert backup_count(app) == 1
 
 
@@ -410,7 +410,7 @@ async def test_update_party_rename_keeps_sleeping(app, group_client):
     assert body["party"]["created_at"] == ivan["created_at"]
     assert body["state"]["sleeping"] == sleeping == sleeping_of(app)
     doc = audit_docs(app)[-1]
-    assert (doc["action"], doc["source"], doc["client_id"]) == ("party-update", "formular", "phone-4")
+    assert (doc["action"], doc["source"], doc["client_id"]) == ("party-update", "form", "phone-4")
     assert doc["before"]["name"] == "Ivan a Eva" and doc["after"]["name"] == "Ivan a Eva Nová"
 
 

@@ -11,7 +11,7 @@ from app.store import AUDIT_FILE, BACKUP_DIR, DATA_FILE, Store, StartupError, no
 from app.validate import RuleError, check_assign
 from tests.conftest import FRI, THU
 
-SLOT1, SLOT2 = "vlavo-manzelska-1", "vlavo-manzelska-2"
+SLOT1, SLOT2 = "left-double-1", "left-double-2"
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def backups(data_dir):
 
 async def add_party(store, make_party, **kw):
     party = make_party(**kw)
-    async with store.write(action="party-create", source="formular", client_id="c1") as tx:
+    async with store.write(action="party-create", source="form", client_id="c1") as tx:
         tx.state.parties.append(party)
         tx.audit(party=party.id, before=None, after=party.model_dump())
     return party
@@ -195,7 +195,7 @@ def test_startup_error_leaves_file_untouched(layout, data_dir):
 
 async def test_write_bumps_version_and_persists(store, data_dir, make_party):
     ivan = await add_party(store, make_party, name="Ivan a Eva", id="p-ivan01")
-    async with store.write(action="assign", source="mapa", client_id="c1") as tx:
+    async with store.write(action="assign", source="map", client_id="c1") as tx:
         tx.state.sleeping.setdefault(THU, {})[SLOT1] = ivan.id
     assert tx.state.version == 2
     state = store.read()
@@ -226,7 +226,7 @@ async def test_rule_error_writes_nothing(store, data_dir, make_party):
     raw_before = (data_dir / DATA_FILE).read_bytes()
     backups_before, audit_before = backups(data_dir), audit_docs(data_dir)
     with pytest.raises(RuleError) as exc:
-        async with store.write(action="assign", source="mapa", client_id="c1") as tx:
+        async with store.write(action="assign", source="map", client_id="c1") as tx:
             check_assign(tx.state, store.layout, "2026-12-24", [SLOT1], ivan.id)  # night outside the event
     assert exc.value.code == "invalid"
     assert (data_dir / DATA_FILE).read_bytes() == raw_before
@@ -237,7 +237,7 @@ async def test_rule_error_writes_nothing(store, data_dir, make_party):
 async def test_exception_after_changing_state_discards_the_change(store, make_party):
     ivan = await add_party(store, make_party, name="Ivan", id="p-ivan01")
     with pytest.raises(RuntimeError):
-        async with store.write(action="assign", source="mapa", client_id=None) as tx:
+        async with store.write(action="assign", source="map", client_id=None) as tx:
             tx.state.sleeping.setdefault(THU, {})[SLOT1] = ivan.id
             raise RuntimeError("boom")
     assert store.read().sleeping == {}
@@ -245,10 +245,10 @@ async def test_exception_after_changing_state_discards_the_change(store, make_pa
 
 async def test_lock_is_released_after_error(store):
     with pytest.raises(RuntimeError):
-        async with store.write(action="x", source="mapa", client_id=None):
+        async with store.write(action="x", source="map", client_id=None):
             raise RuntimeError("boom")
     async with asyncio.timeout(2):
-        async with store.write(action="x", source="mapa", client_id=None):
+        async with store.write(action="x", source="map", client_id=None):
             pass
 
 
@@ -278,7 +278,7 @@ async def test_writes_are_serialized_by_the_lock(store, make_party):
 async def test_caller_bug_cannot_corrupt_the_file(store, data_dir, make_party):
     raw_before = (data_dir / DATA_FILE).read_bytes()
     with pytest.raises(RuntimeError, match="unknown slot"):
-        async with store.write(action="assign", source="mapa", client_id=None) as tx:
+        async with store.write(action="assign", source="map", client_id=None) as tx:
             tx.state.sleeping.setdefault(THU, {})["no-such-slot"] = "p-ghost1"
     assert (data_dir / DATA_FILE).read_bytes() == raw_before and backups(data_dir) == []
 
@@ -393,16 +393,16 @@ async def test_backup_names_unique_within_a_second(store, data_dir, monkeypatch)
 
 async def test_audit_is_one_document_per_write(store, data_dir, make_party):
     ivan = await add_party(store, make_party, name="Ivan a Eva", id="p-ivan01")
-    async with store.write(action="assign", source="mapa", client_id="client-xyz") as tx:
+    async with store.write(action="assign", source="map", client_id="client-xyz") as tx:
         tx.state.sleeping.setdefault(THU, {})[SLOT1] = ivan.id
         tx.state.sleeping[THU][SLOT2] = ivan.id
         tx.audit(party=ivan.id, nights=[THU], slots=[SLOT1, SLOT2], before=None, after=ivan.id)
     raw = (data_dir / AUDIT_FILE).read_text(encoding="utf-8")
     assert raw.count("---\n") == 2
     first, second = audit_docs(data_dir)
-    assert first["action"] == "party-create" and first["source"] == "formular" and first["client_id"] == "c1"
+    assert first["action"] == "party-create" and first["source"] == "form" and first["client_id"] == "c1"
     assert first["after"]["name"] == "Ivan a Eva" and first["before"] is None
-    assert second["action"] == "assign" and second["source"] == "mapa" and second["client_id"] == "client-xyz"
+    assert second["action"] == "assign" and second["source"] == "map" and second["client_id"] == "client-xyz"
     assert second["party"] == "p-ivan01" and second["nights"] == [THU] and second["slots"] == [SLOT1, SLOT2]
     assert second["before"] is None and second["after"] == "p-ivan01"
     assert second["version"] == 2 and second["time"] == store.read().updated_at
@@ -411,7 +411,7 @@ async def test_audit_is_one_document_per_write(store, data_dir, make_party):
 
 async def test_audit_multi_night_action_is_one_document_with_changes(store, data_dir, make_party):
     ivan = await add_party(store, make_party, name="Ivan", id="p-ivan01")
-    async with store.write(action="move", source="mapa", client_id="c1") as tx:
+    async with store.write(action="move", source="map", client_id="c1") as tx:
         tx.state.sleeping = {THU: {SLOT2: ivan.id}, FRI: {SLOT2: ivan.id}}
         changes = [{"night": n, "slot": SLOT2, "before": None, "after": ivan.id} for n in (THU, FRI)]
         tx.audit(party=ivan.id, nights=[THU, FRI], slots=[SLOT1, SLOT2], changes=changes)
@@ -435,7 +435,7 @@ async def test_audit_keeps_slovak_text_readable(store, data_dir, make_party):
 async def test_audit_unserializable_detail_fails_before_any_write(store, data_dir):
     raw_before = (data_dir / DATA_FILE).read_bytes()
     with pytest.raises(yaml.YAMLError):
-        async with store.write(action="x", source="mapa", client_id=None) as tx:
+        async with store.write(action="x", source="map", client_id=None) as tx:
             tx.audit(before=object())
     assert (data_dir / DATA_FILE).read_bytes() == raw_before and backups(data_dir) == []
 
@@ -458,7 +458,7 @@ async def test_failing_audit_append_does_not_fail_a_committed_write(store, data_
 async def test_skip_ends_the_transaction_without_writing(store, data_dir):
     raw_before = (data_dir / DATA_FILE).read_bytes()
     audit_before = audit_docs(data_dir) if (data_dir / AUDIT_FILE).exists() else []
-    async with store.write(action="clear", source="mapa", client_id="c1") as tx:
+    async with store.write(action="clear", source="map", client_id="c1") as tx:
         tx.state.signup_open = False  # would be a change, but the write is skipped
         tx.skip()
     assert (data_dir / DATA_FILE).read_bytes() == raw_before
@@ -512,7 +512,7 @@ async def test_data_file_is_readable_yaml_with_strings(store, data_dir, make_par
     ivan = await add_party(
         store, make_party, name="Vilčo a Žofia", id="p-vilco1", arrival_time="18:00", note="Ďakujeme!\nDruhý riadok"
     )
-    async with store.write(action="assign", source="mapa", client_id=None) as tx:
+    async with store.write(action="assign", source="map", client_id=None) as tx:
         tx.state.sleeping.setdefault(THU, {})[SLOT1] = ivan.id
     raw = (data_dir / DATA_FILE).read_text(encoding="utf-8")
     assert "Vilčo a Žofia" in raw and "Ďakujeme" in raw and "\\u" not in raw and "\\x" not in raw
@@ -528,7 +528,7 @@ async def test_data_file_is_readable_yaml_with_strings(store, data_dir, make_par
 async def test_new_store_on_same_directory_sees_the_same_data(layout, data_dir, make_party):
     first = Store(layout, data_dir=data_dir)
     ivan = await add_party(first, make_party, name="Ivan", id="p-ivan01")
-    async with first.write(action="assign", source="mapa", client_id=None) as tx:
+    async with first.write(action="assign", source="map", client_id=None) as tx:
         tx.state.sleeping.setdefault(THU, {})[SLOT1] = ivan.id
     restarted = Store(layout, data_dir=data_dir)  # a restart
     assert restarted.read() == first.read() == State.model_validate(yaml.safe_load((data_dir / DATA_FILE).read_text("utf-8")))

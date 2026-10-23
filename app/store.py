@@ -1,4 +1,4 @@
-"""The data file `data/chata-data.yaml`: the single source of truth, with safe writes.
+"""The data file `data/cabin-data.yaml`: the single source of truth, with safe writes.
 
 One process, one `asyncio.Lock`. Every write runs as a transaction under that lock:
 load the current file, let the caller change the state (the caller validates with
@@ -7,7 +7,7 @@ one audit document, return the new state. If the caller raises, nothing is writt
 
 Usage (T-003 and T-004 build on this):
 
-    async with store.write(action="assign", source="mapa", client_id=cid) as tx:
+    async with store.write(action="assign", source="map", client_id=cid) as tx:
         validate.check_assign(tx.state, layout, ...)      # may raise RuleError: nothing is written
         tx.state.sleeping.setdefault(night, {})[slot] = party_id
         tx.audit(party=party_id, nights=[night], slots=[slot], before=None, after=party_id)
@@ -39,11 +39,11 @@ from app.validate import RuleError, check_party_name
 
 log = logging.getLogger("chrapa.store")
 
-DATA_FILE = "chata-data.yaml"
+DATA_FILE = "cabin-data.yaml"
 AUDIT_FILE = "audit.yaml"
 BACKUP_DIR = "backups"
 TIMEZONE = ZoneInfo("Europe/Bratislava")
-AUDIT_SOURCES = frozenset({"mapa", "formular", "admin", "ai"})
+AUDIT_SOURCES = frozenset({"map", "form", "admin", "ai"})
 
 
 class StartupError(Exception):
@@ -106,11 +106,11 @@ def _data_problems(state: State, layout: Layout) -> list[str]:
     nights, slots = set(layout.event.nights), set(layout.slot_ids)
     for night, by_slot in state.sleeping.items():
         if night not in nights:
-            problems.append(f"sleeping.{night}: night is not in event.nights of chata.yaml")
+            problems.append(f"sleeping.{night}: night is not in event.nights of cabin.yaml")
         for slot, party_id in by_slot.items():
             where = f"sleeping.{night}.{slot}"
             if slot not in slots:
-                problems.append(f"{where}: unknown slot (not in chata.yaml)")
+                problems.append(f"{where}: unknown slot (not in cabin.yaml)")
             if party_id not in seen_ids:
                 problems.append(f"{where}: unknown party ID “{party_id}”")
     return problems
@@ -203,7 +203,7 @@ class Store:
             raise StartupError(format_validation_error(exc, str(path))) from exc
         problems = _data_problems(state, self.layout)
         if problems:
-            raise StartupError("\n".join([f"{path}: data does not match chata.yaml", *(f"  {p}" for p in problems)]))
+            raise StartupError("\n".join([f"{path}: data does not match cabin.yaml", *(f"  {p}" for p in problems)]))
         return state
 
     def read(self) -> State:
@@ -237,7 +237,7 @@ class Store:
             raise RuntimeError(format_validation_error(exc, "new state")) from exc
         problems = _data_problems(checked, self.layout)
         if problems:
-            raise RuntimeError("new state does not match chata.yaml: " + "; ".join(problems))
+            raise RuntimeError("new state does not match cabin.yaml: " + "; ".join(problems))
         entry = {
             "time": state.updated_at,
             "version": state.version,
@@ -272,7 +272,7 @@ class Store:
     def _backup(self, version: int) -> None:
         """Copy the current file to backups/ (UTC time with microseconds, then version) and prune the old ones."""
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-        shutil.copyfile(self.data_path, self.backup_dir / f"chata-data-{stamp}-v{version:06d}.yaml")
-        backups = sorted(self.backup_dir.glob("chata-data-*.yaml"))
+        shutil.copyfile(self.data_path, self.backup_dir / f"cabin-data-{stamp}-v{version:06d}.yaml")
+        backups = sorted(self.backup_dir.glob("cabin-data-*.yaml"))
         for old in backups[: max(0, len(backups) - self.backups_keep)]:
             old.unlink(missing_ok=True)

@@ -3,9 +3,9 @@
 import yaml
 
 THU, FRI, SAT, SUN = "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"
-A1, A2 = "vlavo-manzelska-1", "vlavo-manzelska-2"
-OKNO = "vlavo-okno-1"
-M1, M2, M3 = "konica-dole-matrac-1", "konica-dole-matrac-2", "konica-dole-matrac-3"
+A1, A2 = "left-double-1", "left-double-2"
+OKNO = "left-window-1"
+M1, M2, M3 = "konica-lower-mat-1", "konica-lower-mat-2", "konica-lower-mat-3"
 
 PALETTE = [
     "#2F7D6D", "#D07A2B", "#6D5BA8", "#C08A1E", "#3E6FB0", "#9C4A7A",

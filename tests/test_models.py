@@ -21,7 +21,7 @@ from app.models import (
     load_layout,
     parse_layout,
 )
-from tests.conftest import APP_YAML, CHATA_YAML
+from tests.conftest import APP_YAML, CABIN_YAML
 
 SCENE = {
     "title": [176, 10, 196, 30],
@@ -37,22 +37,22 @@ SCENE = {
 }
 
 
-# --- config/chata.yaml and config/app.yaml -------------------------------------
+# --- config/cabin.yaml and config/app.yaml -------------------------------------
 
 
-def test_chata_yaml_matches_proposal(layout):
+def test_cabin_yaml_matches_proposal(layout):
     assert len(layout.rooms) == 6
     assert sum(len(r.beds) for r in layout.rooms) == 12
     assert len(layout.slot_ids) == 20
-    assert layout.tight_slots == {"chodba-gauc-2", "kuchynka-pec-2"}
+    assert layout.tight_slots == {"hallway-sofa-2", "kitchen-stove-2"}
     assert layout.event.nights == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.arrive_days == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.leave_days == ["2026-10-30", "2026-10-31", "2026-11-01"]
     assert layout.map.viewbox == [380, 412]
 
 
-def test_chata_yaml_dates_are_quoted_strings():
-    with open(CHATA_YAML, encoding="utf-8") as fh:
+def test_cabin_yaml_dates_are_quoted_strings():
+    with open(CABIN_YAML, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh)
     for key in ("arrive_days", "leave_days", "nights"):
         assert all(isinstance(d, str) for d in raw["event"][key])
@@ -80,9 +80,9 @@ def test_meadow_is_inside_the_viewbox_and_overlaps_nothing(layout):
 
 
 def test_slot_order_follows_file_order(layout):
-    assert layout.slot_ids[0] == "konica-hore-manzelska-1"
-    assert layout.slot_ids[-1] == "kuchynka-pec-2"
-    assert layout.slot_order["konica-hore-jedno-1"] == 2
+    assert layout.slot_ids[0] == "konica-upper-double-1"
+    assert layout.slot_ids[-1] == "kitchen-stove-2"
+    assert layout.slot_order["konica-upper-single-1"] == 2
 
 
 def test_app_yaml_loads(app_config):
@@ -108,7 +108,7 @@ def test_layout_dump_is_json_ready(layout):
     assert dumped["rooms"][0]["beds"][0]["kind"] == "bed2"
 
 
-# --- errors in chata.yaml ------------------------------------------------------
+# --- errors in cabin.yaml ------------------------------------------------------
 
 
 @pytest.mark.parametrize("name", sorted(SCENE))
@@ -129,26 +129,26 @@ def test_scene_rect_must_have_four_ints(layout_data):
 
 
 def test_duplicate_slot_ids(layout_data):
-    layout_data["rooms"][1]["beds"][0]["slots"][0] = "konica-hore-jedno-1"
-    with pytest.raises(ConfigError, match="duplicate slot ID: .*konica-hore-jedno-1"):
+    layout_data["rooms"][1]["beds"][0]["slots"][0] = "konica-upper-single-1"
+    with pytest.raises(ConfigError, match="duplicate slot ID: .*konica-upper-single-1"):
         parse_layout(layout_data)
 
 
 def test_duplicate_bed_ids(layout_data):
-    layout_data["rooms"][1]["beds"][0]["id"] = "konica-hore-jedno"
-    with pytest.raises(ConfigError, match="duplicate bed ID: konica-hore-jedno"):
+    layout_data["rooms"][1]["beds"][0]["id"] = "konica-upper-single"
+    with pytest.raises(ConfigError, match="duplicate bed ID: konica-upper-single"):
         parse_layout(layout_data)
 
 
 def test_duplicate_room_ids(layout_data):
-    layout_data["rooms"][1]["id"] = "konica-hore"
-    with pytest.raises(ConfigError, match="duplicate room ID: konica-hore"):
+    layout_data["rooms"][1]["id"] = "konica-upper"
+    with pytest.raises(ConfigError, match="duplicate room ID: konica-upper"):
         parse_layout(layout_data)
 
 
 def test_tight_slot_must_belong_to_bed(layout_data):
-    layout_data["rooms"][3]["beds"][0]["tight"] = ["kuchynka-pec-2"]
-    with pytest.raises(ConfigError, match="tight slot “kuchynka-pec-2” is not one of the slots of bed “chodba-gauc”"):
+    layout_data["rooms"][3]["beds"][0]["tight"] = ["kitchen-stove-2"]
+    with pytest.raises(ConfigError, match="tight slot “kitchen-stove-2” is not one of the slots of bed “hallway-sofa”"):
         parse_layout(layout_data)
 
 
@@ -199,7 +199,7 @@ def test_invalid_floor_color(layout_data):
 
 
 def test_load_layout_reports_bad_yaml(tmp_path):
-    bad = tmp_path / "chata.yaml"
+    bad = tmp_path / "cabin.yaml"
     bad.write_text("event: [unclosed\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="invalid YAML"):
         load_layout(bad)
@@ -365,8 +365,8 @@ parties:
     updated_at: "2026-10-25T19:02:11+02:00"
 sleeping:
   "2026-10-29":
-    vlavo-manzelska-1: p-7f3k2a
-    vlavo-manzelska-2: p-7f3k2a
+    left-double-1: p-7f3k2a
+    left-double-2: p-7f3k2a
 """
 
 
@@ -374,7 +374,7 @@ def test_state_from_proposal_example():
     state = State.model_validate(yaml.safe_load(STATE_YAML))
     assert state.version == 27 and state.signup_open is True
     assert state.parties[0].name == "Ivan a Eva"
-    assert state.sleeping["2026-10-29"]["vlavo-manzelska-1"] == "p-7f3k2a"
+    assert state.sleeping["2026-10-29"]["left-double-1"] == "p-7f3k2a"
 
 
 def test_state_defaults_for_empty_file():
@@ -396,7 +396,7 @@ def test_state_rejects_unquoted_night_key():
 
 def test_state_rejects_unknown_key_and_bad_party_ref():
     data = yaml.safe_load(STATE_YAML)
-    data["sleeping"]["2026-10-29"]["vlavo-okno-1"] = "not-a-party"
+    data["sleeping"]["2026-10-29"]["left-window-1"] = "not-a-party"
     with pytest.raises(ValidationError):
         State.model_validate(data)
     data = yaml.safe_load(STATE_YAML)

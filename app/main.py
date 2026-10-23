@@ -67,8 +67,8 @@ from app.validate import (
 log = logging.getLogger("chrapa.app")
 
 ROOT = Path(__file__).resolve().parent.parent
-GROUP_COOKIE = "chata_group"
-ADMIN_COOKIE = "chata_admin"
+GROUP_COOKIE = "cabin_group"
+ADMIN_COOKIE = "cabin_admin"
 COOKIE_MAX_AGE = {"group": 30 * 24 * 3600, "admin": 12 * 3600}  # seconds
 COOKIE_CLOCK_SKEW = 60  # tolerated seconds of a cookie "from the future" (clock set back)
 CLIENT_ID_MAX_LEN = 64
@@ -181,7 +181,7 @@ class ApiError(RuleError):
 
 
 def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
-    """The `state` object of every response: the data file plus the layout from `chata.yaml`."""
+    """The `state` object of every response: the data file plus the layout from `cabin.yaml`."""
     return {
         "version": state.version,
         "updated_at": state.updated_at,
@@ -199,10 +199,10 @@ def config_digest(layout_json: dict[str, Any]) -> str:
 
 
 def state_etag(state: State, config_hash: str) -> str:
-    """Changes on every write and when the served `chata.yaml` content changes (after a restart), and at no other time.
+    """Changes on every write and when the served `cabin.yaml` content changes (after a restart), and at no other time.
 
     `updated_at` is mixed in, so a hand-restored older backup (lower `version`) differs too.
-    `config_hash` covers `layout` and `event`, which come from `chata.yaml` and not from the data file.
+    `config_hash` covers `layout` and `event`, which come from `cabin.yaml` and not from the data file.
     """
     digest = hashlib.sha1(state.updated_at.encode()).hexdigest()[:8]
     return f'"{state.version}-{digest}-{config_hash}"'
@@ -366,7 +366,7 @@ def create_app(
     """
     settings = load_settings(os.environ if env is None else env)
     config_dir, static_dir = Path(config_dir), Path(static_dir)
-    layout = load_layout(config_dir / "chata.yaml")
+    layout = load_layout(config_dir / "cabin.yaml")
     app_config = load_app_config(config_dir / "app.yaml")
     index_file = static_dir / "index.html"
     if not index_file.is_file():
@@ -476,7 +476,7 @@ def create_app(
     @app.post("/api/assign", dependencies=[Limited])
     async def assign(request: Request, body: AssignRequest, auth: Group) -> JSONResponse:
         async with rt.store.write(
-            action="assign", source=audit_source(auth, "mapa"), client_id=client_id_of(request)
+            action="assign", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             slots = check_assign(tx.state, rt.layout, body.night, body.slots, body.party_id)
@@ -488,7 +488,7 @@ def create_app(
     @app.post("/api/assign-stay", dependencies=[Limited])
     async def assign_stay(request: Request, body: AssignStayRequest, auth: Group) -> JSONResponse:
         async with rt.store.write(
-            action="assign-stay", source=audit_source(auth, "mapa"), client_id=client_id_of(request)
+            action="assign-stay", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             plan = check_assign_stay(tx.state, rt.layout, body.slots, body.party_id)
@@ -509,7 +509,7 @@ def create_app(
     @app.post("/api/clear", dependencies=[Limited])
     async def clear(request: Request, body: ClearRequest, auth: Group) -> JSONResponse:
         async with rt.store.write(
-            action="clear", source=audit_source(auth, "mapa"), client_id=client_id_of(request)
+            action="clear", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             holder = check_clear(tx.state, rt.layout, body.night, body.slot)
@@ -523,7 +523,7 @@ def create_app(
     @app.post("/api/move", dependencies=[Limited])
     async def move(request: Request, body: MoveRequest, auth: Group) -> JSONResponse:
         async with rt.store.write(
-            action="move", source=audit_source(auth, "mapa"), client_id=client_id_of(request)
+            action="move", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             nights = check_move(tx.state, rt.layout, body.party_id, body.from_slot, body.to_slot, body.nights)
@@ -543,7 +543,7 @@ def create_app(
     @app.post("/api/parties", dependencies=[Limited])
     async def create_party(request: Request, body: PartyCreate, auth: Group) -> JSONResponse:
         async with rt.store.write(
-            action="party-create", source=audit_source(auth, "formular"), client_id=client_id_of(request)
+            action="party-create", source=audit_source(auth, "form"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             check_party_create(tx.state, rt.layout, body)
@@ -562,7 +562,7 @@ def create_app(
     @app.put("/api/parties/{party_id}", dependencies=[Limited])
     async def update_party(request: Request, party_id: PartyId, body: PartyUpdate, auth: Group) -> JSONResponse:
         async with rt.store.write(
-            action="party-update", source=audit_source(auth, "formular"), client_id=client_id_of(request)
+            action="party-update", source=audit_source(auth, "form"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             freed = check_party_update(tx.state, rt.layout, party_id, body)

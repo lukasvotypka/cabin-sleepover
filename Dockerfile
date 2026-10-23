@@ -17,8 +17,8 @@ FROM python:3.12-slim
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
-# Non-root user. compose.yaml may run the container as another UID (CHATA_UID) so that the mounted ./data is writable.
-RUN useradd --system --uid 1000 --no-create-home --shell /usr/sbin/nologin chata
+# Non-root user. compose.yaml may run the container as another UID (CABIN_UID) so that the mounted ./data is writable.
+RUN useradd --system --uid 1000 --no-create-home --shell /usr/sbin/nologin cabin
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 # Only what the app needs (.dockerignore keeps .env, data/, files/, tests/, tasks/ and .git out of the build).
@@ -26,7 +26,7 @@ COPY app ./app
 COPY static ./static
 COPY config ./config
 # data/ comes from a bind mount at run time (see compose.yaml).
-USER chata
+USER cabin
 EXPOSE 8010
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/api/health', timeout=3)"]

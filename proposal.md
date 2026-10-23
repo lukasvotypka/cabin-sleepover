@@ -16,7 +16,7 @@ Postav malú webovú aplikáciu na rozdelenie spania na chate. Kamaráti si na p
 
 **Pravidlá pre stavbu:**
 
-- **Jazyky:** celé UI (texty v scéne, panely, hlášky pre kamarátov, mená izieb a postelí v `config/chata.yaml`) je po slovensky, s tykaním a typografickými úvodzovkami „ “. Kód, názvy, komentáre, logy, chyby pri štarte servera, testy a README sú po anglicky. Server neposiela používateľom slovenské texty: chyby majú stabilný `code` a stránka ich mapuje na slovenské hlášky (sekcia HTTP API, Odpoveď). Tykanie znamená 2. osobu jednotného čísla (máš, si, ti, tvoja partia). Používateľ hovorí za svoju partiu, preto aj texty o partii sú v jednotnom čísle („Si: Ivan a Eva“, „V sobotu ti chýba 1 miesto“). 2. osoba množného čísla (vy, máte, ste, vaša, „Zadajte“) sa nepoužíva, lebo znie ako vykanie. Kde jednotné číslo nesedí, text je neosobný alebo hovorí o partii v 3. osobe. Prvá osoba množného čísla v tlačidlách („Zapísať nás sem“, „Na všetky naše noci“) ostáva.
+- **Jazyky:** celé UI (texty v scéne, panely, hlášky pre kamarátov, mená izieb a postelí v `config/cabin.yaml`) je po slovensky, s tykaním a typografickými úvodzovkami „ “. Kód, názvy, komentáre, logy, chyby pri štarte servera, testy a README sú po anglicky. Server neposiela používateľom slovenské texty: chyby majú stabilný `code` a stránka ich mapuje na slovenské hlášky (sekcia HTTP API, Odpoveď). Tykanie znamená 2. osobu jednotného čísla (máš, si, ti, tvoja partia). Používateľ hovorí za svoju partiu, preto aj texty o partii sú v jednotnom čísle („Si: Ivan a Eva“, „V sobotu ti chýba 1 miesto“). 2. osoba množného čísla (vy, máte, ste, vaša, „Zadajte“) sa nepoužíva, lebo znie ako vykanie. Kde jednotné číslo nesedí, text je neosobný alebo hovorí o partii v 3. osobe. Prvá osoba množného čísla v tlačidlách („Zapísať nás sem“, „Na všetky naše noci“) ostáva.
 - Najprv mobil (šírka okolo 380 px), potom desktop.
 - Frontend bez build kroku a bez frameworku: čisté HTML, CSS a JavaScript v jednom súbore, servírovaný z FastAPI.
 - Pixelová grafika je vlastná, v štýle starých RPG hier zhora. Nepoužívaj žiadne postavy, grafiku ani názvy z Pokémonu či iných hier.
@@ -33,11 +33,11 @@ Postav malú webovú aplikáciu na rozdelenie spania na chate. Kamaráti si na p
 | `app/models.py` | Pydantic modely: `Party`, `Slot`, `State`, požiadavky akcií |
 | `app/validate.py` | Kontroly zápisov (voľné miesto, prítomnosť, presun, skrátenie pobytu) ako čisté funkcie |
 | `app/ratelimit.py` | Jednoduché limity v pamäti |
-| `app/llm.py` | Fáza 2: volanie Clauda a nástroj `navrh_zapisu` |
+| `app/llm.py` | Fáza 2: volanie Clauda a nástroj `propose_signup` |
 | `static/index.html` | Celá stránka: jedna pixelová scéna s termínom, návodom a stavom zápisu, panely nad ňou (formulár partie, „Kto si?“, prehľad na poslanie, admin) |
-| `config/chata.yaml` | Akcia, noci, izby, postele, sloty a súradnice pre mapu |
+| `config/cabin.yaml` | Akcia, noci, izby, postele, sloty a súradnice pre mapu |
 | `config/app.yaml` | Limity a nastavenia aplikácie |
-| `data/` | `chata-data.yaml`, `audit.yaml`, `backups/`. Mimo gitu, vytvorí sa pri prvom štarte |
+| `data/` | `cabin-data.yaml`, `audit.yaml`, `backups/`. Mimo gitu, vytvorí sa pri prvom štarte |
 | `tests/` | pytest a httpx pre backend, Node testy čistých funkcií stránky, ručný kontrolný zoznam |
 | `Dockerfile`, `compose.yaml`, `deploy/` | Docker obraz a `compose.yaml` na spustenie, príklad konfigurácie Caddy (rozhodnutie organizátora z 22. 10. 2026: Docker namiesto systemd) |
 | `README.md` | Návod po anglicky (pre organizátora a vývoj): inštalácia, `.env`, spustenie, nasadenie, záloha a ručná oprava dát |
@@ -49,7 +49,7 @@ Organizátor ti do repozitára nahrá tieto súbory z predchádzajúcej práce:
 
 - `podklady/chata-prehlad.html`: stará prehľadová stránka, **už nie je v repozitári a nepotrebuješ ju**. Jej paleta farieb partií, farby svetlého a tmavého režimu a písma sú zapísané v sekcii Vzhľad. Výpočty obsadenosti, upozornenia a text „Prehľad na poslanie“ napíš nanovo podľa tejto špecifikácie.
 - `podklady/mapa-nahlad.html` (v repozitári je ako `files/mapa-nahlad.html`): náhľad pixelovej mapy, ktorý sa organizátorovi páčil. Je to jediný podklad, ktorý treba. Zachovaj jeho štýl, rozloženie a správanie, ale napoj ho na skutočné dáta a pridaj úpravy.
-- `podklady/chata-spanie-tabulka.xlsx` a `podklady/make_xlsx.py`: stará verzia s Google tabuľkou, už nie sú v repozitári a nepotrebuješ ich. Zoznam miest je v `config/chata.yaml`.
+- `podklady/chata-spanie-tabulka.xlsx` a `podklady/make_xlsx.py`: stará verzia s Google tabuľkou, už nie sú v repozitári a nepotrebuješ ich. Zoznam miest je v `config/cabin.yaml`.
 
 ## Architektúra
 
@@ -71,7 +71,7 @@ Jeden proces FastAPI (uvicorn s jedným workerom) servíruje stránku aj JSON AP
 
 Dva konfiguračné súbory píše organizátor, dátový súbor píše iba server. Noc sa označuje dátumom, kedy začína (`2026-10-29` je noc Št → Pi). Jeden slot je jedno miesto pre jedného človeka.
 
-### `config/chata.yaml`
+### `config/cabin.yaml`
 
 Názov akcie, dni príchodu a odchodu, noci a celé rozloženie: izby, postele, sloty a súradnice pre mapu (sekcia Rozloženie chaty). Server ho načíta pri štarte a pošle stránke v `/api/state`, takže mapa aj kontroly vychádzajú z jedného zdroja.
 
@@ -86,7 +86,7 @@ model: claude-haiku-5-5          # fáza 2
 backups_keep: 50
 ```
 
-### `data/chata-data.yaml`
+### `data/cabin-data.yaml`
 
 ```yaml
 version: 27
@@ -107,11 +107,11 @@ parties:
     updated_at: "2026-10-25T19:02:11+02:00"
 sleeping:                 # noc → slot → id partie
   "2026-10-29":
-    vlavo-manzelska-1: p-7f3k2a
-    vlavo-manzelska-2: p-7f3k2a
+    left-double-1: p-7f3k2a
+    left-double-2: p-7f3k2a
   "2026-10-30":
-    vlavo-manzelska-1: p-7f3k2a
-    vlavo-manzelska-2: p-7f3k2a
+    left-double-1: p-7f3k2a
+    left-double-2: p-7f3k2a
 ```
 
 - `sleeping` je mapa noc → slot → partia, takže dve partie na jednom mieste v jednu noc nejdú zapísať už zo štruktúry. Voľné miesto v mape jednoducho chýba.
@@ -122,7 +122,7 @@ sleeping:                 # noc → slot → id partie
 
 ### `data/audit.yaml`
 
-Každý zápis sa pripíše ako samostatný YAML dokument (oddelený `---`): čas, akcia, partia, noc, slot, hodnota pred, hodnota po, zdroj (`mapa`, `formular`, `admin`, `ai`) a anonymné ID klienta (náhodný reťazec z `localStorage`). Slúži na dohľadanie a ručné vrátenie zmien.
+Každý zápis sa pripíše ako samostatný YAML dokument (oddelený `---`): čas, akcia, partia, noc, slot, hodnota pred, hodnota po, zdroj (`map`, `form`, `admin`, `ai`) a anonymné ID klienta (náhodný reťazec z `localStorage`). Slúži na dohľadanie a ručné vrátenie zmien.
 
 ### Zápis bez poškodenia súboru
 
@@ -130,7 +130,7 @@ Každý zápis sa pripíše ako samostatný YAML dokument (oddelený `---`): ča
 - Atomický zápis: obsah do dočasného súboru v tom istom priečinku, `fsync`, potom `os.replace`.
 - Pred každým zápisom kópia do `data/backups/` s časom v názve, ponechá sa posledných 50.
 - PyYAML výhradne `safe_load` a `safe_dump` s `allow_unicode=True` a `sort_keys=False`, aby súbor ostal čitateľný.
-- Pri štarte sa súbor overí cez Pydantic modely a proti `chata.yaml` (neznámy slot, neznáma partia, noc mimo akcie). Pri chybe server nenaštartuje a vypíše, čo presne je zle. Prázdny alebo chýbajúci súbor sa vytvorí.
+- Pri štarte sa súbor overí cez Pydantic modely a proti `cabin.yaml` (neznámy slot, neznáma partia, noc mimo akcie). Pri chybe server nenaštartuje a vypíše, čo presne je zle. Prázdny alebo chýbajúci súbor sa vytvorí.
 
 ## HTTP API
 
@@ -141,7 +141,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 Úspech vracia `200` a `{"ok": true, "state": {…}}`. Chyba vracia vhodný stavový kód a rovnaký tvar s popisom:
 
 ```json
-{ "ok": false, "error": { "code": "slot_taken", "message": "Slot already taken", "params": { "night": "2026-10-31", "slot": "vlavo-manzelska-1", "party_id": "p-7f3k2a", "party_name": "Riso a Ben" } }, "state": { … } }
+{ "ok": false, "error": { "code": "slot_taken", "message": "Slot already taken", "params": { "night": "2026-10-31", "slot": "left-double-1", "party_id": "p-7f3k2a", "party_name": "Riso a Ben" } }, "state": { … } }
 ```
 
 - `code` je stabilný identifikátor chyby. Stránka ho mapuje na slovenskú hlášku cez tabuľku kódov v `static/index.html`, napríklad `slot_taken` → „Toto miesto má v sobotu už Riso a Ben.“ Hodnoty do hlášky berie z `params` (noc, slot, partia, pole formulára).
@@ -149,7 +149,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 - Pre neznámy `code` stránka ukáže všeobecnú hlášku „Niečo sa nepodarilo, skús to znova.“
 
 
-`state` obsahuje `version`, `updated_at`, `signup_open`, `event` (noci, dni príchodu a odchodu), `layout` (z `chata.yaml`), `parties` a `sleeping`.
+`state` obsahuje `version`, `updated_at`, `signup_open`, `event` (noci, dni príchodu a odchodu), `layout` (z `cabin.yaml`), `parties` a `sleeping`.
 
 ### Endpointy
 
@@ -167,7 +167,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | PUT | `/api/parties/{id}` | skupina | Upraví partiu. Pri skrátení pobytu uvoľní miesta v nociach mimo pobytu a vráti ich v `freed` |
 | DELETE | `/api/parties/{id}` | admin | Fáza 2. Zmaže partiu a uvoľní jej miesta |
 | POST | `/api/admin/signup` | admin | Fáza 2. `{open}`: otvorí alebo zamkne zápis |
-| GET | `/api/admin/export` | admin | Fáza 2. Stiahne `chata-data.yaml` |
+| GET | `/api/admin/export` | admin | Fáza 2. Stiahne `cabin-data.yaml` |
 
 Pri zamknutom zápise vracajú zápisové akcie `signup_closed`, okrem požiadaviek s admin cookie.
 
@@ -195,7 +195,7 @@ Stránka je jediná pixelová scéna (SVG). Všetko, čo sa používateľ dozvie
 
 ### Informácie v scéne
 
-Scéna má voľné trávnaté plochy, na ktorých sú tieto prvky. Ich pozície sú v `config/chata.yaml` (kľúč `map.scene`), predvolene vpravo hore a vpravo dole podľa príkladu v sekcii Rozloženie chaty.
+Scéna má voľné trávnaté plochy, na ktorých sú tieto prvky. Ich pozície sú v `config/cabin.yaml` (kľúč `map.scene`), predvolene vpravo hore a vpravo dole podľa príkladu v sekcii Rozloženie chaty.
 
 - **Tabuľa s názvom:** názov akcie z `/api/state`, nič napevno v kóde. Termín na tabuli nie je, lebo každý smerovník má svoj dátum; čítačka ho prečíta v popise tabule.
 - **Tri smerovníky nocí:** Št → Pi, Pi → So, So → Ne a pod každým jeho dátum, napríklad „29./30. 10.“. Dátum je na smerovníku vždy. Zvolená noc je zvýraznená. Na každom je „obsadené X z 20“. Keď je vybratá moja partia, pod dátumom je na smerovníku štítok „máš 2/3“ (umiestnení z potrebných miest): červený s výkričníkom, keď miesta chýbajú, oranžový, keď ich je viac, zelený, keď sedia, a „nie si tu“, keď partia v tú noc nie je na chate. Ťuknutie prepne noc, v ktorej mapa ukazuje postavičky. Každý smerovník má výšku aspoň 44 px na obrazovke.
@@ -231,7 +231,7 @@ Ak partia v danú noc nie je na chate, akcia zapisovania je vypnutá a panel pov
 
 ### Formulár partie
 
-Panel nad mapou. Polia partie z `chata-data.yaml` (meno, dospelí, deti, deti spiace s rodičmi, príchod, odchod, čas príchodu, poznámka). Slúži na pridanie aj úpravu. Pri skrátení pobytu stránka vopred povie, ktoré miesta sa uvoľnia.
+Panel nad mapou. Polia partie z `cabin-data.yaml` (meno, dospelí, deti, deti spiace s rodičmi, príchod, odchod, čas príchodu, poznámka). Slúži na pridanie aj úpravu. Pri skrátení pobytu stránka vopred povie, ktoré miesta sa uvoľnia.
 
 ### Vzhľad
 
@@ -240,7 +240,7 @@ Panel nad mapou. Polia partie z `chata-data.yaml` (meno, dospelí, deti, deti sp
   - tmavý režim (podľa `prefers-color-scheme`): `--bg:#1A1410; --surface:#241C16; --surface2:#2D231B; --ink:#F1E7D9; --muted:#B9A38C; --line:#47382B; --forest:#F2DBB8; --moss:#B9C46F; --amber:#EDA94E; --amber-soft:#3F2C16; --warn:#F08C70; --warn-soft:#43241A; --ok:#93C67E`
   - Paletu a načítavaciu animáciu vybral product owner na základe delegovania organizátora (22. 10. 2026). Názov `--forest` ostal, hoci je to teraz tmavý gaštan.
 - Scéna (mapa, tabule, smerovníky) má pevné farby a v tmavom režime sa neinvertuje. Text v scéne je pixelový alebo monospace, nie Alegreya.
-- Jesenné farby scény: tráva `#8E9B48`, chumáčiky trávy `#76823A`, chodníky `#D6BC8E`, spadnuté lístie na tráve (len farba na pozíciách chumáčikov) `#B5532A`, `#D69A2E` a `#8E3424`. Farby izieb v `config/chata.yaml` a 12 farieb partií ostávajú.
+- Jesenné farby scény: tráva `#8E9B48`, chumáčiky trávy `#76823A`, chodníky `#D6BC8E`, spadnuté lístie na tráve (len farba na pozíciách chumáčikov) `#B5532A`, `#D69A2E` a `#8E3424`. Farby izieb v `config/cabin.yaml` a 12 farieb partií ostávajú.
 - Pri načítavaní stránka ukáže cez celú obrazovku veľký pixelový obrázok chaty v jesennej krajine (obloha, stromy, tráva, popadané lístie; iba farby scény, bez textu v obrázku) a text „Načítavam…“ na malej drevenej ceduľke. Obrázok stojí aspoň 1,5 s od otvorenia stránky. Potom sa rozpadne na pixely, ktoré ako lístie po krokoch padajú nadol von z obrazovky (spodné rady prvé), a pod nimi sa ukáže mapa; pád trvá asi 1,5 s. S `prefers-reduced-motion` obrázok stojí 0,8 s a potom zmizne bez pádu. Ak sa dáta načítavajú dlhšie, obrázok počká a padá hneď, ako prídu. Pri chybe načítania obrázok stojí a na ceduľke je „Nepodarilo sa načítať, skúšam znova…“. Obrazovka s kódom a chyba načítania sa ukážu hneď, bez čakania. Farby obrázka sú pevné, v tmavom režime sa nemenia.
 - Paleta 12 farieb partií, priraďuje ju server pri vytvorení partie v tomto poradí: `#2F7D6D, #D07A2B, #6D5BA8, #C08A1E, #3E6FB0, #9C4A7A, #5E8A2E, #8A6A4A, #2E8AA0, #C0603A, #7A7F2B, #A04848`.
 - Každá postavička má na tričku prvé písmeno mena svojej partie, malým pixelovým písmom 3 × 5 (aj deti). Diakritika sa vynechá (Š → S), berie sa prvé písmeno alebo číslica mena, a keď v písme nie je, je tam bodka. Písmeno je tmavé alebo svetlé podľa toho, čo je na farbe partie lepšie vidieť. To isté písmeno je aj vo farebnom štvorčeku partie v „Kto je kto“.
@@ -249,7 +249,7 @@ Panel nad mapou. Polia partie z `chata-data.yaml` (meno, dospelí, deti, deti sp
 
 ## Rozloženie chaty
 
-Rozloženie budov je podľa náčrtu organizátora: konica s podkrovím vľavo hore, dom (izba vľavo, chodba, izba vpravo) vpravo pod ňou, letná kuchynka vľavo dole. Rozmiestnenie postelí v izbách, dvere, okná a chodníky sú zatiaľ odhad z náhľadu. Preto je všetko v `config/chata.yaml` a dá sa upraviť bez zásahu do kódu.
+Rozloženie budov je podľa náčrtu organizátora: konica s podkrovím vľavo hore, dom (izba vľavo, chodba, izba vpravo) vpravo pod ňou, letná kuchynka vľavo dole. Rozmiestnenie postelí v izbách, dvere, okná a chodníky sú zatiaľ odhad z náhľadu. Preto je všetko v `config/cabin.yaml` a dá sa upraviť bez zásahu do kódu.
 
 Súradnice sú v jednotkách SVG pre `viewbox` 380 × 412 a zodpovedajú náhľadu. `rect` je `[x, y, šírka, výška]`. Poradie izieb, postelí a slotov určuje aj poradie v zozname a v texte na poslanie.
 
@@ -278,63 +278,63 @@ map:
     meadow: [112, 381, 124, 14]  # lúka, kde čakajú ľudia mojej partie bez postele
 
 rooms:
-  - id: konica-hore
+  - id: konica-upper
     name: "Konica, podkrovie"
     rect: [10, 26, 152, 70]
     floor: "#D9B98A"
     beds:
-      - { id: konica-hore-manzelska, name: "Manželská posteľ", kind: bed2, rect: [28, 46, 44, 30],
-          slots: [konica-hore-manzelska-1, konica-hore-manzelska-2] }
-      - { id: konica-hore-jedno, name: "Jednomiestna posteľ", kind: bed1, rect: [118, 44, 24, 34],
-          slots: [konica-hore-jedno-1] }
-  - id: konica-dole
+      - { id: konica-upper-double, name: "Manželská posteľ", kind: bed2, rect: [28, 46, 44, 30],
+          slots: [konica-upper-double-1, konica-upper-double-2] }
+      - { id: konica-upper-single, name: "Jednomiestna posteľ", kind: bed1, rect: [118, 44, 24, 34],
+          slots: [konica-upper-single-1] }
+  - id: konica-lower
     name: "Konica, dole"
     rect: [10, 96, 152, 80]
     floor: "#C9A67A"
     beds:
-      - { id: konica-dole-matrace, name: "Matrace na zemi", kind: mats, rect: [24, 132, 124, 26],
-          slots: [konica-dole-matrac-1, konica-dole-matrac-2, konica-dole-matrac-3] }
-  - id: vlavo
+      - { id: konica-lower-mats, name: "Matrace na zemi", kind: mats, rect: [24, 132, 124, 26],
+          slots: [konica-lower-mat-1, konica-lower-mat-2, konica-lower-mat-3] }
+  - id: left
     name: "Izba vľavo"
     rect: [118, 196, 102, 124]
     floor: "#E8D2A6"
     beds:
-      - { id: vlavo-manzelska, name: "Manželská posteľ", kind: bed2, rect: [128, 220, 44, 30],
-          slots: [vlavo-manzelska-1, vlavo-manzelska-2] }
-      - { id: vlavo-okno, name: "Posteľ pod oknom", kind: bed1, rect: [186, 220, 24, 34],
-          slots: [vlavo-okno-1] }
-      - { id: vlavo-lehatko-1, name: "Rozkladacie lehátko 1", kind: cot, rect: [130, 272, 20, 36],
-          slots: [vlavo-lehatko-1] }
-      - { id: vlavo-lehatko-2, name: "Rozkladacie lehátko 2", kind: cot, rect: [158, 272, 20, 36],
-          slots: [vlavo-lehatko-2] }
-  - id: chodba
+      - { id: left-double, name: "Manželská posteľ", kind: bed2, rect: [128, 220, 44, 30],
+          slots: [left-double-1, left-double-2] }
+      - { id: left-window, name: "Posteľ pod oknom", kind: bed1, rect: [186, 220, 24, 34],
+          slots: [left-window-1] }
+      - { id: left-cot-1, name: "Rozkladacie lehátko 1", kind: cot, rect: [130, 272, 20, 36],
+          slots: [left-cot-1] }
+      - { id: left-cot-2, name: "Rozkladacie lehátko 2", kind: cot, rect: [158, 272, 20, 36],
+          slots: [left-cot-2] }
+  - id: hallway
     name: "Chodbička"
     rect: [216, 196, 54, 124]
     floor: "#DCC59B"
     beds:
-      - { id: chodba-gauc, name: "Rozkladací gauč", kind: sofa, rect: [226, 226, 32, 58],
-          slots: [chodba-gauc-1, chodba-gauc-2], tight: [chodba-gauc-2] }
-  - id: vpravo
+      - { id: hallway-sofa, name: "Rozkladací gauč", kind: sofa, rect: [226, 226, 32, 58],
+          slots: [hallway-sofa-1, hallway-sofa-2], tight: [hallway-sofa-2] }
+  - id: right
     name: "Izba vpravo"
     rect: [266, 196, 106, 124]
     floor: "#E8D2A6"
     beds:
-      - { id: vpravo-poschodova-1, name: "Poschodová posteľ 1", kind: bunk, rect: [276, 220, 24, 42],
-          slots: [vpravo-posch1-hore, vpravo-posch1-dole] }
-      - { id: vpravo-poschodova-2, name: "Poschodová posteľ 2", kind: bunk, rect: [308, 220, 24, 42],
-          slots: [vpravo-posch2-hore, vpravo-posch2-dole] }
-      - { id: vpravo-gauc, name: "Gauč (polonúdzový)", kind: sofa1, rect: [336, 272, 28, 36],
-          slots: [vpravo-gauc-1] }
-  - id: kuchynka
+      - { id: right-bunk-1, name: "Poschodová posteľ 1", kind: bunk, rect: [276, 220, 24, 42],
+          slots: [right-bunk1-top, right-bunk1-bottom] }
+      - { id: right-bunk-2, name: "Poschodová posteľ 2", kind: bunk, rect: [308, 220, 24, 42],
+          slots: [right-bunk2-top, right-bunk2-bottom] }
+      - { id: right-sofa, name: "Gauč (polonúdzový)", kind: sofa1, rect: [336, 272, 28, 36],
+          slots: [right-sofa-1] }
+  - id: kitchen
     name: "Letná kuchynka"
     rect: [10, 334, 100, 62]
     floor: "#CFD8DC"
     beds:
-      - { id: kuchynka-pec, name: "Na peci", kind: stove, rect: [22, 352, 56, 28],
-          slots: [kuchynka-pec-1, kuchynka-pec-2], tight: [kuchynka-pec-2] }
+      - { id: kitchen-stove, name: "Na peci", kind: stove, rect: [22, 352, 56, 28],
+          slots: [kitchen-stove-1, kitchen-stove-2], tight: [kitchen-stove-2] }
 ```
 
-Spolu 20 miest, z toho 2 tesné. Pozície postavičiek v posteli sa počítajú podľa `kind` rovnako ako v náhľade (`bed2` dve vedľa seba, `bunk` hore a dole, `mats` tri v rade, `sofa` a `stove` dve). Server pri štarte overí, že ID slotov sú unikátne a že dáta v `chata-data.yaml` odkazujú len na existujúce sloty. Ak mapa nesedí s realitou, organizátor upraví iba tento súbor a reštartuje službu.
+Spolu 20 miest, z toho 2 tesné. Pozície postavičiek v posteli sa počítajú podľa `kind` rovnako ako v náhľade (`bed2` dve vedľa seba, `bunk` hore a dole, `mats` tri v rade, `sofa` a `stove` dve). Server pri štarte overí, že ID slotov sú unikátne a že dáta v `cabin-data.yaml` odkazujú len na existujúce sloty. Ak mapa nesedí s realitou, organizátor upraví iba tento súbor a reštartuje službu.
 
 ## Fáza 2: zápis vlastnými slovami cez Claude API
 
@@ -344,8 +344,8 @@ Voliteľné rozšírenie, stavia sa až keď fáza 1 funguje. Nad mapou pribudne
 
 1. Stránka pošle `POST /api/ai/propose` s textom, `party_id` mojej partie (ak už existuje) a históriou rozhovoru (najviac 6 posledných správ, drží ju stránka).
 2. `app/llm.py` zavolá Anthropic Messages API cez oficiálny Python SDK (`AsyncAnthropic`), model z `config/app.yaml` (predvolene `claude-haiku-5-5`), `max_tokens` 1000, timeout 30 s, 2 opakovania pri sieťovej chybe.
-3. Kontext pre Clauda: dátumy akcie s dňami v týždni, zoznam postelí a slotov s ID z `chata.yaml`, obsadenosť každej noci bez tejto partie, existujúci záznam partie a pravidlá (tesné miesto len pre dieťa alebo natesno, deti spiace s rodičmi nepotrebujú miesto, odpovedať stručne po slovensky a tykať).
-4. Výstup je vynútený nástroj `navrh_zapisu` (`tool_choice` na tento nástroj). Schéma sa generuje z Pydantic modelu: `action` (`propose` alebo `ask`), `reply` (text pre kamaráta), `party` (polia partie) a `sleeping` (noc → zoznam ID slotov).
+3. Kontext pre Clauda: dátumy akcie s dňami v týždni, zoznam postelí a slotov s ID z `cabin.yaml`, obsadenosť každej noci bez tejto partie, existujúci záznam partie a pravidlá (tesné miesto len pre dieťa alebo natesno, deti spiace s rodičmi nepotrebujú miesto, odpovedať stručne po slovensky a tykať).
+4. Výstup je vynútený nástroj `propose_signup` (`tool_choice` na tento nástroj). Schéma sa generuje z Pydantic modelu: `action` (`propose` alebo `ask`), `reply` (text pre kamaráta), `party` (polia partie) a `sleeping` (noc → zoznam ID slotov).
 5. Server návrh overí funkciami z `validate.py` a vráti ho stránke aj so zoznamom problémov. Keď neprejde, pošle chyby Claudovi späť ako `tool_result` s `is_error` a raz požiada o opravu.
 6. Stránka ukáže `reply`, kartu so zhrnutím a polopriehľadné postavičky na navrhnutých miestach. Tlačidlá **Potvrdiť** a **Niečo zmeniť**.
 7. Potvrdenie pošle `POST /api/ai/apply` s celým návrhom. Server ho pod zámkom znova overí a zapíše naraz (partia aj všetky miesta), so zdrojom `ai` v audite. Ak medzitým niekto zobral miesto, vráti `slot_taken` a stránka požiada o nový návrh.
@@ -405,15 +405,15 @@ Pri `ask` (chýba deň príchodu, nejasný počet ľudí) sa návrh neukáže, l
 - **Backend:** pytest s `httpx.AsyncClient` nad aplikáciou a dočasným priečinkom `data/`. Pokryť kontroly vo `validate.py` (obsadené miesto, prítomnosť, presun, skrátenie pobytu, duplicitné meno), atomický zápis a zálohy, súbežné `assign` na to isté miesto cez `asyncio.gather` (práve jedno uspeje), cookies a limity.
 - **Fáza 2:** `llm.py` so zameniteľným klientom (fake), testy bez volania API. Sada 15 vzorových slovenských správ na ručné overenie s reálnym modelom.
 - **Logika stránky** (prítomnosť, potrebné miesta, upozornenia, text na poslanie, pozície postavičiek) v samostatných čistých funkciách, testovaná v Node bez prehliadača.
-- **Ručný kontrolný zoznam** v `tests/manualne.md` pre kroky, ktoré sa automaticky overiť nedajú: nasadenie, dve zariadenia naraz, mobilné prehliadače.
+- **Ručný kontrolný zoznam** v `tests/manual.md` pre kroky, ktoré sa automaticky overiť nedajú: nasadenie, dve zariadenia naraz, mobilné prehliadače.
 
 ## Otvorené rozhodnutia
 
 Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a na konci práce ich vypíše organizátorovi.
 
-- [x] **Termín:** rozhodnuté organizátorom: 29. 10. 2026 (štvrtok) – 1. 11. 2026 (nedeľa), noci 2026-10-29, 2026-10-30, 2026-10-31. Dátumy a noci sú iba v `config/chata.yaml`.
+- [x] **Termín:** rozhodnuté organizátorom: 29. 10. 2026 (štvrtok) – 1. 11. 2026 (nedeľa), noci 2026-10-29, 2026-10-30, 2026-10-31. Dátumy a noci sú iba v `config/cabin.yaml`.
 - [ ] **Skutočné rozloženie postelí, dverí a okien:** predvolene podľa náhľadu, organizátor pošle opravy.
 - [ ] **Môže sa kamarát zapísať na noc, keď nie je na chate?** Predvolene nie (`not_present`), musí si najprv upraviť príchod a odchod.
 - [ ] **Uzávierka zápisu:** vo fáze 1 sa zápis nezamyká. Vo fáze 2 predvolene iba ručne cez `/api/admin/signup`.
-- [ ] **Umiestnenie na serveri:** predvolene uvicorn na `127.0.0.1:8010` a aplikácia v koreni vlastnej (sub)domény. Ak má bežať pod podcestou (napr. `/chata/`), stránka musí používať relatívne cesty k API.
+- [ ] **Umiestnenie na serveri:** predvolene uvicorn na `127.0.0.1:8010` a aplikácia v koreni vlastnej (sub)domény. Ak má bežať pod podcestou (napr. `/cabin/`), stránka musí používať relatívne cesty k API.
 - [ ] **Stavať fázu 2 (admin, AI)?** Predvolene nie, kým organizátor nepotvrdí po vyskúšaní fázy 1.
