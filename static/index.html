@@ -290,7 +290,8 @@ var NOTICE_LINES = ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.",
 // Same limits as the server (PartyInput in app/models.py).
 var PARTY_LIMITS = { name: 60, arrival_time: 60, note: 300, countMax: 20 };
 var LONG_PRESS_SLOP = 10;   // px a finger may move during a long press
-var ZOOM_MAX = 4;           // the map zooms between 1 (whole scene) and this
+var ZOOM_MAX = 4;           // the map zooms in to this multiple of the fitted view (1 = whole scene)
+var ZOOM_MIN = 0.6;         // the map zooms out to this fraction of the fitted view
 var ZOOM_KEY_STEP = 1.25;   // factor of one + or - key press
 
 // --- dates ---
@@ -955,12 +956,26 @@ function isZoomed(view, bounds) {
   return view.w < bounds.w - 0.001;
 }
 
-// Keeps the bounds' aspect ratio, the zoom between 1 and ZOOM_MAX, and the area inside the bounds.
+// The view is wider than the fitted view: the map is zoomed out (below 1x).
+function isZoomedOut(view, bounds) {
+  return view.w > bounds.w + 0.001;
+}
+
+// The only place the zoom range is computed: a view width limited to ZOOM_MAX in and ZOOM_MIN out.
+function clampWidth(w, bounds) {
+  return Math.min(bounds.w / ZOOM_MIN, Math.max(bounds.w / ZOOM_MAX, w));
+}
+
+// Keeps the bounds' aspect ratio, the zoom between ZOOM_MIN and ZOOM_MAX, and the area inside the bounds.
+// At 1x and below the view is centered on the bounds (there is nothing to pan).
 // A view with a missing or non-finite number (a bad event coordinate) falls back to the whole bounds.
 function clampView(view, bounds) {
   if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !isFinite(view.h) || !(view.w > 0)) return wholeView(bounds);
-  var w = Math.min(bounds.w, Math.max(bounds.w / ZOOM_MAX, view.w));
+  var w = clampWidth(view.w, bounds);
   var h = w * bounds.h / bounds.w;
+  if (w >= bounds.w) {
+    return { x: bounds.x + (bounds.w - w) / 2, y: bounds.y + (bounds.h - h) / 2, w: w, h: h };
+  }
   return {
     x: Math.min(bounds.x + bounds.w - w, Math.max(bounds.x, view.x)),
     y: Math.min(bounds.y + bounds.h - h, Math.max(bounds.y, view.y)),
@@ -969,10 +984,18 @@ function clampView(view, bounds) {
   };
 }
 
+// The rectangle ([x, y, w, h]) the patterned ground has to cover: what the view shows at ZOOM_MIN, plus 2 units
+// on each side, centered on the bounds.
+function groundRect(bounds) {
+  var w = bounds.w / ZOOM_MIN, h = bounds.h / ZOOM_MIN;
+  return [bounds.x + (bounds.w - w) / 2 - 2, bounds.y + (bounds.h - h) / 2 - 2, w + 4, h + 4];
+}
+
 // The view after the bounds changed (a resize or a rotation): whole stays whole, a zoomed view keeps its zoom
-// factor and its center, as far as the new bounds allow.
+// factor and its center, as far as the new bounds allow, and a zoomed-out view keeps its factor, centered.
 function refitView(view, oldBounds, newBounds) {
-  if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !(view.w > 0) || !isZoomed(view, oldBounds)) {
+  if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !(view.w > 0) ||
+      !(isZoomed(view, oldBounds) || isZoomedOut(view, oldBounds))) {
     return wholeView(newBounds);
   }
   var w = newBounds.w * view.w / oldBounds.w;
@@ -987,7 +1010,7 @@ function zoomView(view, bounds, factor, px, py) {
   if (!isFinite(factor) || !(factor > 0)) return clampView(view, bounds);
   if (!isFinite(px)) px = view.x + view.w / 2;
   if (!isFinite(py)) py = view.y + view.h / 2;
-  var w = Math.min(bounds.w, Math.max(bounds.w / ZOOM_MAX, view.w / factor));
+  var w = clampWidth(view.w / factor, bounds);
   var fx = (px - view.x) / view.w, fy = (py - view.y) / view.h;
   var h = w * bounds.h / bounds.w;
   return clampView({ x: px - fx * w, y: py - fy * h, w: w, h: h }, bounds);
@@ -1019,7 +1042,7 @@ function pinchView(view, bounds, box, from, to) {
   if (!(from.dist > 0) || !(to.dist > 0) || !isFinite(from.dist) || !isFinite(to.dist)) return view;
   if (!isFinite(from.x) || !isFinite(from.y) || !isFinite(to.x) || !isFinite(to.y)) return view;
   var anchor = scenePoint(view, box, from.x, from.y);
-  var w = Math.min(bounds.w, Math.max(bounds.w / ZOOM_MAX, view.w * from.dist / to.dist));
+  var w = clampWidth(view.w * from.dist / to.dist, bounds);
   var h = w * bounds.h / bounds.w;
   return clampView({
     x: anchor.x - (to.x - box.left) / box.width * w,
@@ -2074,7 +2097,7 @@ function bootRemaining(startMs, nowMs, minMs) {
     });
   }
 
-  // The grass around the scene, as far as the viewport shows it: a patterned rectangle over the whole bounds.
+  // The grass around the scene, as far as the view shows it even zoomed out to ZOOM_MIN: a patterned rectangle.
   // The scene's own grass is drawn over it, so the two meet without a seam.
   function drawGround(g, bounds) {
     var pattern = g.querySelector("pattern");
@@ -2086,10 +2109,11 @@ function bootRemaining(startMs, nowMs, minMs) {
       svgEl(g, "rect", { "class": "ground", fill: "url(#grassTile)" });
     }
     var r = g.querySelector(".ground");
-    r.setAttribute("x", bounds.x - 2);
-    r.setAttribute("y", bounds.y - 2);
-    r.setAttribute("width", bounds.w + 4);
-    r.setAttribute("height", bounds.h + 4);
+    var gr = groundRect(bounds);
+    r.setAttribute("x", gr[0]);
+    r.setAttribute("y", gr[1]);
+    r.setAttribute("width", gr[2]);
+    r.setAttribute("height", gr[3]);
   }
 
   function drawBase(g, layout) {
