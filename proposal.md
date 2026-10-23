@@ -199,7 +199,7 @@ Scéna má voľné trávnaté plochy, na ktorých sú tieto prvky. Ich pozície 
 
 - **Tabuľa s názvom:** názov akcie z `/api/state`, nič napevno v kóde. Termín na tabuli nie je, lebo každý smerovník má svoj dátum; čítačka ho prečíta v popise tabule.
 - **Tri smerovníky nocí:** Št → Pi, Pi → So, So → Ne a pod každým jeho dátum, napríklad „29./30. 10.“. Dátum je na smerovníku vždy. Zvolená noc je zvýraznená. Na každom je „obsadené X z 20“. Keď je vybratá moja partia, pod dátumom je na smerovníku štítok „máš 2/3“ (umiestnení z potrebných miest): červený s výkričníkom, keď miesta chýbajú, oranžový, keď ich je viac, zelený, keď sedia, a „nie si tu“, keď partia v tú noc nie je na chate. Ťuknutie prepne noc, v ktorej mapa ukazuje postavičky. Každý smerovník má výšku aspoň 44 px na obrazovke.
-- **Nástenka s návodom:** 3 krátke riadky po slovensky, napríklad „Ťukni na posteľ a zapíš sa.“, „Voľné miesto bliká.“, „Presunúť sa dá cez posteľ.“ Na prvé otvorenie je rozbalená, potom sa zbalí na ikonku „?“, ktorou sa dá vrátiť.
+- **Nástenka s návodom:** 4 očíslované kroky po slovensky v poradí, v akom ich ide priateľ: „1. Pridaj svoju partiu.“, „2. Vyber, za ktorú partiu si.“, „3. Ťukni na posteľ a zapíš sa.“, „4. Skontroluj všetky tri noci.“ Na prvé otvorenie je rozbalená, potom sa zbalí na ikonku „?“, ktorou sa dá vrátiť.
 - **Tabuľka partií:** keď je návod zbalený na „?“, pod smerovníkmi je papierová tabuľka so všetkými partiami: riadok je partia (farebný štvorček a meno, dlhé mená skrátené), stĺpce sú tri noci a v každej bunke je počet miest partie z potrebných, napríklad „2/3“. Keď miesta chýbajú, bunka je červená s výkričníkom, keď ich je viac, oranžová, a „–“ znamená, že partia v tú noc nie je na chate. Riadok mojej partie je žltý a stĺpec zvolenej noci má žltú hlavičku. Ťuknutím na tabuľku sa otvorí „Kto je kto“.
 - **Tabuľka s partiou a stavom:** „Si: Ivan a Eva“ (ťuknutím sa mení), čas posledného načítania („aktualizované pred 20 s“) a upozornenie. Keď mojej partii v niektorej noci chýba miesto, ukáže sa výrazná červená ceduľa s výkričníkom, napríklad „V sobotu ti chýba 1 miesto“, a ťuknutím na ňu sa zvolí táto noc. Keď má partia v niektorej noci viac miest, než potrebuje, ukáže sa jemná oranžová poznámka, napríklad „Máš o 1 miesto viac, než potrebuješ“ (server to neodmieta). Keď je všetko v poriadku, ukáže sa zelená značka „Všetko máš“.
 - **Zamknutý zápis (fáza 2):** keď je `signup_open` false, v scéne je ceduľa „Zápis je zatvorený“ a miesta sa dajú len prezerať.
@@ -268,7 +268,7 @@ map:
   scene:                       # prvky s informáciami, rect = [x, y, šírka, výška]
     title:  [176, 10, 196, 30]   # názov akcie
     nights: [176, 46, 196, 58]   # tri smerovníky nocí
-    notice: [176, 112, 196, 66]  # nástenka s návodom
+    notice: [176, 112, 196, 82]  # nástenka s návodom
     status: [278, 322, 94, 88]   # „Si: …“, aktualizácia, upozornenie (dva riadky po 44)
     locked: [16, 190, 62, 56]    # ceduľa „Zápis je zatvorený“
     letter: [128, 336, 44, 44]   # ikona listu, prehľad na poslanie

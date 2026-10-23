@@ -12,7 +12,7 @@ map:
   scene:                       # prvky s informáciami, rect = [x, y, šírka, výška]
     title:  [176, 10, 196, 30]   # názov akcie
     nights: [176, 46, 196, 58]   # tri smerovníky nocí
-    notice: [176, 112, 196, 66]  # nástenka s návodom
+    notice: [176, 112, 196, 82]  # nástenka s návodom
     status: [278, 322, 94, 88]   # „Si: …“, aktualizácia, upozornenie (dva riadky po 44)
     locked: [16, 190, 62, 56]    # ceduľa „Zápis je zatvorený“
     letter: [128, 336, 44, 44]   # ikona listu, prehľad na poslanie

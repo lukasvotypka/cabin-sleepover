@@ -264,7 +264,7 @@ var DAY_SHORT = ["Ne", "Po", "Ut", "St", "Št", "Pi", "So"];
 var DAY_LOCATIVE = ["v nedeľu", "v pondelok", "v utorok", "v stredu", "vo štvrtok", "v piatok", "v sobotu"];
 var FALLBACK_ERROR = "Niečo sa nepodarilo, skús to znova.";
 var UNKNOWN_PARTY = "neznáma partia";
-var NOTICE_LINES = ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.", "Presunúť sa dá cez posteľ."];
+var NOTICE_LINES = ["1. Pridaj svoju partiu.", "2. Vyber, za ktorú partiu si.", "3. Ťukni na posteľ a zapíš sa.", "4. Skontroluj všetky tri noci."];
 // Same limits as the server (PartyInput in app/models.py).
 var PARTY_LIMITS = { name: 60, arrival_time: 60, note: 300, countMax: 20 };
 var LONG_PRESS_SLOP = 10;   // px a finger may move during a long press
@@ -420,6 +420,14 @@ function sceneRects(layout, skip) {
 // The collapsed noticeboard's „?“ box: the top-right 44×44 of the notice rect.
 function noticeIconRect(r) {
   return [r[0] + r[2] - 44, r[1], 44, 44];
+}
+
+// Row positions of the expanded noticeboard inside `rect` ([x, y, w, h]) for `count` text lines.
+// All y values are absolute scene units derived from rect[1]. {x, maxWidth, heading, lines: [baseline, ...]}
+function noticeLayout(rect, count) {
+  var top = rect[1], lines = [], i;
+  for (i = 0; i < count; i++) lines.push(top + 36 + i * 12);
+  return { x: rect[0] + 12, maxWidth: rect[2] - 24, heading: top + 20, lines: lines };
 }
 
 // Boards and row positions of the night signposts inside `rect` ([x, y, w, h]) for `count` nights and
@@ -2691,10 +2699,10 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     board(g, r, COLORS.paper, COLORS.woodDark);
     rect(g, r[0] + 6, r[1] + 6, 3, 3, COLORS.red);
     rect(g, r[0] + r[2] - 9, r[1] + 6, 3, 3, COLORS.red);
-    addText(g, r[0] + 12, r[1] + 20, "Návod", 9, COLORS.ink, { bold: true });
+    var lay = noticeLayout(r, NOTICE_LINES.length);
+    addText(g, lay.x, lay.heading, "Návod", 9, COLORS.ink, { bold: true });
     NOTICE_LINES.forEach(function (line, i) {
-      rect(g, r[0] + 12, r[1] + 32 + i * 12, 3, 3, COLORS.red);
-      addText(g, r[0] + 20, r[1] + 36 + i * 12, line, 7.5, COLORS.ink, { maxWidth: r[2] - 32 });
+      addText(g, lay.x, lay.lines[i], line, 7.5, COLORS.ink, { maxWidth: lay.maxWidth });
     });
     hitRect(g, r);
     makeButton(g, "Návod: " + NOTICE_LINES.join(" ") + " Ťuknutím ho zbalíš.", "notice", collapseNotice);

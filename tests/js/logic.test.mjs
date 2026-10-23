@@ -443,7 +443,7 @@ const realBeds = {
   "vpravo-poschodova-1": ["bunk", [276, 220, 24, 42], 2], "vpravo-poschodova-2": ["bunk", [308, 220, 24, 42], 2],
   "vpravo-gauc": ["sofa1", [336, 272, 28, 36], 1], "kuchynka-pec": ["stove", [22, 352, 56, 28], 2],
 };
-const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [176, 112, 196, 66], status: [278, 322, 94, 88],
+const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [176, 112, 196, 82], status: [278, 322, 94, 88],
   locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
   legend: [24, 264, 44, 44], parties: [176, 112, 148, 82], meadow: [112, 381, 124, 14] };
 const realLayout = {
@@ -778,6 +778,54 @@ test("legendRows: the shirt letter loses the diacritic and the ink follows the c
   assert.equal(row.ink, "#F4EBD0");
 });
 
+// --- noticeboard: the 4-step flow (T-026) ---
+
+const FOUR_LINES = ["1. Pridaj svoju partiu.", "2. Vyber, za ktorú partiu si.", "3. Ťukni na posteľ a zapíš sa.", "4. Skontroluj všetky tri noci."];
+
+test("NOTICE_LINES is exactly the four numbered steps", () => {
+  assert.deepEqual(plain(L.NOTICE_LINES), FOUR_LINES);
+  for (const line of FOUR_LINES) assert.ok(line.length <= 30 && !line.includes('"'), line);
+});
+
+test("noticeLayout: heading, then four lines 12 apart, all inside the real board", () => {
+  const r = scene.notice, lay = plain(L.noticeLayout(r, L.NOTICE_LINES.length));
+  assert.equal(lay.lines.length, 4);
+  assert.equal(lay.x, r[0] + 12);
+  assert.equal(lay.maxWidth, r[2] - 24);
+  assert.ok(lay.heading > r[1]);
+  assert.ok(lay.lines[0] - 6 > lay.heading, "the first line's cap top is below the heading baseline");
+  for (let i = 1; i < lay.lines.length; i++) assert.equal(lay.lines[i] - lay.lines[i - 1], 12);
+  assert.ok(lay.lines[3] + 3 <= r[1] + r[3], "the last line with descenders is inside the board");
+  // 30 characters at 7.5 monospace (about 4.5 units each) fit without squeezing
+  assert.ok(30 * 4.5 <= lay.maxWidth);
+});
+
+test("noticeLayout: the old 66-high board cannot hold four lines (the check would catch it)", () => {
+  const old = [176, 112, 196, 66], lay = plain(L.noticeLayout(old, 4));
+  assert.ok(lay.lines[3] + 3 > old[1] + old[3]);
+});
+
+test("the expanded notice clears rooms, doors, windows and the other scene boards and signposts", () => {
+  const n = scene.notice, windowsHere = [[186, 196, 24, 4], [300, 196, 24, 4]];
+  for (const o of [...windowsHere, ...doors, ...realLayout.rooms.map((r) => r.rect)]) assert.ok(!overlap(n, o), `notice overlaps ${o}`);
+  for (const [key, r] of Object.entries(scene)) {
+    if (key === "parties" || key === "notice") continue;   // the table replaces the notice by design
+    assert.ok(!overlap(n, r), `notice overlaps scene.${key}`);
+  }
+  assert.ok(!overlap(n, [scene.nights[0], scene.nights[1], scene.nights[2], scene.nights[3] + 6]), "notice vs signposts with posts");
+  assert.equal(n[1] + n[3], scene.parties[1] + scene.parties[3], "same bottom as the party table");
+});
+
+test("drawNotice reads its rows from noticeLayout, has no bullets and no innerHTML", () => {
+  const body = html.slice(html.indexOf("function drawNotice("), html.indexOf("// The table of all parties"));
+  assert.ok(body.length > 100);
+  assert.match(body, /noticeLayout\(/);
+  assert.doesNotMatch(body, /r\[1\] \+ ([1-9]\d|[7-9])\b/, "no row offsets from the rect top (the 6-unit nails are fine)");
+  assert.doesNotMatch(body, /COLORS\.red\);\s*\n\s*addText/);
+  assert.doesNotMatch(body, /innerHTML/);
+  assert.match(body, /"Návod: " \+ NOTICE_LINES\.join\(" "\) \+ " Ťuknutím ho zbalíš\."/);
+});
+
 // --- party table under the night signposts (T-023) ---
 
 test("noticeIconRect: the ? box is the top-right 44x44 of the notice and clears the table rect", () => {
@@ -1093,7 +1141,7 @@ test("hidden summary for the selected night", () => {
   const h = L.hiddenSummary(summaryState(), SAT);
   assert.equal(h.title, "Chata 29. 10. – 1. 11.");
   assert.equal(h.dates, "29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)");
-  assert.deepEqual(plain(h.instructions), ["Ťukni na posteľ a zapíš sa.", "Voľné miesto bliká.", "Presunúť sa dá cez posteľ."]);
+  assert.deepEqual(plain(h.instructions), FOUR_LINES);
   assert.equal(h.night, "Noc So → Ne (31. 10./1. 11.), obsadené 5 z 20");
   assert.deepEqual(plain(h.rooms.map((r) => r.name)), rooms.map((r) => r.name));
   const left = h.rooms.find((r) => r.name === "Izba vľavo");
