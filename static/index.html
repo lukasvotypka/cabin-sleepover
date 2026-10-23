@@ -633,6 +633,36 @@ function figurePositions(bed) {
   }
 }
 
+// The pipe of a stove: a small square on its right side, outside the stove body. It sticks out sideways
+// so that it never reaches up into the room name above the stove.
+function stovePipeRect(bed) {
+  var r = bed.rect;
+  return [r[0] + r[2] - 2, r[1] + 4, 8, 8];
+}
+
+// The box that the furniture of a bed really covers, in map units: the union, on all four sides, of
+// the bed rect, every mat (mats are spaced 46 apart and 32 wide, see `drawFurniture`) and the stove
+// pipe. The hit area and the figures use `bed.rect` itself.
+function furnitureBounds(bed) {
+  var r = bed.rect, parts = [r], i;
+  if (bed.kind === "mats") {
+    for (i = 0; i < bed.slots.length; i++) parts.push([r[0] + i * 46, r[1], 32, r[3]]);
+  }
+  if (bed.kind === "stove") parts.push(stovePipeRect(bed));
+  var x1 = Math.min.apply(null, parts.map(function (p) { return p[0]; }));
+  var y1 = Math.min.apply(null, parts.map(function (p) { return p[1]; }));
+  var x2 = Math.max.apply(null, parts.map(function (p) { return p[0] + p[2]; }));
+  var y2 = Math.max.apply(null, parts.map(function (p) { return p[1] + p[3]; }));
+  return [x1, y1, x2 - x1, y2 - y1];
+}
+
+// The band of a room that its name occupies (text baseline at 16 units below the top of the room,
+// 11 px type: about 9 units of ascent and 2 of descent). Furniture must stay out of it.
+function roomLabelBand(room) {
+  var r = room.rect;
+  return [r[0] + 7, r[1] + 7, r[2] - 14, 11];
+}
+
 // The figure of slot number `index` of a bed. A bed with more slots than positions reuses the last one.
 function figurePosition(bed, index) {
   var list = figurePositions(bed);
@@ -2342,7 +2372,8 @@ function bootRemaining(startMs, nowMs, minMs) {
       case "stove":
         rect(g, x, y, w, h, COLORS.stoveDark);
         rect(g, x + 2, y + 2, w - 4, h - 4, COLORS.stoveLight);
-        rect(g, x + w - 12, y - 6, 8, 8, COLORS.stovePipe);
+        var pipe = stovePipeRect(bed);
+        rect(g, pipe[0], pipe[1], pipe[2], pipe[3], COLORS.stovePipe);
         break;
     }
   }

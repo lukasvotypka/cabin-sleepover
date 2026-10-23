@@ -1843,3 +1843,38 @@ test("guard, page source: no Slovak literal, text node or attribute of the page 
   assert.ok(scanned.length > 100, "the guard must really read the page literals, got " + scanned.length);
   for (const text of scanned) assert.deepEqual(formalForms(text), [], text);
 });
+
+// --- furniture must stay clear of the room names, windows and doors ---
+
+const windows = [[186, 196, 24, 4], [300, 196, 24, 4]];
+
+test("furniture and the stove pipe stay out of the room name band", () => {
+  for (const room of realLayout.rooms) {
+    const band = L.roomLabelBand(room);
+    for (const b of room.beds) {
+      assert.ok(!overlap(L.furnitureBounds(b), band), `${b.id} overlaps the name of ${room.id}`);
+    }
+  }
+});
+
+test("furniture stays inside its room floor and clear of windows and doors", () => {
+  for (const room of realLayout.rooms) {
+    const [rx, ry, rw, rh] = room.rect;
+    const floor = [rx + 4, ry + 4, rw - 8, rh - 8];
+    for (const b of room.beds) {
+      const f = L.furnitureBounds(b);
+      assert.ok(f[0] >= floor[0] && f[1] >= floor[1] && f[0] + f[2] <= floor[0] + floor[2] && f[1] + f[3] <= floor[1] + floor[3],
+        `${b.id} sticks out of the floor of ${room.id}`);
+      for (const o of [...windows, ...doors]) assert.ok(!overlap(f, o), `${b.id} overlaps a window or door`);
+    }
+    for (const o of [...windows, ...doors]) assert.ok(!overlap(L.roomLabelBand(room), o), `the name of ${room.id} overlaps a window or door`);
+  }
+});
+
+test("the stove pipe sticks out sideways, not up into the room name", () => {
+  const stove = bedById("kuchynka-pec");
+  const pipe = L.stovePipeRect(stove);
+  assert.ok(pipe[1] >= stove.rect[1], "the pipe must not rise above the stove");
+  assert.deepEqual(plain(L.furnitureBounds(stove)), [22, 352, 62, 28]);
+  assert.deepEqual(plain(L.furnitureBounds(bedById("konica-dole-matrace"))), [24, 132, 124, 26]);
+});
