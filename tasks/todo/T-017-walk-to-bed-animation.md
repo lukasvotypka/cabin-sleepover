@@ -1,7 +1,7 @@
 # T-017: A waiting figure walks from the meadow to the bed
 
 - **Phase:** 1 (organizer request, 22. 10. 2026)
-- **Depends on:** T-016, T-018
+- **Depends on:** T-016, T-018, T-020 (T-020 only for build order: it changes texts in the same files, `static/index.html` and `tests/js/logic.test.mjs`)
 - **Size:** S
 
 ## Goal
