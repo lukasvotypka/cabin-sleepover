@@ -42,7 +42,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* --- scene (fixed colors, never inverted in dark mode) --- */
 #scene { position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100dvh; }
-/* The page has nothing to scroll, so the map owns every touch: one finger pans it when zoomed in (and does nothing at 1x),
+/* The page has nothing to scroll, so the map owns every touch: one finger pans it at every zoom (a little past the edges),
    two fingers pinch it, and the browser neither scrolls nor zooms the page there. */
 #scene svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
 #scene svg:focus:not(:focus-visible) { outline: none; }     /* a mouse press focuses the svg: no ring around the whole screen */
@@ -271,6 +271,7 @@ var LONG_PRESS_SLOP = 10;   // px a finger may move during a long press
 var ZOOM_MAX = 4;           // the map zooms in to this multiple of the fitted view (1 = whole scene)
 var ZOOM_MIN = 0.6;         // the map zooms out to this fraction of the fitted view
 var ZOOM_KEY_STEP = 1.25;   // factor of one + or - key press
+var PAN_MARGIN = 0.25;      // the view may pan this fraction of its own size past the bounds
 
 // --- dates ---
 
@@ -973,33 +974,54 @@ function clampWidth(w, bounds) {
   return Math.min(bounds.w / ZOOM_MIN, Math.max(bounds.w / ZOOM_MAX, w));
 }
 
-// Keeps the bounds' aspect ratio, the zoom between ZOOM_MIN and ZOOM_MAX, and the area inside the bounds.
-// At 1x and below the view is centered on the bounds (there is nothing to pan).
+// The allowed range of a view's x and y for a view of width w (height w * bounds.h / bounds.w):
+// [xMin, xMax, yMin, yMax]. The band around the centered position is max(0, (bounds size - view size) / 2)
+// plus PAN_MARGIN of the view size on each side. The only place the pan range is computed.
+function panRange(w, bounds) {
+  var h = w * bounds.h / bounds.w;
+  var cx = bounds.x + bounds.w / 2, cy = bounds.y + bounds.h / 2;
+  var sx = Math.max(0, (bounds.w - w) / 2) + PAN_MARGIN * w;
+  var sy = Math.max(0, (bounds.h - h) / 2) + PAN_MARGIN * h;
+  return [cx - w / 2 - sx, cx - w / 2 + sx, cy - h / 2 - sy, cy - h / 2 + sy];
+}
+
+// The view's center is more than 0.5 scene units away from the bounds' center on x or y.
+function isOffCenter(view, bounds) {
+  return Math.abs(view.x + view.w / 2 - (bounds.x + bounds.w / 2)) > 0.5 ||
+    Math.abs(view.y + view.h / 2 - (bounds.y + bounds.h / 2)) > 0.5;
+}
+
+// "Celá mapa" has something to do: the view is zoomed in or panned off center.
+function resetShown(view, bounds) {
+  return isZoomed(view, bounds) || isOffCenter(view, bounds);
+}
+
+// Keeps the bounds' aspect ratio, the zoom between ZOOM_MIN and ZOOM_MAX, and the position inside panRange
+// (the bounds plus a margin of grass; at 1x and below, the centered position plus the margin).
 // A view with a missing or non-finite number (a bad event coordinate) falls back to the whole bounds.
 function clampView(view, bounds) {
   if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !isFinite(view.h) || !(view.w > 0)) return wholeView(bounds);
   var w = clampWidth(view.w, bounds);
   var h = w * bounds.h / bounds.w;
-  if (w >= bounds.w) {
-    return { x: bounds.x + (bounds.w - w) / 2, y: bounds.y + (bounds.h - h) / 2, w: w, h: h };
-  }
+  var r = panRange(w, bounds);
   return {
-    x: Math.min(bounds.x + bounds.w - w, Math.max(bounds.x, view.x)),
-    y: Math.min(bounds.y + bounds.h - h, Math.max(bounds.y, view.y)),
+    x: Math.min(r[1], Math.max(r[0], view.x)),
+    y: Math.min(r[3], Math.max(r[2], view.y)),
     w: w,
     h: h
   };
 }
 
-// The rectangle ([x, y, w, h]) the patterned ground has to cover: what the view shows at ZOOM_MIN, plus 2 units
-// on each side, centered on the bounds.
+// The rectangle ([x, y, w, h]) the patterned ground has to cover: what the view shows at ZOOM_MIN, shifted by its
+// full pan range, plus 2 units on each side, centered on the bounds.
 function groundRect(bounds) {
   var w = bounds.w / ZOOM_MIN, h = bounds.h / ZOOM_MIN;
-  return [bounds.x + (bounds.w - w) / 2 - 2, bounds.y + (bounds.h - h) / 2 - 2, w + 4, h + 4];
+  var r = panRange(w, bounds);
+  return [r[0] - 2, r[2] - 2, r[1] - r[0] + w + 4, r[3] - r[2] + h + 4];
 }
 
 // The view after the bounds changed (a resize or a rotation): whole stays whole, a zoomed view keeps its zoom
-// factor and its center, as far as the new bounds allow, and a zoomed-out view keeps its factor, centered.
+// factor and its center, as far as the new pan range allows, and so does a zoomed-out view.
 function refitView(view, oldBounds, newBounds) {
   if (!view || !isFinite(view.x) || !isFinite(view.y) || !isFinite(view.w) || !(view.w > 0) ||
       !(isZoomed(view, oldBounds) || isZoomedOut(view, oldBounds))) {
@@ -2230,7 +2252,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
 
   function applyView() {
     app.svg.setAttribute("viewBox", viewBoxText(app.view));
-    app.zoomReset.hidden = !isZoomed(app.view, app.bounds);
+    app.zoomReset.hidden = !resetShown(app.view, app.bounds);
   }
 
   function setView(view) {
@@ -2313,7 +2335,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     // After a key zoom the focused bed or sign must still be in view.
     function revealFocused() {
       var node = document.activeElement;
-      if (!node || !svg.contains(node) || !node.getBBox || node === svg) return;
+      if (!node || !svg.contains(node) || !node.getBBox || node === svg || !resetShown(app.view, app.bounds)) return;
       try {
         var b = node.getBBox();
         setView(revealRect(app.view, app.bounds, [b.x, b.y, b.width, b.height], 6));
@@ -2358,7 +2380,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
         capture(e.pointerId);   // the move goes on even if a redraw replaces the bed under the finger
       }
       if (drag.moved) {
-        if (isZoomed(app.view, app.bounds)) setView(dragView(app.view, app.bounds, box(), e.clientX - drag.lx, e.clientY - drag.ly));
+        setView(dragView(app.view, app.bounds, box(), e.clientX - drag.lx, e.clientY - drag.ly));
         drag.lx = e.clientX;
         drag.ly = e.clientY;
       }
@@ -2433,7 +2455,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     });
 
     // With two or more fingers the page must neither scroll nor zoom: the browser would otherwise claim an uneven
-    // pinch (one finger still) as a scroll and cancel the pointers. One finger at 1x still scrolls the page.
+    // pinch (one finger still) as a scroll and cancel the pointers.
     function holdTwoFingers(e) {
       if (e.touches.length >= 2 && e.cancelable) e.preventDefault();
     }
@@ -2455,7 +2477,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     // shift the map under the finger.
     svg.addEventListener("focusin", function (e) {
       var node = e.target;
-      if (!isZoomed(app.view, app.bounds) || !node.getBBox || Date.now() - app.navKeyAt > 500) return;
+      if (!resetShown(app.view, app.bounds) || !node.getBBox || Date.now() - app.navKeyAt > 500) return;
       try {
         if (!node.matches(":focus-visible")) return;
         var b = node.getBBox();
