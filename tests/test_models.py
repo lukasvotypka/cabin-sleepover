@@ -24,8 +24,8 @@ from app.models import (
 from tests.conftest import APP_YAML, CHATA_YAML
 
 SCENE = {
-    "title": [176, 10, 196, 44],
-    "nights": [176, 60, 196, 44],
+    "title": [176, 10, 196, 30],
+    "nights": [176, 46, 196, 58],
     "notice": [176, 112, 196, 66],
     "status": [278, 322, 94, 88],
     "locked": [16, 190, 62, 56],

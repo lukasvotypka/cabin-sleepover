@@ -79,6 +79,11 @@ test("event date text survives missing or broken data", () => {
   assert.equal(L.eventDateText({ arrive_days: ["nonsense"], leave_days: ["2026-11-01"] }), "");
 });
 
+test("title board label is the name and the full term, or just the name", () => {
+  assert.equal(L.titleLabel(event), "Chata 29. 10. – 1. 11., 29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)");
+  assert.equal(L.titleLabel({ name: "Chata", arrive_days: ["nonsense"], leave_days: ["2026-11-01"] }), "Chata");
+});
+
 test("night signpost labels and dates for the three nights", () => {
   assert.deepEqual(plain(L.nightInfo(THU)), { label: "Št → Pi", dates: "29./30. 10." });
   assert.deepEqual(plain(L.nightInfo(FRI)), { label: "Pi → So", dates: "30./31. 10." });
@@ -438,7 +443,7 @@ const realBeds = {
   "vpravo-poschodova-1": ["bunk", [276, 220, 24, 42], 2], "vpravo-poschodova-2": ["bunk", [308, 220, 24, 42], 2],
   "vpravo-gauc": ["sofa1", [336, 272, 28, 36], 1], "kuchynka-pec": ["stove", [22, 352, 56, 28], 2],
 };
-const scene = { title: [176, 10, 196, 44], nights: [176, 60, 196, 44], notice: [176, 112, 196, 66], status: [278, 322, 94, 88],
+const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [176, 112, 196, 66], status: [278, 322, 94, 88],
   locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
   legend: [24, 264, 44, 44], parties: [176, 112, 148, 82], meadow: [112, 381, 124, 14] };
 const realLayout = {
@@ -1148,14 +1153,57 @@ test("growRect stops for a rect that touches or overlaps, and stays inside the b
 });
 
 test("signpost hit area reaches into the grass gaps of the real layout", () => {
-  assert.deepEqual(plain(L.nightsHit(realLayout, 8)), [176, 54, 196, 58]);
+  // 6 up to the title board (bottom y 40), 8 down to the notice and the party table (y 112)
+  assert.deepEqual(plain(L.nightsHit(realLayout, 8)), [176, 40, 196, 72]);
+});
+
+test("signpostLayout: boards and row baselines of the real rect", () => {
+  const lay = plain(L.signpostLayout([176, 46, 196, 58], 3, 4));
+  const w = 188 / 3;
+  assert.equal(lay.w, w);
+  assert.deepEqual(lay.boards, [0, 1, 2].map((i) => [176 + i * (w + 4), 46, w, 58]));
+  assert.deepEqual([lay.label, lay.date, lay.absent, lay.used, lay.total], [58, 67, 77, 89, 98]);
+  assert.deepEqual(lay.chip, [70, 10]);
+  assert.equal(lay.chipText, 78);
+});
+
+test("signpostLayout: rows keep their order and do not overlap on the scene's nights rect", () => {
+  const r = scene.nights, lay = plain(L.signpostLayout(r, 3, 4));
+  const [chipTop, chipH] = lay.chip;
+  assert.ok(r[3] >= 44, "a signpost is at least 44 units tall");
+  assert.ok(lay.label < lay.date && lay.date < chipTop, "label, date, chip in order");
+  assert.ok(chipTop + chipH < lay.used - 5, "the chip ends above the cap height of obsadené (6.5)");
+  assert.ok(lay.chip[0] + chipH > lay.chipText && lay.chipText > chipTop, "chip text sits inside the chip");
+  assert.ok(lay.date < lay.absent - 5 && lay.absent < lay.used - 5, "nie si tu between date and obsadené");
+  assert.ok(lay.used < lay.total && lay.total < r[1] + r[3], "obsadené, count, board bottom");
+  assert.ok(lay.label > r[1]);
+});
+
+test("scene: title board, signposts with posts, and the other boards and rooms do not overlap", () => {
+  const posts = [scene.nights[0], scene.nights[1], scene.nights[2], scene.nights[3] + 6];   // posts end 6 units below the boards
+  assert.ok(!overlap(scene.title, posts), "title vs signposts");
+  assert.ok(scene.title[1] + scene.title[3] <= scene.nights[1], "title above signposts");
+  for (const key of ["notice", "parties"]) assert.ok(!overlap(posts, scene[key]), `signposts overlap scene.${key}`);
+  assert.ok(!overlap(posts, L.noticeIconRect(scene.notice)), "signposts vs the ? box");
+  for (const room of realLayout.rooms) assert.ok(!overlap(posts, room.rect), `signposts overlap ${room.id}`);
+  for (const room of realLayout.rooms) assert.ok(!overlap(scene.title, room.rect), `title overlaps ${room.id}`);
+  for (const key of ["notice", "parties"]) assert.ok(!overlap(scene.title, scene[key]), `title overlaps scene.${key}`);
+});
+
+test("drawTitle and drawNights read their positions from the layout, not from numbers", () => {
+  const draw = html.slice(html.indexOf("function drawTitle("), html.indexOf("function drawNotice("));
+  assert.match(draw, /signpostLayout\(scene\.nights/);
+  assert.match(draw, /titleLabel\(state\.event\)/);
+  assert.doesNotMatch(draw, /eventDateText/);
+  assert.doesNotMatch(draw, /r\[1\] \+ ([1-9]\d|[7-9])\b/, "no row offsets from the rect top (the 6-unit nails are fine)");
+  assert.doesNotMatch(draw, /innerHTML/);
 });
 
 test("a far neighbour does not stretch the signpost hit area, and a room is never covered", () => {
   const moved = { ...realLayout, map: { ...realLayout.map, scene: { ...scene, notice: [176, 330, 196, 66], title: [176, 10, 196, 10] } } };
-  assert.deepEqual(plain(L.nightsHit(moved, 8)), [176, 52, 196, 60]);   // 8 up and 8 down, not down to y=330
+  assert.deepEqual(plain(L.nightsHit(moved, 8)), [176, 38, 196, 74]);   // 8 up and 8 down, not down to y=330
   const close = { ...moved, rooms: [{ ...rooms[3], rect: [176, 107, 100, 50], beds: [] }] };
-  assert.deepEqual(plain(L.nightsHit(close, 8)), [176, 52, 196, 55]);   // stops 3 units above the room
+  assert.deepEqual(plain(L.nightsHit(close, 8)), [176, 38, 196, 69]);   // stops 3 units above the room
 });
 
 test("bed hit areas contain the bed, never overlap each other or a scene board", () => {
@@ -2219,6 +2267,7 @@ test("guard, text producers: no function or table of the logic block yields a pl
   add(L.partyTableRows(summaryState(), null).map((r) => L.legendNightsText(r)));
   add([1, 2, 5].map((n) => L.moreText(n)));
   add(L.summaryText(summaryState(), "https://chata.example/"));
+  add(L.titleLabel(event));
   add([THU, FRI, SAT].map((n) => L.hiddenSummary(summaryState(), n)));
 
   assert.ok(texts.length > 150, "the guard must really visit the text producers, got " + texts.length);

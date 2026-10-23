@@ -304,6 +304,13 @@ function eventDateText(event) {
     last.d + ". " + last.m + ". " + last.y + " (" + DAY_NAMES[last.dow] + ")";
 }
 
+// Screen-reader label of the title board: "<name>, <eventDateText>", or just "<name>" when the dates
+// cannot be built.
+function titleLabel(event) {
+  var dates = eventDateText(event);
+  return event.name + (dates ? ", " + dates : "");
+}
+
 // {label: "Št → Pi", dates: "29./30. 10."} for the night that starts on `night`, or null.
 function nightInfo(night) {
   var a = parseIso(night), b = parseIso(addDays(night, 1));
@@ -412,6 +419,23 @@ function sceneRects(layout, skip) {
 // The collapsed noticeboard's „?“ box: the top-right 44×44 of the notice rect.
 function noticeIconRect(r) {
   return [r[0] + r[2] - 44, r[1], 44, 44];
+}
+
+// Boards and row positions of the night signposts inside `rect` ([x, y, w, h]) for `count` nights and
+// `gap` units between boards. All y values are absolute scene units derived from rect[1] and rect[3].
+// {w, boards: [[x, y, w, h], ...],
+//  label, date, absent, used, total,        // text baselines
+//  chip: [dy, h], chipText}                 // chip rect top (absolute) and height, chip text baseline
+function signpostLayout(rect, count, gap) {
+  var w = (rect[2] - gap * (count - 1)) / count, boards = [], i;
+  for (i = 0; i < count; i++) boards.push([rect[0] + i * (w + gap), rect[1], w, rect[3]]);
+  var top = rect[1], bottom = rect[1] + rect[3];
+  return {
+    w: w, boards: boards,
+    label: top + 12, date: top + 21, absent: top + 31,
+    chip: [top + 24, 10], chipText: top + 32,
+    used: bottom - 15, total: bottom - 6,
+  };
 }
 
 // Hit area of a signpost row: grows up and down into the grass gap, by at most `grow` units, and
@@ -2589,19 +2613,16 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
   }
 
   function drawTitle(parent, r, state) {
-    var dates = eventDateText(state.event);
-    var g = svgEl(parent, "g", { role: "img", "aria-label": state.event.name + ", " + dates });
+    var g = svgEl(parent, "g", { role: "img", "aria-label": titleLabel(state.event) });
     board(g, r, COLORS.plank);
-    var cx = r[0] + r[2] / 2;
-    addText(g, cx, r[1] + 20, state.event.name, 12, COLORS.paper, { anchor: "middle", bold: true, maxWidth: r[2] - 16 });
-    addText(g, cx, r[1] + 34, dates, 7.5, COLORS.paper, { anchor: "middle", maxWidth: r[2] - 16 });
+    // 12 px bold: the baseline sits about 4 units below the middle of the board
+    addText(g, r[0] + r[2] / 2, r[1] + r[3] / 2 + 4, state.event.name, 12, COLORS.paper, { anchor: "middle", bold: true, maxWidth: r[2] - 16 });
     rect(g, r[0] + 6, r[1] + 6, 3, 3, COLORS.woodLight);
     rect(g, r[0] + r[2] - 9, r[1] + 6, 3, 3, COLORS.woodLight);
   }
 
   function drawNights(parent, scene, state) {
-    var r = scene.nights, nights = state.event.nights, gap = 4;
-    var w = (r[2] - gap * (nights.length - 1)) / nights.length;
+    var nights = state.event.nights, gap = 4, lay = signpostLayout(scene.nights, nights.length, gap);
     var total = totalSlots(state.layout);
     var hit = nightsHit(state.layout, NIGHTS_HIT_GROW);
     var party = partyById(state, app.myParty);
@@ -2609,25 +2630,24 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
       var info = nightInfo(night) || { label: night, dates: "" };
       var used = usedCount(state, night);
       var selected = night === app.night;
-      var x = r[0] + i * (w + gap);
+      var b = lay.boards[i], x = b[0], w = b[2];
       var g = svgEl(parent, "g");
-      rect(g, x + w / 2 - 3, r[1] + r[3] - 2, 6, 8, COLORS.woodDark);   // post
-      board(g, [x, r[1], w, r[3]], selected ? COLORS.selected : COLORS.wood, selected ? COLORS.highlight : COLORS.woodDark);
+      rect(g, x + w / 2 - 3, b[1] + b[3] - 2, 6, 8, COLORS.woodDark);   // post
+      board(g, b, selected ? COLORS.selected : COLORS.wood, selected ? COLORS.highlight : COLORS.woodDark);
       var cx = x + w / 2, inner = w - 8;
-      addText(g, cx, r[1] + 13, info.label, 9, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
+      addText(g, cx, lay.label, info.label, 9, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
+      addText(g, cx, lay.date, info.dates, 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
       var tally = party ? nightTally(state, party, night) : null;
-      if (!tally) {
-        addText(g, cx, r[1] + 23, info.dates, 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
-      } else if (tally.kind === "absent") {
-        addText(g, cx, r[1] + 23, tallyChipText(tally), 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
-      } else {
+      if (tally && tally.kind === "absent") {
+        addText(g, cx, lay.absent, tallyChipText(tally), 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
+      } else if (tally) {
         var tone = TALLY_COLORS[tally.kind];
-        rect(g, x + 5, r[1] + 16, w - 10, 10, COLORS[tone[0]]);
-        rect(g, x + 6, r[1] + 17, w - 12, 8, COLORS[tone[1]]);
-        addText(g, cx, r[1] + 24, tallyChipText(tally), 7, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: w - 14 });
+        rect(g, x + 5, lay.chip[0], w - 10, lay.chip[1], COLORS[tone[0]]);
+        rect(g, x + 6, lay.chip[0] + 1, w - 12, lay.chip[1] - 2, COLORS[tone[1]]);
+        addText(g, cx, lay.chipText, tallyChipText(tally), 7, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: w - 14 });
       }
-      addText(g, cx, r[1] + 32, "obsadené", 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
-      addText(g, cx, r[1] + 40, used + " z " + total, 8, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
+      addText(g, cx, lay.used, "obsadené", 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
+      addText(g, cx, lay.total, used + " z " + total, 8, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
       hitRect(g, [x - gap / 2, hit[1], w + gap, hit[3]]);
       makeButton(g, "Noc " + info.label + ", " + info.dates + ", obsadené " + used + " z " + total +
         " miest" + (selected ? ", zvolená noc" : "") + (tally ? ". " + tallyLabel(tally) : ""),
