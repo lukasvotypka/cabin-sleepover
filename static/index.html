@@ -168,6 +168,33 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .free { animation: none; }
 }
 
+/* --- nature decor: a small tree beside the house that sheds a leaf every few seconds, and a bird that
+   occasionally crosses the whole screen. Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
+   colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
+#scene svg .tree { pointer-events: none; }
+#scene svg .shedleaf { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: leafDrop 26s linear infinite; }
+@keyframes leafDrop {
+  0%, 2% { opacity: 0; transform: translate(0px, 0px) rotate(0deg); }
+  6% { opacity: 1; transform: translate(1px, 4px) rotate(8deg); }
+  10% { transform: translate(-2px, 11px) rotate(-14deg); }
+  14% { transform: translate(1px, 19px) rotate(18deg); }
+  17%, 100% { opacity: 0; transform: translate(-1px, 27px) rotate(-8deg); }
+}
+.bird {
+  position: fixed; top: 11%; left: -40px; width: 28px; height: 12px; z-index: 1; pointer-events: none;
+  animation: birdFly 28s linear infinite;
+}
+.bird-frame { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.bird-frame-b { opacity: 0; }
+.bird-frame-a, .bird-frame-b { animation: birdFlap .5s linear infinite; }
+.bird-frame-b { animation-delay: .25s; }
+@keyframes birdFlap { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes birdFly {
+  0% { left: -40px; }
+  22% { left: calc(100% + 40px); }
+  22.01%, 100% { left: -40px; }
+}
+
 .movebar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 560px;
   margin: 0 auto; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); background: var(--surface); color: var(--ink); border-bottom: 4px solid #5C4033;
@@ -255,6 +282,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
   <button id="moveCancel" class="btn secondary" type="button">Zrušiť</button>
 </div>
 <main id="scene" hidden></main>
+<!-- Decorative bird, purely cosmetic: lives outside #scene's zoomable svg, so it crosses the whole screen at a
+     flat speed no matter how the map is zoomed or panned. Fixed scene colors, pointer-events: none throughout. -->
+<div id="bird" class="bird" aria-hidden="true">
+  <svg class="bird-frame bird-frame-a" viewBox="0 0 7 3" shape-rendering="crispEdges">
+    <rect x="1" y="0" width="1" height="1" fill="#2E1F14"/>
+    <rect x="5" y="0" width="1" height="1" fill="#2E1F14"/>
+    <rect x="2" y="1" width="3" height="1" fill="#2E1F14"/>
+  </svg>
+  <svg class="bird-frame bird-frame-b" viewBox="0 0 7 3" shape-rendering="crispEdges">
+    <rect x="2" y="1" width="3" height="1" fill="#2E1F14"/>
+    <rect x="1" y="2" width="1" height="1" fill="#2E1F14"/>
+    <rect x="5" y="2" width="1" height="1" fill="#2E1F14"/>
+  </svg>
+</div>
 <section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -2541,6 +2582,29 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     r.setAttribute("height", gr[3]);
   }
 
+  // A small decorative tree, fixed at x 0-8 (any y), a strip that no room, board or path in config/cabin.yaml
+  // ever reaches (the leftmost rooms start at x 10, the leftmost scene board at x 16): pure decor, not derived
+  // from the layout, so it stays clear of every bed, board and tap target however cabin.yaml is edited. It sheds
+  // one leaf every few seconds; `prefers-reduced-motion` stops the fall (the global rule near `.free` above).
+  var TREE_LEAVES = [
+    { x: 2, y: 150, delay: "0s" },
+    { x: 6, y: 146, delay: "5s" },
+    { x: 1, y: 156, delay: "10s" },
+    { x: 7, y: 152, delay: "16s" },
+    { x: 3, y: 144, delay: "21s" }
+  ];
+  function drawTree(g) {
+    var t = svgEl(g, "g", { "aria-hidden": "true", "class": "tree" });
+    rect(t, 2, 164, 4, 20, COLORS.woodDark);          // trunk
+    rect(t, 1, 142, 6, 6, COLORS.leafOchre);          // canopy, three overlapping tiers
+    rect(t, 0, 148, 8, 8, COLORS.leafRust);
+    rect(t, 1, 156, 6, 6, COLORS.leafRed);
+    TREE_LEAVES.forEach(function (l, i) {
+      var color = i % 3 === 0 ? COLORS.leafOchre : i % 3 === 1 ? COLORS.leafRust : COLORS.leafRed;
+      rect(t, l.x, l.y, 3, 3, color, { "class": "shedleaf", style: "animation-delay:" + l.delay + ";" });
+    });
+  }
+
   function drawBase(g, layout) {
     var W = layout.map.viewbox[0], H = layout.map.viewbox[1], i;
     rect(g, 0, 0, W, H, COLORS.grass);
@@ -2556,6 +2620,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
       rect(g, d[0], d[1], d[2], d[3], doorFloorColor(layout, d) || COLORS.path);
     });
     layout.map.windows.forEach(function (w) { rect(g, w[0], w[1], w[2], w[3], COLORS.window); });
+    drawTree(g);
   }
 
   // The element below `root` with this data-key, or null.
