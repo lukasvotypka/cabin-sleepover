@@ -1577,6 +1577,149 @@ test("page: the meadow is drawn from the config rect, as a non-interactive image
   assert.match(app, /role: "img", "aria-label": meadowLabel\(waiting\.length\), "pointer-events": "none"/);
 });
 
+// --- the walk from the meadow to the bed (T-017) ---
+
+test("walk constants: a slow walk of three seconds", () => {
+  assert.equal(L.WALK_MS, 3000);
+});
+
+test("walkProgress: 0 at the start, 1 at the end, 0.5 in the middle, clamped", () => {
+  const at = (ms) => L.walkProgress(ms, L.WALK_MS);
+  assert.equal(at(0), 0);
+  assert.equal(at(L.WALK_MS / 2), 0.5);
+  assert.equal(at(L.WALK_MS), 1);
+  assert.equal(at(L.WALK_MS * 5), 1);
+  assert.equal(at(-100), 0);
+  assert.equal(at(NaN), 0);
+  assert.equal(L.walkProgress(100, 0), 1);      // a bad duration lands at once
+  assert.equal(L.walkProgress(100, NaN), 1);
+});
+
+test("walkProgress: ease-in-out, never goes backwards and is slower at both ends than in the middle", () => {
+  let last = 0;
+  for (let ms = 0; ms <= L.WALK_MS; ms += 10) {
+    const t = L.walkProgress(ms, L.WALK_MS);
+    assert.ok(t >= last, "monotonic at " + ms);
+    assert.ok(t >= 0 && t <= 1);
+    last = t;
+  }
+  const step = (from) => L.walkProgress(from + 100, L.WALK_MS) - L.walkProgress(from, L.WALK_MS);
+  assert.ok(step(0) < step(L.WALK_MS / 2 - 50));
+  assert.ok(step(L.WALK_MS - 100) < step(L.WALK_MS / 2 - 50));
+});
+
+test("walkPosition: exactly from at 0 and exactly to at 1, whole pixels in between", () => {
+  const from = [0, 0], to = [70, -14];
+  assert.deepEqual(plain(L.walkPosition(from, to, 0)), [0, 0]);
+  assert.deepEqual(plain(L.walkPosition(from, to, 1)), [70, -14]);
+  assert.deepEqual(plain(L.walkPosition(from, to, 0.5)), [35, -7]);
+  assert.deepEqual(plain(L.walkPosition([5, 5], [20, 9], 0.1)), [7, 5]);
+  for (let t = 0; t <= 1; t += 0.01) {
+    plain(L.walkPosition(from, to, t)).forEach((n) => assert.ok(Number.isInteger(n)));
+  }
+});
+
+test("walkPosition: clamps progress outside 0 ... 1, and no movement stays put", () => {
+  assert.deepEqual(plain(L.walkPosition([5, 5], [20, 9], -1)), [5, 5]);
+  assert.deepEqual(plain(L.walkPosition([5, 5], [20, 9], 2)), [20, 9]);
+  assert.deepEqual(plain(L.walkPosition([5, 5], [20, 9], NaN)), [5, 5]);
+  assert.deepEqual(plain(L.walkPosition([20, 9], [20, 9], 0.4)), [20, 9]);
+});
+
+test("walkPosition over the whole walk: the figure moves steadily towards the bed without a jump", () => {
+  const from = [155, 382], to = [193, 230];
+  let last = plain(L.walkPosition(from, to, L.walkProgress(0, L.WALK_MS)));
+  assert.deepEqual(last, from);
+  for (let ms = 16; ms <= L.WALK_MS; ms += 16) {
+    const p = plain(L.walkPosition(from, to, L.walkProgress(ms, L.WALK_MS)));
+    assert.ok(p[0] >= last[0] && p[1] <= last[1], "monotonic at " + ms);
+    assert.ok(Math.abs(p[0] - last[0]) <= 2 && Math.abs(p[1] - last[1]) <= 3, "no jump at " + ms);
+    last = p;
+  }
+  assert.deepEqual(last, [193, 230]);
+});
+
+const walkFor = (p, before, after, bedId, slots, rect = realLayout.map.scene.meadow) =>
+  plain(L.walkers(before, after, p, bedById(bedId), slots, THU, rect));
+
+test("walkers: two adults tapping a double bed walk from the first two meadow cells to its two places", () => {
+  const p = party();
+  const before = realState([p]);
+  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
+  const after = realState([p], { [THU]: hold(p.id, slots) });
+  const cells = plain(L.meadowLayout(realLayout.map.scene.meadow, 2).cells);
+  const bed = bedById("vlavo-manzelska");
+  assert.deepEqual(walkFor(p, before, after, "vlavo-manzelska", slots), [
+    { slot: slots[0], from: cells[0], to: plain(L.figurePosition(bed, 0)), kind: "adult", color: p.color },
+    { slot: slots[1], from: cells[1], to: plain(L.figurePosition(bed, 1)), kind: "adult", color: p.color },
+  ]);
+});
+
+test("walkers: the kinds come from the state after the tap", () => {
+  const p = party({ adults: 1, kids: 1 });
+  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
+  const out = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, slots) }), "vlavo-manzelska", slots);
+  assert.deepEqual(out.map((w) => w.kind), ["adult", "kid"]);
+  // One of two tapped: only the first figure walks, the kid is still waiting.
+  const one = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, [slots[0]]) }), "vlavo-manzelska", [slots[0]]);
+  assert.equal(one.length, 1);
+  assert.equal(one[0].kind, "adult");
+});
+
+test("walkers: nobody walks without a party, or when nothing is waiting", () => {
+  const p = party();
+  const slots = ["vlavo-okno-1"];
+  const after = realState([p], { [THU]: hold(p.id, slots) });
+  assert.deepEqual(walkFor(null, realState([p]), after, "vlavo-okno", slots), []);
+  // Both places held already, an extra place taken: nothing was waiting.
+  const held = realState([p], { [THU]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]) });
+  const extra = realState([p], { [THU]: hold(p.id, ["vlavo-manzelska-1", "vlavo-manzelska-2", "vlavo-okno-1"]) });
+  assert.deepEqual(walkFor(p, held, extra, "vlavo-okno", slots), []);
+  // The party is not there on that night.
+  const late = party({ arrive: FRI });
+  assert.deepEqual(walkFor(late, realState([late]), realState([late], { [THU]: hold(late.id, slots) }), "vlavo-okno", slots), []);
+});
+
+test("walkers: a slot that will not hold the party has no walker", () => {
+  const p = party();
+  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
+  assert.deepEqual(walkFor(p, realState([p]), realState([p]), "vlavo-manzelska", slots), []);
+});
+
+test("walkers: on an overflowing meadow the figure after the drawn cells starts at the badge", () => {
+  const p = party({ adults: 3 });
+  const slots = ["vlavo-manzelska-1", "vlavo-manzelska-2"];
+  const narrow = [0, 0, 28, 14];       // two cells: one figure and the badge
+  const layout = plain(L.meadowLayout(narrow, 3));
+  assert.equal(layout.cells.length, 1);
+  const out = walkFor(p, realState([p]), realState([p], { [THU]: hold(p.id, slots) }), "vlavo-manzelska", slots, narrow);
+  assert.deepEqual(out.map((w) => w.from), [layout.cells[0], layout.morePos]);
+});
+
+test("page: the walk layer is hidden from readers and pointers, sits above the beds, and uses the constants by name", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.match(app, /walk: svgEl\(svg, "g", \{ "aria-hidden": "true", "pointer-events": "none" \}\),\s+boards:/);
+  assert.match(app, /beds: svgEl\(svg, "g"\),\s+walk:/);
+  assert.match(app, /walkProgress\(elapsed, WALK_MS\)/);
+  assert.match(app, /walkPosition\(item\.from, item\.to, t\)/);
+  assert.match(app, /if \(app\.walking\[night \+ "\|" \+ slot\]\) return;/);
+  assert.doesNotMatch(app, /\b3000\b/);
+  assert.doesNotMatch(app, /innerHTML/);
+});
+
+test("page: a night switch, the code screen and a rejected write cancel the walks; reduced motion skips them", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  const body = (name) => app.match(new RegExp("function " + name + "\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}\\n"))[1];
+  assert.match(body("selectNight"), /cancelWalks\(\)/);
+  assert.match(body("showCodeScreen"), /cancelWalks\(\)/);
+  assert.match(body("assignHere"), /if \(!prefersReducedMotion\(\)\)/);
+  assert.match(body("assignHere"), /!res\.ok && !isOwnSlotTaken\(res\.error\)/);
+  assert.match(body("assignHere"), /cancelWalks\(walk\)/);
+  // Releasing or moving away a place that is still being walked to takes its walker away.
+  assert.match(body("clearSlot"), /cancelWalkersAt\(night, slot\)/);
+  assert.match(body("moveTo"), /cancelWalkersAt\(n, m\.fromSlot\)/);
+});
+
 // --- regression guard: singular tykanie only, never the plural "vy" forms (T-020) ---
 
 // The plural 2nd person reads exactly like vykanie, which the brief forbids. This checker lives in the test

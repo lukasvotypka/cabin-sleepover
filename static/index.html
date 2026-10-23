@@ -690,6 +690,46 @@ function meadowLayout(rect, count) {
   return { cells: cells.slice(0, capacity - 1), more: count - (capacity - 1), morePos: cells[capacity - 1] };
 }
 
+// --- the walk from the meadow to the bed (T-017) ---
+
+var WALK_MS = 3000;    // the whole walk from the meadow to the bed
+
+// How far along the walk is: 0 ... 1 after `elapsed` ms of `ms`, with a gentle ease-in-out (smoothstep).
+// Clamped, so before the start it is 0 and after the end (or with a bad duration) it is 1.
+function walkProgress(elapsed, ms) {
+  if (!(ms > 0)) return 1;
+  if (!(elapsed > 0)) return 0;
+  if (elapsed >= ms) return 1;
+  var t = elapsed / ms;
+  return t * t * (3 - 2 * t);
+}
+
+// The point at progress `t` (0 ... 1) of the straight walk from `from` to `to` ([x, y]), rounded to whole
+// scene pixels so the pixel art stays crisp. t = 0 is exactly `from` and t = 1 exactly `to`.
+function walkPosition(from, to, t) {
+  if (!(t > 0)) return [from[0], from[1]];
+  if (!(t < 1)) return [to[0], to[1]];
+  return [Math.round(from[0] + (to[0] - from[0]) * t), Math.round(from[1] + (to[1] - from[1]) * t)];
+}
+
+// The walks for one assign on `night`: stateBefore is the view before the tap, stateAfter the view with
+// the new pending ops. For the i-th slot of `slots` the figure starts at the i-th meadow cell (or at the
+// "+N" badge when the meadow overflows) and ends at its place in the bed. `kind` is what will stand in
+// the bed, so nothing swaps at landing. [] when party is null or had no waiting figures.
+function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) {
+  if (!party) return [];
+  var waiting = waitingFigures(stateBefore, party, night).length;
+  if (!waiting) return [];
+  var spot = meadowLayout(meadowRect, waiting), out = [];
+  slots.forEach(function (slot, i) {
+    var from = i < spot.cells.length ? spot.cells[i] : i < waiting ? spot.morePos : null;
+    var who = slotOccupant(stateAfter, slot, night);
+    if (!from || !who) return;
+    out.push({ slot: slot, from: from, to: figurePosition(bed, bed.slots.indexOf(slot)), kind: who.kind, color: party.color });
+  });
+  return out;
+}
+
 // Screen-reader label of the meadow group, "" for 0.
 function meadowLabel(count) {
   if (!(count > 0)) return "";
@@ -1441,6 +1481,9 @@ function bootRemaining(startMs, nowMs, minMs) {
     polling: false,
     writeEpoch: 0,       // bumped when a write response is applied, so an older poll cannot overwrite it
     pending: [],         // unconfirmed changes {night, slot, party_id} drawn on top of the state
+    walking: {},         // "night|slot" keys of beds whose figure is still on its way (drawBed leaves them empty)
+    walks: [],           // the walks in progress, one per tap: {start, items: [{key, node, from, to}]}
+    walkFrame: 0,        // id of the requested animation frame, 0 when none
     selectedBed: null,   // id of the bed whose sheet is open
     move: null,          // move mode: {partyId, fromSlot, all}
     suppressClick: false, // set by a long press so that its click does not open the sheet
@@ -1653,6 +1696,7 @@ function bootRemaining(startMs, nowMs, minMs) {
   }
 
   function selectNight(night) {
+    cancelWalks();
     app.night = night;
     render();
     if (app.panel && app.panel.refresh) app.panel.refresh();
@@ -1737,6 +1781,7 @@ function bootRemaining(startMs, nowMs, minMs) {
     showScene(true);     // visible first: text is measured while drawing
     if (app.layoutKey === key) return;
     app.layoutKey = key;
+    cancelWalks();      // the old walk layer goes away with the old svg
     var host = $("scene");
     clearNode(host);
     var vb = layout.map.viewbox;
@@ -1748,6 +1793,7 @@ function bootRemaining(startMs, nowMs, minMs) {
       ground: svgEl(svg, "g", { "aria-hidden": "true" }),
       base: svgEl(svg, "g", { "aria-hidden": "true" }),
       beds: svgEl(svg, "g"),
+      walk: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
       boards: svgEl(svg, "g"),
       tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
     };
@@ -2353,6 +2399,7 @@ function bootRemaining(startMs, nowMs, minMs) {
     hitRect(g, bedHit(layout, bed, BED_HIT_GROW));      // first, so figures keep their hover titles
     drawFurniture(g, bed);
     bed.slots.forEach(function (slot, i) {
+      if (app.walking[night + "|" + slot]) return;      // its figure is still walking over from the meadow
       var pos = figurePosition(bed, i), who = slotOccupant(st, slot, night);
       var sg = svgEl(g, "g", view.pending[night + "|" + slot] ? { "class": "pending" } : null);
       if (who) {
@@ -2515,6 +2562,11 @@ function bootRemaining(startMs, nowMs, minMs) {
 
   // --- slot actions with optimistic UI ---
 
+  // „This place is already yours“ comes back as slot_taken with params.own, and is not an error.
+  function isOwnSlotTaken(e) {
+    return !!(e && e.code === "slot_taken" && e.params && e.params.own === true);
+  }
+
   // Draws the pending changes at once, sends the write, and reports a rejection in Slovak. The map
   // already shows the server's state when the promise settles (see write()). Resolves to the write result.
   function runWrite(path, body, ops) {
@@ -2525,10 +2577,93 @@ function bootRemaining(startMs, nowMs, minMs) {
       if (res.status === 401) return res;     // the code screen is up; the person typed nothing wrong
       var e = res.error;
       // Tapping a place the party already holds changes nothing and is not an error.
-      if (e && e.code === "slot_taken" && e.params && e.params.own === true) return res;
+      if (isOwnSlotTaken(e)) return res;
       showToast(errorText(e, app.state), "error");
       return res;
     });
+  }
+
+  // --- the walk from the meadow to the bed (T-017) ---
+
+  // Starts the walk of `list` (see walkers()) in the walk layer and hides the target slots until landing.
+  // Returns the walk (null when nobody walks) so that a rejected write can cancel just this one.
+  function startWalk(list, party, night) {
+    if (!list.length) return null;
+    var walk = { start: performance.now(), items: [] };
+    var ch = shirtChar(party.name);
+    list.forEach(function (w) {
+      var key = night + "|" + w.slot;
+      var node = svgEl(app.layers.walk, "g", { transform: "translate(" + w.from[0] + " " + w.from[1] + ")" });
+      drawFigure(node, 0, 0, w.color, w.kind, ch);      // opaque all the way, even while the write is unconfirmed
+      app.walking[key] = true;
+      walk.items.push({ key: key, node: node, from: w.from, to: w.to });
+    });
+    app.walks.push(walk);
+    if (!app.walkFrame) app.walkFrame = requestAnimationFrame(stepWalks);
+    return walk;
+  }
+
+  // One animation frame for all walks: move every figure along its line, land the walks that are done.
+  function stepWalks(now) {
+    app.walkFrame = 0;
+    var landed = false;
+    app.walks = app.walks.filter(function (walk) {
+      var elapsed = now - walk.start;
+      if (elapsed >= WALK_MS) {
+        dropWalk(walk);
+        landed = true;
+        return false;
+      }
+      var t = walkProgress(elapsed, WALK_MS);
+      walk.items.forEach(function (item) {
+        var p = walkPosition(item.from, item.to, t);
+        item.node.setAttribute("transform", "translate(" + p[0] + " " + p[1] + ")");
+      });
+      return true;
+    });
+    // The figure now stands in the bed: opaque if the server has confirmed meanwhile, else semi-transparent.
+    if (landed) renderBeds();
+    if (app.walks.length) app.walkFrame = requestAnimationFrame(stepWalks);
+  }
+
+  // Removes the walkers of one walk and shows their slots again (the caller redraws the beds).
+  function dropWalk(walk) {
+    walk.items.forEach(function (item) {
+      if (item.node.parentNode) item.node.parentNode.removeChild(item.node);
+      delete app.walking[item.key];
+    });
+  }
+
+  function stopWalkLoop() {
+    if (!app.walks.length && app.walkFrame) {
+      cancelAnimationFrame(app.walkFrame);
+      app.walkFrame = 0;
+    }
+  }
+
+  // Cancels one walk, or all walks without an argument. Does not redraw: the caller does, or a render follows.
+  function cancelWalks(only) {
+    app.walks = app.walks.filter(function (walk) {
+      if (only && walk !== only) return true;
+      dropWalk(walk);
+      return false;
+    });
+    stopWalkLoop();
+  }
+
+  // A walker whose bed place is released or moved away while it is still on its way would land in an empty
+  // bed, so it goes away at once (the redraw that follows shows the place as it now is).
+  function cancelWalkersAt(night, slot) {
+    var key = night + "|" + slot;
+    app.walks.forEach(function (walk) {
+      walk.items = walk.items.filter(function (item) {
+        if (item.key !== key) return true;
+        dropWalk({ items: [item] });
+        return false;
+      });
+    });
+    app.walks = app.walks.filter(function (walk) { return walk.items.length; });
+    stopWalkLoop();
   }
 
   function myParty(st) {
@@ -2545,11 +2680,21 @@ function bootRemaining(startMs, nowMs, minMs) {
     nights.forEach(function (n) {
       slots.forEach(function (slot) { ops.push({ night: n, slot: slot, party_id: party.id }); });
     });
+    var walk = null;
+    if (!prefersReducedMotion()) {
+      var after = withPending(app.state, app.pending.concat(ops)).state;
+      walk = startWalk(walkers(st, after, party, bed, slots, night, st.layout.map.scene.meadow), party, night);
+    }
     closePanel();
     var run = stay
       ? runWrite("api/assign-stay", { slots: slots, party_id: party.id }, ops)
       : runWrite("api/assign", { night: night, slots: slots, party_id: party.id }, ops);
     run.then(function (res) {
+      // A rejected write puts the figure back on the meadow by the normal rollback (a 401 already cancelled).
+      if (walk && !res.ok && !isOwnSlotTaken(res.error)) {
+        cancelWalks(walk);
+        renderBeds();
+      }
       var skipped = res.ok && res.json && res.json.skipped;
       if (skipped && skipped.length) showToast(skippedText(skipped), "info");
     });
@@ -2558,6 +2703,7 @@ function bootRemaining(startMs, nowMs, minMs) {
   function clearSlot(slot) {
     var night = app.night;
     closePanel();
+    cancelWalkersAt(night, slot);
     runWrite("api/clear", { night: night, slot: slot }, [{ night: night, slot: slot, party_id: null }]);
   }
 
@@ -2601,6 +2747,7 @@ function bootRemaining(startMs, nowMs, minMs) {
     });
     app.move = null;
     renderMoveBar();
+    plan.nights.forEach(function (n) { cancelWalkersAt(n, m.fromSlot); });
     runWrite("api/move", { party_id: m.partyId, from_slot: m.fromSlot, to_slot: plan.target, nights: plan.nights }, ops);
   }
 
@@ -3096,6 +3243,7 @@ function bootRemaining(startMs, nowMs, minMs) {
   function showCodeScreen() {
     if (app.codeOpen) return;
     app.codeOpen = true;
+    cancelWalks();
     closePanel();
     hideToast();
     app.move = null;
