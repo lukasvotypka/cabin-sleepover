@@ -893,9 +893,11 @@ function bedLabel(state, room, bed, night) {
     (o.names.length ? o.names.join(", ") : "nikto") + ", " + freeText(o.free);
 }
 
-// "Zapísať nás sem (2 miesta)", or just the label when nothing can be taken.
-function assignLabel(count) {
-  return count > 0 ? "Zapísať nás sem (" + pluralPlaces(count) + ")" : "Zapísať nás sem";
+// "Zapísať nás sem ako partiu „Meno“ (2 miesta)": names the party so it's clear who is signing up.
+// Falls back to "Zapísať nás sem" when no party is chosen yet.
+function assignLabel(count, partyName) {
+  var base = partyName ? "Zapísať nás sem ako partiu „" + partyName + "“" : "Zapísať nás sem";
+  return count > 0 ? base + " (" + pluralPlaces(count) + ")" : base;
 }
 
 // "A", "A a B", "A, B a C"
@@ -3349,7 +3351,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
         var present = party ? isPresent(party, night) : true;
         var take = party && present ? slotsToTake(st, party, bed, night) : [];
         var blocked = !!party && take.length === 0;
-        var assign = button(assignLabel(take.length), "assign", function () { assignHere(bed, false); });
+        var assign = button(assignLabel(take.length, party ? party.name : null), "assign", function () { assignHere(bed, false); });
         var stay = button("Na všetky naše noci", "stay", function () { assignHere(bed, true); }, true);
         assign.disabled = blocked;
         stay.disabled = blocked;

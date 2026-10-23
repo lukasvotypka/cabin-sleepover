@@ -603,6 +603,13 @@ test("assign button label says how many places it takes", () => {
   assert.equal(L.assignLabel(0), "Zapísať nás sem");
 });
 
+test("assign button label names the party when one is chosen", () => {
+  assert.equal(L.assignLabel(2, "Ivan a Eva"), "Zapísať nás sem ako partiu „Ivan a Eva“ (2 miesta)");
+  assert.equal(L.assignLabel(1, "Ivan a Eva"), "Zapísať nás sem ako partiu „Ivan a Eva“ (1 miesto)");
+  assert.equal(L.assignLabel(0, "Ivan a Eva"), "Zapísať nás sem ako partiu „Ivan a Eva“");
+  assert.equal(L.assignLabel(2, null), "Zapísať nás sem (2 miesta)");
+});
+
 test("reasons and confirmations in Slovak", () => {
   assert.equal(L.notPresentText(SAT), "V sobotu nie si na chate.");
   assert.equal(L.notPresentText(THU), "Vo štvrtok nie si na chate.");
@@ -2414,6 +2421,7 @@ test("guard, text producers: no function or table of the logic block yields a pl
   add(L.moveBarText("Ivan a Eva"));
   add([null, party()].map((x) => L.whoText(x)));
   [0, 1, 2, 5].forEach((n) => add(L.assignLabel(n)));
+  [0, 1, 2, 5].forEach((n) => add(L.assignLabel(n, "Ivan a Eva")));
 
   add(L.NOTICE_LINES);
   add(L.MOVE_TEXTS);
