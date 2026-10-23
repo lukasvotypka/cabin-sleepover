@@ -200,10 +200,11 @@ Scéna má voľné trávnaté plochy, na ktorých sú tieto prvky. Ich pozície 
 - **Tabuľa s názvom a termínom:** názov akcie a „29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)“, všetko z `/api/state`, nič napevno v kóde.
 - **Tri smerovníky nocí:** Št → Pi (29./30. 10.), Pi → So, So → Ne. Zvolená noc je zvýraznená. Na každom je „obsadené X z 20“. Keď je vybratá moja partia, namiesto dátumu je na smerovníku štítok „máš 2/3“ (umiestnení z potrebných miest): červený s výkričníkom, keď miesta chýbajú, oranžový, keď ich je viac, zelený, keď sedia, a „nie si tu“, keď partia v tú noc nie je na chate. Ťuknutie prepne noc, v ktorej mapa ukazuje postavičky. Každý smerovník má výšku aspoň 44 px na obrazovke.
 - **Nástenka s návodom:** 3 krátke riadky po slovensky, napríklad „Ťukni na posteľ a zapíš sa.“, „Voľné miesto bliká.“, „Presunúť sa dá cez posteľ.“ Na prvé otvorenie je rozbalená, potom sa zbalí na ikonku „?“, ktorou sa dá vrátiť.
+- **Tabuľka partií:** keď je návod zbalený na „?“, pod smerovníkmi je papierová tabuľka so všetkými partiami: riadok je partia (farebný štvorček a meno, dlhé mená skrátené), stĺpce sú tri noci a v každej bunke je počet miest partie z potrebných, napríklad „2/3“. Keď miesta chýbajú, bunka je červená s výkričníkom, keď ich je viac, oranžová, a „–“ znamená, že partia v tú noc nie je na chate. Riadok mojej partie je žltý a stĺpec zvolenej noci má žltú hlavičku. Ťuknutím na tabuľku sa otvorí „Kto je kto“.
 - **Tabuľka s partiou a stavom:** „Si: Ivan a Eva“ (ťuknutím sa mení), čas posledného načítania („aktualizované pred 20 s“) a upozornenie. Keď mojej partii v niektorej noci chýba miesto, ukáže sa výrazná červená ceduľa s výkričníkom, napríklad „V sobotu ti chýba 1 miesto“, a ťuknutím na ňu sa zvolí táto noc. Keď má partia v niektorej noci viac miest, než potrebuje, ukáže sa jemná oranžová poznámka, napríklad „Máš o 1 miesto viac, než potrebuješ“ (server to neodmieta). Keď je všetko v poriadku, ukáže sa zelená značka „Všetko máš“.
 - **Zamknutý zápis (fáza 2):** keď je `signup_open` false, v scéne je ceduľa „Zápis je zatvorený“ a miesta sa dajú len prezerať.
 - **Prehľad na poslanie:** malá ikona listu v scéne otvorí panel s textom do WhatsAppu a tlačidlom **Kopírovať**. Text vyrába čistá funkcia: názov a termín, pre každú noc izby s menami partií a na konci upozornenia na partie s chýbajúcimi miestami a odkaz na stránku.
-- **Kto je kto:** malá tabuľka s farebnými štvorčekmi v scéne otvorí panel so zoznamom partií: farba postavičky, meno, počet ľudí a príchod a odchod. Je len na pozeranie, partiu si vyberáš v „Kto si?“.
+- **Kto je kto:** malá tabuľka s farebnými štvorčekmi v scéne otvorí panel so zoznamom partií: farba postavičky, meno, počet ľudí a príchod a odchod a miesta po nociach („Št → Pi 2/3“). Je len na pozeranie, partiu si vyberáš v „Kto si?“.
 - **Admin (fáza 2):** po zadaní admin kódu sa v scéne objaví ikona kľúča, ktorá otvorí panel (zámka zápisu, export, zmazanie partie).
 
 ### Mapa
@@ -243,6 +244,7 @@ Panel nad mapou. Polia partie z `chata-data.yaml` (meno, dospelí, deti, deti sp
 - Pri načítavaní stránka ukáže cez celú obrazovku veľký pixelový obrázok chaty v jesennej krajine (obloha, stromy, tráva, popadané lístie; iba farby scény, bez textu v obrázku) a text „Načítavam…“ na malej drevenej ceduľke. Obrázok stojí aspoň 1,5 s od otvorenia stránky. Potom sa rozpadne na pixely, ktoré ako lístie po krokoch padajú nadol von z obrazovky (spodné rady prvé), a pod nimi sa ukáže mapa; pád trvá asi 1,5 s. S `prefers-reduced-motion` obrázok stojí 0,8 s a potom zmizne bez pádu. Ak sa dáta načítavajú dlhšie, obrázok počká a padá hneď, ako prídu. Pri chybe načítania obrázok stojí a na ceduľke je „Nepodarilo sa načítať, skúšam znova…“. Obrazovka s kódom a chyba načítania sa ukážu hneď, bez čakania. Farby obrázka sú pevné, v tmavom režime sa nemenia.
 - Paleta 12 farieb partií, priraďuje ju server pri vytvorení partie v tomto poradí: `#2F7D6D, #D07A2B, #6D5BA8, #C08A1E, #3E6FB0, #9C4A7A, #5E8A2E, #8A6A4A, #2E8AA0, #C0603A, #7A7F2B, #A04848`.
 - Každá postavička má na tričku prvé písmeno mena svojej partie, malým pixelovým písmom 3 × 5 (aj deti). Diakritika sa vynechá (Š → S), berie sa prvé písmeno alebo číslica mena, a keď v písme nie je, je tam bodka. Písmeno je tmavé alebo svetlé podľa toho, čo je na farbe partie lepšie vidieť. To isté písmeno je aj vo farebnom štvorčeku partie v „Kto je kto“.
+- Tabuľka partií v scéne má pevné farby scény ako ostatné tabule (papier, tmavé písmo, červený a oranžový štítok ako na smerovníkoch) a v tmavom režime sa nemení. Písmo je malé, preto ju na mobile treba priblížiť alebo ťuknúť na ňu a pozrieť si čísla v „Kto je kto“.
 - Na mobile scéna zaberá celú šírku, spodný panel sa vysúva zdola, všetky ovládacie prvky (postele, smerovníky, ikony, tlačidlá) majú aspoň 44 px.
 
 ## Rozloženie chaty
@@ -272,6 +274,7 @@ map:
     letter: [128, 336, 44, 44]   # ikona listu, prehľad na poslanie
     key:    [184, 336, 44, 44]   # ikona kľúča, iba pre admina
     legend: [24, 264, 44, 44]    # ikona „Kto je kto“, legenda farieb partií
+    parties: [176, 112, 148, 82] # tabuľka partií a ich miest po nociach (vidno ju, keď je návod zbalený)
     meadow: [112, 381, 124, 14]  # lúka, kde čakajú ľudia mojej partie bez postele
 
 rooms:

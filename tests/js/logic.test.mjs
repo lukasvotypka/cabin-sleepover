@@ -440,7 +440,7 @@ const realBeds = {
 };
 const scene = { title: [176, 10, 196, 44], nights: [176, 60, 196, 44], notice: [176, 112, 196, 66], status: [278, 322, 94, 88],
   locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
-  legend: [24, 264, 44, 44], meadow: [112, 381, 124, 14] };
+  legend: [24, 264, 44, 44], parties: [176, 112, 148, 82], meadow: [112, 381, 124, 14] };
 const realLayout = {
   event,
   map: { viewbox: [380, 412], doors, scene },
@@ -771,6 +771,147 @@ test("legendRows: the shirt letter loses the diacritic and the ink follows the c
   const [row] = plain(L.legendRows({ parties }, null));
   assert.equal(row.ch, "S");
   assert.equal(row.ink, "#F4EBD0");
+});
+
+// --- party table under the night signposts (T-023) ---
+
+test("noticeIconRect: the ? box is the top-right 44x44 of the notice and clears the table rect", () => {
+  const box = plain(L.noticeIconRect(scene.notice));
+  assert.deepEqual(box, [328, 112, 44, 44]);
+  assert.ok(!overlap(box, scene.parties));
+  assert.ok(!overlap(scene.parties, scene.nights));
+  const windows = [[186, 196, 24, 4], [300, 196, 24, 4]];
+  for (const o of [...windows, ...doors, ...realLayout.rooms.map((r) => r.rect)]) assert.ok(!overlap(scene.parties, o), `parties overlaps ${o}`);
+  for (const [key, r] of Object.entries(scene)) {
+    if (key === "parties" || key === "notice") continue;   // the table replaces the expanded notice by design
+    assert.ok(!overlap(scene.parties, r), `parties overlaps scene.${key}`);
+  }
+});
+
+test("tableCellText: all four kinds, also 1/0 for a night outside the stay", () => {
+  const t = (kind, placed, needed) => ({ night: THU, present: true, needed, placed, kind });
+  assert.equal(L.tableCellText(t("ok", 3, 3)), "3/3");
+  assert.equal(L.tableCellText(t("under", 2, 3)), "2/3!");
+  assert.equal(L.tableCellText(t("over", 4, 3)), "4/3");
+  assert.equal(L.tableCellText(t("absent", 0, 0)), "–");
+  const p = party({ adults: 2, leave: FRI });
+  const s = stateWith([p], { [FRI]: hold(p.id, ["vlavo-okno-1"]) });
+  assert.equal(L.tableCellText(L.nightTally(s, p, FRI)), "1/0");
+});
+
+const tp = (id, name, over = {}) => party({ id, name, ...over });
+const tableState = () => {
+  const a = tp("p-aaaaaa", "Ivan a Eva", { color: "#2F7D6D", adults: 3, leave: SAT });   // Thu and Fri nights
+  const b = tp("p-bbbbbb", "Novákovci s veľmi dlhým menom", { color: "#6D5BA8", adults: 2, kids: 1, kids_in_parents_bed: 1 });
+  const c = tp("p-cccccc", "<b>Eva</b>", { color: "#C0603A", adults: 1, arrive: FRI, leave: SAT });
+  return stateWith([a, b, c], {
+    [THU]: { ...hold(a.id, PAIR), ...hold(b.id, ["vlavo-okno-1", "vlavo-lehatko-1-1"]) },
+    [FRI]: hold(a.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]),
+    [SAT]: hold(c.id, ["vlavo-lehatko-2-1"]),
+  });
+};
+
+test("partyTableRows: state order, exact colour, mine, 14-character label, one cell per night", () => {
+  const s = tableState();
+  const rows = plain(L.partyTableRows(s, "p-bbbbbb"));
+  assert.deepEqual(rows.map((r) => r.id), ["p-aaaaaa", "p-bbbbbb", "p-cccccc"]);
+  assert.deepEqual(rows.map((r) => r.color), ["#2F7D6D", "#6D5BA8", "#C0603A"]);
+  assert.deepEqual(rows.map((r) => r.mine), [false, true, false]);
+  assert.equal(rows[1].name, "Novákovci s veľmi dlhým menom");
+  assert.equal(rows[1].label, "Novákovci s v…");
+  assert.equal(rows[1].label.length, 14);
+  assert.ok(rows[1].label.endsWith("…"));
+  assert.equal(rows[0].label, "Ivan a Eva");
+  assert.equal(rows[2].label, "<b>Eva</b>");   // markup stays literal text, only a label
+  assert.deepEqual(rows[0].cells, [
+    { night: THU, kind: "under", text: "2/3!" }, { night: FRI, kind: "over", text: "4/3" }, { night: SAT, kind: "absent", text: "–" },
+  ]);
+  assert.ok(rows.every((r) => r.cells.map((c) => c.night).join() === [THU, FRI, SAT].join()));
+  assert.deepEqual(plain(L.partyTableRows(stateWith([]), null)), []);
+  assert.ok(plain(L.partyTableRows(s, null)).every((r) => r.mine === false));
+});
+
+test("partyTableRows: every cell equals the nightTally of that party and night", () => {
+  const s = tableState();
+  for (const row of L.partyTableRows(s, null)) {
+    const p = s.parties.find((x) => x.id === row.id);
+    row.cells.forEach((cell) => {
+      const t = L.nightTally(s, p, cell.night);
+      assert.equal(cell.kind, t.kind);
+      assert.equal(cell.text, L.tableCellText(t));
+      if (t.kind !== "absent") assert.ok(cell.text.startsWith(`${t.placed}/${t.needed}`));
+    });
+  }
+});
+
+test("partyTableLayout: row height capped at 10, overflow row, everything inside the rect", () => {
+  const r = scene.parties;
+  const lay = (n) => plain(L.partyTableLayout(r, n, 3));
+  assert.equal(lay(0).rowH, 10);
+  assert.equal(lay(1).rowH, 10);
+  assert.equal(lay(1).size, 7);
+  assert.equal(lay(5).rowH, 10);
+  assert.equal(lay(10).rowH, 6.7);
+  assert.ok(lay(10).size >= 5 && lay(10).size <= 7);
+  assert.deepEqual([lay(0).rows, lay(0).more, lay(5).rows, lay(5).more, lay(10).rows, lay(10).more], [0, 0, 5, 0, 10, 0]);
+  assert.deepEqual([lay(11).rows, lay(11).more, lay(12).rows, lay(12).more], [9, 2, 9, 3]);
+  assert.equal(lay(5).nameW, 58);
+  for (const n of [0, 1, 5, 10, 12]) {
+    const l = lay(n);
+    const lines = l.rows + (l.more ? 1 : 0);
+    assert.ok(l.pad + l.head + lines * l.rowH <= r[3] - l.pad + 1e-9, `${n} parties: rows end inside the rect`);
+    assert.ok(l.nameX >= r[0] + l.pad);
+    assert.ok(l.nameX + l.nameW <= l.colX[0] + 1e-9, "the name column ends before the first night column");
+    l.colX.forEach((x, i) => {
+      assert.ok(x >= l.nameX + l.nameW - 1e-9);
+      if (i) assert.ok(x >= l.colX[i - 1] + l.colW - 1e-9, "night columns do not overlap");
+    });
+    assert.equal(l.colX[2] + l.colW, r[0] + r[2] - l.pad);
+  }
+});
+
+test("moreText: 1, 2-4 and 5+ forms", () => {
+  assert.equal(L.moreText(1), "+1 ďalšia");
+  assert.equal(L.moreText(2), "+2 ďalšie");
+  assert.equal(L.moreText(4), "+4 ďalšie");
+  assert.equal(L.moreText(5), "+5 ďalších");
+});
+
+test("legendNightsText: the same cell texts as the table, one part per night", () => {
+  const [row] = L.partyTableRows(tableState(), null);
+  assert.equal(L.legendNightsText(row), "Št → Pi 2/3! · Pi → So 4/3 · So → Ne –");
+  assert.deepEqual(plain(L.legendNightParts(row)), ["Št → Pi 2/3!", "Pi → So 4/3", "So → Ne –"]);
+});
+
+test("partyTableSummary: every cell kind with the plural forms, (ty) only for my party", () => {
+  const a = tp("p-aaaaaa", "Ivan a Eva", { adults: 3, leave: SAT });
+  const b = tp("p-bbbbbb", "Eva", { adults: 2, leave: FRI });
+  const c = tp("p-cccccc", "Mrco", { adults: 4 });
+  const s = stateWith([a, b, c], {
+    [THU]: { ...hold(a.id, ["vlavo-okno-1", "vlavo-lehatko-1-1", "vlavo-lehatko-2-1"]), ...hold(b.id, PAIR) },
+    [FRI]: { ...hold(a.id, [...PAIR, "vlavo-okno-1", "vlavo-lehatko-1-1"]), ...hold(b.id, ["vlavo-lehatko-2-1"]) },
+    [SAT]: hold(c.id, ["vlavo-okno-1", "vlavo-lehatko-1-1", "vlavo-lehatko-2-1"]),
+  });
+  assert.deepEqual(plain(L.partyTableSummary(s, "p-aaaaaa")), [
+    "Ivan a Eva (ty): Št → Pi 3 z 3, Pi → So 4 z 3, o 1 miesto viac, So → Ne nie je tu",
+    "Eva: Št → Pi 2 z 2, Pi → So nie je tu, ale má 1 miesto, So → Ne nie je tu",
+    "Mrco: Št → Pi 0 z 4, chýbajú 4 miesta, Pi → So 0 z 4, chýbajú 4 miesta, So → Ne 3 z 4, chýba 1 miesto",
+  ]);
+  const under1 = stateWith([a], { [THU]: hold(a.id, PAIR) });
+  assert.ok(L.partyTableSummary(under1, null)[0].includes("Št → Pi 2 z 3, chýba 1 miesto"));
+  assert.ok(L.partyTableSummary(stateWith([tp("p-aaaaaa", "Ivan a Eva")]), null)[0].startsWith("Ivan a Eva: "));
+  assert.ok(!L.partyTableSummary(s, null).join().includes("(ty)"));
+  const long = tp("p-dddddd", "Novákovci s veľmi dlhým menom");
+  assert.ok(L.partyTableSummary(stateWith([long]), null)[0].startsWith("Novákovci s veľmi dlhým menom: "));
+  assert.deepEqual(plain(L.partyTableSummary(stateWith([]), null)), []);
+});
+
+test("party table texts pass the tykanie guard", () => {
+  const s = tableState();
+  const texts = [...L.partyTableSummary(s, "p-aaaaaa"), ...L.partyTableRows(s, null).map((r) => L.legendNightsText(r)),
+    ...[1, 2, 5].map((n) => L.moreText(n)), "Partia", "Zatiaľ tu nikto nie je.", "Partie po nociach",
+    "Partie a ich miesta po nociach. Ťuknutím otvoríš „Kto je kto“."];
+  for (const text of texts) assert.deepEqual(formalForms(text), [], text);
 });
 
 // --- the letter on a figure's shirt (T-018) ---
@@ -2074,6 +2215,9 @@ test("guard, text producers: no function or table of the logic block yields a pl
   add(L.errorText(err("not_present", { night: THU, party_name: "Mrco" }), s));
   add(L.errorText(err("invalid", { reason: "leave_not_after_arrive" }), s));
 
+  add(L.partyTableSummary(summaryState(), "p-aaaaaa"));
+  add(L.partyTableRows(summaryState(), null).map((r) => L.legendNightsText(r)));
+  add([1, 2, 5].map((n) => L.moreText(n)));
   add(L.summaryText(summaryState(), "https://chata.example/"));
   add([THU, FRI, SAT].map((n) => L.hiddenSummary(summaryState(), n)));
 

@@ -136,7 +136,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .legend-text { flex: 1; min-width: 0; }
 .legend-name { font-weight: 700; overflow-wrap: anywhere; }
 .legend-me, .legend-meta, .legend-empty { font-weight: 400; color: var(--muted); }
-.legend-meta { font-size: 15px; }
+.legend-meta, .legend-nights { font-size: 15px; }
+.legend-nights { color: var(--muted); }
+.legend-nights span { white-space: nowrap; }
 .sheet .note { color: var(--ink); background: var(--amber-soft); padding: 8px 12px; border-left: 4px solid var(--amber); }
 
 /* --- beds, figures, move bar, toast --- */
@@ -405,6 +407,11 @@ function sceneRects(layout, skip) {
     if (key !== skip) out.push(scene[key]);
   });
   return out;
+}
+
+// The collapsed noticeboard's „?“ box: the top-right 44×44 of the notice rect.
+function noticeIconRect(r) {
+  return [r[0] + r[2] - 44, r[1], 44, 44];
 }
 
 // Hit area of a signpost row: grows up and down into the grass gap, by at most `grow` units, and
@@ -1226,6 +1233,82 @@ function legendRows(state, myPartyId) {
       id: p.id, name: p.name, color: p.color, people: peopleText(p), stay: stayText(p), mine: p.id === myPartyId,
       ch: shirtChar(p.name), ink: shirtInk(p.color)
     };
+  });
+}
+
+// --- party table (the paper table under the night signposts) ---
+
+// Cell text from a nightTally: "–" absent; "2/3!" under; "4/3" over; "3/3" ok.
+function tableCellText(t) {
+  if (t.kind === "absent") return "–";
+  return t.placed + "/" + t.needed + (t.kind === "under" ? "!" : "");
+}
+
+// One row per party, in `state.parties` order; [] when there are no parties.
+// [{id, name, label, color, mine, cells: [{night, kind, text}]}], one cell per night of the event.
+function partyTableRows(state, myPartyId) {
+  return ((state && state.parties) || []).map(function (p) {
+    return {
+      id: p.id, name: p.name, label: ellipsize(p.name, 14), color: p.color, mine: p.id === myPartyId,
+      cells: state.event.nights.map(function (night) {
+        var t = nightTally(state, p, night);
+        return { night: night, kind: t.kind, text: tableCellText(t) };
+      })
+    };
+  });
+}
+
+// Geometry of the table inside `rect` for `count` parties, in scene units:
+// {pad, head, rowH, size, rows, more, nameX, nameW, colX: [..], colW}. `rows` is how many party rows to
+// draw and `more` how many parties are left out; when they do not all fit, the last row line is the "+N" row.
+function partyTableLayout(rect, count, nightCount) {
+  var pad = 3, head = 9, colW = 28;
+  var avail = rect[3] - 2 * pad - head;
+  var maxRows = Math.floor(avail / 6.5);
+  var rows = count > maxRows ? maxRows - 1 : count;
+  var lines = count > maxRows ? maxRows : count;
+  var rowH = Math.min(10, avail / Math.max(1, lines));
+  var nameW = rect[2] - 2 * pad - nightCount * colW;
+  var colX = [];
+  for (var i = 0; i < nightCount; i++) colX.push(rect[0] + rect[2] - pad - (nightCount - i) * colW);
+  return {
+    pad: pad, head: head, rowH: rowH, size: Math.max(5, Math.min(7, rowH - 1.5)),
+    rows: rows, more: count - rows, nameX: rect[0] + pad, nameW: nameW, colX: colX, colW: colW
+  };
+}
+
+// "+1 ďalšia", "+2 ďalšie" (2-4), "+5 ďalších" (5+)
+function moreText(n) {
+  return "+" + n + (n === 1 ? " ďalšia" : n >= 2 && n <= 4 ? " ďalšie" : " ďalších");
+}
+
+// The parts of the „Kto je kto“ third line: ["Št → Pi 2/3", "Pi → So 3/3", "So → Ne –"].
+function legendNightParts(row) {
+  return row.cells.map(function (c) {
+    var info = nightInfo(c.night);
+    return (info ? info.label : c.night) + " " + c.text;
+  });
+}
+
+// The third line as one text: "Št → Pi 2/3 · Pi → So 3/3 · So → Ne –".
+function legendNightsText(row) {
+  return legendNightParts(row).join(" · ");
+}
+
+// Screen-reader lines: "Ivan a Eva (ty): Št → Pi 2 z 3, Pi → So 3 z 3, So → Ne nie je tu".
+function partyTableSummary(state, myPartyId) {
+  return ((state && state.parties) || []).map(function (p) {
+    var cells = state.event.nights.map(function (night) {
+      var t = nightTally(state, p, night), info = nightInfo(night);
+      var label = info ? info.label : night, d = Math.abs(t.placed - t.needed);
+      if (t.kind === "absent") return label + " nie je tu";
+      if (t.kind === "over" && !t.present) return label + " nie je tu, ale má " + pluralPlaces(t.placed);
+      var text = label + " " + t.placed + " z " + t.needed;
+      if (t.kind === "under") text += ", " + missingVerb(d) + " " + pluralPlaces(d);
+      if (t.kind === "over") text += ", o " + pluralPlaces(d) + " viac";
+      return text;
+    });
+    return p.name + (p.id === myPartyId ? " (ty)" : "") + ": " + cells.join(", ");
   });
 }
 
@@ -2444,6 +2527,12 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
       room.beds.forEach(function (bed) { list.appendChild(htmlEl("li", null, bed.name + ": " + bed.text)); });
       host.appendChild(list);
     });
+    host.appendChild(htmlEl("h3", null, "Partie po nociach"));
+    var parties = htmlEl("ul");
+    var lines = partyTableSummary(app.state, app.myParty);
+    if (!lines.length) lines = ["Zatiaľ tu nikto nie je."];
+    lines.forEach(function (line) { parties.appendChild(htmlEl("li", null, line)); });
+    host.appendChild(parties);
   }
 
   function renderBoards() {
@@ -2462,6 +2551,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     drawTitle(g, scene.title, state);
     drawNights(g, scene, state);
     drawNotice(g, scene.notice);
+    if (app.noticeCollapsed) drawPartyTable(g, scene.parties, state);
     drawStatus(g, scene.status, state);
     drawLetter(g, scene.letter);
     drawLegend(g, scene.legend);
@@ -2495,7 +2585,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
       rect(g, x + 10, ry + 1, 16 + (i === 1 ? -4 : i === 2 ? -8 : 0), 4, COLORS.paper);
     });
     hitRect(g, r);
-    makeButton(g, "Kto je kto. Ťuknutím uvidíš partie a ich farby.", "legend", openLegend);
+    makeButton(g, "Kto je kto. Ťuknutím uvidíš partie a ich farby.", "legend", function () { openLegend("legend"); });
   }
 
   function drawTitle(parent, r, state) {
@@ -2549,7 +2639,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
   function drawNotice(parent, r) {
     var g = svgEl(parent, "g");
     if (app.noticeCollapsed) {
-      var box = [r[0] + r[2] - 44, r[1], 44, 44];
+      var box = noticeIconRect(r);
       board(g, [box[0] + 4, box[1] + 4, 36, 36], COLORS.plank);
       addText(g, box[0] + 22, box[1] + 30, "?", 22, COLORS.paper, { anchor: "middle", bold: true });
       hitRect(g, box);
@@ -2566,6 +2656,57 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     });
     hitRect(g, r);
     makeButton(g, "Návod: " + NOTICE_LINES.join(" ") + " Ťuknutím ho zbalíš.", "notice", collapseNotice);
+  }
+
+  // The table of all parties under the signposts, drawn while the noticeboard is collapsed: a row per party
+  // (colour square and name), a column per night with placed/needed places. The whole table is one button
+  // that opens „Kto je kto“. The numbers are the same nightTally as on the signpost chips.
+  function drawPartyTable(parent, r, state) {
+    var rows = partyTableRows(state, app.myParty), nights = state.event.nights;
+    var lay = partyTableLayout(r, rows.length, nights.length);
+    var g = svgEl(parent, "g");
+    board(g, r, COLORS.paper, COLORS.woodDark);
+    var top = r[1] + lay.pad, innerX = r[0] + lay.pad, innerW = r[2] - 2 * lay.pad;
+
+    // header row: "Partia" and the night labels; the selected night gets the yellow header
+    nights.forEach(function (night, i) {
+      var info = nightInfo(night) || { label: night };
+      if (night === app.night) rect(g, lay.colX[i], top, lay.colW, lay.head, COLORS.selected);
+      addText(g, lay.colX[i] + lay.colW / 2, top + 7, info.label, 6, COLORS.ink,
+        { anchor: "middle", bold: true, maxWidth: lay.colW - 2 });
+    });
+    addText(g, lay.nameX + 1, top + 7, "Partia", 6, COLORS.ink, { bold: true, maxWidth: lay.nameW - 2 });
+    rect(g, innerX, top + lay.head - 1, innerW, 1, COLORS.woodDark);
+
+    var y0 = top + lay.head;
+    if (!rows.length) {
+      addText(g, lay.nameX + 1, y0 + lay.rowH / 2 + lay.size * 0.35, "Zatiaľ tu nikto nie je.", lay.size, COLORS.ink,
+        { maxWidth: innerW - 2 });
+    }
+    rows.slice(0, lay.rows).forEach(function (row, i) {
+      var y = y0 + i * lay.rowH, base = y + lay.rowH / 2 + lay.size * 0.35;
+      if (row.mine) rect(g, innerX, y, innerW, lay.rowH, COLORS.selected);
+      rect(g, lay.nameX + 1, y + (lay.rowH - 5) / 2, 5, 5, row.color);
+      addText(g, lay.nameX + 8, base, row.label, lay.size, COLORS.ink, { bold: row.mine, maxWidth: lay.nameW - 8 });
+      row.cells.forEach(function (cell, j) {
+        var cx = lay.colX[j] + lay.colW / 2, tone = TALLY_COLORS[cell.kind];
+        if (cell.kind === "under" || cell.kind === "over") {
+          var cw = lay.colW - 4, ch = lay.rowH - 1;
+          rect(g, cx - cw / 2, y + 0.5, cw, ch, COLORS[tone[0]]);
+          rect(g, cx - cw / 2 + 1, y + 1.5, cw - 2, ch - 2, COLORS[tone[1]]);
+          addText(g, cx, base, cell.text, lay.size, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: cw - 4 });
+        } else {
+          addText(g, cx, base, cell.text, lay.size, COLORS.ink, { anchor: "middle", maxWidth: lay.colW - 4 });
+        }
+      });
+    });
+    if (lay.more) {
+      var my = y0 + lay.rows * lay.rowH;
+      addText(g, lay.nameX + 1, my + lay.rowH / 2 + lay.size * 0.35, moreText(lay.more), lay.size, COLORS.roomLabel,
+        { maxWidth: lay.nameW });
+    }
+    hitRect(g, r);
+    makeButton(g, "Partie a ich miesta po nociach. Ťuknutím otvoríš „Kto je kto“.", "parties", function () { openLegend("parties"); });
   }
 
   function drawStatus(parent, r, state) {
@@ -3265,7 +3406,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
   }
 
   // „Kto je kto“: a read-only list of the parties with the colour of their figures.
-  function openLegend() {
+  function openLegend(returnKey) {
     openPanel("Kto je kto", function (body, panel) {
       body.appendChild(htmlEl("p", null, "Farba postavičky na mape patrí partii."));
       var list = htmlEl("ul", { "class": "legend-list" });
@@ -3282,8 +3423,9 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
       panel.refresh = function () {
         clearNode(list);
         var rows = app.state ? legendRows(app.state, app.myParty) : [];
+        var tableRows = app.state ? partyTableRows(app.state, app.myParty) : [];
         if (!rows.length) list.appendChild(htmlEl("li", { "class": "legend-empty" }, "Zatiaľ tu nikto nie je."));
-        rows.forEach(function (row) {
+        rows.forEach(function (row, i) {
           var li = htmlEl("li", { "class": "legend-row" });
           var swatch = htmlEl("span", { "class": "swatch", "aria-hidden": "true" });
           swatch.style.background = row.color;
@@ -3293,13 +3435,24 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
           if (row.mine) name.appendChild(htmlEl("span", { "class": "legend-me" }, " (ty)"));
           text.appendChild(name);
           text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · " + row.stay));
+          text.appendChild(nightsLine(tableRows[i]));
           li.appendChild(swatch);
           li.appendChild(text);
           list.appendChild(li);
         });
       };
       panel.refresh();
-    }, { returnKey: "legend" });
+    }, { returnKey: returnKey || "legend" });
+  }
+
+  // The per-night places of one party as a line of parts that do not break inside: "Št → Pi 2/3".
+  function nightsLine(row) {
+    var line = htmlEl("div", { "class": "legend-nights" });
+    legendNightParts(row).forEach(function (part, i) {
+      if (i) line.appendChild(document.createTextNode(" · "));
+      line.appendChild(htmlEl("span", null, part));
+    });
+    return line;
   }
 
   // --- party form ---

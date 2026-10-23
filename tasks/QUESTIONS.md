@@ -1,6 +1,6 @@
 # Open questions for the organizer
 
-**All questions answered by the organizer on 21. 10. 2026.** Decisions: Q3 and Q4 changed (see below, `proposal.md` updated), Q9 status rect enlarged, Q11 positions accepted and added to `proposal.md`, all other defaults accepted. Q13, which came out of the Q3 answer, is answered as well: `assign-stay` takes `slots[]`. No questions are open.
+**All questions answered by the organizer on 21. 10. 2026.** Decisions: Q3 and Q4 changed (see below, `proposal.md` updated), Q9 status rect enlarged, Q11 positions accepted and added to `proposal.md`, all other defaults accepted. Q13, which came out of the Q3 answer, is answered as well: `assign-stay` takes `slots[]`. **Q14 (23. 10. 2026) is open**; T-023 uses its defaults until the organizer answers.
 
 Written by the analyst while splitting `proposal.md` into tasks. Each question has a **default** that the tasks use until the organizer answers. When a question is answered, update the affected tasks (listed per question) and mark the question answered here.
 
@@ -107,3 +107,13 @@ After the Q3 answer, „Zapísať nás sem“ takes several slots in one all-or-
 - **Alternative for the organizer:** change `assign-stay` to `{slots[], party_id}`, writing per night the slots that are all free and skipping a night as a whole otherwise. That is a small change in T-001 and T-004.
 - Affects: T-006 (and T-001, T-004 if the alternative is chosen).
 - **Answer:** change `assign-stay` to `{slots[], party_id}`. For each night of the stay, all listed slots are written together, or the night is skipped and listed in `skipped`. The whole request is one write (one version bump, backup and audit entry). If every night is skipped, apply the Q5 rule: `409 slot_taken`, nothing written. Affects T-001, T-004, T-006.
+
+## Q14. The party table under the night signposts (T-023)
+
+The organizer asked for a table of all parties with their places per night on the grass under the signposts. Three points are not settled by the request:
+
+- **What a cell shows.** Default: placed / needed places, e.g. `2/3`, the same numbers as the signpost chip (`2/3!` on red when places are missing, amber when there are extra, `–` when the party is not there that night). Alternative: only the placed count (`2`), or only the needed count.
+- **Columns cannot sit exactly under the signposts.** The third signpost is above the collapsed „?“ box and the names need their own column. Default: the table is left of the „?“ box (`map.scene.parties: [176, 112, 148, 82]`) with a header row of night labels (`Št → Pi`, …), and the selected night's header is yellow. Alternative: move the „?“ box elsewhere and give the table the full width (a layout change in `chata.yaml` and `drawNotice`).
+- **The expanded noticeboard covers the same grass.** Default: the table is drawn only while the notice is collapsed to „?“ (after the first bed tap or a tap on the notice). The screen-reader summary always has the data.
+- Also a default: the „Kto je kto“ sign stays, and tapping the table opens „Kto je kto“, whose rows gain a line with the per-night numbers at normal text size, because the table text is about 5 px on a 380 px phone.
+- Affects: T-023.
