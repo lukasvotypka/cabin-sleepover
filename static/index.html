@@ -59,36 +59,25 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg g[role="button"]:focus-visible .hit { stroke: #FFD54A; stroke-width: 2; fill: rgba(255, 213, 74, .18); }
 .boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; background: var(--bg); color: var(--muted); }
 
-/* Loading view: a falling pixel leaf on the scene grass, with the text on a small wooden sign. Translate only, so pixels stay crisp. */
-#boot { flex-direction: column; gap: 12px; background: #8E9B48; z-index: 15; }
-/* Fade after the minimum time. pointer-events: none lets taps reach the map underneath. */
-#boot.boot--fade { opacity: 0; pointer-events: none; transition: opacity .3s linear; }
-#boot svg { display: block; width: 64px; height: 96px; }
-#boot .leaf { transform-box: fill-box; transform-origin: center; animation: leafFall 2.4s step-end infinite; }
+/* Loading view: a full-screen pixel picture on a canvas (blocks drawn by the app script) with the text on a small wooden sign
+   on the grass below the cabin. Fixed scene colors only, no CSS variables, so dark mode looks the same. */
+#boot { flex-direction: column; justify-content: flex-end; padding-bottom: 14vh; background: #8E9B48; z-index: 15; }
+#bootCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
 #bootText {
-  max-width: 100%; margin: 0; padding: 6px 12px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
-  font-weight: 700; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  position: relative; max-width: 100%; margin: 0; padding: 6px 12px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
+  font-weight: 700; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; overflow-wrap: anywhere;
 }
-/* step-end: every frame is held as listed. Each one sets its own scaleX, so nothing is interpolated between a flipped and an unflipped leaf (that gives a zero-width leaf). */
-@keyframes leafFall {
-  0% { transform: translate(0, 0) scaleX(1); opacity: 1; }
-  12.5% { transform: translate(3px, 7px) scaleX(1); opacity: 1; }
-  25% { transform: translate(6px, 14px) scaleX(-1); opacity: 1; }
-  37.5% { transform: translate(3px, 21px) scaleX(-1); opacity: 1; }
-  50% { transform: translate(0, 28px) scaleX(1); opacity: 1; }
-  62.5% { transform: translate(-3px, 35px) scaleX(1); opacity: 1; }
-  75% { transform: translate(-6px, 42px) scaleX(-1); opacity: 1; }
-  87.5% { transform: translate(-3px, 49px) scaleX(-1); opacity: 1; }
-  91% { transform: translate(0, 56px) scaleX(1); opacity: 1; }
-  96% { transform: translate(0, 56px) scaleX(1); opacity: .5; }
-  100% { transform: translate(0, 56px) scaleX(1); opacity: 0; }
+/* The fall: the background goes transparent so the map shows through where blocks have gone, and taps reach the map.
+   The sign drops in steps (translate only); its duration equals SPLASH_BLOCK_FALL_MS in the logic script. */
+#boot.boot--falling { background: transparent; pointer-events: none; }
+#boot.boot--falling #bootText { animation: bootSignDrop 600ms steps(8, end) forwards; }
+@keyframes bootSignDrop {
+  from { transform: translateY(0); }
+  to { transform: translateY(100vh); }
 }
 @media (prefers-reduced-motion: reduce) {
-  #boot .leaf { animation: none; transform: translate(0, 28px); }
-  #boot.boot--fade { transition: none; }
+  #boot.boot--falling #bootText { animation: none; }
 }
-/* A failed load: the leaf stops and lies on the ground. */
-#boot.boot--error .leaf { animation: none; transform: translate(0, 56px); opacity: 1; }
 
 /* --- code screen and panels --- */
 .code-screen {
@@ -237,20 +226,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <body>
 <noscript><p class="boot">Stránka potrebuje zapnutý JavaScript.</p></noscript>
 <div id="boot" class="boot" role="status">
-  <svg viewBox="0 0 64 96" width="64" height="96" aria-hidden="true" shape-rendering="crispEdges">
-    <rect x="0" y="92" width="64" height="4" fill="#76823A"/>
-    <rect x="10" y="88" width="2" height="2" fill="#B5532A"/><rect x="8" y="90" width="6" height="2" fill="#B5532A"/>
-    <rect x="48" y="88" width="2" height="2" fill="#8E3424"/><rect x="46" y="90" width="6" height="2" fill="#8E3424"/>
-    <g transform="translate(25 22)"><g class="leaf">
-      <rect x="6" y="0" width="2" height="2" fill="#D69A2E"/>
-      <rect x="4" y="2" width="2" height="2" fill="#D69A2E"/><rect x="6" y="2" width="2" height="2" fill="#B5532A"/><rect x="8" y="2" width="2" height="2" fill="#D69A2E"/>
-      <rect x="2" y="4" width="2" height="2" fill="#D69A2E"/><rect x="4" y="4" width="6" height="2" fill="#B5532A"/><rect x="10" y="4" width="2" height="2" fill="#D69A2E"/>
-      <rect x="0" y="6" width="2" height="2" fill="#D69A2E"/><rect x="2" y="6" width="10" height="2" fill="#B5532A"/><rect x="12" y="6" width="2" height="2" fill="#D69A2E"/>
-      <rect x="2" y="8" width="2" height="2" fill="#D69A2E"/><rect x="4" y="8" width="6" height="2" fill="#B5532A"/><rect x="10" y="8" width="2" height="2" fill="#D69A2E"/>
-      <rect x="4" y="10" width="2" height="2" fill="#D69A2E"/><rect x="6" y="10" width="2" height="2" fill="#B5532A"/><rect x="8" y="10" width="2" height="2" fill="#D69A2E"/>
-      <rect x="6" y="12" width="2" height="2" fill="#5C4033"/>
-    </g></g>
-  </svg>
+  <canvas id="bootCanvas" aria-hidden="true"></canvas>
   <p id="bootText">Načítavam…</p>
 </div>
 <div id="moveBar" class="movebar" role="region" aria-label="Presun" hidden>
@@ -1439,15 +1415,23 @@ function errorText(error, state) {
   return ERROR_TEXTS[error.code](params, state || null) || FALLBACK_ERROR;
 }
 
-// --- loading intro: the loading view stays for about one leaf fall, measured from page start ---
+// --- loading intro: a full-screen pixel picture that stands still, then falls apart downwards ---
 
-var BOOT_MIN_MS = 2400;          // one leafFall cycle in the CSS (#boot .leaf); keep the two equal
-var BOOT_MIN_REDUCED_MS = 800;   // still leaf with prefers-reduced-motion
-var BOOT_FADE_MS = 300;          // fade of the loading view after the minimum (the CSS transition of .boot--fade)
+var BOOT_MIN_MS = 1500;          // still splash before the fall may start, from page start
+var BOOT_MIN_REDUCED_MS = 800;   // still splash with prefers-reduced-motion, then hidden at once
+var BOOT_FALL_MS = 1500;         // the whole fall: the last block is below the screen by then
+var SPLASH_STEP_MS = 80;         // one held step of the fall
+var SPLASH_BLOCK_FALL_MS = 600;  // one block, from its place to below the screen; also the CSS sign drop (#bootText)
+var SPLASH_MAX_BLOCKS = 1500, SPLASH_MIN_BLOCK = 10, SPLASH_MAX_BLOCK = 40;
 
 // BOOT_MIN_REDUCED_MS when reducedMotion is true, else BOOT_MIN_MS.
 function bootMinMs(reducedMotion) {
   return reducedMotion ? BOOT_MIN_REDUCED_MS : BOOT_MIN_MS;
+}
+
+// How long the fall lasts: nothing with reduced motion, else BOOT_FALL_MS.
+function bootFallMs(reducedMotion) {
+  return reducedMotion ? 0 : BOOT_FALL_MS;
 }
 
 // How many ms the loading view must still stay: max(0, minMs - (nowMs - startMs)), never more than minMs.
@@ -1456,6 +1440,171 @@ function bootRemaining(startMs, nowMs, minMs) {
   if (typeof startMs !== "number" || typeof nowMs !== "number" || typeof minMs !== "number") return 0;
   if (!isFinite(startMs) || !isFinite(nowMs) || !isFinite(minMs)) return 0;
   return Math.min(minMs, Math.max(0, minMs - (nowMs - startMs)));
+}
+
+// The block grid that covers a vw x vh viewport (CSS px): {size, cols, rows}. The count is capped, not the size,
+// so a phone gets about 1400 blocks of 13 to 15 px and a desktop about as many bigger ones.
+function splashGrid(vw, vh) {
+  if (typeof vw !== "number" || typeof vh !== "number" || !isFinite(vw) || !isFinite(vh) || vw <= 0 || vh <= 0) {
+    return { size: SPLASH_MIN_BLOCK, cols: 0, rows: 0 };
+  }
+  var size = Math.ceil(Math.sqrt(vw * vh / SPLASH_MAX_BLOCKS));
+  size = Math.min(SPLASH_MAX_BLOCK, Math.max(SPLASH_MIN_BLOCK, size));
+  return { size: size, cols: Math.ceil(vw / size), rows: Math.ceil(vh / size) };
+}
+
+// The keys of COLORS (in the app script) that the splash picture may use: fixed scene colors only.
+var SPLASH_COLOR_KEYS = [
+  "window", "white", "wood", "woodLight", "plank", "woodDark", "leafRed", "redEdge", "stoveDark", "stovePipe",
+  "selected", "path", "grass", "tuft", "leafRust", "leafOchre"
+];
+
+// The cabin seen from the front, one character per block (18 x 14). "." is transparent.
+var SPLASH_SPRITE = [
+  "..............cc..",
+  "........EEEE..CC..",
+  "......EERRRREECC..",
+  "....EERRRRRRRREE..",
+  "..EERRRRRRRRRRRREE",
+  "DDDDDDDDDDDDDDDDDD",
+  ".WWWWWWWWWWWWWWWW.",
+  ".WDDDDWDDDDWDDDDW.",
+  ".WDSSDWDPPDWDSSDW.",
+  ".WDSSDWDPLDWDSSDW.",
+  ".WDDDDWDPPDWDDDDW.",
+  ".PPPPPPDPPDPPPPPP.",
+  ".WWWWWWDPPDWWWWWW.",
+  ".DDDDDDDPPDDDDDDD."
+];
+var SPLASH_SPRITE_KEYS = {
+  R: "leafRed", E: "redEdge", D: "woodDark", W: "wood", L: "woodLight", P: "plank",
+  S: "selected", C: "stoveDark", c: "stovePipe"
+};
+// An autumn tree crown (8 x 5) of leafOchre (O), leafRust (U) and leafRed (R); the trunk is woodDark.
+var SPLASH_CROWN = [
+  "..OOOO..",
+  ".OUUOUO.",
+  "OUURUUUO",
+  ".UUUURU.",
+  "..UUUU.."
+];
+var SPLASH_CROWN_KEYS = { O: "leafOchre", U: "leafRust", R: "leafRed" };
+
+// A small deterministic hash of (col, row): the same on every reload, so the picture and the tests are stable.
+function splashHash(col, row) {
+  var h = (Math.imul(col + 1, 374761393) + Math.imul(row + 1, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+// The picture as `rows` arrays of `cols` COLORS keys: sky with clouds, hills, grass with tufts and fallen leaves,
+// a path to the door, autumn trees when there is room, and the cabin sprite centered on the horizon.
+// 0 x 0 (or any non-positive size) gives [].
+function splashPicture(cols, rows) {
+  if (typeof cols !== "number" || typeof rows !== "number" || !(cols >= 1) || !(rows >= 1)) return [];
+  cols = Math.floor(cols);
+  rows = Math.floor(rows);
+  var spriteH = SPLASH_SPRITE.length, spriteW = SPLASH_SPRITE[0].length;
+  var top = Math.floor(rows * 0.6) - (spriteH - 1);   // first row of the sprite; its base sits a bit below the middle
+  var horizon = top + 10;                              // the first grass row
+  var left = Math.floor((cols - spriteW) / 2);         // negative on a very narrow grid: the sprite is clipped
+  var pic = [], r, c;
+
+  for (r = 0; r < rows; r++) {
+    var line = [];
+    for (c = 0; c < cols; c++) line.push(r < horizon ? "window" : "grass");
+    pic.push(line);
+  }
+  function put(c, r, key) {
+    if (c >= 0 && c < cols && r >= 0 && r < rows) pic[r][c] = key;
+  }
+  function cloud(c0, r0, w) {
+    for (var i = 1; i < w - 1; i++) put(c0 + i, r0, "white");
+    for (var j = 0; j < w; j++) put(c0 + j, r0 + 1, "white");
+  }
+
+  // far hills at the horizon, ragged
+  for (c = 0; c < cols; c++) {
+    if (splashHash(c, horizon - 1) % 4 !== 0) put(c, horizon - 1, "tuft");
+    if (splashHash(c, horizon - 2) % 5 === 0) put(c, horizon - 2, "tuft");
+  }
+  if (horizon >= 6) {
+    cloud(Math.floor(cols * 0.1), Math.floor(horizon * 0.12), 6);
+    cloud(Math.floor(cols * 0.7), Math.floor(horizon * 0.3), 5);
+  }
+
+  // trees on both sides, only when the grid is wide enough
+  if (left >= 8) {
+    var treeBase = [top + spriteH, top + spriteH - 2];
+    var treeX = [Math.floor(left / 2), Math.floor((left + spriteW + cols) / 2)];
+    for (var t = 0; t < 2; t++) {
+      var tx = treeX[t], tb = treeBase[t];
+      for (r = 0; r < 3; r++) { put(tx - 1, tb - r, "woodDark"); put(tx, tb - r, "woodDark"); }
+      for (r = 0; r < SPLASH_CROWN.length; r++) {
+        for (c = 0; c < SPLASH_CROWN[r].length; c++) {
+          var ck = SPLASH_CROWN_KEYS[SPLASH_CROWN[r][c]];
+          if (ck) put(tx - 4 + c, tb - 3 - (SPLASH_CROWN.length - 1 - r), ck);
+        }
+      }
+    }
+  }
+
+  // the path from the door down, widening a little with distance
+  var doorCol = left + 8;
+  for (r = top + spriteH; r < rows; r++) {
+    var extra = Math.floor((r - (top + spriteH - 1)) / 6);
+    for (c = doorCol - extra; c <= doorCol + 1 + extra; c++) {
+      var edge = extra > 0 && (c === doorCol - extra || c === doorCol + 1 + extra);
+      if (!(edge && splashHash(c, r) % 4 === 0)) put(c, r, "path");
+    }
+  }
+
+  // the cabin
+  for (r = 0; r < spriteH; r++) {
+    for (c = 0; c < spriteW; c++) {
+      var key = SPLASH_SPRITE_KEYS[SPLASH_SPRITE[r][c]];
+      if (key) put(left + c, top + r, key);
+    }
+  }
+
+  // tufts and fallen leaves on the plain grass
+  for (r = 0; r < rows; r++) {
+    for (c = 0; c < cols; c++) {
+      if (pic[r][c] !== "grass") continue;
+      var h = splashHash(c, r) % 40;
+      if (h < 4) pic[r][c] = "tuft";
+      else if (h === 4) pic[r][c] = "leafRust";
+      else if (h === 5) pic[r][c] = "leafOchre";
+      else if (h === 6) pic[r][c] = "leafRed";
+    }
+  }
+  return pic;
+}
+
+// When a block starts to fall, in ms after the start of the fall: the bottom rows go first with a ragged
+// edge. A multiple of SPLASH_STEP_MS in [0, BOOT_FALL_MS - SPLASH_BLOCK_FALL_MS].
+function splashDelay(col, row, cols, rows) {
+  var span = BOOT_FALL_MS - SPLASH_BLOCK_FALL_MS;
+  var order = rows > 1 ? (rows - 1 - row) / (rows - 1) : 0;   // 0 at the bottom row, 1 at the top row
+  var jitter = splashHash(col, row) % 1000 / 1000;            // 0 to just under 1
+  var ms = order * span * 0.65 + jitter * span * 0.35;
+  var steps = Math.floor(ms / SPLASH_STEP_MS);
+  return Math.min(steps, Math.floor(span / SPLASH_STEP_MS)) * SPLASH_STEP_MS;
+}
+
+var SPLASH_SWAY = [0, 1, 0, -1];   // sideways sway per step, times about a third of the block size
+
+// Offset {dx, dy} (whole CSS px) of a block elapsedMs after the fall started, for a block that starts at delayMs.
+// Held within each SPLASH_STEP_MS step; accelerates downwards and has moved fallPx by delayMs + SPLASH_BLOCK_FALL_MS;
+// |dx| is at most size / 2.
+function splashFall(elapsedMs, delayMs, fallPx, size) {
+  var t = elapsedMs - delayMs;
+  if (!(t >= 0)) return { dx: 0, dy: 0 };
+  var step = Math.floor(t / SPLASH_STEP_MS);
+  var steps = Math.ceil(SPLASH_BLOCK_FALL_MS / SPLASH_STEP_MS);
+  var p = Math.min(1, (step + 1) / steps);
+  var phase = (step + Math.floor(delayMs / SPLASH_STEP_MS)) % SPLASH_SWAY.length;
+  return { dx: SPLASH_SWAY[phase] * Math.round(size / 3), dy: Math.ceil(fallPx * p * p) };
 }
 </script>
 
@@ -1519,6 +1668,8 @@ function bootRemaining(startMs, nowMs, minMs) {
 
   // --- page state ---
 
+  var splash = { ctx: null, falling: false, raf: 0, endTimer: null, resizeFrame: 0, lastStep: -1, start: 0 };
+
   var app = {
     state: null,
     etag: null,
@@ -1529,7 +1680,7 @@ function bootRemaining(startMs, nowMs, minMs) {
     askWho: false,       // open „Kto si?“ once the next state has arrived
     introStart: 0,       // performance.now() when the intro clock started (page start, or the join)
     introTimer: null,    // the one pending timer that reveals the map
-    introDone: false,    // true after the first reveal: from then on the loading view never comes back
+    introDone: false,    // true when the fall starts: from then on the loading view never comes back
     codeOpen: false,
     polling: false,
     writeEpoch: 0,       // bumped when a write response is applied, so an older poll cannot overwrite it
@@ -1692,7 +1843,7 @@ function bootRemaining(startMs, nowMs, minMs) {
   }
 
   function openWhoIfAsked() {
-    if (!app.askWho) return;
+    if (!app.askWho || splash.falling) return;      // during the fall „Kto si?“ waits; the end of the fall asks again
     app.askWho = false;
     openWho();
   }
@@ -1703,7 +1854,7 @@ function bootRemaining(startMs, nowMs, minMs) {
     return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }
 
-  // First reveal of the map: wait until the loading view has been up for its minimum time. Later states
+  // First reveal of the map: wait until the splash has been up for its minimum time. Later states
   // during the wait only update app.state; there is never more than one timer.
   function revealWhenReady() {
     if (app.introDone || app.introTimer !== null || app.codeOpen) return;
@@ -1713,27 +1864,141 @@ function bootRemaining(startMs, nowMs, minMs) {
       if (app.introDone || !app.state || app.codeOpen) return;
       app.introDone = true;
       render();
-      hideBoot();
-      openWhoIfAsked();
       if (app.panel && app.panel.refresh) app.panel.refresh();
+      startFall();
     }, wait);
   }
 
-  // Fade the loading view out, or hide it at once with reduced motion.
-  function hideBoot() {
-    var boot = $("boot");
-    boot.classList.remove("boot--error");
-    if (boot.hidden) return;
-    if (prefersReducedMotion()) {
-      boot.hidden = true;
+  // --- the splash picture: a canvas of square blocks that falls apart downwards ---
+
+  // splash.pic / splash.delays are filled by drawSplash(); the rest is the fall in progress.
+  function resetSplash() {
+    splash.falling = false;
+    splash.raf = 0;
+    splash.endTimer = null;
+    splash.resizeFrame = 0;
+    splash.lastStep = -1;
+    splash.start = 0;
+  }
+
+  // Size the canvas from #boot, build the block grid and paint the still picture. Layout is read here
+  // (and at the start of the fall), never inside the fall loop.
+  function drawSplash() {
+    var boot = $("boot"), canvas = $("bootCanvas");
+    if (boot.hidden || splash.falling) return;
+    var box = boot.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    var grid = splashGrid(box.width, box.height);
+    var pic = splashPicture(grid.cols, grid.rows);
+    canvas.width = Math.round(box.width * dpr);
+    canvas.height = Math.round(box.height * dpr);
+    splash.ctx = canvas.getContext("2d");
+    splash.ctx.imageSmoothingEnabled = false;
+    splash.dpr = dpr;
+    splash.size = grid.size;
+    splash.cols = grid.cols;
+    splash.rows = grid.rows;
+    splash.height = box.height;
+    // Block edges in whole device pixels, shared by neighbours, so there are no seams at fractional ratios.
+    splash.xs = [];
+    splash.ys = [];
+    var i;
+    for (i = 0; i <= grid.cols; i++) splash.xs.push(Math.round(i * grid.size * dpr));
+    for (i = 0; i <= grid.rows; i++) splash.ys.push(Math.round(i * grid.size * dpr));
+    splash.colors = [];
+    splash.delays = [];
+    for (var r = 0; r < grid.rows; r++) {
+      for (var c = 0; c < grid.cols; c++) {
+        splash.colors.push(COLORS[pic[r][c]]);
+        splash.delays.push(splashDelay(c, r, grid.cols, grid.rows));
+      }
+    }
+    paintSplash(-1);
+  }
+
+  // Clear the canvas and draw every block at its place, moved by splashFall() elapsedMs into the fall.
+  // A negative elapsedMs draws the still picture.
+  function paintSplash(elapsedMs) {
+    var ctx = splash.ctx;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    var fallPx = splash.height + splash.size;
+    for (var r = 0; r < splash.rows; r++) {
+      var y0 = splash.ys[r], h = splash.ys[r + 1] - y0;
+      for (var c = 0; c < splash.cols; c++) {
+        var i = r * splash.cols + c;
+        var dx = 0, dy = 0;
+        if (elapsedMs >= 0) {
+          var off = splashFall(elapsedMs, splash.delays[i], fallPx, splash.size);
+          if (off.dy >= fallPx) continue;     // already below the screen
+          dx = Math.round(off.dx * splash.dpr);
+          dy = Math.round(off.dy * splash.dpr);
+        }
+        ctx.fillStyle = splash.colors[i];
+        ctx.fillRect(splash.xs[c] + dx, y0 + dy, splash.xs[c + 1] - splash.xs[c], h);
+      }
+    }
+  }
+
+  // Start the fall of the splash. The map is already drawn underneath. With reduced motion there is no fall.
+  function startFall() {
+    if (bootFallMs(prefersReducedMotion()) === 0 || $("boot").hidden || !splash.ctx) {
+      hideBoot();
+      openWhoIfAsked();
       return;
     }
-    boot.classList.add("boot--fade");
-    setTimeout(function () {
-      boot.hidden = true;
-      boot.classList.remove("boot--fade");
-    }, BOOT_FADE_MS);
+    splash.falling = true;
+    splash.start = performance.now();
+    splash.lastStep = -1;
+    $("boot").classList.add("boot--falling");
+    splash.endTimer = setTimeout(function () {      // not rAF: that stops in a background tab
+      hideBoot();
+      openWhoIfAsked();
+    }, BOOT_FALL_MS);
+    fallFrame();
   }
+
+  // Time comes from the clock, not from a frame count. The canvas is redrawn only when the step changes.
+  function fallFrame() {
+    splash.raf = 0;
+    if (!splash.falling) return;
+    var elapsed = performance.now() - splash.start;
+    var step = Math.floor(elapsed / SPLASH_STEP_MS);
+    if (step !== splash.lastStep) {
+      splash.lastStep = step;
+      paintSplash(elapsed);
+    }
+    splash.raf = requestAnimationFrame(fallFrame);
+  }
+
+  // Stop a fall in progress and free the canvas, then hide the splash.
+  function hideBoot() {
+    var boot = $("boot"), canvas = $("bootCanvas");
+    if (splash.raf) cancelAnimationFrame(splash.raf);
+    if (splash.endTimer !== null) clearTimeout(splash.endTimer);
+    if (splash.resizeFrame) cancelAnimationFrame(splash.resizeFrame);
+    resetSplash();
+    boot.classList.remove("boot--error", "boot--falling");
+    boot.hidden = true;
+    splash.ctx = null;
+    canvas.width = canvas.height = 0;
+  }
+
+  // Show the splash again (after the code, before the first reveal) and draw it.
+  function showBoot() {
+    $("bootText").textContent = "Načítavam…";
+    $("boot").classList.remove("boot--error", "boot--falling");
+    $("boot").hidden = false;
+    drawSplash();
+  }
+
+  // A rotation or a resized window during the hold: redraw on the next frame. Resizes during the fall are ignored.
+  window.addEventListener("resize", function () {
+    if ($("boot").hidden || splash.falling || splash.resizeFrame) return;
+    splash.resizeFrame = requestAnimationFrame(function () {
+      splash.resizeFrame = 0;
+      drawSplash();
+    });
+  });
 
   // A move belongs to the party that started it, so a change of *moja partia* ends it.
   function forgetMyParty() {
@@ -3307,7 +3572,7 @@ function bootRemaining(startMs, nowMs, minMs) {
       clearTimeout(app.introTimer);
       app.introTimer = null;
     }
-    $("boot").hidden = true;
+    hideBoot();
     showScene(false);
     $("codeScreen").hidden = false;
     $("codeInput").focus();
@@ -3340,12 +3605,12 @@ function bootRemaining(startMs, nowMs, minMs) {
         app.askWho = !app.myParty;
         app.etag = null;
         hideCodeScreen();
-        $("bootText").textContent = "Načítavam…";
-        $("boot").classList.remove("boot--error");
-        // Before the first reveal (no state yet, or one that was only stored) the loading view shows again
+        // Before the first reveal (no state yet, or one that was only stored) the splash shows again
         // and the intro clock restarts, so the intro plays once, after the code.
-        $("boot").hidden = app.introDone;
-        if (!app.introDone) app.introStart = performance.now();
+        if (!app.introDone) {
+          app.introStart = performance.now();
+          showBoot();
+        }
         showScene(app.introDone);
         poll();
       } else {
@@ -3378,7 +3643,8 @@ function bootRemaining(startMs, nowMs, minMs) {
     if (document.visibilityState === "visible") poll();
   }, POLL_MS);
   setInterval(renderAge, AGE_TICK_MS);
-  poll();
+  poll();           // the first request leaves before anything is drawn
+  drawSplash();
 })();
 </script>
 </body>

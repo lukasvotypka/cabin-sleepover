@@ -64,7 +64,8 @@ const hold = (id, slots) => Object.fromEntries(slots.map((s) => [s, id]));
 // --- the block itself ---
 
 test("the logic block does not touch the DOM or the browser", () => {
-  assert.doesNotMatch(logicSource, /\b(document|window|localStorage|fetch|navigator)\b/);
+  // "window" in quotes is the COLORS key of the sky (T-022), not the browser global
+  assert.doesNotMatch(logicSource.replace(/"window"/g, '""'), /\b(document|window|localStorage|fetch|navigator)\b/);
 });
 
 // --- dates ---
@@ -1476,27 +1477,24 @@ test("page: the map fills the viewport (fixed full-height scene, safe areas, gra
   assert.match(app, /drawGround\(app\.layers\.ground, nb\)/);
 });
 
-test("page: autumn palette and the loading leaf (T-012)", () => {
+test("page: autumn palette and the loading splash (T-012, T-022)", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.ok(!html.includes("79B35A"));
   assert.match(html, /--bg: #EFE5D3;/);
   assert.match(html, /--bg: #1A1410;/);
   assert.match(html, /<p id="bootText">Načítavam…<\/p>/);
-  assert.match(html, /<div id="boot"[\s\S]*?<svg[^>]*aria-hidden="true"[^>]*shape-rendering="crispEdges"/);
+  assert.match(html, /<div id="boot" class="boot" role="status">\s*<canvas id="bootCanvas" aria-hidden="true"><\/canvas>/);
   assert.ok(!/\$\("boot"\)\.textContent/.test(app));
   assert.match(app, /\$\("bootText"\)\.textContent = "Nepodarilo sa načítať/);
   assert.ok(!/innerHTML/.test(app.replace(/\/\/.*$/gm, "")));
 });
 
-test("page: every leafFall keyframe sets its own scaleX and the animation uses step-end (T-012)", () => {
-  assert.match(html, /animation: leafFall [\d.]+s step-end infinite/);
-  const body = html.match(/@keyframes leafFall \{([\s\S]*?)\n\}/)[1];
-  const frames = [...body.matchAll(/([\d.]+)% \{([^}]*)\}/g)];
-  assert.ok(frames.length >= 9);
-  for (const [, pct, decl] of frames) {
-    assert.match(decl, /transform: translate\([^)]*\) scaleX\((-1|1)\)/, `frame ${pct}%`);
-  }
-  assert.deepEqual(frames.slice(0, 8).map((f) => Number(f[1])), [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5]);
+test("page: the leaf of T-012 is gone (T-022)", () => {
+  assert.doesNotMatch(html, /leafFall/);
+  assert.doesNotMatch(html, /\.leaf\b/);
+  assert.doesNotMatch(html, /boot--fade/);
+  const boot = html.match(/<div id="boot"[\s\S]*?<p id="bootText">/)[0];
+  assert.doesNotMatch(boot, /<svg/);
 });
 
 test("fit: an extra top inset the size of the move bar keeps the whole scene below it, in every orientation", () => {
@@ -1536,7 +1534,7 @@ test("page: the move bar's height is a top inset while it shows, and the scene r
   assert.doesNotMatch(html, /\.code-screen \{[^}]*align-items: center/);
 });
 
-// --- loading intro (T-015) ---
+// --- loading intro and splash (T-015, T-022) ---
 
 test("bootRemaining: the loading view stays for the rest of the minimum, measured from the start", () => {
   assert.equal(L.bootRemaining(0, 500, 2400), 1900);
@@ -1554,29 +1552,213 @@ test("bootRemaining: the loading view stays for the rest of the minimum, measure
   assert.equal(L.bootRemaining(0, Infinity, 2400), 0);
 });
 
-test("bootMinMs: a shorter minimum with reduced motion", () => {
-  assert.equal(L.bootMinMs(false), 2400);
+test("bootMinMs and bootFallMs: the still time and the fall time, shorter or none with reduced motion", () => {
+  assert.equal(L.bootMinMs(false), 1500);
   assert.equal(L.bootMinMs(true), 800);
-  assert.equal(L.BOOT_MIN_MS, 2400);
+  assert.equal(L.BOOT_MIN_MS, 1500);
   assert.equal(L.BOOT_MIN_REDUCED_MS, 800);
-  assert.equal(L.BOOT_FADE_MS, 300);
+  assert.equal(L.BOOT_FALL_MS, 1500);
+  assert.equal(L.bootFallMs(true), 0);
+  assert.equal(L.bootFallMs(false), L.BOOT_FALL_MS);
 });
 
-test("BOOT_MIN_MS equals the leafFall duration in the CSS, and BOOT_FADE_MS the fade transition", () => {
-  const rule = html.match(/#boot \.leaf \{[^}]*animation: leafFall ([\d.]+)s/);
-  assert.ok(rule, "the #boot .leaf rule must set a leafFall duration");
-  assert.equal(Math.round(parseFloat(rule[1]) * 1000), L.BOOT_MIN_MS);
-  const fade = html.match(/#boot\.boot--fade \{[^}]*transition: opacity ([\d.]+)s/);
-  assert.ok(fade, "the .boot--fade rule must set an opacity transition");
-  assert.equal(Math.round(parseFloat(fade[1]) * 1000), L.BOOT_FADE_MS);
-  assert.match(html, /#boot\.boot--fade \{[^}]*pointer-events: none;/);
+const GRIDS = [[26, 57], [28, 50], [51, 29]];
+
+test("splashGrid: a capped block count, blocks of 10 to 40 px", () => {
+  assert.deepEqual(plain(L.splashGrid(380, 844)), { size: 15, cols: 26, rows: 57 });
+  assert.deepEqual(plain(L.splashGrid(360, 640)), { size: 13, cols: 28, rows: 50 });
+  assert.deepEqual(plain(L.splashGrid(1920, 1080)), { size: 38, cols: 51, rows: 29 });
+  for (const [vw, vh] of [[360, 640], [380, 844], [390, 844], [768, 1024], [1440, 900], [1920, 1080]]) {
+    const g = plain(L.splashGrid(vw, vh));
+    assert.ok(g.cols * g.size >= vw && g.rows * g.size >= vh, `${vw}x${vh} covers the viewport`);
+    assert.ok(g.size >= 10 && g.size <= 40, `${vw}x${vh} size ${g.size}`);
+    assert.ok(g.cols * g.rows >= 300 && g.cols * g.rows <= 1600, `${vw}x${vh} count ${g.cols * g.rows}`);
+  }
+  assert.equal(L.splashGrid(100, 100).size, 10);
+  assert.equal(L.splashGrid(3840, 2160).size, 40);
+  for (const bad of [[NaN, 800], [800, NaN], [0, 800], [800, 0], [-5, 800], [800, -5], [Infinity, 800], [undefined, undefined]]) {
+    const g = plain(L.splashGrid(...bad));
+    assert.equal(g.cols, 0, String(bad));
+    assert.equal(g.rows, 0, String(bad));
+    assert.equal(g.size, 10, String(bad));
+  }
 });
 
-test("page: the intro constants are used by name, with no magic numbers in the app script", () => {
+// The keys of the COLORS literal in the app script.
+function appColorKeys() {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
-  assert.match(app, /bootRemaining\(app\.introStart, performance\.now\(\), bootMinMs\(/);
-  assert.match(app, /BOOT_FADE_MS/);
-  assert.doesNotMatch(app, /\b(2400|800|300)\b/);
+  const literal = app.match(/var COLORS = \{([\s\S]*?)\n  \};/)[1];
+  return [...literal.matchAll(/(\w+):\s*"#/g)].map((m) => m[1]);
+}
+
+test("splashPicture: rows x cols of COLORS keys, deterministic, with the cabin in the middle", () => {
+  const colorKeys = appColorKeys();
+  assert.ok(colorKeys.length > 30);
+  for (const key of L.SPLASH_COLOR_KEYS) assert.ok(colorKeys.includes(key), `${key} is a key of COLORS`);
+  const allowed = new Set(L.SPLASH_COLOR_KEYS);
+  for (const [cols, rows] of [...GRIDS, [1, 1]]) {
+    const pic = plain(L.splashPicture(cols, rows));
+    assert.equal(pic.length, rows);
+    for (const line of pic) {
+      assert.equal(line.length, cols);
+      for (const key of line) assert.ok(allowed.has(key), `${key} at ${cols}x${rows}`);
+    }
+    assert.deepEqual(plain(L.splashPicture(cols, rows)), pic);
+  }
+  assert.deepEqual(plain(L.splashPicture(0, 0)), []);
+  assert.deepEqual(plain(L.splashPicture(0, 10)), []);
+  assert.deepEqual(plain(L.splashPicture(10, 0)), []);
+  // a grid narrower than the sprite is clipped, not an error
+  assert.equal(L.splashPicture(5, 8).length, 8);
+
+  for (const [cols, rows] of [[26, 57], [51, 29]]) {
+    const pic = plain(L.splashPicture(cols, rows));
+    const mid = Math.floor(cols / 2);
+    const near = (key) => pic.some((line) => line.slice(mid - 5, mid + 5).includes(key));
+    assert.ok(near("plank"), `door at ${cols}x${rows}`);
+    assert.ok(near("selected"), `lit windows at ${cols}x${rows}`);
+    assert.ok(near("path"), `path at ${cols}x${rows}`);
+    assert.ok(pic[0].includes("window"), `sky at ${cols}x${rows}`);
+    assert.ok(pic[rows - 1].includes("grass") || pic[rows - 1].includes("tuft"), `grass at ${cols}x${rows}`);
+  }
+});
+
+test("splashPicture: trees on both sides only when they fit, leaves on the grass", () => {
+  const crown = ["leafRust", "leafOchre", "leafRed"];
+  const wide = plain(L.splashPicture(51, 29));
+  const sky = wide.slice(6, 14);                // crowns reach into the sky rows; grass leaves are lower
+  for (const [from, to] of [[0, 17], [34, 51]]) {
+    for (const key of crown) {
+      assert.ok(sky.some((line) => line.slice(from, to).includes(key)), `${key} in columns ${from} to ${to}`);
+    }
+  }
+  const narrow = plain(L.splashPicture(26, 57));
+  assert.ok(!narrow.slice(0, 19).some((line) => line.some((key) => crown.includes(key))), "no trees in the sky of a phone grid (the roof is lower)");
+  assert.ok(narrow.slice(40).some((line) => line.includes("leafRust") || line.includes("leafOchre") || line.includes("leafRed")));
+});
+
+test("splashDelay: multiples of the step within the fall, bottom rows first, ragged", () => {
+  const max = L.BOOT_FALL_MS - L.SPLASH_BLOCK_FALL_MS;
+  for (const [cols, rows] of GRIDS) {
+    let biggest = 0;
+    const mean = (row) => {
+      let sum = 0;
+      for (let c = 0; c < cols; c++) sum += L.splashDelay(c, row, cols, rows);
+      return sum / cols;
+    };
+    for (let r = 0; r < rows; r++) {
+      const seen = new Set();
+      for (let c = 0; c < cols; c++) {
+        const d = L.splashDelay(c, r, cols, rows);
+        assert.equal(d % L.SPLASH_STEP_MS, 0);
+        assert.ok(d >= 0 && d <= max, `${d} at ${c},${r}`);
+        assert.equal(L.splashDelay(c, r, cols, rows), d);
+        biggest = Math.max(biggest, d);
+        seen.add(d);
+      }
+      assert.ok(seen.size > 1, `row ${r} has jitter`);
+    }
+    assert.ok(mean(rows - 1) < mean(0), `${cols}x${rows}: the bottom row goes first`);
+    assert.ok(biggest + L.SPLASH_BLOCK_FALL_MS <= L.BOOT_FALL_MS);
+  }
+});
+
+test("splashFall: still before the delay, held within a step, accelerating, off the screen in time, whole px", () => {
+  const fallPx = 844 + 15, size = 15, delay = 400;
+  assert.deepEqual(plain(L.splashFall(0, delay, fallPx, size)), { dx: 0, dy: 0 });
+  assert.deepEqual(plain(L.splashFall(delay - 1, delay, fallPx, size)), { dx: 0, dy: 0 });
+  // constant within one step
+  const a = plain(L.splashFall(delay + L.SPLASH_STEP_MS, delay, fallPx, size));
+  assert.deepEqual(plain(L.splashFall(delay + L.SPLASH_STEP_MS * 2 - 1, delay, fallPx, size)), a);
+  assert.ok(a.dy > 0);
+  let lastDy = 0, moves = 0, lastKey = "";
+  for (let t = 0; t <= delay + L.SPLASH_BLOCK_FALL_MS + 400; t += 7) {
+    const f = plain(L.splashFall(t, delay, fallPx, size));
+    assert.ok(f.dy >= lastDy, `dy never decreases at ${t}`);
+    assert.ok(Math.abs(f.dx) <= size / 2, `dx ${f.dx}`);
+    assert.ok(Number.isInteger(f.dx) && Number.isInteger(f.dy));
+    lastDy = f.dy;
+    if (JSON.stringify(f) !== lastKey) moves++;
+    lastKey = JSON.stringify(f);
+  }
+  // 600 / 80 = 8 steps, then the sway goes on: it moves in visible jumps, not continuously
+  assert.ok(moves >= 8 && moves <= 16, `moves ${moves}`);
+  assert.ok(L.splashFall(delay + L.SPLASH_BLOCK_FALL_MS, delay, fallPx, size).dy >= fallPx);
+  assert.ok(L.splashFall(delay + L.SPLASH_BLOCK_FALL_MS + 5000, delay, fallPx, size).dy >= fallPx);
+  // it accelerates: the first half of the fall covers less than the second half
+  assert.ok(L.splashFall(delay + 240, delay, fallPx, size).dy < fallPx / 2);
+  // the sway goes both ways
+  const dxs = new Set();
+  for (let s = 0; s < 8; s++) dxs.add(L.splashFall(delay + s * L.SPLASH_STEP_MS, delay, fallPx, size).dx);
+  assert.ok([...dxs].some((x) => x > 0) && [...dxs].some((x) => x < 0));
+});
+
+test("CSS and JS stay equal: the sign drop uses steps() for SPLASH_BLOCK_FALL_MS, the falling class lets taps through", () => {
+  const rule = html.match(/#boot\.boot--falling #bootText \{[^}]*animation: bootSignDrop (\d+)ms steps\(/);
+  assert.ok(rule, "the falling #bootText rule must use a bootSignDrop animation with steps(");
+  assert.equal(Number(rule[1]), L.SPLASH_BLOCK_FALL_MS);
+  assert.match(html, /#boot\.boot--falling \{[^}]*pointer-events: none;/);
+  assert.match(html, /#boot\.boot--falling \{[^}]*background: transparent;/);
+  const reduced = html.match(/@media \(prefers-reduced-motion: reduce\) \{\s*#boot\.boot--falling #bootText \{[^}]*animation: none;/);
+  assert.ok(reduced, "reduced motion turns the sign drop off");
+  const drop = html.match(/@keyframes bootSignDrop \{([\s\S]*?)\n\}/)[1];
+  assert.doesNotMatch(drop, /rotate|scale/);
+});
+
+test("page: the splash looks the same in dark mode (fixed colors, no CSS variables)", () => {
+  for (const sel of ["#boot", "#bootText", "#bootCanvas", "#boot.boot--falling"]) {
+    const escaped = sel.replace(/[.#]/g, "\\$&");
+    const m = html.match(new RegExp("^" + escaped + " \\{([^}]*)\\}", "m"));
+    assert.ok(m, sel);
+    assert.doesNotMatch(m[1], /var\(--/, sel);
+  }
+});
+
+// The intro code in the app script: revealWhenReady, the splash functions and hideBoot.
+function introSource() {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  const a = app.indexOf("  function revealWhenReady()");
+  const b = app.indexOf("  // A move belongs to the party that started it");
+  assert.ok(a > 0 && b > a);
+  return app.slice(a, b);
+}
+
+test("page: the intro constants are used by name, with no magic numbers in the intro code", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  const intro = introSource().replace(/\/\/.*$/gm, "");
+  assert.match(intro, /bootRemaining\(app\.introStart, performance\.now\(\), bootMinMs\(/);
+  assert.match(intro, /bootFallMs\(prefersReducedMotion\(\)\)/);
+  assert.match(intro, /setTimeout\(function \(\) \{[^]*?\}, BOOT_FALL_MS\)/);
+  assert.match(intro, /SPLASH_STEP_MS/);
+  assert.match(intro, /splashGrid\(box\.width, box\.height\)/);
+  assert.match(intro, /splashFall\(/);
+  assert.match(intro, /performance\.now\(\) - splash\.start/);
+  assert.doesNotMatch(intro, /\b(1500|800|600|80|2400|300)\b/);
+  assert.doesNotMatch(app, /BOOT_FADE_MS/);
+  // the loop reads no layout
+  const loop = intro.match(/function fallFrame\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.doesNotMatch(loop, /getBoundingClientRect|clientWidth|clientHeight|offsetWidth|offsetHeight/);
+  const paint = intro.match(/function paintSplash\([\s\S]*?\n  \}\n/)[0];
+  assert.doesNotMatch(paint, /getBoundingClientRect|clientWidth|clientHeight|offsetWidth|offsetHeight|createElement/);
+  // the first request leaves before the splash is drawn
+  assert.match(app, /\n  poll\(\);[^\n]*\n  drawSplash\(\);\n/);
+  // block edges are rounded in whole device pixels
+  assert.match(intro, /Math\.round\(i \* grid\.size \* dpr\)/);
+});
+
+test("page: the code screen stops the fall and the join replays the splash once", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  const code = app.match(/function showCodeScreen\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.match(code, /clearTimeout\(app\.introTimer\)/);
+  assert.match(code, /hideBoot\(\);/);
+  const hide = app.match(/function hideBoot\(\) \{[\s\S]*?\n  \}\n/)[0];
+  assert.match(hide, /cancelAnimationFrame\(splash\.raf\)/);
+  assert.match(hide, /clearTimeout\(splash\.endTimer\)/);
+  assert.match(hide, /boot\.hidden = true/);
+  assert.match(hide, /canvas\.width = canvas\.height = 0/);
+  assert.match(app, /if \(!app\.introDone\) \{\s*app\.introStart = performance\.now\(\);\s*showBoot\(\);/);
+  // „Kto si?“ waits for the end of the fall
+  assert.match(app, /if \(!app\.askWho \|\| splash\.falling\) return;/);
 });
 
 // --- people waiting on the meadow (T-016) ---
