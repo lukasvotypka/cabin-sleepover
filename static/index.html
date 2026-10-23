@@ -1828,7 +1828,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     fetchedAt: 0,
     night: null,
     myParty: storage.get(KEYS.party),
-    noticeCollapsed: storage.get(KEYS.notice) === "1",
+    noticeCollapsed: storage.get(KEYS.notice) !== "0",
     askWho: false,       // open „Kto si?“ once the next state has arrived
     introStart: 0,       // performance.now() when the intro clock started (page start, or the join)
     introTimer: null,    // the one pending timer that reveals the map
@@ -2182,7 +2182,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
 
   function expandNotice() {
     app.noticeCollapsed = false;
-    storage.remove(KEYS.notice);
+    storage.set(KEYS.notice, "0");
     renderBoards();
   }
 
