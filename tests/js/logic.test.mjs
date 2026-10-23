@@ -439,7 +439,7 @@ const realBeds = {
 };
 const scene = { title: [176, 10, 196, 44], nights: [176, 60, 196, 44], notice: [176, 112, 196, 66], status: [278, 322, 94, 88],
   locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
-  legend: [24, 264, 44, 44] };
+  legend: [24, 264, 44, 44], meadow: [112, 381, 124, 14] };
 const realLayout = {
   event,
   map: { viewbox: [380, 412], doors, scene },
@@ -1492,4 +1492,87 @@ test("page: the intro constants are used by name, with no magic numbers in the a
   assert.match(app, /bootRemaining\(app\.introStart, performance\.now\(\), bootMinMs\(/);
   assert.match(app, /BOOT_FADE_MS/);
   assert.doesNotMatch(app, /\b(2400|800|300)\b/);
+});
+
+// --- people waiting on the meadow (T-016) ---
+
+test("waitingFigures: nobody without a party, on an absent night, or with all places held", () => {
+  assert.deepEqual(plain(L.waitingFigures(stateWith([]), null, THU)), []);
+  const late = party({ arrive: FRI });
+  assert.deepEqual(plain(L.waitingFigures(stateWith([late]), late, THU)), []);
+  const full = party();
+  const st = stateWith([full], { [THU]: hold(full.id, ["vlavo-manzelska-1", "vlavo-manzelska-2"]) });
+  assert.deepEqual(plain(L.waitingFigures(st, full, THU)), []);
+  const over = stateWith([full], { [THU]: hold(full.id, ["vlavo-manzelska-1", "vlavo-manzelska-2", "vlavo-okno-1"]) });
+  assert.deepEqual(plain(L.waitingFigures(over, full, THU)), []);
+});
+
+test("waitingFigures: adults first, then the kids, after the places already held", () => {
+  const p = party({ adults: 2, kids: 1 });
+  assert.deepEqual(plain(L.waitingFigures(stateWith([p]), p, THU)), [{ kind: "adult" }, { kind: "adult" }, { kind: "kid" }]);
+  const one = stateWith([p], { [THU]: hold(p.id, ["vlavo-okno-1"]) });
+  assert.deepEqual(plain(L.waitingFigures(one, p, THU)), [{ kind: "adult" }, { kind: "kid" }]);
+  assert.deepEqual(plain(L.waitingFigures(one, p, FRI)), [{ kind: "adult" }, { kind: "adult" }, { kind: "kid" }]);
+});
+
+test("waitingFigures: a kid in the parents' bed has no figure", () => {
+  const p = party({ adults: 2, kids: 2, kids_in_parents_bed: 1 });
+  const figures = L.waitingFigures(stateWith([p]), p, THU);
+  assert.deepEqual(plain(figures), [{ kind: "adult" }, { kind: "adult" }, { kind: "kid" }]);
+  assert.equal(figures.length, L.missingPlaces(stateWith([p]), p, THU));
+});
+
+test("meadowLayout: nothing for 0, and 3 figures centred in the real rect", () => {
+  const rect = realLayout.map.scene.meadow;
+  assert.deepEqual(plain(L.meadowLayout(rect, 0)), { cells: [], more: 0, morePos: null });
+  const three = L.meadowLayout(rect, 3);
+  assert.deepEqual(plain(three), { cells: [[155, 382], [169, 382], [183, 382]], more: 0, morePos: null });
+  const xs = three.cells.map((c) => c[0]);
+  assert.equal(xs[1] - xs[0], 14);
+  assert.equal(xs[2] - xs[1], 14);
+  three.cells.forEach(([x, y]) => {
+    assert.ok(Number.isInteger(x) && Number.isInteger(y));
+    assert.ok(x >= rect[0] && x + L.MEADOW_FIG_W <= rect[0] + rect[2]);
+    assert.ok(y >= rect[1] && y + L.MEADOW_FIG_H <= rect[1] + rect[3]);
+  });
+  assert.equal(xs[0] - rect[0], rect[0] + rect[2] - (xs[2] + L.MEADOW_FIG_W));   // equal grass on both sides
+});
+
+test("meadowLayout: capacity 9 in the real rect, then the last cell becomes a badge", () => {
+  const rect = realLayout.map.scene.meadow;
+  const full = L.meadowLayout(rect, 9);
+  assert.equal(full.cells.length, 9);
+  assert.equal(full.more, 0);
+  assert.equal(full.morePos, null);
+  const over = L.meadowLayout(rect, 10);
+  assert.equal(over.cells.length, 8);
+  assert.equal(over.more, 2);
+  assert.deepEqual(plain(over.morePos), plain(full.cells[8]));
+  assert.deepEqual(plain(over.cells), plain(full.cells.slice(0, 8)));
+});
+
+test("meadowLayout: a rect too narrow for one figure still has capacity 1", () => {
+  const narrow = L.meadowLayout([0, 0, 6, 14], 3);
+  assert.equal(narrow.cells.length, 0);
+  assert.equal(narrow.more, 3);
+  assert.ok(narrow.morePos);
+  const one = L.meadowLayout([0, 0, 6, 14], 1);
+  assert.equal(one.cells.length, 1);
+  assert.equal(one.more, 0);
+});
+
+test("meadowLabel: Slovak forms for 0, 1, 2-4 and 5 or more", () => {
+  assert.equal(L.meadowLabel(0), "");
+  assert.equal(L.meadowLabel(1), "Na lúke čaká 1 človek z vašej partie bez postele");
+  assert.equal(L.meadowLabel(2), "Na lúke čakajú 2 ľudia z vašej partie bez postele");
+  assert.equal(L.meadowLabel(4), "Na lúke čakajú 4 ľudia z vašej partie bez postele");
+  assert.equal(L.meadowLabel(5), "Na lúke čaká 5 ľudí z vašej partie bez postele");
+  assert.equal(L.meadowLabel(11), "Na lúke čaká 11 ľudí z vašej partie bez postele");
+});
+
+test("page: the meadow is drawn from the config rect, as a non-interactive image group", () => {
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.match(app, /drawMeadow\(g, view\);/);
+  assert.match(app, /scene\.meadow/);
+  assert.match(app, /role: "img", "aria-label": meadowLabel\(waiting\.length\), "pointer-events": "none"/);
 });

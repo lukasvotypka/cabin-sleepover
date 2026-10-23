@@ -213,6 +213,7 @@ Vychádza z `podklady/mapa-nahlad.html`: pohľad zhora, tráva, chodníky, konic
 - Obsadené miesto: postavička vo farbe partie (hlava a telo z pixelov). Deti zo stĺpca Deti sú menšie postavičky. Pri dlhom stlačení alebo prejdení myšou sa ukáže meno.
 - Voľné miesto: biely štvorček, ktorý jemne bliká. Tesné miesto má oranžový štvorček. Pri `prefers-reduced-motion` bez blikania.
 - Miesto mojej partie má pod postavičkou žltý rámik, aby ho človek hneď našiel.
+- Ľudia mojej partie, ktorí v zvolenú noc ešte nemajú posteľ, stoja ako postavičky na lúke pri chodníku (`map.scene.meadow`), vo farbe partie, deti menšie. Deti, ktoré spia s rodičmi, nemajú vlastnú postavičku. Keď sa všetci nezmestia, na poslednom mieste je štítok „+N“. Postavičky iných partií na lúke nie sú.
 - Ukladaná zmena je polopriehľadná, kým nepríde potvrdenie zo servera.
 - Každá posteľ a každý smerovník, ceduľa či ikona je prvok s `role="button"`, `tabindex="0"` a popisom pre čítačky (napr. „Manželská posteľ, izba vľavo, v sobotu Ivan a Eva, 0 voľných“).
 - Pre čítačky obrazovky je v stránke skrytý textový prehľad (izby, postele a mená pre zvolenú noc, termín, návod), aby sa dalo zistiť všetko aj bez kreslenia. Je to náhrada za samostatný zoznam.
@@ -271,6 +272,7 @@ map:
     letter: [128, 336, 44, 44]   # ikona listu, prehľad na poslanie
     key:    [184, 336, 44, 44]   # ikona kľúča, iba pre admina
     legend: [24, 264, 44, 44]    # ikona „Kto je kto“, legenda farieb partií
+    meadow: [112, 381, 124, 14]  # lúka, kde čakajú ľudia mojej partie bez postele
 
 rooms:
   - id: konica-hore

@@ -657,6 +657,46 @@ function slotOccupant(state, slot, night) {
   return { party: party, kind: kind };
 }
 
+// --- people waiting on the meadow ---
+
+var MEADOW_FIG_W = 10;   // width of the adult sprite (drawFigure)
+var MEADOW_FIG_H = 12;   // height of the adult sprite
+var MEADOW_GAP = 4;      // grass between two waiting figures
+
+// The waiting figures of my party on a night: [{kind: "adult" | "kid"}], one per missing place, in slot
+// order (see figureKind). [] when party is null or not present that night.
+function waitingFigures(state, party, night) {
+  if (!party || !isPresent(party, night)) return [];
+  var placed = partySlots(state, party.id, night).length;
+  var count = missingPlaces(state, party, night);
+  var out = [];
+  for (var k = 0; k < count; k++) out.push({ kind: figureKind(party, placed + k) });
+  return out;
+}
+
+// Where `count` figures stand in the meadow rect: one row, centred, integer coordinates (crisp pixels).
+// count <= capacity: {cells: [[x, y], ...count], more: 0, morePos: null}
+// count >  capacity: {cells: the first capacity - 1 cells, more: count - (capacity - 1), morePos: the last cell}
+function meadowLayout(rect, count) {
+  var capacity = Math.max(1, Math.floor((rect[2] + MEADOW_GAP) / (MEADOW_FIG_W + MEADOW_GAP)));
+  if (!(count > 0)) return { cells: [], more: 0, morePos: null };
+  var shown = Math.min(count, capacity);
+  var width = shown * MEADOW_FIG_W + (shown - 1) * MEADOW_GAP;
+  var x0 = rect[0] + Math.floor((rect[2] - width) / 2);
+  var y = rect[1] + Math.floor((rect[3] - MEADOW_FIG_H) / 2);
+  var cells = [];
+  for (var i = 0; i < shown; i++) cells.push([x0 + i * (MEADOW_FIG_W + MEADOW_GAP), y]);
+  if (count <= capacity) return { cells: cells, more: 0, morePos: null };
+  return { cells: cells.slice(0, capacity - 1), more: count - (capacity - 1), morePos: cells[capacity - 1] };
+}
+
+// Screen-reader label of the meadow group, "" for 0.
+function meadowLabel(count) {
+  if (!(count > 0)) return "";
+  var word = count === 1 ? "čaká 1 človek" : count < 5 ? "čakajú " + count + " ľudia" : "čaká " + count + " ľudí";
+  return "Na lúke " + word + " z vašej partie bez postele";
+}
+
 function isFreeSlot(state, slot, night) {
   return !((state.sleeping && state.sleeping[night]) || {})[slot];
 }
@@ -2285,6 +2325,25 @@ function bootRemaining(startMs, nowMs, minMs) {
     layout.rooms.forEach(function (room) {
       room.beds.forEach(function (bed) { drawBed(g, layout, view, room, bed); });
     });
+    drawMeadow(g, view);
+  }
+
+  // My party's people without a bed on the selected night, standing on the meadow. Not a button.
+  function drawMeadow(parent, view) {
+    var party = app.myParty ? partyById(view.state, app.myParty) : null;
+    var waiting = waitingFigures(view.state, party, app.night);
+    if (!waiting.length) return;
+    var spot = meadowLayout(view.state.layout.map.scene.meadow, waiting.length);
+    var g = svgEl(parent, "g", { role: "img", "aria-label": meadowLabel(waiting.length), "pointer-events": "none" });
+    var ch = shirtChar(party.name);
+    spot.cells.forEach(function (cell, i) {
+      drawFigure(g, cell[0], cell[1], party.color, waiting[i].kind, ch);
+    });
+    if (spot.morePos) {
+      var chip = [spot.morePos[0] - 1, spot.morePos[1], 12, 12];
+      board(g, chip, COLORS.plank);
+      addText(g, chip[0] + 6, chip[1] + 8.5, "+" + spot.more, 7, COLORS.paper, { anchor: "middle", bold: true });
+    }
   }
 
   function drawBed(parent, layout, view, room, bed) {

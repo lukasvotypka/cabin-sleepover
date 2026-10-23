@@ -145,6 +145,7 @@ class SceneRects(_Model):
     letter: Rect
     key: Rect
     legend: Rect
+    meadow: Rect
 
 
 class MapLayout(_Model):

@@ -32,6 +32,7 @@ SCENE = {
     "letter": [128, 336, 44, 44],
     "key": [184, 336, 44, 44],
     "legend": [24, 264, 44, 44],
+    "meadow": [112, 381, 124, 14],
 }
 
 
@@ -58,6 +59,23 @@ def test_chata_yaml_dates_are_quoted_strings():
 
 def test_scene_rects_match_proposal(layout):
     assert layout.map.scene.model_dump() == SCENE
+
+
+def _overlap(a, b):
+    return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
+
+
+def test_meadow_is_inside_the_viewbox_and_overlaps_nothing(layout):
+    meadow = layout.map.scene.meadow
+    width, height = layout.map.viewbox
+    assert meadow[0] >= 0 and meadow[1] >= 0
+    assert meadow[0] + meadow[2] <= width and meadow[1] + meadow[3] <= height
+    others = {f"room {r.id}": r.rect for r in layout.rooms}
+    others.update({f"path {i}": r for i, r in enumerate(layout.map.paths)})
+    others.update({f"door {i}": r for i, r in enumerate(layout.map.doors)})
+    others.update({f"scene {k}": v for k, v in layout.map.scene.model_dump().items() if k != "meadow"})
+    for name, rect in others.items():
+        assert not _overlap(meadow, rect), f"meadow overlaps {name}"
 
 
 def test_slot_order_follows_file_order(layout):

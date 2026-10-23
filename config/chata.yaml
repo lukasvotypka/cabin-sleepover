@@ -18,6 +18,7 @@ map:
     letter: [128, 336, 44, 44]   # ikona listu, prehľad na poslanie
     key:    [184, 336, 44, 44]   # ikona kľúča, iba pre admina
     legend: [24, 264, 44, 44]    # ikona „Kto je kto“, legenda farieb partií
+    meadow: [112, 381, 124, 14]  # lúka, kde čakajú ľudia mojej partie bez postele
 
 rooms:
   - id: konica-hore
