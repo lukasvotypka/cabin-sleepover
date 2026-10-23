@@ -203,23 +203,23 @@ test("status: missing 1 place on Saturday is red and names the night", () => {
     [THU]: hold(p.id, PAIR), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, ["vlavo-manzelska-1"]),
   });
   assert.deepEqual(plain(L.myPartyStatus(s, p)),
-    { kind: "missing", night: SAT, count: 1, text: "V sobotu vám chýba 1 miesto" });
+    { kind: "missing", night: SAT, count: 1, text: "V sobotu ti chýba 1 miesto" });
 });
 
 test("status: the first night with missing places wins, with verb forms", () => {
   const p = party({ adults: 3 });
   const s = stateWith([p], { [FRI]: hold(p.id, ["vlavo-manzelska-1"]) });
   assert.equal(L.myPartyStatus(s, p).night, THU);
-  assert.equal(L.myPartyStatus(s, p).text, "Vo štvrtok vám chýbajú 3 miesta");
+  assert.equal(L.myPartyStatus(s, p).text, "Vo štvrtok ti chýbajú 3 miesta");
   const big = party({ adults: 6, arrive: THU, leave: FRI });
-  assert.equal(L.myPartyStatus(stateWith([big]), big).text, "Vo štvrtok vám chýba 6 miest");
+  assert.equal(L.myPartyStatus(stateWith([big]), big).text, "Vo štvrtok ti chýba 6 miest");
 });
 
 test("status: 1 extra place is a soft amber note", () => {
   const p = party({ adults: 2, leave: FRI });   // present on the Thursday night only
   const s = stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]) });
   assert.deepEqual(plain(L.myPartyStatus(s, p)),
-    { kind: "extra", night: THU, count: 1, text: "Máte o 1 miesto viac, než potrebujete" });
+    { kind: "extra", night: THU, count: 1, text: "Máš o 1 miesto viac, než potrebuješ" });
 });
 
 test("status: missing wins over extra, even when the extra night is earlier", () => {
@@ -231,19 +231,19 @@ test("status: missing wins over extra, even when the extra night is earlier", ()
   const status = L.myPartyStatus(s, p);
   assert.equal(status.kind, "missing");
   assert.equal(status.night, FRI);
-  assert.equal(status.text, "V piatok vám chýba 1 miesto");
+  assert.equal(status.text, "V piatok ti chýba 1 miesto");
 });
 
 test("status: 2 extra places use the plural form", () => {
   const p = party({ adults: 1, leave: FRI });
   const s = stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]) });
-  assert.equal(L.myPartyStatus(s, p).text, "Máte o 2 miesta viac, než potrebujete");
+  assert.equal(L.myPartyStatus(s, p).text, "Máš o 2 miesta viac, než potrebuješ");
 });
 
 test("status: everything in place", () => {
   const p = party({ adults: 2 });
   const s = stateWith([p], { [THU]: hold(p.id, PAIR), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, PAIR) });
-  assert.deepEqual(plain(L.myPartyStatus(s, p)), { kind: "ok", night: null, count: 0, text: "Všetko máte" });
+  assert.deepEqual(plain(L.myPartyStatus(s, p)), { kind: "ok", night: null, count: 0, text: "Všetko máš" });
 });
 
 test("status: kids sleeping with the parents are not counted", () => {
@@ -275,7 +275,7 @@ test("tally: kids in the parents' bed lower the needed places", () => {
   const t = L.nightTally(s, p, THU);
   assert.equal(t.needed, 2);
   assert.equal(t.kind, "ok");
-  assert.equal(L.tallyChipText(t), "máte 2/2");
+  assert.equal(L.tallyChipText(t), "máš 2/2");
 });
 
 test("tally: not present but holding a slot is over", () => {
@@ -284,28 +284,28 @@ test("tally: not present but holding a slot is over", () => {
   const t = L.nightTally(s, p, FRI);
   assert.equal(t.kind, "over");
   assert.equal(t.present, false);
-  assert.equal(L.tallyChipText(t), "máte 1/0");
-  assert.equal(L.tallyLabel(t), "V túto noc tu nie ste, ale máte 1 miesto");
+  assert.equal(L.tallyChipText(t), "máš 1/0");
+  assert.equal(L.tallyLabel(t), "V túto noc tu nie si, ale máš 1 miesto");
 });
 
 test("tally: all chip texts", () => {
   const t = (kind, placed, needed) => ({ night: THU, present: true, needed, placed, kind });
-  assert.equal(L.tallyChipText(t("under", 2, 3)), "máte 2/3 !");
-  assert.equal(L.tallyChipText(t("over", 4, 3)), "máte 4/3");
-  assert.equal(L.tallyChipText(t("ok", 3, 3)), "máte 3/3");
-  assert.equal(L.tallyChipText({ night: THU, present: false, needed: 0, placed: 0, kind: "absent" }), "nie ste tu");
+  assert.equal(L.tallyChipText(t("under", 2, 3)), "máš 2/3 !");
+  assert.equal(L.tallyChipText(t("over", 4, 3)), "máš 4/3");
+  assert.equal(L.tallyChipText(t("ok", 3, 3)), "máš 3/3");
+  assert.equal(L.tallyChipText({ night: THU, present: false, needed: 0, placed: 0, kind: "absent" }), "nie si tu");
 });
 
 test("tally: all label sentences with plural forms", () => {
   const t = (kind, placed, needed, present = true) => ({ night: THU, present, needed, placed, kind });
-  assert.equal(L.tallyLabel(t("under", 2, 3)), "Máte 2 miesta, potrebujete 3, chýba 1 miesto");
-  assert.equal(L.tallyLabel(t("under", 0, 2)), "Máte 0 miest, potrebujete 2, chýbajú 2 miesta");
-  assert.equal(L.tallyLabel(t("under", 1, 6)), "Máte 1 miesto, potrebujete 6, chýba 5 miest");
-  assert.equal(L.tallyLabel(t("over", 4, 3)), "Máte 4 miesta, potrebujete 3, o 1 miesto viac");
-  assert.equal(L.tallyLabel(t("over", 5, 3)), "Máte 5 miest, potrebujete 3, o 2 miesta viac");
-  assert.equal(L.tallyLabel(t("over", 1, 0, false)), "V túto noc tu nie ste, ale máte 1 miesto");
-  assert.equal(L.tallyLabel(t("ok", 3, 3)), "Máte 3 miesta, presne toľko, koľko potrebujete");
-  assert.equal(L.tallyLabel(t("absent", 0, 0, false)), "V túto noc tu nie ste");
+  assert.equal(L.tallyLabel(t("under", 2, 3)), "Máš 2 miesta, potrebuješ 3, chýba 1 miesto");
+  assert.equal(L.tallyLabel(t("under", 0, 2)), "Máš 0 miest, potrebuješ 2, chýbajú 2 miesta");
+  assert.equal(L.tallyLabel(t("under", 1, 6)), "Máš 1 miesto, potrebuješ 6, chýba 5 miest");
+  assert.equal(L.tallyLabel(t("over", 4, 3)), "Máš 4 miesta, potrebuješ 3, o 1 miesto viac");
+  assert.equal(L.tallyLabel(t("over", 5, 3)), "Máš 5 miest, potrebuješ 3, o 2 miesta viac");
+  assert.equal(L.tallyLabel(t("over", 1, 0, false)), "V túto noc tu nie si, ale máš 1 miesto");
+  assert.equal(L.tallyLabel(t("ok", 3, 3)), "Máš 3 miesta, presne toľko, koľko potrebuješ");
+  assert.equal(L.tallyLabel(t("absent", 0, 0, false)), "V túto noc tu nie si");
 });
 
 test("tally: partyTallies has one entry per event night, in order, and [] for null", () => {
@@ -345,7 +345,7 @@ test("ellipsize and the first status line", () => {
 });
 
 test("wrapText wraps words, breaks long words and caps the lines", () => {
-  assert.deepEqual(plain(L.wrapText("V sobotu vám chýba 1 miesto", 14, 3)), ["V sobotu vám", "chýba 1 miesto"]);
+  assert.deepEqual(plain(L.wrapText("V sobotu ti chýba 1 miesto", 14, 3)), ["V sobotu ti", "chýba 1 miesto"]);
   assert.deepEqual(plain(L.wrapText("abcdefghij", 4, 5)), ["abcd", "efgh", "ij"]);
   assert.deepEqual(plain(L.wrapText("one two three four", 5, 2)), ["one", "two…"]);
   assert.deepEqual(plain(L.wrapText("", 5, 2)), []);
@@ -378,7 +378,7 @@ test("slot_taken takes the holder name from the state when the param is missing"
 
 test("slot_taken for the own party says so", () => {
   const text = L.errorText(err("slot_taken", { night: FRI, party_id: "p-aaaaaa", party_name: "Ivan a Eva", own: true }));
-  assert.equal(text, "Toto miesto už v piatok máte.");
+  assert.equal(text, "Toto miesto už v piatok máš.");
 });
 
 test("params fill the other texts", () => {
@@ -598,8 +598,8 @@ test("assign button label says how many places it takes", () => {
 });
 
 test("reasons and confirmations in Slovak", () => {
-  assert.equal(L.notPresentText(SAT), "V sobotu nie ste na chate.");
-  assert.equal(L.notPresentText(THU), "Vo štvrtok nie ste na chate.");
+  assert.equal(L.notPresentText(SAT), "V sobotu nie si na chate.");
+  assert.equal(L.notPresentText(THU), "Vo štvrtok nie si na chate.");
   assert.equal(L.releaseConfirmText("Riso a Ben"), "Toto miesto má Riso a Ben. Naozaj ho uvoľniť?");
   assert.equal(L.moveBarText("Ivan a Eva"), "Ťukni na nové miesto pre Ivan a Eva");
 });
@@ -621,7 +621,7 @@ test("move plan: one night, all nights and the two reasons it fails", () => {
   assert.deepEqual(plain(L.planMove(s, move, target, THU)), { nights: [THU], target: "vlavo-manzelska-1" });
   assert.deepEqual(plain(L.planMove(s, { ...move, all: true }, target, FRI)), { nights: [THU, SAT], target: "vlavo-manzelska-1" });
   // not sleeping in the old place on the selected night
-  assert.equal(L.planMove(s, move, target, FRI).error, "Tú noc nespíte na pôvodnom mieste. Prepni noc alebo zvoľ „Všetky noci“.");
+  assert.equal(L.planMove(s, move, target, FRI).error, "Tú noc na pôvodnom mieste nespíš. Prepni noc alebo zvoľ „Všetky noci“.");
   // the old place is not held on any night
   assert.equal(L.planMove(s, { ...move, fromSlot: "chodba-gauc-1", all: true }, target, THU).error, L.MOVE_TEXTS.not_held);
   // no free slot in every night
@@ -1563,11 +1563,11 @@ test("meadowLayout: a rect too narrow for one figure still has capacity 1", () =
 
 test("meadowLabel: Slovak forms for 0, 1, 2-4 and 5 or more", () => {
   assert.equal(L.meadowLabel(0), "");
-  assert.equal(L.meadowLabel(1), "Na lúke čaká 1 človek z vašej partie bez postele");
-  assert.equal(L.meadowLabel(2), "Na lúke čakajú 2 ľudia z vašej partie bez postele");
-  assert.equal(L.meadowLabel(4), "Na lúke čakajú 4 ľudia z vašej partie bez postele");
-  assert.equal(L.meadowLabel(5), "Na lúke čaká 5 ľudí z vašej partie bez postele");
-  assert.equal(L.meadowLabel(11), "Na lúke čaká 11 ľudí z vašej partie bez postele");
+  assert.equal(L.meadowLabel(1), "Na lúke čaká 1 človek z tvojej partie bez postele");
+  assert.equal(L.meadowLabel(2), "Na lúke čakajú 2 ľudia z tvojej partie bez postele");
+  assert.equal(L.meadowLabel(4), "Na lúke čakajú 4 ľudia z tvojej partie bez postele");
+  assert.equal(L.meadowLabel(5), "Na lúke čaká 5 ľudí z tvojej partie bez postele");
+  assert.equal(L.meadowLabel(11), "Na lúke čaká 11 ľudí z tvojej partie bez postele");
 });
 
 test("page: the meadow is drawn from the config rect, as a non-interactive image group", () => {
@@ -1575,4 +1575,128 @@ test("page: the meadow is drawn from the config rect, as a non-interactive image
   assert.match(app, /drawMeadow\(g, view\);/);
   assert.match(app, /scene\.meadow/);
   assert.match(app, /role: "img", "aria-label": meadowLabel\(waiting\.length\), "pointer-events": "none"/);
+});
+
+// --- regression guard: singular tykanie only, never the plural "vy" forms (T-020) ---
+
+// The plural 2nd person reads exactly like vykanie, which the brief forbids. This checker lives in the test
+// file on purpose: the page itself has no use for it.
+const FORMAL_WORDS = new Set([
+  "vy", "vás", "vám", "vami", "váš", "vaša", "vaše", "vašej", "vašu", "vašho", "vášho", "vašom", "vašou",
+  "vašim", "vašimi", "vašich", "vaši", "vaším", "vaší", "vášmu", "ste", "máte", "nemáte", "potrebujete", "nepotrebujete", "spíte", "nespíte",
+  "chcete", "môžete", "viete", "budete",
+]);
+// Slovak words ending in "-te" that are not plural imperatives or verbs: locative of chata, sobota, cesta and miesto.
+const TE_ALLOWED = new Set(["chate", "sobote", "ceste", "mieste"]);
+
+const formalForms = (text) =>
+  (String(text).toLowerCase().match(/[\p{L}]+/gu) || []).filter((w) => FORMAL_WORDS.has(w) || (/te$/.test(w) && !TE_ALLOWED.has(w)));
+
+test("formalForms flags plural 2nd person forms", () => {
+  assert.deepEqual(formalForms("Zadajte kód"), ["zadajte"]);
+  assert.deepEqual(formalForms("nie ste tu"), ["ste"]);
+  assert.deepEqual(formalForms("máte 2/3 !"), ["máte"]);
+  assert.deepEqual(formalForms("z vašej partie"), ["vašej"]);
+  assert.deepEqual(formalForms(" (vy)"), ["vy"]);
+  assert.deepEqual(formalForms("Kliknite sem"), ["kliknite"]);
+  assert.deepEqual(formalForms("Tú noc nespíte"), ["nespíte"]);
+  assert.deepEqual(formalForms("Stránka potrebuje vaši JavaScript"), ["vaši"]);
+  assert.deepEqual(formalForms("v rámci vaším"), ["vaším"]);
+});
+
+test("formalForms accepts singular tykanie and the allowed 1st person plural", () => {
+  for (const ok of ["V sobotu nie si na chate.", "Zapísať nás sem", "Na všetky naše noci", "sme vynechali", "v sobote",
+    "Máš 2 miesta, potrebuješ 3", "V sobotu ti chýba 1 miesto", "Všetko máš", "Prepni noc alebo zvoľ „Všetky noci“."]) {
+    assert.deepEqual(formalForms(ok), [], ok);
+  }
+});
+
+test("guard, text producers: no function or table of the logic block yields a plural 2nd person", () => {
+  const texts = [];
+  const add = (value) => {
+    if (typeof value === "string") texts.push(value);
+    else if (Array.isArray(value)) value.forEach(add);
+    else if (value && typeof value === "object") Object.values(value).forEach(add);
+  };
+
+  // tally chips and labels, every kind, with and without presence
+  const tally = (kind, placed, needed, present = true) => ({ night: THU, present, needed, placed, kind });
+  for (const t of [tally("under", 2, 3), tally("under", 0, 2), tally("under", 1, 6), tally("over", 4, 3), tally("over", 5, 3),
+    tally("over", 1, 0, false), tally("ok", 3, 3), tally("absent", 0, 0, false)]) {
+    add(L.tallyChipText(t));
+    add(L.tallyLabel(t));
+  }
+
+  // my party status: none, missing, extra, ok
+  const p = party({ adults: 2 });
+  const big = party({ adults: 6 });
+  add(L.myPartyStatus(stateWith([p]), null));
+  add(L.myPartyStatus(stateWith([p], { [SAT]: hold(p.id, ["vlavo-okno-1"]) }), p));
+  add(L.myPartyStatus(stateWith([big]), big));
+  add(L.myPartyStatus(stateWith([p], { [THU]: hold(p.id, [...PAIR, "vlavo-okno-1"]), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, PAIR) }), p));
+  add(L.myPartyStatus(stateWith([p], { [THU]: hold(p.id, PAIR), [FRI]: hold(p.id, PAIR), [SAT]: hold(p.id, PAIR) }), p));
+
+  [1, 2, 5].forEach((n) => add(L.meadowLabel(n)));
+  [THU, FRI, SAT].forEach((n) => add(L.notPresentText(n)));
+  add([[FRI], [THU, SAT], [THU, FRI, SAT], []].map((n) => L.skippedText(n)));
+  add(L.releaseConfirmText("Riso a Ben"));
+  add(L.moveBarText("Ivan a Eva"));
+  add([null, party()].map((x) => L.whoText(x)));
+  [0, 1, 2, 5].forEach((n) => add(L.assignLabel(n)));
+
+  add(L.NOTICE_LINES);
+  add(L.MOVE_TEXTS);
+  add(L.FREED_TEXTS);
+  add(L.REASON_TEXTS);
+  add(L.FIELD_NAMES);
+  add(L.FALLBACK_ERROR);
+
+  // every error code, with and without params, and the "own" slot_taken
+  const s = stateWith([party()]);
+  for (const code of Object.keys(L.ERROR_TEXTS)) {
+    add(L.errorText({ code, message: "x" }, s));
+    add(L.errorText({ code, message: "x", params: {} }, null));
+    add(L.errorText({ code, message: "x", params: { night: SAT, slot: "vlavo-okno-1", party_id: "p-aaaaaa", party_name: "Ivan a Eva",
+      name: "Ivan a Eva", field: "arrive", reason: "name_empty", retry_after: 12 } }, s));
+  }
+  add(L.errorText(err("slot_taken", { night: FRI, party_id: "p-aaaaaa", party_name: "Ivan a Eva", own: true }), s));
+  add(L.errorText(err("slot_taken", { own: true }), s));
+  add(L.errorText(err("not_present", { night: THU, party_name: "Mrco" }), s));
+  add(L.errorText(err("invalid", { reason: "leave_not_after_arrive" }), s));
+
+  add(L.summaryText(summaryState(), "https://chata.example/"));
+  add([THU, FRI, SAT].map((n) => L.hiddenSummary(summaryState(), n)));
+
+  assert.ok(texts.length > 150, "the guard must really visit the text producers, got " + texts.length);
+  for (const text of texts) assert.deepEqual(formalForms(text), [], text);
+});
+
+test("guard, page source: no Slovak literal, text node or attribute of the page uses a plural 2nd person", () => {
+  // Drop the stylesheet, then scan the two scripts (string literals only, comments skipped) and the markup.
+  const noStyle = html.replace(/<style[\s\S]*?<\/style>/g, "");
+  const scripts = [...noStyle.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.ok(scripts.length >= 2);
+  const markup = noStyle.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "<script></script>");
+
+  const found = [];
+  const token = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+  for (const source of scripts) {
+    for (const m of source.matchAll(token)) {
+      if (m[0].startsWith("//") || m[0].startsWith("/*")) continue;
+      found.push(m[0].slice(1, -1));
+    }
+  }
+  // Markup text and attributes are user-facing by definition, so all of them are scanned.
+  const markupTexts = [];
+  for (const m of markup.matchAll(/\b(?:aria-label|placeholder|title|alt)="([^"]*)"/g)) markupTexts.push(m[1]);
+  for (const m of markup.replace(/<!--[\s\S]*?-->/g, "").matchAll(/>([^<>]+)</g)) markupTexts.push(m[1]);
+
+  // Script literals also hold code strings (class names such as "note"), so keep only the ones that look like
+  // Slovak text: a Slovak letter, a sentence (capital letter and a space), or a forbidden word.
+  const slovak = /[áäčďéíľĺňóôŕšťúýž„“]/i;
+  const sentence = /^\p{Lu}.*\s/u;
+  const scriptTexts = found.filter((text) => slovak.test(text) || sentence.test(text) || [...FORMAL_WORDS].some((w) => new RegExp(`(?<![\\p{L}])${w}(?![\\p{L}])`, "iu").test(text)));
+  const scanned = [...scriptTexts, ...markupTexts];
+  assert.ok(scanned.length > 100, "the guard must really read the page literals, got " + scanned.length);
+  for (const text of scanned) assert.deepEqual(formalForms(text), [], text);
 });

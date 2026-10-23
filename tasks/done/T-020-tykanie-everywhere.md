@@ -113,13 +113,13 @@ Add a test in `tests/js/logic.test.mjs` that fails when a plural/formal 2nd-pers
 - The guard must pass after rows 1–16 and must fail if any single row is reverted (check this by hand once and note it in the dev log).
 
 ## Acceptance criteria
-- [ ] Rows 1–16 are changed in `static/index.html`. No other wording, sizes or logic change. `drawStatus` uses `status.text` for the green sign.
-- [ ] On a 380 px phone the new chip („máš 2/3 !“), the red sign („Vo štvrtok ti chýbajú 3 miesta“, at most 3 lines, no „…“) and the green sign („Všetko máš“) are readable and no longer than before.
-- [ ] Rows 17–19 in `proposal.md` and rows 20–26 in `tests/manualne.md` are updated. No other proposal text changes.
-- [ ] All Node assertions listed above use the new texts. The regression guard exists, its checker self-test passes, and both scan layers pass.
-- [ ] A search of `static/index.html` for `vám`, `vaš`, `máte`, ` ste`, `(vy)` and `nespíte` finds nothing user-facing.
-- [ ] No `innerHTML` introduced.
-- [ ] `node --test tests/js/` and `uv run pytest -q` pass.
+- [x] Rows 1–16 are changed in `static/index.html`. No other wording, sizes or logic change. `drawStatus` uses `status.text` for the green sign.
+- [ ] On a 380 px phone the new chip („máš 2/3 !“), the red sign („Vo štvrtok ti chýbajú 3 miesta“, at most 3 lines, no „…“) and the green sign („Všetko máš“) are readable and no longer than before. (not checked on a real phone: verified by `wrapText` only, see Dev log)
+- [x] Rows 17–19 in `proposal.md` and rows 20–26 in `tests/manualne.md` are updated. No other proposal text changes.
+- [x] All Node assertions listed above use the new texts. The regression guard exists, its checker self-test passes, and both scan layers pass.
+- [x] A search of `static/index.html` for `vám`, `vaš`, `máte`, ` ste`, `(vy)` and `nespíte` finds nothing user-facing.
+- [x] No `innerHTML` introduced.
+- [x] `node --test tests/js/` and `uv run pytest -q` pass.
 
 ## Notes for developer
 - **Order:** T-016 adds `meadowLabel` and must be in `done/` and committed first. T-017 and T-019 change the same files and come after this task (their `Depends on` lists T-020 for build order).
@@ -136,12 +136,86 @@ Add a test in `tests/js/logic.test.mjs` that fails when a plural/formal 2nd-pers
 ---
 ## Dev log
 (developer appends: what was done, files touched, how to run the tests)
+**Done (developer, 23. 10. 2026).**
+- `static/index.html`: rows 1-16 replaced exactly as in the audit (text only). Row 15: `drawStatus` green sign now draws `status.text` (the "Všetko máš" of `myPartyStatus`), one place for the text. Row 16: „(ty)“.
+- `tests/js/logic.test.mjs`: assertions of rows listed in the task updated (`myPartyStatus`, `tallyChipText`/`tallyLabel`, `wrapText` -> `["V sobotu ti", "chýba 1 miesto"]`, `slot_taken` own, `notPresentText`, `planMove` not_held, `meadowLabel`). Added the guard: helper `formalForms` (forbidden set + `-te` rule), 2 checker self-tests, "text producers" test (>150 texts from all functions/tables, every `ERROR_TEXTS` code with and without params, `slot_taken` own, `summaryText`, `hiddenSummary`) and "page source" test (string literals of both scripts with comments skipped, markup text nodes, `aria-label`/`placeholder`/`title`/`alt`, `<style>` dropped; keeps strings with a Slovak letter or a forbidden word, asserts >100 scanned).
+- `proposal.md`: rows 17-19. `tests/manualne.md`: rows 20-26.
+- Allowlist of the `-te` rule: `chate`, `sobote`, `ceste` (from the task) plus `mieste` (locative of "miesto", found in `MOVE_TEXTS.not_held`). Commented in the test.
+- Hand check of the guard: reverted each of the 16 `index.html` rows one by one on a copy; every single revert made at least one guard test fail (rows 1-14 fail both the producers and page-source layers, rows 15 and 16 only the page-source layer). File restored afterwards.
+- 380 px fit: the chip „máš 2/3 !“ is shorter than „máte 2/3 !“. `wrapText(14, 3)` gives „Vo štvrtok ti“ / „chýbajú 3“ / „miesta“ (3 lines, no ellipsis) and „V sobotu ti“ / „chýba 1 miesto“. „Všetko máš“ is shorter than „Všetko máte“. Not looked at on a real phone.
+- Search of `static/index.html` for `vám|vaš|máte|\bste\b|\(vy\)|nespíte|potrebujete` finds nothing. The remaining hits in `proposal.md` and `tests/manualne.md` are the policy sentences that name the forbidden forms. No `innerHTML` added.
+- Tests: `node --test tests/js/` -> 145 pass, 0 fail. `uv run pytest -q` -> 382 passed. No server started.
+- Note: git shows `tasks/todo/T-016...` and `tasks/todo/T-020...` as deleted (task file moves), not touched T-017/T-019.
 
 ## Review round 1
 (reviewer appends)
+**Reviewer, 23. 10. 2026.** Full pass over the diff of `static/index.html`, `tests/js/logic.test.mjs`, `proposal.md` and `tests/manualne.md`.
+
+Checks run by the reviewer:
+- `node --test tests/js/` → 145 pass, 0 fail. `uv run pytest -q` → 382 passed.
+- **Independent search (not only the audit table).** I tokenized `static/index.html`, `config/chata.yaml`, `config/app.yaml`, `tests/manualne.md`, `README.md` and `proposal.md`, then flagged the whole forbidden set plus every `-te` word on lines with Slovak text. The only plural forms left are the two policy sentences that name them (proposal "Jazyky", manualne §5). Every other `-te` hit is a locative or adverb (štarte, reštarte, návrate, texte, gite, audite, ešte, chate, sobote) or English. `tasks/todo/` (T-009, T-017, T-019) has no plural UI strings either.
+- **Grammar** of all 16 new strings: correct singular forms, with case and number agreement intact („Vo štvrtok ti chýbajú 3 miesta“, „ti chýba 6 miest“, „Máš 0 miest, potrebuješ 2, chýbajú 2 miesta“, „Máš o 1 miesto viac, než potrebuješ“, „Toto miesto už (v piatok) máš.“, „Tú noc na pôvodnom mieste nespíš.“, „z tvojej partie“, „(ty)“). `missingVerb` and `pluralPlaces` are unchanged.
+- **The guard really catches regressions (mutation test on a copy in /tmp).** I reverted each of rows 1–16 one at a time. Every revert fails the guard: rows 1–14 fail both layers, rows 15–16 fail the page-source layer. Plural strings added as a single-quoted literal, a template literal, a markup `<p>` text node, an `aria-label` and the `<noscript>` text with a diacritic are also caught. The checker self-tests cover the cases the task asks for.
+- **innerHTML:** 0 occurrences at HEAD and 0 now. None added.
+- **Row 15:** `drawStatus` green branch now draws `status.text` and keeps `maxWidth`. Its `aria-label` uses the same value, so the text has one source.
+- **380 px in headless Chrome** (CDP, 380×800 @2x, own servers on ports 8077 and 8078, HEAD page against the new page, same data). Shortage: chips „máš 0/3 !“, „máš 4/3“, „máš 3/3“, and the red sign „Vo štvrtok ti / chýbajú 3 / miesta“ on 3 lines with no „…“. Excess: amber „Máš o 1 miesto / viac, než / potrebuješ“. Absent: „nie si tu“ chip and the green „Všetko máš“. All fit inside their boards and are no wider than the old „máte …“ / „Všetko máte“. The 2nd acceptance criterion is therefore met in headless Chrome at 380 px. A check on a real phone is still for the tester or organizer.
+- Scope: only rows 17–19 changed in `proposal.md` (3 lines) and rows 20–26 in `manualne.md`. No logic, size or layout change in the page.
+
+**Blocker:** none.
+
+**Suggestion:**
+- `tests/js/logic.test.mjs`, page-source layer (`scanned` filter): a string with no diacritics and no word from the forbidden set is skipped. So a plain-ASCII plural imperative passes. Example: changing the `<noscript>` text to „Zapnite JavaScript.“ or adding a literal „Kliknite sem“ keeps the guard green (I tested both). This follows the filter the task specified, so it is not a blocker. A cheap hardening would be to run `formalForms` on *all* markup text nodes and `aria-label`/`placeholder`/`title` values (they are user-facing by definition) and keep the Slovak-letter filter only for script literals.
+
+**Nit:**
+- The literal tokenizer in the page-source test ignores JS regex literals. A future regex containing a quote character (e.g. `/"/`) could desync it. Today it reads more than 100 literals and catches every mutation above, so this is fine for now.
+
+Round 2 skipped, no blockers.
+
+Verdict: APPROVED
 
 ## Review round 2
 (reviewer appends)
 
 ## Test report
-(tester appends)
+**Tester (Haiku 5.5), 23. 10. 2026.** Verdict: PASS. Moved to `done/`. The real-phone check stays a manual item (`tests/manualne.md` §5).
+
+### Commands and results
+- `node --test tests/js/` → 145 pass, 0 fail (run before and after my guard change).
+- `uv run pytest -q` → 382 passed.
+- Served page: `uv run python /tmp/t020-check/serve.py` (temp `data` dir `/tmp/t020-check/data`, port 8391, test secrets set in the environment, the repo `.env` not used). `GET /api/health` → 200. `GET /` contains „Všetko máš“, „nie si tu“ and „tvojej partie“. `GET /data/chata-data.yaml`, `/data/audit.yaml`, `/config/chata.yaml`, `/.env` → 404. The real `data/` was not touched. The server was stopped afterwards.
+- Real logic block run in `node:vm` with my own fixtures (`/tmp/t020-check/check.mjs`): `tallyChipText` → „nie si tu“, „máš 2/3 !“, „máš 2/3“; `tallyLabel` → „V túto noc tu nie si“, „Máš 2 miesta, potrebuješ 3, chýba 1 miesto“, „Máš 2 miesta, potrebuješ 3, o 1 miesto viac“, „Máš 2 miesta, presne toľko, koľko potrebuješ“, „V túto noc tu nie si, ale máš 1 miesto“; `meadowLabel` 1/2/4/5/7 → all „tvojej“; `notPresentText` → „V sobotu nie si na chate.“; `MOVE_TEXTS.not_held` → „Tú noc na pôvodnom mieste nespíš. …“; `slot_taken` own → „Toto miesto už v piatok máš.“. Grammar checked by hand, agreement is correct.
+- `wrapText(text, 14, 3)` (the red sign width): „Vo štvrtok ti chýbajú 3 miesta“ → „Vo štvrtok ti / chýbajú 3 / miesta“ (3 lines, no „…“); „V sobotu ti chýba 1 miesto“ → 2 lines; „Všetko máš“ → 1 line.
+- `git diff -- static/index.html`: 14 hunks, all in the audit rows 1–16 (row 15 is `drawStatus` using `status.text`, the ok branch only runs for `kind === "ok"`). No other change.
+- Single-hunk revert check (each of the 14 hunks reverted alone in a copy under `/tmp`, then `node --test`): every revert fails the guard (rows 1–14: 3 to 5 failing tests; rows 15–16: 1 failing test). Clean page: pass.
+- Search of `index.html` for `vy|vás|vám|vami|váš*|máte|ste|potrebujete|nespíte` → 0 hits. `(vy)` → 0. `innerHTML` → 0 (also 0 at HEAD). Hits in `proposal.md` and `tests/manualne.md` are policy sentences that name the forbidden forms, or English text.
+
+### Gaps found in the guard, fixed by the tester (tests only, no app code)
+The guard passed two plausible regressions. Reproduced on copies in `/tmp`:
+1. **Missing form.** „vaši“ (plural nominative, also „vaším“, „vaší“, „vášmu“) was not in `FORMAL_WORDS`. A logic-literal change to „… koľko potrebuješ; vaši partia“ kept the guard's scan tests green (only the exact-text test failed). Fix: the four forms added to `FORMAL_WORDS`, with a self-test line.
+2. **ASCII-only text skipped.** The page-source layer dropped strings without a Slovak letter or a forbidden word. `<noscript>` text changed to „Zapnite JavaScript.“ passed. Fix: markup text nodes and `aria-label`/`placeholder`/`title`/`alt` values are scanned unconditionally (they are user-facing by definition). For script literals the filter keeps a Slovak letter, a forbidden word, or a sentence (capital letter and a space), so ASCII prose in code is caught too. Code strings such as the class name „note“ are not caught by the `-te` rule, so they are not flagged.
+After the fix all four mutants fail the guard (vaši in a producer, ASCII noscript, one-word ASCII literal in a producer, „vaše“ in markup), and the clean page passes (145/145).
+
+Files changed by the tester: `tests/js/logic.test.mjs` (guard hardening above), `tests/manualne.md` (§5 readability item now names the green „Všetko máš“ sign and the red sign's wrap check).
+
+### Acceptance criteria
+| # | Criterion | Result | Evidence |
+| --- | --- | --- | --- |
+| 1 | Rows 1–16 changed, no other wording, size or logic change; `drawStatus` uses `status.text` | PASS | diff review, 14 hunks, all audit rows |
+| 2 | On 380 px the chip, red sign and green sign are readable and no longer than before | PASS for the checkable part; on-device readability is manual | `wrapText` run, the chip and „Všetko máš“ are shorter than the old text. Real phone: `tests/manualne.md` §5 |
+| 3 | Rows 17–19 in `proposal.md`, rows 20–26 in `tests/manualne.md` | PASS | grep of the changed lines; proposal line 19 has the Jazyky addition |
+| 4 | Node assertions use the new texts; guard exists; self-test passes; both scan layers pass | PASS | 145/145; guard reverts all caught; tester hardening above |
+| 5 | Search of `static/index.html` for `vám`, `vaš`, `máte`, ` ste`, `(vy)`, `nespíte` finds nothing user-facing | PASS | 0 hits |
+| 6 | No `innerHTML` introduced | PASS | 0 at HEAD and now |
+| 7 | `node --test tests/js/` and `uv run pytest -q` pass | PASS | 145 and 382 |
+
+### Extra scenarios tried
+- Served page over HTTP with the new strings, and data and config paths not reachable (404).
+- Grammar of every changed string (singular agreement, „ti chýba“, „z tvojej partie“, „máš 0 miest“).
+- Guard sensitivity: 14 single-hunk reverts, 4 hand-made mutants (see above).
+
+### Residual, non-blocking
+- A single-word ASCII plural imperative in a script string that is not in a text producer (for example a bare `"Vyberte"` in a click handler) is still not flagged. The guard catches it only when it reaches a text producer or a sentence.
+- Real-device checks (iPhone Safari, Android Chrome, WhatsApp in-app browser) for the 380 px fit are manual, in `tests/manualne.md`.
+- Organizer defaults from the task still need confirmation: singular for the party, „(ty)“, and 1st person plural kept on buttons.
+
+No bug reports: no acceptance criterion failed.

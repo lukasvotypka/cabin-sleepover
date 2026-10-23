@@ -535,22 +535,22 @@ function missingVerb(n) {
 
 // Short text on the signpost chip.
 function tallyChipText(t) {
-  if (t.kind === "absent") return "nie ste tu";
-  return "máte " + t.placed + "/" + t.needed + (t.kind === "under" ? " !" : "");
+  if (t.kind === "absent") return "nie si tu";
+  return "máš " + t.placed + "/" + t.needed + (t.kind === "under" ? " !" : "");
 }
 
 // Full sentence for screen readers (aria-label of the signpost).
 function tallyLabel(t) {
   var d = Math.abs(t.placed - t.needed);
-  if (t.kind === "absent") return "V túto noc tu nie ste";
+  if (t.kind === "absent") return "V túto noc tu nie si";
   if (t.kind === "under") {
-    return "Máte " + pluralPlaces(t.placed) + ", potrebujete " + t.needed + ", " + missingVerb(d) + " " + pluralPlaces(d);
+    return "Máš " + pluralPlaces(t.placed) + ", potrebuješ " + t.needed + ", " + missingVerb(d) + " " + pluralPlaces(d);
   }
   if (t.kind === "over") {
-    if (!t.present) return "V túto noc tu nie ste, ale máte " + pluralPlaces(t.placed);
-    return "Máte " + pluralPlaces(t.placed) + ", potrebujete " + t.needed + ", o " + pluralPlaces(d) + " viac";
+    if (!t.present) return "V túto noc tu nie si, ale máš " + pluralPlaces(t.placed);
+    return "Máš " + pluralPlaces(t.placed) + ", potrebuješ " + t.needed + ", o " + pluralPlaces(d) + " viac";
   }
-  return "Máte " + pluralPlaces(t.placed) + ", presne toľko, koľko potrebujete";
+  return "Máš " + pluralPlaces(t.placed) + ", presne toľko, koľko potrebuješ";
 }
 
 // Status of my party: the first night with missing places (red), else the first night with extra
@@ -563,17 +563,17 @@ function myPartyStatus(state, party) {
     if (n > 0) {
       return {
         kind: "missing", night: nights[i], count: n,
-        text: capitalize(dayLocative(nights[i])) + " vám " + missingVerb(n) + " " + pluralPlaces(n)
+        text: capitalize(dayLocative(nights[i])) + " ti " + missingVerb(n) + " " + pluralPlaces(n)
       };
     }
   }
   for (i = 0; i < nights.length; i++) {
     n = extraPlaces(state, party, nights[i]);
     if (n > 0) {
-      return { kind: "extra", night: nights[i], count: n, text: "Máte o " + pluralPlaces(n) + " viac, než potrebujete" };
+      return { kind: "extra", night: nights[i], count: n, text: "Máš o " + pluralPlaces(n) + " viac, než potrebuješ" };
     }
   }
-  return { kind: "ok", night: null, count: 0, text: "Všetko máte" };
+  return { kind: "ok", night: null, count: 0, text: "Všetko máš" };
 }
 
 // "aktualizované pred 20 s"
@@ -694,7 +694,7 @@ function meadowLayout(rect, count) {
 function meadowLabel(count) {
   if (!(count > 0)) return "";
   var word = count === 1 ? "čaká 1 človek" : count < 5 ? "čakajú " + count + " ľudia" : "čaká " + count + " ľudí";
-  return "Na lúke " + word + " z vašej partie bez postele";
+  return "Na lúke " + word + " z tvojej partie bez postele";
 }
 
 function isFreeSlot(state, slot, night) {
@@ -804,7 +804,7 @@ function joinList(items) {
 
 // Why the assign actions are off when my party is not at the cabin on the night.
 function notPresentText(night) {
-  return capitalize(dayLocative(night)) + " nie ste na chate.";
+  return capitalize(dayLocative(night)) + " nie si na chate.";
 }
 
 // Nights `assign-stay` left out because a slot was taken.
@@ -825,7 +825,7 @@ function moveBarText(partyName) {
 // --- move mode ---
 
 var MOVE_TEXTS = {
-  not_held: "Tú noc nespíte na pôvodnom mieste. Prepni noc alebo zvoľ „Všetky noci“.",
+  not_held: "Tú noc na pôvodnom mieste nespíš. Prepni noc alebo zvoľ „Všetky noci“.",
   no_free: "Tu nie je voľné miesto."
 };
 
@@ -1304,7 +1304,7 @@ var ERROR_TEXTS = {
   slot_taken: function (p, state) {
     var when = dayLocative(paramText(p, "night"));
     var who = partyNameFrom(p, state);
-    if (p.own === true) return "Toto miesto už " + (when ? when + " " : "") + "máte.";
+    if (p.own === true) return "Toto miesto už " + (when ? when + " " : "") + "máš.";
     if (who) return "Toto miesto má" + (when ? " " + when : "") + " už " + who + ".";
     return "Toto miesto" + (when ? " " + when : "") + " je už obsadené.";
   },
@@ -2240,7 +2240,7 @@ function bootRemaining(startMs, nowMs, minMs) {
       [[0, 6], [3, 9], [6, 12], [9, 9], [12, 6], [15, 3], [18, 0]].forEach(function (p) {   // pixel check mark
         rect(b, inner[0] + 10 + p[0], inner[1] + 12 + p[1], 3, 3, COLORS.white);
       });
-      addText(b, inner[0] + 38, inner[1] + 23, "Všetko máte", 7, COLORS.white, { bold: true, maxWidth: inner[2] - 44 });
+      addText(b, inner[0] + 38, inner[1] + 23, status.text, 7, COLORS.white, { bold: true, maxWidth: inner[2] - 44 });
       b.setAttribute("role", "img");
       b.setAttribute("aria-label", status.text);
     } else {
@@ -2823,7 +2823,7 @@ function bootRemaining(startMs, nowMs, minMs) {
           swatch.appendChild(glyphIcon(row.ch, row.ink));
           var text = htmlEl("div", { "class": "legend-text" });
           var name = htmlEl("div", { "class": "legend-name" }, row.name);
-          if (row.mine) name.appendChild(htmlEl("span", { "class": "legend-me" }, " (vy)"));
+          if (row.mine) name.appendChild(htmlEl("span", { "class": "legend-me" }, " (ty)"));
           text.appendChild(name);
           text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · " + row.stay));
           li.appendChild(swatch);
