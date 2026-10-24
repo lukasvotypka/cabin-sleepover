@@ -20,11 +20,12 @@ function hudHeight() {
   return h;
 }
 
-// Bottom edge of the quest log in CSS px (the scene's top inset), 0 while it is hidden.
+// Bottom edge of the folded quest log in CSS px (the scene's top inset), 0 while it is hidden. Only the header
+// counts: the unfolded list lies over the map, so folding and unfolding does not move the map.
 function questBottom() {
-  var q = $("quest");
-  if ($("hud").hidden || q.offsetParent === null) return 0;
-  return Math.ceil(q.getBoundingClientRect().bottom) + 6;
+  var q = $("quest"), head = q.querySelector(".quest-head");
+  if ($("hud").hidden || q.offsetParent === null || !head) return 0;
+  return Math.ceil(head.getBoundingClientRect().bottom) + 16;      // + frame, rod below it and a gap
 }
 
 // A tiny pixel icon: `cells` are [x, y, w, h, fill] rects on a `w` x `h` grid.
