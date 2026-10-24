@@ -106,6 +106,9 @@ var app = {
   introRaf: 0,         // id of the intro's animation frame
   introZoomAt: 0,      // performance.now() when the intro zoom began easing
   hudHeight: 0,        // height of the bottom HUD in CSS px, to refit the scene when it changes
+  questBottom: 0,      // bottom edge of the quest log in CSS px, to refit the scene when it changes
+  questRows: null,     // the last quest rows, to notice a finished night
+  questParty: null,    // the party those rows were for
   ageNode: null        // the „aktualizované pred …“ line in the bottom HUD
 };
 // The role from /api/join is kept for T-009 (admin). Nothing uses it yet.

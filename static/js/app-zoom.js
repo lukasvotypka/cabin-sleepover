@@ -88,9 +88,11 @@ function readInsets() {
   var cs = getComputedStyle(app.insetProbe);
   // While the move bar shows, the scene must sit below it: the bar's height (it includes the safe-area top padding)
   // is the top inset when that is larger.
+  // Otherwise the scene sits below the quest log of the HUD (its bottom edge includes the safe-area top).
   var bar = $("moveBar"), top = parseFloat(cs.paddingTop);
-  if (!bar.hidden && bar.offsetHeight > top) top = bar.offsetHeight;
-  // The bottom HUD already includes the home-bar inset in its height; the scene must sit above it.
+  if (!bar.hidden) top = Math.max(top, bar.offsetHeight);
+  else top = Math.max(top, questBottom());
+  // The crest and the compass already include the home-bar inset in their height; the scene must sit above them.
   var bottom = Math.max(parseFloat(cs.paddingBottom), hudHeight());
   return { top: top, right: parseFloat(cs.paddingRight), bottom: bottom, left: parseFloat(cs.paddingLeft) };
 }

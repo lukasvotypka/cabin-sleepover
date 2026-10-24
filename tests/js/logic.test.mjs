@@ -308,10 +308,62 @@ test("statusHud: fewer, extra, ok and none", () => {
     { kind: "none", lines: ["Najprv vyber, kto si"], action: "who", label: "Najprv vyber, kto si. Ťuknutím to vyberieš." });
 });
 
+// --- quest log in the HUD (try-out of HUD concept 3) ---
+
+const qrow = (rows, night) => rows.find((r) => r.night === night);
+
+test("questRows: no party, day visits only", () => {
+  assert.deepEqual(plain(L.questRows(stateWith([]), null, THU)),
+    [{ key: "q-who", kind: "who", night: null, text: "Vyber, kto si", label: "Najprv vyber, kto si. Ťuknutím to vyberieš.", action: "who" }]);
+  const day = party({ arrive: null, leave: null, day_visits: [THU] });
+  assert.deepEqual(plain(L.questRows(stateWith([day]), day, THU)),
+    [{ key: "q-day", kind: "day", night: null, text: "Prídeš len cez deň", label: "Prídeš len cez deň", action: null }]);
+});
+
+test("questRows: one row per night, open on the selected night opens the places panel, elsewhere selects the night", () => {
+  const p = party({ adults: 2 });
+  const s = stateWith([p], { [THU]: hold(p.id, ["left-window-1"]), [FRI]: hold(p.id, PAIR) });
+  const here = plain(L.questRows(s, p, THU));
+  assert.deepEqual(here.map((r) => r.night), [THU, FRI, SAT]);
+  assert.deepEqual(qrow(here, THU), { key: "q-" + THU, night: THU, action: "places", kind: "open",
+    text: "Št: nájdi 1 miesto", label: "Vo štvrtok ti chýba 1 miesto. Ťuknutím otvoríš možnosti." });
+  assert.deepEqual(qrow(here, FRI), { key: "q-" + FRI, night: FRI, action: "night", kind: "done",
+    text: "Pi: 2/2 hotovo", label: "V piatok máš všetko (2 z 2). Ťuknutím zvolíš túto noc." });
+  assert.equal(qrow(here, SAT).text, "So: nájdi 2 miesta");
+  assert.equal(qrow(here, SAT).action, "night");
+  assert.equal(qrow(here, SAT).label, "V sobotu ti chýbajú 2 miesta. Ťuknutím zvolíš túto noc.");
+});
+
+test("questRows: fewer, extra and away", () => {
+  const p = party({ adults: 3, places: { [THU]: 1 }, arrive: THU, leave: SAT });
+  const s = stateWith([p], { [THU]: hold(p.id, ["left-window-1"]), [FRI]: hold(p.id, [...PAIR, "left-window-1", "right-sofa-1"]) });
+  const rows = plain(L.questRows(s, p, THU));
+  assert.deepEqual(qrow(rows, THU), { key: "q-" + THU, night: THU, action: "undo", kind: "fewer",
+    text: "Št: len 1 z 3", label: "Vo štvrtok máš len 1 z 3. Ťuknutím môžeš vrátiť plný počet." });
+  assert.equal(qrow(rows, FRI).kind, "extra");
+  assert.equal(qrow(rows, FRI).text, "Pi: o 1 navyše");
+  assert.equal(qrow(rows, SAT).kind, "away");
+  assert.equal(qrow(rows, SAT).text, "So: neprídeš");
+  assert.equal(qrow(rows, SAT).action, "night");
+  assert.equal(qrow(plain(L.questRows(s, p, FRI)), THU).action, "night");
+});
+
+test("questsFinished: only nights that went from open to done or fewer", () => {
+  const before = [{ night: THU, kind: "open" }, { night: FRI, kind: "open" }, { night: SAT, kind: "done" }];
+  const after = [{ night: THU, kind: "done" }, { night: FRI, kind: "open" }, { night: SAT, kind: "done" }];
+  assert.deepEqual(plain(L.questsFinished(before, after)), [THU]);
+  assert.deepEqual(plain(L.questsFinished(null, after)), []);
+  assert.deepEqual(plain(L.questsFinished([{ night: THU, kind: "open" }], [{ night: THU, kind: "fewer" }])), [THU]);
+});
+
 test("the HUD: markup, no status board in the scene, listed before app-start.js", () => {
   assert.ok(!new RegExp("draw" + "Status|scene\\.sta" + "tus").test(appSource + logicSource), "the status board left the scene");
   assert.match(pageFile, /<div id="hud"[^>]*\bhidden\b/);
-  assert.match(pageFile, /<button id="hudWho"[^>]*type="button"/);
+  assert.match(pageFile, /<div id="quest" class="quest">/);
+  assert.match(pageFile, /<button id="crest"[^>]*type="button" data-key="who"/);
+  assert.match(pageFile, /<button id="compass"[^>]*type="button" data-key="compass"/);
+  assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.quest \{ display: none; \}/);
+  assert.match(pageFile, /\.quest-row \{[^}]*min-height: 44px/);
   assert.ok(scriptTags.indexOf("static/js/app-hud.js") > -1 && scriptTags.indexOf("static/js/app-hud.js") < scriptTags.indexOf("static/js/app-start.js"));
   assert.match(pageFile, /\.hud \{[^}]*z-index: 12/);
   assert.match(pageFile, /\.zoom-reset \{[^}]*var\(--hud-h/);
@@ -926,7 +978,7 @@ test("openNotice opens a centred panel with one textContent paragraph per step a
   const body = html.slice(html.indexOf("function openNotice("), html.indexOf("// --- scene ---"));
   assert.match(body, /openPanel\("Návod"/);
   assert.match(body, /NOTICE_LINES\.forEach/);
-  assert.match(body, /returnKey: "notice"/);
+  assert.match(body, /returnKey: typeof returnKey === "string" \? returnKey : "notice"/);
   assert.match(body, /center: true/);
   assert.doesNotMatch(body, /innerHTML/);
 });
@@ -2068,7 +2120,8 @@ test("fit: an extra top inset the size of the move bar keeps the whole scene bel
 
 test("page: the move bar's height is a top inset while it shows, and the scene refits when it shows or hides", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
-  assert.match(app, /if \(!bar\.hidden && bar\.offsetHeight > top\) top = bar\.offsetHeight;/);
+  assert.match(app, /if \(!bar\.hidden\) top = Math\.max\(top, bar\.offsetHeight\);/);
+  assert.match(app, /else top = Math\.max\(top, questBottom\(\)\);/);
   assert.match(app, /observer\.observe\(moveBar\)/);
   assert.match(app, /if \(app\.refit\) app\.refit\(\);/);
   // panels: no overscroll chaining, a long sheet stays below the status bar, a tall code board scrolls from its top

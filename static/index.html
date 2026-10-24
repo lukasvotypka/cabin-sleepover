@@ -176,37 +176,63 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .free { animation: none; }
 }
 
-/* --- bottom HUD (fixed scene colors, never inverted in dark mode): wooden bar, paper "Si: ..." face, status sign --- */
+/* --- HUD (fixed scene colors, never inverted in dark mode): quest log top right, crest bottom left, compass bottom right.
+   The wrapper covers the viewport but lets taps through to the map; only its three pieces take taps. --- */
 .hud {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; display: flex; align-items: stretch; gap: 8px;
-  padding: 8px calc(8px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
-  background: #8A5A34; border-top: 4px solid #5C4033; box-shadow: 0 -3px 0 rgba(0, 0, 0, .18);
-  font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 14px; line-height: 1.25;
+  position: fixed; inset: 0; z-index: 12; pointer-events: none;
+  font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 13px; line-height: 1.25;
 }
-.hud button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.hud-who, .hud-status {
-  min-height: 56px; padding: 6px 10px; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
-  text-align: left; font: inherit; min-width: 0;
+.hud button { pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  font: inherit; color: inherit; background: none; border: 0; border-radius: 0; padding: 0; margin: 0; text-align: left; }
+.hud button:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+#moveBar:not([hidden]) ~ .hud .quest { display: none; }      /* the move bar takes the top while it shows */
+.quest {
+  position: absolute; pointer-events: auto; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
+  width: 214px; padding: 2px 6px 4px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
 }
-.hud-who { flex: 1 1 48%; display: flex; flex-direction: column; justify-content: center; background: #F4EBD0; color: #2E1F14; }
-.hud-who-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-age { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-slot { flex: 1 1 52%; display: flex; min-width: 0; }
-.hud-status { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; color: #FFFFFF; }
-.hud-lines { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
-.hud-line-main { font-weight: 700; }
-.hud-icon { flex: none; display: block; }
-.hud-missing { background: #B4472F; border-color: #6E2414; }
-.hud-fewer, .hud-ok { background: #3D7A55; border-color: #1F4A31; }
-.hud-extra .hud-lines { font-size: 12px; }
-.hud-extra { background: #F3E3C0; border-color: #C98A1C; color: #2E1F14; }
-.hud-none { background: #6B4426; color: #F4EBD0; }
-.hud-bang { animation: blink 2.4s ease-in-out infinite; }
-.hud-who:focus-visible, .hud-status:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
-.hud-who:active, button.hud-status:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0, 0, 0, .28); }
+.quest::before, .quest::after { content: ""; position: absolute; left: -8px; right: -8px; height: 6px; background: #8A5A34; border: 2px solid #5C4033; }
+.quest::before { top: -9px; }
+.quest::after { bottom: -9px; }
+.quest.closed { width: 132px; }
+.quest-head { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; }
+.quest-title { font-weight: 700; color: #96540F; letter-spacing: .5px; }
+.quest-badge { padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 11px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
+.quest-caret { margin-left: auto; color: #6B5644; }
+.quest-list { border-top: 2px dashed #DCC9AE; }
+.quest-row { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 2px; }
+.quest-row.here { background: #F6DFB8; outline: 2px dashed #C98A1E; outline-offset: -2px; }
+.quest-cur { flex: none; width: 9px; color: #96540F; font-size: 10px; }
+.quest-box { flex: none; position: relative; width: 14px; height: 14px; border: 2px solid #2E1F14; background: #FBF6EC; }
+.q-done .quest-box::after, .q-fewer .quest-box::after, .q-day .quest-box::after {
+  content: ""; position: absolute; left: 2px; top: 2px; width: 6px; height: 6px; background: #3D7A55;
+}
+.q-extra .quest-box::after { content: ""; position: absolute; left: 2px; top: 2px; width: 6px; height: 6px; background: #C98A1E; }
+.q-away .quest-box { border-style: dotted; background: transparent; }
+.quest-text { min-width: 0; overflow-wrap: anywhere; }
+.q-open .quest-text { font-weight: 700; color: #A3361E; }
+.q-done .quest-text, .q-fewer .quest-text, .q-away .quest-text { color: #6B5644; text-decoration: line-through; }
+.q-who .quest-text { font-weight: 700; color: #A3361E; }
+.quest-bang { margin-left: auto; padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 11px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
+.crest {
+  position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: flex-end; max-width: calc(100% - 96px);
+}
+.crest-shield { flex: none; display: block; position: relative; z-index: 1; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, .3)); }
+.crest-plate {
+  display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px; margin: 0 0 10px -8px; padding: 4px 12px 4px 14px;
+  background: #8A5A34; color: #F4EBD0; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
+}
+.crest-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crest-age { font-size: 10px; color: #E8D2A6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compass {
+  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+}
+.compass-icon { display: block; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, .3)); }
+.crest:active, .compass:active, .quest-row:active { transform: translate(2px, 2px); }
 @media (prefers-reduced-motion: reduce) {
-  .hud-bang { animation: none; }
-  .hud-who:active, button.hud-status:active { transform: none; }
+  .quest-badge, .quest-bang { animation: none; }
+  .crest:active, .compass:active, .quest-row:active { transform: none; }
 }
 
 /* --- roofs and chimneys (T-029): the smoke of the three chimneys. Each puff starts at the top of its chimney, rises
@@ -366,13 +392,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   <button id="moveCancel" class="btn secondary" type="button">Zrušiť</button>
 </div>
 <main id="scene" hidden></main>
-<!-- Bottom HUD: fixed to the viewport (not part of the zoomable svg). Filled by app-hud.js; shown only with the map. -->
-<div id="hud" class="hud" role="group" aria-label="Kto si a stav" hidden>
-  <button id="hudWho" class="hud-who" type="button" data-key="who">
-    <span id="hudWhoName" class="hud-who-name"></span>
-    <span id="hudAge" class="hud-age"></span>
-  </button>
-  <div id="hudStatus" class="hud-slot"></div>
+<!-- HUD: fixed to the viewport (not part of the zoomable svg). Filled by app-hud.js; shown only with the map. -->
+<div id="hud" class="hud" role="group" aria-label="Úlohy a kto si" hidden>
+  <div id="quest" class="quest"></div>
+  <button id="crest" class="crest" type="button" data-key="who"></button>
+  <button id="compass" class="compass" type="button" data-key="compass" aria-label="Návod. Ťuknutím ho otvoríš."></button>
 </div>
 <section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
 <div id="toast" role="status" aria-live="polite" hidden></div>
