@@ -229,3 +229,20 @@ function openPlacesPanel(night) {
     body.appendChild(secondary);
   }, { returnKey: "status" });
 }
+
+// The panel opened from the green „len N z M“ board: take „nás viac nebude“ back for the selected night.
+function openPlacesUndoPanel(night) {
+  var st = viewState().state, party = myParty(st);
+  var info = placesUndoInfo(st, party, night);
+  if (!info) return;
+  openPanel(info.title, function (body) {
+    body.className = "places-panel";
+    body.appendChild(htmlEl("p", null, info.line));
+    var primary = htmlEl("button", { "class": "btn", type: "button", "data-key": "places-undo" }, info.primary.label);
+    primary.addEventListener("click", function () { sendPlaces(info.primary.action, party); });
+    var secondary = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "places-keep" }, info.secondary.label);
+    secondary.addEventListener("click", closePanel);
+    body.appendChild(primary);
+    body.appendChild(secondary);
+  }, { returnKey: "status" });
+}

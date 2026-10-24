@@ -329,8 +329,9 @@ function tallyLabel(t) {
 }
 
 // Status of my party: the first night with missing places (red), else the first night with extra
-// places (soft amber), else everything is fine. kind: "none" | "missing" | "extra" | "ok".
-function myPartyStatus(state, party) {
+// places (soft amber), else the selected night has a lowered need (green, "fewer"), else everything is fine.
+// kind: "none" | "missing" | "extra" | "fewer" | "ok".
+function myPartyStatus(state, party, night) {
   if (!party) return { kind: "none", night: null, count: 0, text: "" };
   var nights = state.event.nights, i, n;
   for (i = 0; i < nights.length; i++) {
@@ -348,7 +349,39 @@ function myPartyStatus(state, party) {
       return { kind: "extra", night: nights[i], count: n, text: "Máš o " + pluralPlaces(n) + " viac, než potrebuješ" };
     }
   }
+  var lowered = placesUndoInfo(state, party, night);
+  if (lowered) {
+    return { kind: "fewer", night: night, count: lowered.needed, full: lowered.full, text: dayShort(night) + ": len " + lowered.needed + " z " + lowered.full };
+  }
   return { kind: "ok", night: null, count: 0, text: "Všetko máš" };
+}
+
+// "Št", "So" for the day a night starts on ("" for a bad date).
+function dayShort(iso) {
+  var p = parseIso(iso);
+  return p ? DAY_SHORT[p.dow] : "";
+}
+
+// Lines on the status board for the kinds that are buttons: "missing" has two, "fewer" one. [] for the others.
+function statusBoardLines(status) {
+  if (status.kind === "missing") return [dayShort(status.night) + ": " + missingVerb(status.count) + " " + status.count, "Ťukni sem ›"];
+  if (status.kind === "fewer") return [status.text + " ›"];
+  return [];
+}
+
+// Panel for undoing „nás viac nebude“ on a night that has a lowered need, or null when it has none.
+// {title, needed, full, line, primary: {label, action: {night, places}}, secondary: {label}}.
+function placesUndoInfo(state, party, night) {
+  if (!party || !night || !isPresent(party, night)) return null;
+  var full = neededSlots(party), needed = neededOnNight(party, night);
+  if (!(needed >= 1 && needed < full)) return null;
+  var when = dayLocative(night);
+  return {
+    title: dayTitle(night), needed: needed, full: full,
+    line: capitalize(when) + " potrebuješ len " + pluralPlaces(needed) + " z " + full + ".",
+    primary: { label: capitalize(when) + " prídeme všetci", action: { night: night, places: full } },
+    secondary: { label: "Nechať tak" }
+  };
 }
 
 // „Vo štvrtok nás viac nebude“: the party has some places on a night but fewer than it needs, so it can

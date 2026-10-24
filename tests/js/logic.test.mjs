@@ -2272,11 +2272,11 @@ test("meadowLabel: Slovak forms for 0, 1, 2-4 and 5 or more", () => {
   assert.equal(L.meadowLabel(11), "Na lúke čaká 11 ľudí z vás bez postele");
 });
 
-test("page: the meadow is drawn from the config rect, as a non-interactive image group", () => {
+test("page: the meadow is drawn from the config rect, as one button", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(app, /drawMeadow\(g, view\);/);
   assert.match(app, /scene\.meadow/);
-  assert.match(app, /role: "img", "aria-label": meadowLabel\(waiting\.length\), "pointer-events": "none"/);
+  assert.match(app, /makeButton\(g, meadowButtonLabel\(waiting\.length\), "meadow"/);
 });
 
 // --- the walk from the meadow to the bed (T-017) ---
@@ -2737,4 +2737,67 @@ test("placesPanelInfo: texts with some places, with none, and the null cases", (
   const four = party({ adults: 5 });
   const d = plain(L.placesPanelInfo(stateWith([four], { [THU]: hold(four.id, ["left-double-1", "left-double-2", "left-window-1"]) }), four, THU));
   assert.equal(d.lines[0], "Vo štvrtok máš 3 miesta, chýbajú ti ešte 2.");
+});
+
+test("statusBoardLines: missing (1, 2, 5) and fewer", () => {
+  const mk = (adults, arrive, leave) => party({ adults, arrive, leave });
+  const lines = (p, s) => plain(L.statusBoardLines(L.myPartyStatus(s, p, THU)));
+  const one = mk(1, THU, FRI), two = mk(2, THU, FRI), five = mk(5, THU, FRI);
+  assert.deepEqual(lines(one, stateWith([one])), ["Št: chýba 1", "Ťukni sem ›"]);
+  assert.deepEqual(lines(two, stateWith([two])), ["Št: chýbajú 2", "Ťukni sem ›"]);
+  assert.deepEqual(lines(five, stateWith([five])), ["Št: chýba 5", "Ťukni sem ›"]);
+  const p = party({ adults: 3, places: { [THU]: 1 } });
+  const s = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]), [FRI]: hold(p.id, PAIR.concat(["left-window-1"])), [SAT]: hold(p.id, PAIR.concat(["left-window-1"])) });
+  assert.deepEqual(plain(L.statusBoardLines(L.myPartyStatus(s, p, THU))), ["Št: len 1 z 3 ›"]);
+  assert.deepEqual(plain(L.statusBoardLines({ kind: "ok" })), []);
+});
+
+test("myPartyStatus: fewer applies only to the selected night, after missing and extra", () => {
+  const p = party({ adults: 3, places: { [THU]: 1 } });
+  const rest = { [FRI]: hold(p.id, ["left-double-1", "left-double-2", "left-window-1"]), [SAT]: hold(p.id, ["left-double-1", "left-double-2", "left-window-1"]) };
+  const s = stateWith([p], Object.assign({ [THU]: hold(p.id, ["left-double-1"]) }, rest));
+  const st = plain(L.myPartyStatus(s, p, THU));
+  assert.equal(st.kind, "fewer");
+  assert.equal(st.text, "Št: len 1 z 3");
+  assert.equal(L.myPartyStatus(s, p, FRI).kind, "ok");
+  assert.equal(L.myPartyStatus(s, p, undefined).kind, "ok");
+  // missing wins over fewer
+  const m = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]), [FRI]: hold(p.id, ["left-double-1"]) });
+  assert.equal(L.myPartyStatus(m, p, THU).kind, "missing");
+  // extra wins over fewer
+  const e = stateWith([p], Object.assign({}, rest, { [THU]: hold(p.id, ["left-double-1", "left-double-2"]) }));
+  assert.equal(L.myPartyStatus(e, p, THU).kind, "extra");
+});
+
+test("placesUndoInfo: texts per weekday and plural, null without override", () => {
+  const info = (night, n, full) => {
+    const p = party({ adults: full, arrive: night, leave: L.addDays(night, 1), places: { [night]: n } });
+    return plain(L.placesUndoInfo(stateWith([p]), p, night));
+  };
+  const a = info(THU, 1, 3);
+  assert.equal(a.title, "Štvrtok");
+  assert.equal(a.line, "Vo štvrtok potrebuješ len 1 miesto z 3.");
+  assert.equal(a.primary.label, "Vo štvrtok prídeme všetci");
+  assert.deepEqual(a.primary.action, { night: THU, places: 3 });
+  assert.equal(a.secondary.label, "Nechať tak");
+  assert.equal(info(FRI, 2, 6).line, "V piatok potrebuješ len 2 miesta z 6.");
+  assert.equal(info(FRI, 2, 6).primary.label, "V piatok prídeme všetci");
+  assert.equal(info(SAT, 5, 7).line, "V sobotu potrebuješ len 5 miest z 7.");
+  assert.equal(info(SAT, 5, 7).title, "Sobota");
+  const p = party({ adults: 3 });
+  assert.equal(L.placesUndoInfo(stateWith([p]), p, THU), null);
+  assert.equal(L.placesUndoInfo(stateWith([p]), null, THU), null);
+});
+
+test("meadowHitRect: 44 units tall from the meadow top, as wide as the meadow", () => {
+  const m = realLayout.map.scene.meadow;
+  assert.deepEqual(plain(L.meadowHitRect(m)), [m[0], m[1] - 1, m[2], 44]);
+  assert.deepEqual(plain(L.meadowHitRect([112, 397, 124, 14])), [112, 396, 124, 44]);   // real config: starts below the icons (end at 396)
+});
+
+test("meadowButtonLabel: singular address and plurals", () => {
+  assert.equal(L.meadowButtonLabel(1), "1 z vás ešte nemá posteľ. Ťuknutím otvoríš možnosti.");
+  assert.equal(L.meadowButtonLabel(2), "2 z vás ešte nemajú posteľ. Ťuknutím otvoríš možnosti.");
+  assert.equal(L.meadowButtonLabel(5), "5 z vás ešte nemá posteľ. Ťuknutím otvoríš možnosti.");
+  assert.equal(L.meadowButtonLabel(0), "");
 });
