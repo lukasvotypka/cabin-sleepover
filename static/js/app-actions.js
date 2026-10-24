@@ -199,3 +199,33 @@ function onBedTap(room, bed) {
   if (app.move) moveTo(bed);
   else openBedSheet(room, bed);
 }
+
+// --- fewer places for one night (T-033) ---
+
+// Sets the number of places the party needs on a night (the panel button sends its placed count).
+function sendPlaces(action, party) {
+  closePanel();
+  write("POST", "api/places", { party_id: party.id, night: action.night, places: action.places }).then(function (res) {
+    if (!res.ok && res.status !== 401) showToast(errorText(res.error, app.state), "error");
+  });
+}
+
+// The panel opened from the red status board when its night is already selected.
+function openPlacesPanel(night) {
+  var st = viewState().state, party = myParty(st);
+  var info = placesPanelInfo(st, party, night);
+  if (!info) return;
+  openPanel(info.title, function (body) {
+    body.className = "places-panel";
+    info.lines.forEach(function (line) { body.appendChild(htmlEl("p", null, line)); });
+    var primary = htmlEl("button", { "class": "btn", type: "button", "data-key": "places-primary" }, info.primary.label);
+    primary.addEventListener("click", function () {
+      if (info.primary.kind === "fewer") sendPlaces(info.primary.action, party);
+      else { closePanel(); openPartyForm(party, { returnKey: "status" }); }
+    });
+    var secondary = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "places-secondary" }, info.secondary.label);
+    secondary.addEventListener("click", closePanel);
+    body.appendChild(primary);
+    body.appendChild(secondary);
+  }, { returnKey: "status" });
+}

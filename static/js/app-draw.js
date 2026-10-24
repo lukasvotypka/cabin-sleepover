@@ -356,7 +356,11 @@ function drawStatus(parent, r, state) {
     rect(b, inner[0] + 17, inner[1] + 22, 2, 3, COLORS.red);
     drawLines(b, wrapText(status.text, 14, 3), inner[0] + 34, inner[1] + 14, 6.5, COLORS.white, inner[2] - 40);
     hitRect(b, bot);
-    makeButton(b, status.text + ". Ťuknutím zvolíš túto noc.", "status", function () { selectNight(status.night); });
+    makeButton(b, status.text + ". Ťuknutím " + (status.night === app.night ? "otvoríš možnosti." : "zvolíš túto noc."), "status",
+      function () {
+        if (status.night === app.night) openPlacesPanel(status.night);
+        else selectNight(status.night);
+      });
   } else if (status.kind === "extra") {
     board(b, inner, COLORS.amber, COLORS.amberEdge);
     drawLines(b, wrapText(status.text, 19, 3), inner[0] + 8, inner[1] + 14, 6.5, COLORS.ink, inner[2] - 16);
