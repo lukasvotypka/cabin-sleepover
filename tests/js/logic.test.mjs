@@ -2157,7 +2157,7 @@ test("bootMinMs and bootFallMs: the still time and the fall time, shorter or non
   assert.equal(L.bootMinMs(true), 800);
   assert.equal(L.BOOT_MIN_MS, 1500);
   assert.equal(L.BOOT_MIN_REDUCED_MS, 800);
-  assert.equal(L.BOOT_FALL_MS, 1500);
+  assert.equal(L.BOOT_FALL_MS, 1100);
   assert.equal(L.bootFallMs(true), 0);
   assert.equal(L.bootFallMs(false), L.BOOT_FALL_MS);
 });
@@ -2237,72 +2237,68 @@ test("splashPicture: trees on both sides only when they fit, leaves on the grass
   assert.ok(narrow.slice(40).some((line) => line.includes("leafRust") || line.includes("leafOchre") || line.includes("leafRed")));
 });
 
-test("splashDelay: multiples of the step within the fall, bottom rows first, ragged", () => {
-  const max = L.BOOT_FALL_MS - L.SPLASH_BLOCK_FALL_MS;
+test("splashIrisCenter: the middle of the cabin door in the picture", () => {
   for (const [cols, rows] of GRIDS) {
-    let biggest = 0;
-    const mean = (row) => {
-      let sum = 0;
-      for (let c = 0; c < cols; c++) sum += L.splashDelay(c, row, cols, rows);
-      return sum / cols;
-    };
-    for (let r = 0; r < rows; r++) {
-      const seen = new Set();
-      for (let c = 0; c < cols; c++) {
-        const d = L.splashDelay(c, r, cols, rows);
-        assert.equal(d % L.SPLASH_STEP_MS, 0);
-        assert.ok(d >= 0 && d <= max, `${d} at ${c},${r}`);
-        assert.equal(L.splashDelay(c, r, cols, rows), d);
-        biggest = Math.max(biggest, d);
-        seen.add(d);
-      }
-      assert.ok(seen.size > 1, `row ${r} has jitter`);
+    const pic = plain(L.splashPicture(cols, rows));
+    const { col, row } = plain(L.splashIrisCenter(cols, rows));
+    assert.ok(Number.isInteger(col) && Number.isInteger(row));
+    // the door planks are left and right of the center column, above and below the center row
+    for (const [c, r] of [[col - 1, row - 1], [col, row - 1], [col - 1, row], [col, row]]) {
+      assert.ok(["plank", "woodLight"].includes(pic[r][c]), `${cols}x${rows}: ${pic[r][c]} at ${c},${r}`);
     }
-    assert.ok(mean(rows - 1) < mean(0), `${cols}x${rows}: the bottom row goes first`);
-    assert.ok(biggest + L.SPLASH_BLOCK_FALL_MS <= L.BOOT_FALL_MS);
   }
 });
 
-test("splashFall: still before the delay, held within a step, accelerating, off the screen in time, whole px", () => {
-  const fallPx = 844 + 15, size = 15, delay = 400;
-  assert.deepEqual(plain(L.splashFall(0, delay, fallPx, size)), { dx: 0, dy: 0 });
-  assert.deepEqual(plain(L.splashFall(delay - 1, delay, fallPx, size)), { dx: 0, dy: 0 });
-  // constant within one step
-  const a = plain(L.splashFall(delay + L.SPLASH_STEP_MS, delay, fallPx, size));
-  assert.deepEqual(plain(L.splashFall(delay + L.SPLASH_STEP_MS * 2 - 1, delay, fallPx, size)), a);
-  assert.ok(a.dy > 0);
-  let lastDy = 0, moves = 0, lastKey = "";
-  for (let t = 0; t <= delay + L.SPLASH_BLOCK_FALL_MS + 400; t += 7) {
-    const f = plain(L.splashFall(t, delay, fallPx, size));
-    assert.ok(f.dy >= lastDy, `dy never decreases at ${t}`);
-    assert.ok(Math.abs(f.dx) <= size / 2, `dx ${f.dx}`);
-    assert.ok(Number.isInteger(f.dx) && Number.isInteger(f.dy));
-    lastDy = f.dy;
-    if (JSON.stringify(f) !== lastKey) moves++;
-    lastKey = JSON.stringify(f);
+test("splashIrisRadius: none before the start, held within a step, growing faster, clears every block by the end", () => {
+  for (const [cols, rows] of GRIDS) {
+    const center = L.splashIrisCenter(cols, rows);
+    assert.equal(L.splashIrisRadius(-1, cols, rows), 0);
+    assert.ok(L.splashIrisRadius(0, cols, rows) > 0, "the first step already opens a hole");
+    assert.equal(L.splashIrisRadius(L.SPLASH_STEP_MS, cols, rows), L.splashIrisRadius(L.SPLASH_STEP_MS * 2 - 1, cols, rows));
+    let last = 0, moves = 0;
+    for (let t = 0; t <= L.BOOT_FALL_MS + 400; t += 7) {
+      const r = L.splashIrisRadius(t, cols, rows);
+      assert.ok(r >= last, `never shrinks at ${t}`);
+      if (r !== last) moves++;
+      last = r;
+    }
+    assert.equal(moves, Math.ceil(L.BOOT_FALL_MS / L.SPLASH_STEP_MS), "it moves in visible steps");
+    // it accelerates: half the time opens much less than half the radius
+    const end = L.splashIrisRadius(L.BOOT_FALL_MS - 1, cols, rows);
+    assert.ok(L.splashIrisRadius(L.BOOT_FALL_MS / 2, cols, rows) < end / 2);
+    // the last step, still before the end timer, has cleared every block
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) assert.ok(L.splashIrisGone(c, r, center, end), `${cols}x${rows}: ${c},${r} left`);
+    }
   }
-  // 600 / 80 = 8 steps, then the sway goes on: it moves in visible jumps, not continuously
-  assert.ok(moves >= 8 && moves <= 16, `moves ${moves}`);
-  assert.ok(L.splashFall(delay + L.SPLASH_BLOCK_FALL_MS, delay, fallPx, size).dy >= fallPx);
-  assert.ok(L.splashFall(delay + L.SPLASH_BLOCK_FALL_MS + 5000, delay, fallPx, size).dy >= fallPx);
-  // it accelerates: the first half of the fall covers less than the second half
-  assert.ok(L.splashFall(delay + 240, delay, fallPx, size).dy < fallPx / 2);
-  // the sway goes both ways
-  const dxs = new Set();
-  for (let s = 0; s < 8; s++) dxs.add(L.splashFall(delay + s * L.SPLASH_STEP_MS, delay, fallPx, size).dx);
-  assert.ok([...dxs].some((x) => x > 0) && [...dxs].some((x) => x < 0));
+  for (const bad of [[NaN, 26, 57], [undefined, 26, 57], [100, 0, 57], [100, 26, NaN]]) {
+    assert.equal(L.splashIrisRadius(...bad), 0);
+  }
 });
 
-test("CSS and JS stay equal: the sign drop uses steps() for SPLASH_BLOCK_FALL_MS, the falling class lets taps through", () => {
-  const rule = html.match(/#boot\.boot--falling #bootText \{[^}]*animation: bootSignDrop (\d+)ms steps\(/);
-  assert.ok(rule, "the falling #bootText rule must use a bootSignDrop animation with steps(");
-  assert.equal(Number(rule[1]), L.SPLASH_BLOCK_FALL_MS);
+test("splashIrisGone and splashIrisReaches: inside the radius, measured from the block center or the box's nearest point", () => {
+  const center = { col: 10, row: 20 };
+  assert.equal(L.splashIrisGone(9, 19, center, 0), false);
+  assert.equal(L.splashIrisGone(9, 19, center, 1), true);       // block center at (9.5, 19.5)
+  assert.equal(L.splashIrisGone(12, 20, center, 2.5), false);   // (12.5, 20.5) is 2.55 away
+  assert.equal(L.splashIrisGone(12, 20, center, 2.6), true);
+  const box = { x0: 6, y0: 30, x1: 14, y1: 32 };
+  assert.equal(L.splashIrisReaches(box, center, 10), false);     // the nearest point (10, 30) is 10 away
+  assert.equal(L.splashIrisReaches(box, center, 10.01), true);
+  assert.equal(L.splashIrisReaches({ x0: 0, y0: 0, x1: 30, y1: 40 }, center, 0.01), true);   // the center is inside
+});
+
+test("page: the exit lets taps through and hides the sign when the iris reaches it", () => {
   assert.match(html, /#boot\.boot--falling \{[^}]*pointer-events: none;/);
   assert.match(html, /#boot\.boot--falling \{[^}]*background: transparent;/);
-  const reduced = html.match(/@media \(prefers-reduced-motion: reduce\) \{\s*#boot\.boot--falling #bootText \{[^}]*animation: none;/);
-  assert.ok(reduced, "reduced motion turns the sign drop off");
-  const drop = html.match(/@keyframes bootSignDrop \{([\s\S]*?)\n\}/)[1];
-  assert.doesNotMatch(drop, /rotate|scale/);
+  assert.match(html, /#boot\.boot--sign-gone #bootText \{ visibility: hidden; \}/);
+  assert.doesNotMatch(html, /bootSignDrop|SPLASH_BLOCK_FALL_MS|splashFall|splashDelay/);
+  const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
+  assert.match(app, /splashIrisReaches\(splash\.signBox, splash\.center, radius\)/);
+  for (const fn of ["hideBoot", "showBoot"]) {
+    const body = app.match(new RegExp("function " + fn + "\\(\\) \\{[\\s\\S]*?\\n  \\}\\n"))[0];
+    assert.match(body, /"boot--sign-gone"/, fn);
+  }
 });
 
 test("page: the splash looks the same in dark mode (fixed colors, no CSS variables)", () => {
@@ -2331,7 +2327,7 @@ test("page: the intro constants are used by name, with no magic numbers in the i
   assert.match(intro, /setTimeout\(function \(\) \{[^]*?\}, BOOT_FALL_MS\)/);
   assert.match(intro, /SPLASH_STEP_MS/);
   assert.match(intro, /splashGrid\(box\.width, box\.height\)/);
-  assert.match(intro, /splashFall\(/);
+  assert.match(intro, /splashIrisRadius\(elapsedMs, splash\.cols, splash\.rows\)/);
   assert.match(intro, /performance\.now\(\) - splash\.start/);
   assert.doesNotMatch(intro, /\b(1500|800|600|80|2400|300)\b/);
   assert.doesNotMatch(app, /BOOT_FADE_MS/);

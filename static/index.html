@@ -83,17 +83,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: relative; max-width: 100%; margin: 0; padding: 6px 12px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
   font-weight: 700; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; overflow-wrap: anywhere;
 }
-/* The fall: the background goes transparent so the map shows through where blocks have gone, and taps reach the map.
-   The sign drops in steps (translate only); its duration equals SPLASH_BLOCK_FALL_MS in the logic script. */
+/* The exit: the background goes transparent so the map shows through the iris, and taps reach the map.
+   The sign vanishes at once when the iris reaches it (boot--sign-gone, set by the app script). */
 #boot.boot--falling { background: transparent; pointer-events: none; }
-#boot.boot--falling #bootText { animation: bootSignDrop 600ms steps(8, end) forwards; }
-@keyframes bootSignDrop {
-  from { transform: translateY(0); }
-  to { transform: translateY(100vh); }
-}
-@media (prefers-reduced-motion: reduce) {
-  #boot.boot--falling #bootText { animation: none; }
-}
+#boot.boot--sign-gone #bootText { visibility: hidden; }
 
 /* --- code screen and panels --- */
 .code-screen {

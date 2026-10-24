@@ -1,14 +1,14 @@
-// Pure page logic, part 7: the loading intro (splash picture and its fall).
+// Pure page logic, part 7: the loading intro (splash picture and its exit).
 // No DOM, no browser globals: tests/js/logic.test.mjs loads all logic-*.js files into one Node vm context.
 // Plain script, shares the global scope with the other logic-*.js and app-*.js files (see index.html for the order).
 
-// --- loading intro: a full-screen pixel picture that stands still, then falls apart downwards ---
+// --- loading intro: a full-screen pixel picture that stands still, then a blocky iris opens from the cabin door ---
+// (The exit is still called "the fall" in names: BOOT_FALL_MS, startFall, splash.falling, boot--falling.)
 
-var BOOT_MIN_MS = 1500;          // still splash before the fall may start, from page start
+var BOOT_MIN_MS = 1500;          // still splash before the exit may start, from page start
 var BOOT_MIN_REDUCED_MS = 800;   // still splash with prefers-reduced-motion, then hidden at once
-var BOOT_FALL_MS = 1500;         // the whole fall: the last block is below the screen by then
-var SPLASH_STEP_MS = 80;         // one held step of the fall
-var SPLASH_BLOCK_FALL_MS = 600;  // one block, from its place to below the screen; also the CSS sign drop (#bootText)
+var BOOT_FALL_MS = 1100;         // the whole exit: the iris has cleared the screen by then
+var SPLASH_STEP_MS = 80;         // one held step of the exit
 var SPLASH_MAX_BLOCKS = 1500, SPLASH_MIN_BLOCK = 10, SPLASH_MAX_BLOCK = 40;
 
 // BOOT_MIN_REDUCED_MS when reducedMotion is true, else BOOT_MIN_MS.
@@ -16,7 +16,7 @@ function bootMinMs(reducedMotion) {
   return reducedMotion ? BOOT_MIN_REDUCED_MS : BOOT_MIN_MS;
 }
 
-// How long the fall lasts: nothing with reduced motion, else BOOT_FALL_MS.
+// How long the exit lasts: nothing with reduced motion, else BOOT_FALL_MS.
 function bootFallMs(reducedMotion) {
   return reducedMotion ? 0 : BOOT_FALL_MS;
 }
@@ -168,28 +168,36 @@ function splashPicture(cols, rows) {
   return pic;
 }
 
-// When a block starts to fall, in ms after the start of the fall: the bottom rows go first with a ragged
-// edge. A multiple of SPLASH_STEP_MS in [0, BOOT_FALL_MS - SPLASH_BLOCK_FALL_MS].
-function splashDelay(col, row, cols, rows) {
-  var span = BOOT_FALL_MS - SPLASH_BLOCK_FALL_MS;
-  var order = rows > 1 ? (rows - 1 - row) / (rows - 1) : 0;   // 0 at the bottom row, 1 at the top row
-  var jitter = splashHash(col, row) % 1000 / 1000;            // 0 to just under 1
-  var ms = order * span * 0.65 + jitter * span * 0.35;
-  var steps = Math.floor(ms / SPLASH_STEP_MS);
-  return Math.min(steps, Math.floor(span / SPLASH_STEP_MS)) * SPLASH_STEP_MS;
+// The iris center in block units {col, row}: the middle of the cabin door in splashPicture's layout
+// (sprite columns 8 and 9, rows 8 to 13). Off the grid on a very small one; the iris still opens from there.
+function splashIrisCenter(cols, rows) {
+  var top = Math.floor(rows * 0.6) - (SPLASH_SPRITE.length - 1);
+  var left = Math.floor((cols - SPLASH_SPRITE[0].length) / 2);
+  return { col: left + 9, row: top + 11 };
 }
 
-var SPLASH_SWAY = [0, 1, 0, -1];   // sideways sway per step, times about a third of the block size
+// The iris radius in blocks elapsedMs after the exit started, for a cols x rows grid. Held within each
+// SPLASH_STEP_MS step, grows faster and faster, and by BOOT_FALL_MS reaches past the farthest corner,
+// so every block is gone. 0 before the start or for a bad argument.
+function splashIrisRadius(elapsedMs, cols, rows) {
+  if (typeof elapsedMs !== "number" || !(elapsedMs >= 0) || !(cols >= 1) || !(rows >= 1)) return 0;
+  var center = splashIrisCenter(cols, rows);
+  var dx = Math.max(center.col, cols - center.col), dy = Math.max(center.row, rows - center.row);
+  var full = Math.sqrt(dx * dx + dy * dy) + 1;
+  var steps = Math.ceil(BOOT_FALL_MS / SPLASH_STEP_MS);
+  var p = Math.min(1, (Math.floor(elapsedMs / SPLASH_STEP_MS) + 1) / steps);
+  return full * p * p;
+}
 
-// Offset {dx, dy} (whole CSS px) of a block elapsedMs after the fall started, for a block that starts at delayMs.
-// Held within each SPLASH_STEP_MS step; accelerates downwards and has moved fallPx by delayMs + SPLASH_BLOCK_FALL_MS;
-// |dx| is at most size / 2.
-function splashFall(elapsedMs, delayMs, fallPx, size) {
-  var t = elapsedMs - delayMs;
-  if (!(t >= 0)) return { dx: 0, dy: 0 };
-  var step = Math.floor(t / SPLASH_STEP_MS);
-  var steps = Math.ceil(SPLASH_BLOCK_FALL_MS / SPLASH_STEP_MS);
-  var p = Math.min(1, (step + 1) / steps);
-  var phase = (step + Math.floor(delayMs / SPLASH_STEP_MS)) % SPLASH_SWAY.length;
-  return { dx: SPLASH_SWAY[phase] * Math.round(size / 3), dy: Math.ceil(fallPx * p * p) };
+// True when the block at (col, row) is inside the iris: its center is closer than radius to the iris center.
+function splashIrisGone(col, row, center, radius) {
+  var dx = col + 0.5 - center.col, dy = row + 0.5 - center.row;
+  return dx * dx + dy * dy < radius * radius;
+}
+
+// True when the iris has reached the box {x0, y0, x1, y1} (block units): its nearest point is inside the radius.
+function splashIrisReaches(box, center, radius) {
+  var dx = Math.max(box.x0 - center.col, 0, center.col - box.x1);
+  var dy = Math.max(box.y0 - center.row, 0, center.row - box.y1);
+  return dx * dx + dy * dy < radius * radius;
 }

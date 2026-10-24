@@ -61,7 +61,7 @@ if (!clientId) {
 
 // --- page state ---
 
-var splash = { ctx: null, falling: false, raf: 0, endTimer: null, resizeFrame: 0, lastStep: -1, start: 0 };
+var splash = { ctx: null, falling: false, raf: 0, endTimer: null, resizeFrame: 0, lastStep: -1, start: 0, signBox: null, signGone: false };
 
 var app = {
   state: null,

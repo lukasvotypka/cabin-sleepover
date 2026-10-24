@@ -24,9 +24,9 @@ function revealWhenReady() {
   }, wait);
 }
 
-// --- the splash picture: a canvas of square blocks that falls apart downwards ---
+// --- the splash picture: a canvas of square blocks, cleared by a blocky iris that opens from the cabin door ---
 
-// splash.pic / splash.delays are filled by drawSplash(); the rest is the fall in progress.
+// splash.colors / splash.center are filled by drawSplash(); the rest is the exit in progress.
 function resetSplash() {
   splash.falling = false;
   splash.raf = 0;
@@ -34,10 +34,12 @@ function resetSplash() {
   splash.resizeFrame = 0;
   splash.lastStep = -1;
   splash.start = 0;
+  splash.signBox = null;
+  splash.signGone = false;
 }
 
 // Size the canvas from #boot, build the block grid and paint the still picture. Layout is read here
-// (and at the start of the fall), never inside the fall loop.
+// (and at the start of the exit), never inside the exit loop.
 function drawSplash() {
   var boot = $("boot"), canvas = $("bootCanvas");
   if (boot.hidden || splash.falling) return;
@@ -53,54 +55,52 @@ function drawSplash() {
   splash.size = grid.size;
   splash.cols = grid.cols;
   splash.rows = grid.rows;
-  splash.height = box.height;
   // Block edges in whole device pixels, shared by neighbours, so there are no seams at fractional ratios.
   splash.xs = [];
   splash.ys = [];
   var i;
   for (i = 0; i <= grid.cols; i++) splash.xs.push(Math.round(i * grid.size * dpr));
   for (i = 0; i <= grid.rows; i++) splash.ys.push(Math.round(i * grid.size * dpr));
+  splash.center = splashIrisCenter(grid.cols, grid.rows);
   splash.colors = [];
-  splash.delays = [];
   for (var r = 0; r < grid.rows; r++) {
-    for (var c = 0; c < grid.cols; c++) {
-      splash.colors.push(COLORS[pic[r][c]]);
-      splash.delays.push(splashDelay(c, r, grid.cols, grid.rows));
-    }
+    for (var c = 0; c < grid.cols; c++) splash.colors.push(COLORS[pic[r][c]]);
   }
   paintSplash(-1);
 }
 
-// Clear the canvas and draw every block at its place, moved by splashFall() elapsedMs into the fall.
-// A negative elapsedMs draws the still picture.
+// Clear the canvas and draw every block outside the iris, elapsedMs into the exit. Once the iris reaches the
+// sign, the sign goes too. A negative elapsedMs draws the still picture.
 function paintSplash(elapsedMs) {
   var ctx = splash.ctx;
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  var fallPx = splash.height + splash.size;
+  var radius = splashIrisRadius(elapsedMs, splash.cols, splash.rows);
   for (var r = 0; r < splash.rows; r++) {
     var y0 = splash.ys[r], h = splash.ys[r + 1] - y0;
     for (var c = 0; c < splash.cols; c++) {
-      var i = r * splash.cols + c;
-      var dx = 0, dy = 0;
-      if (elapsedMs >= 0) {
-        var off = splashFall(elapsedMs, splash.delays[i], fallPx, splash.size);
-        if (off.dy >= fallPx) continue;     // already below the screen
-        dx = Math.round(off.dx * splash.dpr);
-        dy = Math.round(off.dy * splash.dpr);
-      }
-      ctx.fillStyle = splash.colors[i];
-      ctx.fillRect(splash.xs[c] + dx, y0 + dy, splash.xs[c + 1] - splash.xs[c], h);
+      if (splashIrisGone(c, r, splash.center, radius)) continue;
+      ctx.fillStyle = splash.colors[r * splash.cols + c];
+      ctx.fillRect(splash.xs[c], y0, splash.xs[c + 1] - splash.xs[c], h);
     }
+  }
+  if (!splash.signGone && splash.signBox && splashIrisReaches(splash.signBox, splash.center, radius)) {
+    splash.signGone = true;
+    $("boot").classList.add("boot--sign-gone");
   }
 }
 
-// Start the fall of the splash. The map is already drawn underneath. With reduced motion there is no fall.
+// Start the exit of the splash (the iris). The map is already drawn underneath. With reduced motion there is none.
 function startFall() {
   holdIntroZoom();      // the map waits on the intro's start view under the splash
   if (bootFallMs(prefersReducedMotion()) === 0 || $("boot").hidden || !splash.ctx) {
     finishSplash();
     return;
   }
+  var box = $("boot").getBoundingClientRect(), sign = $("bootText").getBoundingClientRect();
+  splash.signBox = {      // the sign in block units, read once here and not in the loop
+    x0: (sign.left - box.left) / splash.size, y0: (sign.top - box.top) / splash.size,
+    x1: (sign.right - box.left) / splash.size, y1: (sign.bottom - box.top) / splash.size
+  };
   splash.falling = true;
   splash.start = performance.now();
   splash.lastStep = -1;
@@ -131,14 +131,14 @@ function fallFrame() {
   splash.raf = requestAnimationFrame(fallFrame);
 }
 
-// Stop a fall in progress and free the canvas, then hide the splash.
+// Stop an exit in progress and free the canvas, then hide the splash.
 function hideBoot() {
   var boot = $("boot"), canvas = $("bootCanvas");
   if (splash.raf) cancelAnimationFrame(splash.raf);
   if (splash.endTimer !== null) clearTimeout(splash.endTimer);
   if (splash.resizeFrame) cancelAnimationFrame(splash.resizeFrame);
   resetSplash();
-  boot.classList.remove("boot--error", "boot--falling");
+  boot.classList.remove("boot--error", "boot--falling", "boot--sign-gone");
   boot.hidden = true;
   splash.ctx = null;
   canvas.width = canvas.height = 0;
@@ -147,12 +147,12 @@ function hideBoot() {
 // Show the splash again (after the code, before the first reveal) and draw it.
 function showBoot() {
   $("bootText").textContent = "Načítavam…";
-  $("boot").classList.remove("boot--error", "boot--falling");
+  $("boot").classList.remove("boot--error", "boot--falling", "boot--sign-gone");
   $("boot").hidden = false;
   drawSplash();
 }
 
-// A rotation or a resized window during the hold: redraw on the next frame. Resizes during the fall are ignored.
+// A rotation or a resized window during the hold: redraw on the next frame. Resizes during the exit are ignored.
 window.addEventListener("resize", function () {
   if ($("boot").hidden || splash.falling || splash.resizeFrame) return;
   splash.resizeFrame = requestAnimationFrame(function () {
