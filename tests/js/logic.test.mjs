@@ -1014,9 +1014,9 @@ const tableLay = (n, d, r = REAL_PARTIES_RECT) => plain(L.partyTableLayout(r, n,
 function assertTableInside(l, r, label) {
   assert.ok(l.height <= r[3] + 1e-9, `${label}: height ${l.height} within the rect`);
   assert.ok(l.foodY + l.rowH + l.pad - r[1] <= r[3] + 1e-9, `${label}: food row inside`);
+  assert.equal(l.day.colX[l.day.colX.length - 1] + l.colW, r[0] + r[2] - l.pad, `${label}: last column at the right edge`);
   for (const part of [l.night, l.day]) {
     assert.ok(part.nameW > 0);
-    assert.equal(part.colX[part.colX.length - 1] + l.colW, r[0] + r[2] - l.pad, `${label}: last column at the right edge`);
     part.colX.forEach((x, i) => {
       assert.ok(x >= l.nameX + part.nameW - 1e-9, `${label}: columns start after the names`);
       if (i) assert.ok(x >= part.colX[i - 1] + l.colW - 1e-9, `${label}: columns do not overlap`);
@@ -1076,12 +1076,27 @@ test("partyTableLayout: the day part keeps min(dayRows, 2) lines, the night part
   assert.deepEqual([over.night.rows, over.night.more, over.day.more], [8, 2, 0]);
 });
 
-test("partyTableLayout: name widths and night columns are the rightmost of the day columns", () => {
+test("partyTableLayout: night column i is at the same x as day column i, the fourth night column is empty", () => {
   const l = tableLay(2, 1);
-  assert.equal(l.night.nameW, 106);
+  assert.equal(l.night.nameW, 78);
   assert.equal(l.day.nameW, 78);
-  assert.deepEqual(l.night.colX, l.day.colX.slice(1));
+  assert.equal(l.day.colX.length, 4);
+  assert.equal(l.night.colX.length, 3, "no night column (no cell, no header) under the last day");
+  assert.deepEqual(l.night.colX, l.day.colX.slice(0, 3));
+  assert.equal(l.day.colX[3] + l.colW, REAL_PARTIES_RECT[0] + REAL_PARTIES_RECT[2] - l.pad);
   assert.equal(l.nameX, 179);
+});
+
+test("partyTableLayout: the grid follows the larger count (more nights than days, and equal counts)", () => {
+  const r = REAL_PARTIES_RECT;
+  const more = plain(L.partyTableLayout(r, 1, 1, 5, 3));
+  assert.equal(more.night.colX.length, 5);
+  assert.equal(more.day.colX.length, 3);
+  assert.deepEqual(more.day.colX, more.night.colX.slice(0, 3));
+  assert.equal(more.night.colX[4] + more.colW, r[0] + r[2] - more.pad);
+  const same = plain(L.partyTableLayout(r, 1, 1, 3, 3));
+  assert.deepEqual(same.night.colX, same.day.colX);
+  assert.equal(same.night.nameW, same.day.nameW);
 });
 
 test("dayColumnLabel: weekday and day of the month, empty for a bad date", () => {

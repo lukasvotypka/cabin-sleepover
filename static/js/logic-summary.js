@@ -153,7 +153,9 @@ function foodRow(state) {
 // Geometry of the two-part table (moon part, divider, sun part, food row) for `rect` = [x, y, w, h], in
 // scene units. The row height is fixed, so the table is only as tall as its rows: `height` <= rect[3].
 // A part that does not fit draws `lines - 1` rows plus a "+N" line. The day part keeps at least
-// min(dayRows, 2) lines and the night part gets the rest. Night columns are the rightmost ones.
+// min(dayRows, 2) lines and the night part gets the rest. Both parts share the column grid of the larger count
+// (`cols`, right-aligned): night column i is at the same x as day column i, and a night part with fewer
+// columns than days leaves the last ones empty (its `colX` is shorter).
 // Returns {pad, head, rowH, size, colW, height, nameX, night, day, dividerY, ruleY, foodY, ...}, where
 // `night` and `day` are {headY, y0, rows, more, lines, nameW, colX: [..]}.
 function partyTableLayout(rect, nightRows, dayRows, nightCount, dayCount) {
@@ -162,13 +164,13 @@ function partyTableLayout(rect, nightRows, dayRows, nightCount, dayCount) {
   var capacity = Math.max(0, Math.floor((rect[3] - fixed) / rowH));
   var nightAlloc = Math.min(nightRows, Math.max(0, capacity - Math.min(dayRows, 2)));
   var dayAlloc = Math.min(dayRows, Math.max(0, capacity - nightAlloc));
-  function part(count, alloc, cols, headY) {
+  var cols = Math.max(nightCount, dayCount), grid = [];
+  for (var i = 0; i < cols; i++) grid.push(rect[0] + rect[2] - pad - (cols - i) * colW);
+  function part(count, alloc, used, headY) {
     var fits = count <= alloc, rows = fits ? count : Math.max(0, alloc - 1);
-    var colX = [];
-    for (var i = 0; i < cols; i++) colX.push(rect[0] + rect[2] - pad - (cols - i) * colW);
     return {
       headY: headY, y0: headY + head, rows: rows, more: count - rows, lines: rows + (fits ? 0 : 1),
-      nameW: rect[2] - 2 * pad - cols * colW, colX: colX
+      nameW: rect[2] - 2 * pad - cols * colW, colX: grid.slice(0, used)
     };
   }
   var night = part(nightRows, nightAlloc, nightCount, rect[1] + pad);
