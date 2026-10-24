@@ -1,6 +1,6 @@
 "use strict";
 
-// Logic: the timing and shape of the scene sounds (a bird's chirp, the tree's rustle). Pure functions
+// Logic: the timing and shape of the scene sounds (a bird's chirp, the wind in the tree). Pure functions
 // that take a random source `rand` (a function returning [0, 1)), so they can be tested in Node; the playing
 // is in app-sound.js.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
@@ -28,21 +28,28 @@ function chirpNotes(rand) {
   return notes;
 }
 
-// The rustle of the tree when it is tapped: dry leaves scrunching against each other. Five to eight scrunches,
-// each a cluster of sharp tiny crackles, over a barely audible hiss. `at` and `dur` in seconds, `freq` is the
-// centre of the band-pass filter in Hz, `gain` 0 to 1.
-var RUSTLE_HISS = { dur: 1.3, freq: 6000, gain: .06 };
-var RUSTLE_SPAN_S = 1.1;
-function rustleBursts(rand) {
-  var scrunches = 5 + Math.floor(rand() * 4), bursts = [], s, k;
-  for (s = 0; s < scrunches; s++) {
-    var start = .02 + (s / scrunches) * RUSTLE_SPAN_S * .85 + rand() * .06;
-    var loud = 1 - s / (scrunches + 2);                             // the first scrunches are the loudest
-    var grains = 4 + Math.floor(rand() * 6), at = start;
-    for (k = 0; k < grains; k++) {
-      bursts.push({ at: at, dur: .004 + rand() * .016, freq: 1800 + rand() * 6000, gain: (.55 + rand() * .45) * loud });
-      at += .006 + rand() * .03;
-    }
+// The wind in the tree crown when it is tapped (sample 3, „Whistling wind“, chosen by the organizer on
+// 25. 10. 2026): a thin whistle through the branches over a low breeze, with the leaves fluttering in it. Each
+// layer is noise through a filter: `type` (band-pass unless given) and `q`, its frequency following `freq` and
+// its loudness following `gain` ([seconds, value] points), and an optional `flutter` of quick random dips.
+var TREE_WIND = [
+  { q: 9, freq: [[0, 520], [1.1, 780], [2.8, 600]], gain: [[0, 0], [1.0, .55], [2.8, 0]] },
+  { type: "lowpass", q: .5, freq: [[0, 500], [2.8, 500]], gain: [[0, 0], [1.0, .3], [2.8, 0]] },
+  { q: .9, freq: [[0, 4000], [2.8, 4000]], gain: [[0, 0], [1.2, .15], [2.8, 0]], flutter: { rate: 9, depth: .7 } }
+];
+
+// How long a layer lasts: its last gain point.
+function windLayerEnd(layer) {
+  return layer.gain[layer.gain.length - 1][0];
+}
+
+// The flutter of a layer: [seconds, gain 0 to 1] points at about `rate` per second up to `end`, each a dip of
+// up to `depth`.
+function flutterSteps(flutter, end, rand) {
+  var steps = [], t = 0;
+  while (t < end) {
+    t += 1 / (flutter.rate * (.6 + rand() * .8));
+    steps.push([t, 1 - flutter.depth * rand()]);
   }
-  return bursts.sort(function (a, b) { return a.at - b.at; });
+  return steps;
 }

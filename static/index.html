@@ -247,7 +247,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
    occasionally crosses the map (drawn in the svg, so it pans and zooms with the land). Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
    colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
 #scene svg .tree { pointer-events: none; transform-box: fill-box; transform-origin: 50% 100%; }
-/* A tap on the tree rustles it (with a sound, app-sound.js): the crown sways for a moment. */
+/* A tap on the tree blows wind through it (the sound is in app-sound.js): the crown sways for a moment. */
 #scene svg .tree-hit { pointer-events: all; cursor: pointer; }
 #scene svg .tree.rustle { animation: treeSway .7s ease-out; }
 @keyframes treeSway {

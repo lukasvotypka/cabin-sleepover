@@ -3363,7 +3363,7 @@ test("intro zoom: the code screen (a 401) ends the intro, so the map is never st
   assert.match(showCodeSource, /hideBoot\(\);\n  stopIntroZoom\(\);/);
 });
 
-test("sound: the bird chirps while it is over the map, and the chirp and rustle are short", () => {
+test("sound: the bird chirps while it is over the map, and the chirp and the wind are short", () => {
   const seq = (values) => { let i = 0; return () => values[i++ % values.length]; };
   for (const r of [0, 0.5, 0.999]) {
     const d = L.birdChirpDelay(() => r);
@@ -3376,13 +3376,20 @@ test("sound: the bird chirps while it is over the map, and the chirp and rustle 
     assert.ok(end < 1, "a chirp lasts under a second");
     notes.forEach((n) => assert.ok(n.f0 > 1000 && n.f1 > 1000 && n.dur > 0 && n.gain > 0 && n.gain <= 1));
   }
-  const bursts = plain(L.rustleBursts(seq([0.2, 0.7, 0.4, 0.9])));
-  assert.ok(bursts.length >= 20 && bursts.length <= 72, "scrunches of tiny crackles");
-  bursts.forEach((b) => assert.ok(b.dur <= 0.02 && b.at + b.dur < L.RUSTLE_HISS.dur && b.gain >= 0 && b.gain <= 1 && b.freq > 1500));
-  bursts.slice(1).forEach((b, i) => assert.ok(b.at >= bursts[i].at, "in time order"));
+  const layers = plain(L.TREE_WIND);
+  assert.ok(layers.length >= 1);
+  layers.forEach((layer) => {
+    assert.equal(layer.gain[0][1], 0, "the wind swells in");
+    assert.equal(layer.gain[layer.gain.length - 1][1], 0, "and dies away");
+    assert.ok(L.windLayerEnd(layer) <= 3, "within three seconds");
+    layer.gain.forEach((p) => assert.ok(p[1] >= 0 && p[1] <= 1));
+  });
+  const steps = plain(L.flutterSteps({ rate: 9, depth: 0.7 }, 2.8, seq([0.2, 0.7, 0.4, 0.9])));
+  assert.ok(steps.length > 10 && steps.length < 60);
+  steps.forEach((p, i) => assert.ok(p[1] >= 0.3 && p[1] <= 1 && (i === 0 || p[0] > steps[i - 1][0])));
 });
 
-test("sound: the bird chirps per flight and a tap on the tree rustles it", () => {
+test("sound: the bird chirps per flight and a tap on the tree blows wind through it", () => {
   assert.match(appSource, /bird\.addEventListener\("animationiteration", onBirdFlight\)/);
   assert.match(appSource, /e\.animationName !== "birdFly"/);
   assert.match(appSource, /"tree-hit"[\s\S]*?rustleTree\(t\)/);

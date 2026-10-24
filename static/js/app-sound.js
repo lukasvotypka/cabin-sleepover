@@ -1,13 +1,13 @@
 "use strict";
 
 // App part 11b: the scene sounds (organizer request, 24. 10. 2026). The bird chirps once at a random moment of
-// each flight, and a tap on the tree rustles its dry leaves. Synthesized with Web Audio, so there
+// each flight, and a tap on the tree blows wind through its crown. Synthesized with Web Audio, so there
 // are no sound files. Browsers allow sound only after the first touch, click or key, so the audio starts then;
 // before that the bird is silent. With `prefers-reduced-motion` the bird is hidden and never chirps.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 var SOUND_VOLUME = .12;
-var RUSTLE_BOOST = 3;      // the crackles are so short that they need more gain than the chirp to be heard
+var WIND_BOOST = 4;      // the filtered noise is much quieter than the chirp's sine at the same gain
 
 function soundContext() {
   if (app.audio) return app.audio;
@@ -69,27 +69,39 @@ function playChirp() {
   });
 }
 
-// A burst of noise through a band-pass filter at `freq`.
-function playNoise(ctx, at, dur, freq, q, gain, attack) {
-  var src = ctx.createBufferSource(), filter = ctx.createBiquadFilter();
-  src.buffer = noiseBuffer(ctx);
-  filter.type = "bandpass";
-  filter.frequency.value = freq;
-  filter.Q.value = q;
-  src.connect(filter);
-  filter.connect(envelope(ctx, at, dur, gain, attack));
-  src.start(at, Math.random());
-  src.stop(at + dur + .02);
+// Follows [seconds, value] points from `t0` on.
+function followCurve(param, t0, points) {
+  param.setValueAtTime(points[0][1], t0 + points[0][0]);
+  points.slice(1).forEach(function (p) { param.linearRampToValueAtTime(p[1], t0 + p[0]); });
 }
 
-function playRustle() {
+// One layer of `TREE_WIND`: looping noise through its filter, flutter and loudness.
+function playWindLayer(ctx, t0, layer) {
+  var src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), flutter = ctx.createGain(), gain = ctx.createGain();
+  var end = windLayerEnd(layer);
+  src.buffer = noiseBuffer(ctx);
+  src.loop = true;
+  filter.type = layer.type || "bandpass";
+  filter.Q.value = layer.q;
+  followCurve(filter.frequency, t0, layer.freq);
+  flutter.gain.value = 1;
+  if (layer.flutter) {
+    flutterSteps(layer.flutter, end, Math.random).forEach(function (p) { flutter.gain.linearRampToValueAtTime(p[1], t0 + p[0]); });
+  }
+  followCurve(gain.gain, t0, layer.gain.map(function (p) { return [p[0], p[1] * WIND_BOOST]; }));
+  src.connect(filter);
+  filter.connect(flutter);
+  flutter.connect(gain);
+  gain.connect(app.audioOut);
+  src.start(t0, Math.random());
+  src.stop(t0 + end + .05);
+}
+
+function playTreeWind() {
   var ctx = liveSound();
   if (!ctx) return;
   var t0 = ctx.currentTime + .02;
-  playNoise(ctx, t0, RUSTLE_HISS.dur, RUSTLE_HISS.freq, .7, RUSTLE_HISS.gain, .15);
-  rustleBursts(Math.random).forEach(function (b) {
-    playNoise(ctx, t0 + b.at, b.dur, b.freq, 1.5, b.gain * RUSTLE_BOOST, .001);
-  });
+  TREE_WIND.forEach(function (layer) { playWindLayer(ctx, t0, layer); });
 }
 
 // The bird's `birdFly` animation starts a flight on its start and on every repeat: one chirp somewhere in it.
@@ -100,10 +112,10 @@ function onBirdFlight(e) {
   app.chirpTimer = setTimeout(playChirp, birdChirpDelay(Math.random) * 1000);
 }
 
-// A tap on the tree: the crown sways and the leaves rustle.
+// A tap on the tree: the crown sways and the wind whistles through it.
 function rustleTree(tree) {
   unlockSound();
-  playRustle();
+  playTreeWind();
   tree.classList.remove("rustle");
   void tree.getBBox();      // restart the sway when tapped again during it
   tree.classList.add("rustle");

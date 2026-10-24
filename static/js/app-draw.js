@@ -67,7 +67,7 @@ function drawTree(g) {
     rect(t, c.cx - 14 + treeNoise(i, 11) * 28, c.cy - 6 + treeNoise(i, 12) * 20, size, size, leafColors[i % 3],
       { "class": "shedleaf", style: vars });
   }
-  // The tap target (crown and trunk, a little larger than both): the leaves rustle (app-sound.js). Decor, so it
+  // The tap target (crown and trunk, a little larger than both): wind blows through the crown (app-sound.js). Decor, so it
   // stays aria-hidden and out of the Tab order; it ends at x 16, where the „Zápis je zatvorený“ sign starts.
   rect(t, c.cx - c.rx - 4, c.cy - c.ry - 4, 2 * c.rx + 6, 252 - (c.cy - c.ry) + 4, "transparent", { "class": "tree-hit" })
     .addEventListener("click", function () { rustleTree(t); });
