@@ -317,7 +317,7 @@ test("questRows: no party, day visits only", () => {
     [{ key: "q-who", kind: "who", night: null, text: "Vyber, kto si", label: "Najprv vyber, kto si. Ťuknutím to vyberieš.", action: "who" }]);
   const day = party({ arrive: null, leave: null, day_visits: [THU] });
   assert.deepEqual(plain(L.questRows(stateWith([day]), day, THU)),
-    [{ key: "q-day", kind: "day", night: null, text: "Prídeš len cez deň", label: "Prídeš len cez deň", action: null }]);
+    [{ key: "q-day", kind: "day", night: null, text: "Len cez deň", label: "Prídeš len cez deň", action: null }]);
 });
 
 test("questRows: one row per night, open on the selected night opens the places panel, elsewhere selects the night", () => {
@@ -326,10 +326,10 @@ test("questRows: one row per night, open on the selected night opens the places 
   const here = plain(L.questRows(s, p, THU));
   assert.deepEqual(here.map((r) => r.night), [THU, FRI, SAT]);
   assert.deepEqual(qrow(here, THU), { key: "q-" + THU, night: THU, action: "places", kind: "open",
-    text: "Št: nájdi 1 miesto", label: "Vo štvrtok ti chýba 1 miesto. Ťuknutím otvoríš možnosti." });
+    text: "Št 1/2", label: "Vo štvrtok ti chýba 1 miesto. Ťuknutím otvoríš možnosti." });
   assert.deepEqual(qrow(here, FRI), { key: "q-" + FRI, night: FRI, action: "night", kind: "done",
-    text: "Pi: 2/2 hotovo", label: "V piatok máš všetko (2 z 2). Ťuknutím zvolíš túto noc." });
-  assert.equal(qrow(here, SAT).text, "So: nájdi 2 miesta");
+    text: "Pi 2/2", label: "V piatok máš všetko (2 z 2). Ťuknutím zvolíš túto noc." });
+  assert.equal(qrow(here, SAT).text, "So 0/2");
   assert.equal(qrow(here, SAT).action, "night");
   assert.equal(qrow(here, SAT).label, "V sobotu ti chýbajú 2 miesta. Ťuknutím zvolíš túto noc.");
 });
@@ -339,11 +339,11 @@ test("questRows: fewer, extra and away", () => {
   const s = stateWith([p], { [THU]: hold(p.id, ["left-window-1"]), [FRI]: hold(p.id, [...PAIR, "left-window-1", "right-sofa-1"]) });
   const rows = plain(L.questRows(s, p, THU));
   assert.deepEqual(qrow(rows, THU), { key: "q-" + THU, night: THU, action: "undo", kind: "fewer",
-    text: "Št: len 1 z 3", label: "Vo štvrtok máš len 1 z 3. Ťuknutím môžeš vrátiť plný počet." });
+    text: "Št len 1/3", label: "Vo štvrtok máš len 1 z 3. Ťuknutím môžeš vrátiť plný počet." });
   assert.equal(qrow(rows, FRI).kind, "extra");
-  assert.equal(qrow(rows, FRI).text, "Pi: o 1 navyše");
+  assert.equal(qrow(rows, FRI).text, "Pi 4/3");
   assert.equal(qrow(rows, SAT).kind, "away");
-  assert.equal(qrow(rows, SAT).text, "So: neprídeš");
+  assert.equal(qrow(rows, SAT).text, "So –");
   assert.equal(qrow(rows, SAT).action, "night");
   assert.equal(qrow(plain(L.questRows(s, p, FRI)), THU).action, "night");
 });
@@ -363,7 +363,8 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(pageFile, /<button id="crest"[^>]*type="button" data-key="who"/);
   assert.match(pageFile, /<button id="compass"[^>]*type="button" data-key="compass"/);
   assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.quest \{ display: none; \}/);
-  assert.match(pageFile, /\.quest-row \{[^}]*min-height: 44px/);
+  assert.match(pageFile, /\.quest-row \{[^}]*min-height: 30px/);
+  assert.match(readScripts("app-hud"), /return storage\.get\(QUEST_KEY\) === "1";/, "folded by default");
   assert.ok(scriptTags.indexOf("static/js/app-hud.js") > -1 && scriptTags.indexOf("static/js/app-hud.js") < scriptTags.indexOf("static/js/app-start.js"));
   assert.match(pageFile, /\.hud \{[^}]*z-index: 12/);
   assert.match(pageFile, /\.zoom-reset \{[^}]*var\(--hud-h/);

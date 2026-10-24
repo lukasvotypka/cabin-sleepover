@@ -6,7 +6,7 @@
 
 // --- HUD (fixed to the viewport, so it stays put while the map is panned or zoomed) ---
 
-var QUEST_KEY = "cabin.questOpen";
+var QUEST_KEY = "cabin.questsOpen";     // "1" while the quest log is unfolded; folded by default
 
 // Height of the bottom HUD zone (crest and compass) in CSS px, 0 while the HUD is hidden.
 // Also published as `--hud-h` for „Celá mapa“ and the toast above it.
@@ -52,7 +52,7 @@ var COMPASS_CELLS = [
 ];
 
 function questOpen() {
-  return storage.get(QUEST_KEY) !== "0";
+  return storage.get(QUEST_KEY) === "1";
 }
 
 function toggleQuest() {

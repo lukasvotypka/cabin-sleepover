@@ -403,7 +403,8 @@ function statusHud(status, selectedNight) {
   return { kind: "none", lines: ["Najprv vyber, kto si"], action: "who", label: "Najprv vyber, kto si. Ťuknutím to vyberieš." };
 }
 
-// The quest log (top-right HUD): one row per night of the event for my party, in night order.
+// The quest log (top-right HUD): one short row per night of the event for my party, in night order; `label` has
+// the whole sentence for screen readers.
 // [{key, kind, night, text, label, action}]. `kind` is "who" (no party chosen), "day" (day visits only), "open"
 // (places missing), "done", "fewer" (all of a lowered need placed), "extra" (more than needed) or "away" (not there).
 // `action` says what a tap does, as in statusHud: "who", "places", "undo", "night" or null (not a button).
@@ -414,7 +415,7 @@ function questRows(state, party, selectedNight) {
       label: "Najprv vyber, kto si. Ťuknutím to vyberieš.", action: "who" }];
   }
   if (isDayOnly(party)) {
-    return [{ key: "q-day", kind: "day", night: null, text: "Prídeš len cez deň", label: "Prídeš len cez deň", action: null }];
+    return [{ key: "q-day", kind: "day", night: null, text: "Len cez deň", label: "Prídeš len cez deň", action: null }];
   }
   return state.event.nights.map(function (night) {
     var short = dayShort(night), when = capitalize(dayLocative(night)), here = night === selectedNight;
@@ -422,7 +423,7 @@ function questRows(state, party, selectedNight) {
     var row = { key: "q-" + night, night: night, action: "night" };
     if (!isPresent(party, night)) {
       row.kind = "away";
-      row.text = short + ": neprídeš";
+      row.text = short + " –";
       row.label = when + " neprídeš." + pick;
       return row;
     }
@@ -430,21 +431,21 @@ function questRows(state, party, selectedNight) {
     var miss = needed - placed;
     if (miss > 0) {
       row.kind = "open";
-      row.text = short + ": nájdi " + pluralPlaces(miss);
+      row.text = short + " " + placed + "/" + needed;
       row.label = when + " ti " + missingVerb(miss) + " " + pluralPlaces(miss) + "." + (here ? " Ťuknutím otvoríš možnosti." : pick);
       if (here) row.action = "places";
     } else if (miss < 0) {
       row.kind = "extra";
-      row.text = short + ": o " + (-miss) + " navyše";
+      row.text = short + " " + placed + "/" + needed;
       row.label = when + " máš o " + pluralPlaces(-miss) + " viac, než potrebuješ." + pick;
     } else if (needed < full) {
       row.kind = "fewer";
-      row.text = short + ": len " + needed + " z " + full;
+      row.text = short + " len " + needed + "/" + full;
       row.label = when + " máš len " + needed + " z " + full + "." + (here ? " Ťuknutím môžeš vrátiť plný počet." : pick);
       if (here) row.action = "undo";
     } else {
       row.kind = "done";
-      row.text = short + ": " + placed + "/" + needed + " hotovo";
+      row.text = short + " " + placed + "/" + needed;
       row.label = when + " máš všetko (" + placed + " z " + needed + ")." + pick;
     }
     return row;

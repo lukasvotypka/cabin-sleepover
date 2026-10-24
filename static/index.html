@@ -180,7 +180,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
    The wrapper covers the viewport but lets taps through to the map; only its three pieces take taps. --- */
 .hud {
   position: fixed; inset: 0; z-index: 12; pointer-events: none;
-  font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 13px; line-height: 1.25;
+  font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 12px; line-height: 1.2;
 }
 .hud button { pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   font: inherit; color: inherit; background: none; border: 0; border-radius: 0; padding: 0; margin: 0; text-align: left; }
@@ -188,31 +188,31 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #moveBar:not([hidden]) ~ .hud .quest { display: none; }      /* the move bar takes the top while it shows */
 .quest {
   position: absolute; pointer-events: auto; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
-  width: 214px; padding: 2px 6px 4px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
+  width: 150px; padding: 0 5px 2px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
 }
 .quest::before, .quest::after { content: ""; position: absolute; left: -8px; right: -8px; height: 6px; background: #8A5A34; border: 2px solid #5C4033; }
 .quest::before { top: -9px; }
 .quest::after { bottom: -9px; }
-.quest.closed { width: 132px; }
-.quest-head { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; }
+.quest.closed { width: 118px; }
+.quest-head { display: flex; align-items: center; gap: 5px; width: 100%; min-height: 36px; }
 .quest-title { font-weight: 700; color: #96540F; letter-spacing: .5px; }
-.quest-badge { padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 11px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
+.quest-badge { padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 10px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
 .quest-caret { margin-left: auto; color: #6B5644; }
-.quest-list { border-top: 2px dashed #DCC9AE; }
-.quest-row { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 2px; }
+.quest-list { border-top: 2px dashed #DCC9AE; padding-top: 2px; }
+.quest-row { display: flex; align-items: center; gap: 5px; width: 100%; min-height: 30px; padding: 0 2px; }
 .quest-row.here { background: #F6DFB8; outline: 2px dashed #C98A1E; outline-offset: -2px; }
-.quest-cur { flex: none; width: 9px; color: #96540F; font-size: 10px; }
-.quest-box { flex: none; position: relative; width: 14px; height: 14px; border: 2px solid #2E1F14; background: #FBF6EC; }
+.quest-cur { flex: none; width: 8px; color: #96540F; font-size: 9px; }
+.quest-box { flex: none; position: relative; width: 12px; height: 12px; border: 2px solid #2E1F14; background: #FBF6EC; }
 .q-done .quest-box::after, .q-fewer .quest-box::after, .q-day .quest-box::after {
-  content: ""; position: absolute; left: 2px; top: 2px; width: 6px; height: 6px; background: #3D7A55;
+  content: ""; position: absolute; left: 1px; top: 1px; width: 6px; height: 6px; background: #3D7A55;
 }
-.q-extra .quest-box::after { content: ""; position: absolute; left: 2px; top: 2px; width: 6px; height: 6px; background: #C98A1E; }
+.q-extra .quest-box::after { content: ""; position: absolute; left: 1px; top: 1px; width: 6px; height: 6px; background: #C98A1E; }
 .q-away .quest-box { border-style: dotted; background: transparent; }
 .quest-text { min-width: 0; overflow-wrap: anywhere; }
 .q-open .quest-text { font-weight: 700; color: #A3361E; }
 .q-done .quest-text, .q-fewer .quest-text, .q-away .quest-text { color: #6B5644; text-decoration: line-through; }
 .q-who .quest-text { font-weight: 700; color: #A3361E; }
-.quest-bang { margin-left: auto; padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 11px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
+.quest-bang { margin-left: auto; padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 10px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
 .crest {
   position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   display: flex; align-items: flex-end; max-width: calc(100% - 96px);
@@ -313,6 +313,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .slot-row .btn.secondary { border-width: 2px; }
 .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .actions .btn { width: 100%; }
+.who-me { margin: 0 0 12px; }
 
 /* --- party form and summary panels --- */
 .pform { display: flex; flex-direction: column; gap: 12px; }

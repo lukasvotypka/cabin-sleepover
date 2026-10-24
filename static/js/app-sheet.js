@@ -123,6 +123,9 @@ function openBedSheet(room, bed) {
 
 function openWho(opts) {
   openPanel("Kto si?", function (body, panel) {
+    // My own party first: editing it is the most common reason to open this panel once it is chosen.
+    var me = htmlEl("div", { "class": "actions who-me" });
+    body.appendChild(me);
     body.appendChild(htmlEl("p", null, "Vyber, kto si."));
     var list = htmlEl("ul", { "class": "party-list" });
     body.appendChild(list);
@@ -133,21 +136,22 @@ function openWho(opts) {
       closePanel();
       openPartyForm(null, { returnKey: "who" });
     });
-    var edit = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "edit-party" });
+    var edit = htmlEl("button", { "class": "btn", type: "button", "data-key": "edit-party" });
     edit.addEventListener("click", function () {
       var mine = app.state ? partyById(app.state, app.myParty) : null;
       if (!mine) return;
       closePanel();
       openPartyForm(mine, { returnKey: "who" });
     });
+    me.appendChild(edit);
     actions.appendChild(add);
-    actions.appendChild(edit);
     panel.refresh = function () {
       // A new state rebuilds the rows, so focus returns to the same party (or to the first button).
       keepFocus(body, function () {
         fillParties(list);
         var mine = app.state ? partyById(app.state, app.myParty) : null;
-        edit.hidden = !mine;
+        me.hidden = !mine;
+        add.className = mine ? "btn secondary" : "btn";      // with a party chosen, editing it is the main action
         if (mine) edit.textContent = "Upraviť „" + mine.name + "“";
       }, function () { return add; });
     };
