@@ -215,10 +215,11 @@ function openLegend(returnKey) {
     panel.refresh = function () {
       clearNode(list);
       var rows = app.state ? legendRows(app.state, app.myParty) : [];
-      var tableRows = app.state ? partyTableRows(app.state, app.myParty) : [];
+      var nightRows = {};
+      (app.state ? partyTableRows(app.state, app.myParty) : []).forEach(function (r) { nightRows[r.id] = r; });
       if (!rows.length) list.appendChild(htmlEl("li", { "class": "legend-empty" }, "Zatiaľ tu nikto nie je."));
-      rows.forEach(function (row, i) {
-        var li = htmlEl("li", { "class": "legend-row" });
+      rows.forEach(function (row) {
+        var li = htmlEl("li", { "class": "legend-row" + (row.dayOnly ? " day-only" : "") });
         var swatch = htmlEl("span", { "class": "swatch", "aria-hidden": "true" });
         swatch.style.background = row.color;
         swatch.appendChild(glyphIcon(row.ch, row.ink));
@@ -226,8 +227,13 @@ function openLegend(returnKey) {
         var name = htmlEl("div", { "class": "legend-name" }, row.name);
         if (row.mine) name.appendChild(htmlEl("span", { "class": "legend-me" }, " (ty)"));
         text.appendChild(name);
-        text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · " + row.stay));
-        text.appendChild(nightsLine(tableRows[i]));
+        if (row.dayOnly) {
+          text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · ☀ cez deň"));
+          text.appendChild(htmlEl("div", { "class": "legend-nights" }, row.stay));
+        } else {
+          text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · " + row.stay));
+          if (nightRows[row.id]) text.appendChild(nightsLine(nightRows[row.id]));
+        }
         li.appendChild(swatch);
         li.appendChild(text);
         list.appendChild(li);

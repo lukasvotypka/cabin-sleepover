@@ -838,8 +838,8 @@ test("legendRows: one row per party in state order, party colour, mine only for 
   ];
   const rows = plain(L.legendRows({ parties }, "p-bbbbbb"));
   assert.deepEqual(rows, [
-    { id: "p-aaaaaa", name: "Riso a Ben", color: "#2F7D6D", people: "2 dospelí, 1 dieťa", stay: "Št 29. 10. – Ne 1. 11.", mine: false, ch: "R", ink: "#F4EBD0" },
-    { id: "p-bbbbbb", name: "Eva", color: "#D07A2B", people: "1 dospelý", stay: "Pi 30. 10. – So 31. 10.", mine: true, ch: "E", ink: "#2E1F14" }
+    { id: "p-aaaaaa", name: "Riso a Ben", color: "#2F7D6D", people: "2 dospelí, 1 dieťa", dayOnly: false, stay: "Št 29. 10. – Ne 1. 11.", mine: false, ch: "R", ink: "#F4EBD0" },
+    { id: "p-bbbbbb", name: "Eva", color: "#D07A2B", people: "1 dospelý", dayOnly: false, stay: "Pi 30. 10. – So 31. 10.", mine: true, ch: "E", ink: "#2E1F14" }
   ]);
   assert.ok(plain(L.legendRows({ parties }, null)).every((r) => r.mine === false));
   assert.deepEqual(plain(L.legendRows({ parties: [] }, "p-aaaaaa")), []);
@@ -3019,4 +3019,54 @@ test("day-only parties never appear in room lines or the hidden rooms", () => {
   const hidden = L.hiddenSummary(visitState(), FRI);
   assert.doesNotMatch(JSON.stringify(plain(hidden.rooms)), /Jakub|Katka|Zuzka/);
   assert.equal(hidden.night, "Noc Pi → So (30./31. 10.), obsadené 0 z 20");
+});
+
+// --- day visits in „Kto je kto“ and the party table (T-040) ---
+
+test("legendRows: a day-only row has its days as the stay, with the arrival time when there is one", () => {
+  const rows = plain(L.legendRows(visitState(), null));
+  assert.equal(rows.length, 5);
+  assert.deepEqual(rows.map((r) => r.dayOnly), [false, false, true, true, true]);
+  const jakub = rows[2];
+  assert.equal(jakub.stay, "Pi 30. 10., Ne 1. 11.");
+  assert.equal(jakub.people, "1 dospelý");
+  assert.equal(jakub.name, "Jakub");
+  const withTime = plain(L.legendRows(stateWith([dayOnly({ day_visits: [FOURTH, FRI], arrival_time: "po obede" })]), null))[0];
+  assert.equal(withTime.stay, "Pi 30. 10., Ne 1. 11. · po obede");
+  assert.equal(plain(L.legendRows(stateWith([dayOnly({ arrival_time: "" })]), null))[0].stay, "Pi 30. 10.");
+});
+
+test("legendRows: overnight rows are unchanged", () => {
+  const row = plain(L.legendRows(stateWith([party()]), "p-aaaaaa"))[0];
+  assert.equal(row.dayOnly, false);
+  assert.equal(row.stay, L.stayText(party()));
+  assert.equal(row.mine, true);
+});
+
+test("partyTableRows and partyTableSummary leave out day-only parties", () => {
+  const s = visitState();
+  assert.deepEqual(L.partyTableRows(s, null).map((r) => r.name), ["Ivan a Eva", "Riso a Ben"]);
+  const lines = L.partyTableSummary(s, null);
+  assert.equal(lines.length, 2);
+  assert.doesNotMatch(lines.join("\n"), /Jakub|Katka|Zuzka|nie je tu, ale/);
+  assert.deepEqual(plain(L.partyTableRows(stateWith([dayOnly()]), null)), []);
+  assert.deepEqual(plain(L.partyTableSummary(stateWith([dayOnly()]), null)), []);
+});
+
+test("the table's „+N ďalšie“ count does not count day-only parties", () => {
+  const overnight = Array.from({ length: 11 }, (_, i) => party({ id: "p-o" + String(i).padStart(5, "0"), name: "Party " + i }));
+  const visitors = [1, 2, 3].map((i) => dayOnly({ id: "p-v" + String(i).padStart(5, "0"), name: "Visit " + i }));
+  const rect = [0, 0, 190, 100];
+  const count = (parties) => L.partyTableRows(stateWith(parties), null).length;
+  assert.equal(count([...overnight, ...visitors]), 11);
+  const lay = (parties) => L.partyTableLayout(rect, count(parties), 3);
+  assert.deepEqual([lay([...overnight, ...visitors]).rows, lay([...overnight, ...visitors]).more],
+    [lay(overnight).rows, lay(overnight).more]);
+});
+
+test("the screen-reader summary lists day-only parties once, with their days, not as „nie je tu“", () => {
+  const s = visitState();
+  const hidden = L.hiddenSummary(s, THU);
+  assert.ok(hidden.dayVisits.some((line) => line.includes("Jakub")));
+  assert.doesNotMatch(L.partyTableSummary(s, null).join("\n"), /Jakub/);
 });

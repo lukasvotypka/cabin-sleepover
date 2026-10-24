@@ -80,14 +80,27 @@ function shirtOrigin(px, py, kind) {
   return kind === "kid" ? [px + 3, py + 4] : [px + 3, py + 6];
 }
 
-// One row per party, in `state.parties` order (creation order, which is also the palette order).
+// The stay line of a day-only party: its days, then the arrival time when there is one ("Pi 30. 10., Ne 1. 11. · po obede").
+function dayOnlyStayText(party) {
+  var text = party.day_visits.slice().sort().map(dayLabel).join(", ");
+  return party.arrival_time ? text + " · " + party.arrival_time : text;
+}
+
+// One row per party (day-only ones too), in `state.parties` order (creation order, which is also the palette order).
 function legendRows(state, myPartyId) {
   return ((state && state.parties) || []).map(function (p) {
+    var dayOnly = isDayOnly(p);
     return {
-      id: p.id, name: p.name, color: p.color, people: peopleText(p), stay: stayText(p), mine: p.id === myPartyId,
+      id: p.id, name: p.name, color: p.color, people: peopleText(p), dayOnly: dayOnly,
+      stay: dayOnly ? dayOnlyStayText(p) : stayText(p), mine: p.id === myPartyId,
       ch: shirtChar(p.name), ink: shirtInk(p.color)
     };
   });
+}
+
+// The parties that sleep over: day-only parties have no places, so the per-night table leaves them out.
+function overnightParties(state) {
+  return ((state && state.parties) || []).filter(function (p) { return !isDayOnly(p); });
 }
 
 // --- party table (the paper table under the night signposts) ---
@@ -98,10 +111,10 @@ function tableCellText(t) {
   return t.placed + "/" + t.needed + (t.kind === "under" ? "!" : "");
 }
 
-// One row per party, in `state.parties` order; [] when there are no parties.
+// One row per overnight party, in `state.parties` order; [] when there are none.
 // [{id, name, label, color, mine, cells: [{night, kind, text}]}], one cell per night of the event.
 function partyTableRows(state, myPartyId) {
-  return ((state && state.parties) || []).map(function (p) {
+  return overnightParties(state).map(function (p) {
     return {
       id: p.id, name: p.name, label: ellipsize(p.name, 14), color: p.color, mine: p.id === myPartyId,
       cells: state.event.nights.map(function (night) {
@@ -151,7 +164,7 @@ function legendNightsText(row) {
 
 // Screen-reader lines: "Ivan a Eva (ty): Št → Pi 2 z 3, Pi → So 3 z 3, So → Ne nie je tu".
 function partyTableSummary(state, myPartyId) {
-  return ((state && state.parties) || []).map(function (p) {
+  return overnightParties(state).map(function (p) {
     var cells = state.event.nights.map(function (night) {
       var t = nightTally(state, p, night), info = nightInfo(night);
       var label = info ? info.label : night, d = Math.abs(t.placed - t.needed);
