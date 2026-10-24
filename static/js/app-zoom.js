@@ -92,7 +92,7 @@ function readInsets() {
   var bar = $("moveBar"), top = parseFloat(cs.paddingTop);
   if (!bar.hidden) top = Math.max(top, bar.offsetHeight);
   else top = Math.max(top, questBottom());
-  // The crest and the compass already include the home-bar inset in their height; the scene must sit above them.
+  // The crest already includes the home-bar inset in its height; the scene must sit above it.
   var bottom = Math.max(parseFloat(cs.paddingBottom), hudHeight());
   return { top: top, right: parseFloat(cs.paddingRight), bottom: bottom, left: parseFloat(cs.paddingLeft) };
 }

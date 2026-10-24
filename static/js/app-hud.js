@@ -1,20 +1,18 @@
 "use strict";
 
-// App part 5b: the HUD around the map: the quest log (top right), the crest with „Si: …“ (bottom left)
-// and the compass that opens „Návod“ (bottom right).
+// App part 5b: the HUD around the map: the quest log (top right) and the crest with „Si: …“ (bottom left).
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 // --- HUD (fixed to the viewport, so it stays put while the map is panned or zoomed) ---
 
 var QUEST_KEY = "cabin.questsOpen";     // "1" while the quest log is unfolded; folded by default
 
-// Height of the bottom HUD zone (crest and compass) in CSS px, 0 while the HUD is hidden.
+// Height of the bottom HUD zone (the crest) in CSS px, 0 while the HUD is hidden.
 // Also published as `--hud-h` for „Celá mapa“ and the toast above it.
 function hudHeight() {
   var hud = $("hud"), h = 0;
   if (!hud.hidden) {
-    var top = Math.min($("crest").getBoundingClientRect().top, $("compass").getBoundingClientRect().top);
-    h = Math.max(0, Math.ceil(window.innerHeight - top));
+    h = Math.max(0, Math.ceil(window.innerHeight - $("crest").getBoundingClientRect().top));
   }
   document.documentElement.style.setProperty("--hud-h", h + "px");
   return h;
@@ -46,11 +44,6 @@ function drawShield(parent, party) {
   if (party) svgEl(svg, "path", { d: glyphPath(shirtChar(party.name), 5.5, 4), fill: shirtInk(party.color) });
   return svg;
 }
-
-var COMPASS_CELLS = [
-  [3, 0, 7, 13, "#5C4033"], [0, 3, 13, 7, "#5C4033"], [1, 4, 11, 5, "#F4EBD0"], [4, 1, 5, 11, "#F4EBD0"],
-  [6, 2, 1, 4, "#A3361E"], [5, 4, 3, 1, "#A3361E"], [6, 7, 1, 4, "#2E1F14"], [5, 8, 3, 1, "#2E1F14"], [6, 6, 1, 1, "#2E1F14"]
-];
 
 function questOpen() {
   return storage.get(QUEST_KEY) === "1";
@@ -134,5 +127,3 @@ function renderHud() {
 }
 
 $("crest").addEventListener("click", function () { openWho(); });
-$("compass").addEventListener("click", function () { openNotice("compass"); });
-hudIcon($("compass"), "compass-icon", 13, 13, 4, COMPASS_CELLS);

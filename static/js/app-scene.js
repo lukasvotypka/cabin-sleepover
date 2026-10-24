@@ -22,12 +22,11 @@ function selectNight(night) {
   if (app.panel && app.panel.refresh) app.panel.refresh();
 }
 
-// „Návod“: the four steps in a window in the centre of the screen, opened from the „?“ icon in the scene
-// or the compass in the HUD (`returnKey` "compass"); focus goes back to the opener.
-function openNotice(returnKey) {
+// „Návod“: the four steps in a window in the centre of the screen, opened from the „?“ icon in the scene.
+function openNotice() {
   openPanel("Návod", function (body) {
     NOTICE_LINES.forEach(function (line) { body.appendChild(htmlEl("p", null, line)); });
-  }, { returnKey: typeof returnKey === "string" ? returnKey : "notice", center: true });
+  }, { returnKey: "notice", center: true });
 }
 
 // --- scene ---

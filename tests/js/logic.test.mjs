@@ -361,7 +361,7 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(pageFile, /<div id="hud"[^>]*\bhidden\b/);
   assert.match(pageFile, /<div id="quest" class="quest">/);
   assert.match(pageFile, /<button id="crest"[^>]*type="button" data-key="who"/);
-  assert.match(pageFile, /<button id="compass"[^>]*type="button" data-key="compass"/);
+  assert.ok(!pageFile.includes("compass"), "no compass: the ? icon in the scene opens „Návod“");
   assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.quest \{ display: none; \}/);
   assert.match(pageFile, /\.quest-row \{[^}]*min-height: 30px/);
   assert.match(readScripts("app-hud"), /return storage\.get\(QUEST_KEY\) === "1";/, "folded by default");
@@ -979,7 +979,7 @@ test("openNotice opens a centred panel with one textContent paragraph per step a
   const body = html.slice(html.indexOf("function openNotice("), html.indexOf("// --- scene ---"));
   assert.match(body, /openPanel\("Návod"/);
   assert.match(body, /NOTICE_LINES\.forEach/);
-  assert.match(body, /returnKey: typeof returnKey === "string" \? returnKey : "notice"/);
+  assert.match(body, /returnKey: "notice"/);
   assert.match(body, /center: true/);
   assert.doesNotMatch(body, /innerHTML/);
 });

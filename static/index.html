@@ -176,8 +176,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .free { animation: none; }
 }
 
-/* --- HUD (fixed scene colors, never inverted in dark mode): quest log top right, crest bottom left, compass bottom right.
-   The wrapper covers the viewport but lets taps through to the map; only its three pieces take taps. --- */
+/* --- HUD (fixed scene colors, never inverted in dark mode): quest log top right, crest bottom left.
+   The wrapper covers the viewport but lets taps through to the map; only its pieces take taps. --- */
 .hud {
   position: fixed; inset: 0; z-index: 12; pointer-events: none;
   font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 12px; line-height: 1.2;
@@ -215,7 +215,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .quest-bang { margin-left: auto; padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 10px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
 .crest {
   position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  display: flex; align-items: flex-end; max-width: calc(100% - 96px);
+  display: flex; align-items: flex-end; max-width: calc(100% - 16px);
 }
 .crest-shield { flex: none; display: block; position: relative; z-index: 1; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, .3)); }
 .crest-plate {
@@ -224,15 +224,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .crest-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crest-age { font-size: 10px; color: #E8D2A6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.compass {
-  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
-}
-.compass-icon { display: block; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, .3)); }
-.crest:active, .compass:active, .quest-row:active { transform: translate(2px, 2px); }
+.crest:active, .quest-row:active { transform: translate(2px, 2px); }
 @media (prefers-reduced-motion: reduce) {
   .quest-badge, .quest-bang { animation: none; }
-  .crest:active, .compass:active, .quest-row:active { transform: none; }
+  .crest:active, .quest-row:active { transform: none; }
 }
 
 /* --- roofs and chimneys (T-029): the smoke of the three chimneys. Each puff starts at the top of its chimney, rises
@@ -397,7 +392,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <div id="hud" class="hud" role="group" aria-label="Úlohy a kto si" hidden>
   <div id="quest" class="quest"></div>
   <button id="crest" class="crest" type="button" data-key="who"></button>
-  <button id="compass" class="compass" type="button" data-key="compass" aria-label="Návod. Ťuknutím ho otvoríš."></button>
 </div>
 <section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
 <div id="toast" role="status" aria-live="polite" hidden></div>
