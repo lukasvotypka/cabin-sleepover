@@ -182,7 +182,7 @@ function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) 
 function meadowLabel(count) {
   if (!(count > 0)) return "";
   var word = count === 1 ? "čaká 1 človek" : count < 5 ? "čakajú " + count + " ľudia" : "čaká " + count + " ľudí";
-  return "Na lúke " + word + " z tvojej partie bez postele";
+  return "Na lúke " + word + " z vás bez postele";
 }
 
 function isFreeSlot(state, slot, night) {
@@ -279,10 +279,10 @@ function bedLabel(state, room, bed, night) {
     (o.names.length ? o.names.join(", ") : "nikto") + ", " + freeText(o.free);
 }
 
-// "Zapísať nás sem ako partiu „Meno“ (2 miesta)": names the party so it's clear who is signing up.
+// "Zapísať sem „Meno“ (2 miesta)": names the party so it's clear who is signing up.
 // Falls back to "Zapísať nás sem" when no party is chosen yet.
 function assignLabel(count, partyName) {
-  var base = partyName ? "Zapísať nás sem ako partiu „" + partyName + "“" : "Zapísať nás sem";
+  var base = partyName ? "Zapísať sem „" + partyName + "“" : "Zapísať nás sem";
   return count > 0 ? base + " (" + pluralPlaces(count) + ")" : base;
 }
 
@@ -300,7 +300,7 @@ function notPresentText(night) {
 // Shown in the bed panel when the selected party already has everything it needs that night, so the
 // tap about to happen would add an extra place — usually a sign the wrong party is still selected.
 function enoughAlreadyText(partyName) {
-  return "Partia „" + partyName + "“ už má dosť miest. Ak pridávaš niekoho iného, prepni si hore na jeho partiu.";
+  return "„" + partyName + "“ už má dosť miest. Ak zapisuješ niekoho iného, ťukni na „Som niekto iný“.";
 }
 
 // Nights `assign-stay` left out because a slot was taken.

@@ -85,7 +85,7 @@ function openBedSheet(room, bed) {
         box.appendChild(htmlEl("p", { "class": "note" }, "Táto posteľ je v túto noc plná."));
       } else if (party && missingPlaces(st, party, night) === 0) {
         box.appendChild(htmlEl("p", { "class": "note" }, enoughAlreadyText(party.name)));
-        box.appendChild(button("Zmeniť partiu", "switch-party", function () {
+        box.appendChild(button("Som niekto iný", "switch-party", function () {
           closePanel();
           openWho({ returnKey: "bed-" + bed.id });
         }, true));
@@ -123,12 +123,12 @@ function openBedSheet(room, bed) {
 
 function openWho(opts) {
   openPanel("Kto si?", function (body, panel) {
-    body.appendChild(htmlEl("p", null, "Vyber partiu, za ktorú sa zapisuješ."));
+    body.appendChild(htmlEl("p", null, "Vyber, kto si."));
     var list = htmlEl("ul", { "class": "party-list" });
     body.appendChild(list);
     var actions = htmlEl("div", { "class": "actions" });
     body.appendChild(actions);
-    var add = htmlEl("button", { "class": "btn", type: "button", "data-key": "add-party" }, "Pridať partiu");
+    var add = htmlEl("button", { "class": "btn", type: "button", "data-key": "add-party" }, "Pridať sa");
     add.addEventListener("click", function () {
       closePanel();
       openPartyForm(null, { returnKey: "who" });
@@ -148,14 +148,14 @@ function openWho(opts) {
         fillParties(list);
         var mine = app.state ? partyById(app.state, app.myParty) : null;
         edit.hidden = !mine;
-        if (mine) edit.textContent = "Upraviť partiu „" + mine.name + "“";
+        if (mine) edit.textContent = "Upraviť „" + mine.name + "“";
       }, function () { return add; });
     };
     function fillParties(list) {
       clearNode(list);
       var parties = app.state ? app.state.parties : [];
       if (!parties.length) {
-        list.appendChild(htmlEl("li", { "class": "muted" }, "Zatiaľ tu nikto nie je. Pridaj prvú partiu."));
+        list.appendChild(htmlEl("li", { "class": "muted" }, "Zatiaľ tu nikto nie je. Pridaj sa ako prvý."));
       }
       parties.forEach(function (party) {
         var li = htmlEl("li");
@@ -199,12 +199,12 @@ function glyphIcon(ch, ink) {
 // „Kto je kto“: a read-only list of the parties with the colour of their figures.
 function openLegend(returnKey) {
   openPanel("Kto je kto", function (body, panel) {
-    body.appendChild(htmlEl("p", null, "Farba postavičky na mape patrí partii."));
+    body.appendChild(htmlEl("p", null, "Každý má na mape svoju farbu."));
     var list = htmlEl("ul", { "class": "legend-list" });
     body.appendChild(list);
-    body.appendChild(htmlEl("p", null, "Menšia postavička je dieťa. Žltý rámik majú miesta tvojej partie."));
+    body.appendChild(htmlEl("p", null, "Menšia postavička je dieťa. Žltý rámik majú tvoje miesta."));
     var actions = htmlEl("div", { "class": "actions" });
-    var choose = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "choose-party" }, "Vybrať moju partiu");
+    var choose = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "choose-party" }, "Vybrať, kto som");
     choose.addEventListener("click", function () {
       closePanel();
       openWho();

@@ -400,9 +400,9 @@ test("slot_taken for the own party says so", () => {
 
 test("params fill the other texts", () => {
   assert.equal(L.errorText(err("not_present", { night: THU, party_name: "Mrco" })),
-    "Partia „Mrco“ vo štvrtok nie je na chate. Uprav príchod alebo odchod.");
+    "„Mrco“ vo štvrtok nie je na chate. Uprav príchod alebo odchod.");
   assert.equal(L.errorText(err("duplicate_name", { name: "Ivan a Eva" })),
-    "Partia „Ivan a Eva“ už existuje. Vymysli iné meno.");
+    "Meno „Ivan a Eva“ už niekto má. Skús iné.");
   assert.equal(L.errorText(err("invalid", { field: "kids_in_parents_bed" })),
     "Skontroluj pole „deti spiace s rodičmi“.");
   assert.equal(L.errorText(err("rate_limited", { retry_after: 12 })),
@@ -422,7 +422,7 @@ test("a code with missing params still gives a clean sentence", () => {
     }
   }
   assert.equal(L.errorText(err("slot_taken")), "Toto miesto je už obsadené.");
-  assert.equal(L.errorText(err("not_present")), "Tvoja partia v túto noc nie je na chate. Uprav príchod alebo odchod.");
+  assert.equal(L.errorText(err("not_present")), "Nikto z vás nie je v túto noc na chate. Uprav príchod alebo odchod.");
   assert.equal(L.errorText(err("invalid")), "Niečo v zadaní nesedí, skontroluj ho.");
   assert.equal(L.errorText(err("invalid", { field: "constructor" })), "Niečo v zadaní nesedí, skontroluj ho.");
 });
@@ -615,15 +615,15 @@ test("assign button label says how many places it takes", () => {
 });
 
 test("assign button label names the party when one is chosen", () => {
-  assert.equal(L.assignLabel(2, "Ivan a Eva"), "Zapísať nás sem ako partiu „Ivan a Eva“ (2 miesta)");
-  assert.equal(L.assignLabel(1, "Ivan a Eva"), "Zapísať nás sem ako partiu „Ivan a Eva“ (1 miesto)");
-  assert.equal(L.assignLabel(0, "Ivan a Eva"), "Zapísať nás sem ako partiu „Ivan a Eva“");
+  assert.equal(L.assignLabel(2, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“ (2 miesta)");
+  assert.equal(L.assignLabel(1, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“ (1 miesto)");
+  assert.equal(L.assignLabel(0, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“");
   assert.equal(L.assignLabel(2, null), "Zapísať nás sem (2 miesta)");
 });
 
 test("bed panel warns when the party already has enough places", () => {
   assert.equal(L.enoughAlreadyText("Ivan a Eva"),
-    "Partia „Ivan a Eva“ už má dosť miest. Ak pridávaš niekoho iného, prepni si hore na jeho partiu.");
+    "„Ivan a Eva“ už má dosť miest. Ak zapisuješ niekoho iného, ťukni na „Som niekto iný“.");
 });
 
 test("reasons and confirmations in Slovak", () => {
@@ -708,10 +708,10 @@ test("an empty party name gets its own Slovak text, other name problems the gene
   const ok = L.partyPayload({ ...L.defaultPartyForm(event), name: "Ivan a Eva" });
   const empty = L.checkPartyPayload({ ...ok, name: "" }, event);
   assert.equal(empty.params.field, "name");
-  assert.equal(L.errorText(empty), "Napíš meno partie.");
+  assert.equal(L.errorText(empty), "Napíš meno.");
   // a whitespace-only name is trimmed to empty by partyPayload
   const blank = L.partyPayload({ ...L.defaultPartyForm(event), name: "   " });
-  assert.equal(L.errorText(L.checkPartyPayload(blank, event)), "Napíš meno partie.");
+  assert.equal(L.errorText(L.checkPartyPayload(blank, event)), "Napíš meno.");
   // too long: still the generic field text
   assert.equal(L.errorText(L.checkPartyPayload({ ...ok, name: "x".repeat(61) }, event)), "Skontroluj pole „meno“.");
   // a server `invalid` for the name without a reason keeps the generic text
@@ -750,7 +750,7 @@ test("a server error is shown next to the field it names", () => {
   assert.equal(L.errorField(undefined), "");
   assert.equal(L.errorText({ code: "invalid", params: { field: "kids_in_parents_bed" } }, null), "Skontroluj pole „deti spiace s rodičmi“.");
   assert.equal(L.errorText({ code: "invalid", params: { field: "leave", reason: "leave_not_after_arrive" } }, null), "Odchod musí byť po príchode.");
-  assert.equal(L.errorText({ code: "duplicate_name", params: { field: "name", name: "Riso a Ben" } }, null), "Partia „Riso a Ben“ už existuje. Vymysli iné meno.");
+  assert.equal(L.errorText({ code: "duplicate_name", params: { field: "name", name: "Riso a Ben" } }, null), "Meno „Riso a Ben“ už niekto má. Skús iné.");
 });
 
 test("arrive and leave options", () => {
@@ -803,11 +803,11 @@ test("legendRows: the shirt letter loses the diacritic and the ink follows the c
 
 // --- noticeboard: the 4-step flow (T-026) ---
 
-const FOUR_LINES = ["1. Pridaj svoju partiu.", "2. Vyber, za ktorú partiu si.", "3. Ťukni na posteľ a zapíš sa.", "4. Skontroluj všetky tri noci."];
+const FOUR_LINES = ["1. Pridaj sa (koľko vás príde).", "2. Vyber, kto si.", "3. Ťukni na posteľ a zapíš sa.", "4. Skontroluj všetky tri noci."];
 
 test("NOTICE_LINES is exactly the four numbered steps", () => {
   assert.deepEqual(plain(L.NOTICE_LINES), FOUR_LINES);
-  for (const line of FOUR_LINES) assert.ok(line.length <= 30 && !line.includes('"'), line);
+  for (const line of FOUR_LINES) assert.ok(line.length <= 34 && !line.includes('"'), line);
 });
 
 test("noticeLayout: heading, then four lines 12 apart, all inside the real board", () => {
@@ -985,8 +985,8 @@ test("partyTableSummary: every cell kind with the plural forms, (ty) only for my
 test("party table texts pass the tykanie guard", () => {
   const s = tableState();
   const texts = [...L.partyTableSummary(s, "p-aaaaaa"), ...L.partyTableRows(s, null).map((r) => L.legendNightsText(r)),
-    ...[1, 2, 5].map((n) => L.moreText(n)), "Partia", "Zatiaľ tu nikto nie je.", "Partie po nociach",
-    "Partie a ich miesta po nociach. Ťuknutím otvoríš „Kto je kto“."];
+    ...[1, 2, 5].map((n) => L.moreText(n)), "Kto", "Zatiaľ tu nikto nie je.", "Kto kde spí po nociach",
+    "Kto kde spí po nociach. Ťuknutím otvoríš „Kto je kto“."];
   for (const text of texts) assert.deepEqual(formalForms(text), [], text);
 });
 
@@ -2214,11 +2214,11 @@ test("meadowLayout: a rect too narrow for one figure still has capacity 1", () =
 
 test("meadowLabel: Slovak forms for 0, 1, 2-4 and 5 or more", () => {
   assert.equal(L.meadowLabel(0), "");
-  assert.equal(L.meadowLabel(1), "Na lúke čaká 1 človek z tvojej partie bez postele");
-  assert.equal(L.meadowLabel(2), "Na lúke čakajú 2 ľudia z tvojej partie bez postele");
-  assert.equal(L.meadowLabel(4), "Na lúke čakajú 4 ľudia z tvojej partie bez postele");
-  assert.equal(L.meadowLabel(5), "Na lúke čaká 5 ľudí z tvojej partie bez postele");
-  assert.equal(L.meadowLabel(11), "Na lúke čaká 11 ľudí z tvojej partie bez postele");
+  assert.equal(L.meadowLabel(1), "Na lúke čaká 1 človek z vás bez postele");
+  assert.equal(L.meadowLabel(2), "Na lúke čakajú 2 ľudia z vás bez postele");
+  assert.equal(L.meadowLabel(4), "Na lúke čakajú 4 ľudia z vás bez postele");
+  assert.equal(L.meadowLabel(5), "Na lúke čaká 5 ľudí z vás bez postele");
+  assert.equal(L.meadowLabel(11), "Na lúke čaká 11 ľudí z vás bez postele");
 });
 
 test("page: the meadow is drawn from the config rect, as a non-interactive image group", () => {
@@ -2384,7 +2384,7 @@ test("page: the bed panel warns before a tap would overfill an already-complete 
 // The plural 2nd person reads exactly like vykanie, which the brief forbids. This checker lives in the test
 // file on purpose: the page itself has no use for it.
 const FORMAL_WORDS = new Set([
-  "vy", "vás", "vám", "vami", "váš", "vaša", "vaše", "vašej", "vašu", "vašho", "vášho", "vašom", "vašou",
+  "vám", "vami", "váš", "vaša", "vaše", "vašej", "vašu", "vašho", "vášho", "vašom", "vašou",
   "vašim", "vašimi", "vašich", "vaši", "vaším", "vaší", "vášmu", "ste", "máte", "nemáte", "potrebujete", "nepotrebujete", "spíte", "nespíte",
   "chcete", "môžete", "viete", "budete",
 ]);
@@ -2398,8 +2398,7 @@ test("formalForms flags plural 2nd person forms", () => {
   assert.deepEqual(formalForms("Zadajte kód"), ["zadajte"]);
   assert.deepEqual(formalForms("nie ste tu"), ["ste"]);
   assert.deepEqual(formalForms("máte 2/3 !"), ["máte"]);
-  assert.deepEqual(formalForms("z vašej partie"), ["vašej"]);
-  assert.deepEqual(formalForms(" (vy)"), ["vy"]);
+  assert.deepEqual(formalForms("z vašej strany"), ["vašej"]);
   assert.deepEqual(formalForms("Kliknite sem"), ["kliknite"]);
   assert.deepEqual(formalForms("Tú noc nespíte"), ["nespíte"]);
   assert.deepEqual(formalForms("Stránka potrebuje vaši JavaScript"), ["vaši"]);

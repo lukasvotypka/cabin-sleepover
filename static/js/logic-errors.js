@@ -7,14 +7,14 @@
 // Slovak texts for an `invalid` error with a known `params.reason`; they win over the generic field text.
 var REASON_TEXTS = {
   leave_not_after_arrive: "Odchod musí byť po príchode.",
-  name_empty: "Napíš meno partie."
+  name_empty: "Napíš meno."
 };
 
 var FIELD_NAMES = {
   name: "meno", adults: "počet dospelých", kids: "počet detí", kids_in_parents_bed: "deti spiace s rodičmi",
   arrive: "príchod", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka",
   night: "noc", nights: "noci", slot: "miesto", slots: "miesta", from_slot: "miesto", to_slot: "miesto",
-  party_id: "partia", code: "kód"
+  party_id: "výber, kto si", code: "kód"
 };
 
 function paramText(params, key) {
@@ -55,12 +55,12 @@ var ERROR_TEXTS = {
   not_present: function (p, state) {
     var when = dayLocative(paramText(p, "night"));
     var who = partyNameFrom(p, state);
-    return (who ? "Partia „" + who + "“" : "Tvoja partia") + (when ? " " + when : " v túto noc") +
-      " nie je na chate. Uprav príchod alebo odchod.";
+    return (who ? "„" + who + "“ " + (when ? when : "v túto noc") + " nie je" : "Nikto z vás nie je " + (when ? when : "v túto noc")) +
+      " na chate. Uprav príchod alebo odchod.";
   },
   duplicate_name: function (p) {
     var name = paramText(p, "name");
-    return (name ? "Partia „" + name + "“" : "Partia s takým menom") + " už existuje. Vymysli iné meno.";
+    return (name ? "Meno „" + name + "“" : "Také meno") + " už niekto má. Skús iné.";
   },
   unknown_slot: function (p, state) {
     var bed = state && state.layout ? bedOfSlot(state.layout, paramText(p, "slot")) : null;
@@ -68,7 +68,7 @@ var ERROR_TEXTS = {
       " Obnov stránku.";
   },
   unknown_party: function () {
-    return "Túto partiu sme nenašli. Vyber partiu znova.";
+    return "Toto meno sme nenašli. Vyber znova, kto si.";
   },
   invalid: function (p) {
     if (REASON_TEXTS.hasOwnProperty(paramText(p, "reason"))) return REASON_TEXTS[paramText(p, "reason")];

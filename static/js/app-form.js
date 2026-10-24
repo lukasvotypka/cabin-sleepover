@@ -6,7 +6,7 @@
 // --- party form ---
 
 var FORM_LABELS = {
-  name: "Meno partie", adults: "Dospelí", kids: "Deti", kids_in_parents_bed: "Deti spiace s rodičmi",
+  name: "Meno", adults: "Dospelí", kids: "Deti", kids_in_parents_bed: "Deti spiace s rodičmi",
   arrive: "Príchod", leave: "Odchod", arrival_time: "Čas príchodu", note: "Poznámka"
 };
 
@@ -15,7 +15,7 @@ var FORM_LABELS = {
 function openPartyForm(party, opts) {
   var event = app.state.event, editing = !!party;
   var fields = {}, errors = {};
-  openPanel(editing ? "Upraviť partiu" : "Nová partia", function (body, panel) {
+  openPanel(editing ? "Upraviť „" + party.name + "“" : "Pridať sa", function (body, panel) {
     var values = editing ? partyToForm(party) : defaultPartyForm(event);
     var form = htmlEl("form", { "class": "pform", novalidate: "" });
     var formError = htmlEl("p", { "class": "form-error", role: "alert", hidden: "" });
@@ -66,7 +66,7 @@ function openPartyForm(party, opts) {
     note.value = values.note;
 
     form.appendChild(formError);
-    form.appendChild(field("name", textInput("name", PARTY_LIMITS.name)));
+    form.appendChild(field("name", textInput("name", PARTY_LIMITS.name), { hint: "napr. Jano, Jano a Zuzka, Novákovci" }));
     var pair = htmlEl("div", { "class": "pair" });
     pair.appendChild(field("adults", countInput("adults")));
     pair.appendChild(field("kids", countInput("kids")));
@@ -175,7 +175,7 @@ function openPartyForm(party, opts) {
           if (app.panel !== panel) return;
           if (freed.length) { showDone(freed); return; }
           closePanel();
-          showToast(editing ? "Zmeny sú uložené." : "Partia „" + payload.name + "“ je pridaná.", "info");
+          showToast(editing ? "Zmeny sú uložené." : "Pridané: „" + payload.name + "“.", "info");
           return;
         }
         if (app.panel !== panel || res.status === 401) return;

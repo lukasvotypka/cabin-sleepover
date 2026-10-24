@@ -152,7 +152,7 @@ function renderSummary() {
     room.beds.forEach(function (bed) { list.appendChild(htmlEl("li", null, bed.name + ": " + bed.text)); });
     host.appendChild(list);
   });
-  host.appendChild(htmlEl("h3", null, "Partie po nociach"));
+  host.appendChild(htmlEl("h3", null, "Kto kde spí po nociach"));
   var parties = htmlEl("ul");
   var lines = partyTableSummary(app.state, app.myParty);
   if (!lines.length) lines = ["Zatiaľ tu nikto nie je."];
@@ -210,7 +210,7 @@ function drawLegend(parent, r) {
     rect(g, x + 10, ry + 1, 16 + (i === 1 ? -4 : i === 2 ? -8 : 0), 4, COLORS.paper);
   });
   hitRect(g, r);
-  makeButton(g, "Kto je kto. Ťuknutím uvidíš partie a ich farby.", "legend", function () { openLegend("legend"); });
+  makeButton(g, "Kto je kto. Ťuknutím uvidíš všetkých a ich farby.", "legend", function () { openLegend("legend"); });
 }
 
 function drawTitle(parent, r, state) {
@@ -289,14 +289,14 @@ function drawPartyTable(parent, r, state) {
   board(g, r, COLORS.paper, COLORS.woodDark);
   var top = r[1] + lay.pad, innerX = r[0] + lay.pad, innerW = r[2] - 2 * lay.pad;
 
-  // header row: "Partia" and the night labels; the selected night gets the yellow header
+  // header row: "Kto" and the night labels; the selected night gets the yellow header
   nights.forEach(function (night, i) {
     var info = nightInfo(night) || { label: night };
     if (night === app.night) rect(g, lay.colX[i], top, lay.colW, lay.head, COLORS.selected);
     addText(g, lay.colX[i] + lay.colW / 2, top + 7, info.label, 6, COLORS.ink,
       { anchor: "middle", bold: true, maxWidth: lay.colW - 2 });
   });
-  addText(g, lay.nameX + 1, top + 7, "Partia", 6, COLORS.ink, { bold: true, maxWidth: lay.nameW - 2 });
+  addText(g, lay.nameX + 1, top + 7, "Kto", 6, COLORS.ink, { bold: true, maxWidth: lay.nameW - 2 });
   rect(g, innerX, top + lay.head - 1, innerW, 1, COLORS.woodDark);
 
   var y0 = top + lay.head;
@@ -327,7 +327,7 @@ function drawPartyTable(parent, r, state) {
       { maxWidth: lay.nameW });
   }
   hitRect(g, r);
-  makeButton(g, "Partie a ich miesta po nociach. Ťuknutím otvoríš „Kto je kto“.", "parties", function () { openLegend("parties"); });
+  makeButton(g, "Kto kde spí po nociach. Ťuknutím otvoríš „Kto je kto“.", "parties", function () { openLegend("parties"); });
 }
 
 function drawStatus(parent, r, state) {
@@ -343,7 +343,7 @@ function drawStatus(parent, r, state) {
   app.ageNode = addText(g, top[0] + 8, top[1] + 32, "", 6, COLORS.paper, { maxWidth: r[2] - 16 });
   app.ageMax = r[2] - 16;
   hitRect(g, top);
-  makeButton(g, (party ? "Si: " + party.name + ". " : "Partia nie je vybratá. ") + "Ťuknutím vyberieš partiu.", "who", openWho);
+  makeButton(g, (party ? "Si: " + party.name + ". " : "Zatiaľ nevieme, kto si. ") + "Ťuknutím vyberieš, kto si.", "who", openWho);
 
   // bottom row: the status of my party
   var bot = [r[0], r[1] + half, r[2], half];
@@ -372,9 +372,9 @@ function drawStatus(parent, r, state) {
     b.setAttribute("aria-label", status.text);
   } else {
     board(b, inner, COLORS.plank);
-    drawLines(b, wrapText("Najprv si vyber partiu", 19, 2), inner[0] + 8, inner[1] + 17, 7, COLORS.paper, inner[2] - 16);
+    drawLines(b, wrapText("Najprv vyber, kto si", 19, 2), inner[0] + 8, inner[1] + 17, 7, COLORS.paper, inner[2] - 16);
     hitRect(b, bot);
-    makeButton(b, "Najprv si vyber partiu. Ťuknutím ju vyberieš.", "status", openWho);
+    makeButton(b, "Najprv vyber, kto si. Ťuknutím to vyberieš.", "status", openWho);
   }
 }
 

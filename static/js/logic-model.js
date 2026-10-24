@@ -6,8 +6,8 @@ var DAY_NAMES = ["nedeľa", "pondelok", "utorok", "streda", "štvrtok", "piatok"
 var DAY_SHORT = ["Ne", "Po", "Ut", "St", "Št", "Pi", "So"];
 var DAY_LOCATIVE = ["v nedeľu", "v pondelok", "v utorok", "v stredu", "vo štvrtok", "v piatok", "v sobotu"];
 var FALLBACK_ERROR = "Niečo sa nepodarilo, skús to znova.";
-var UNKNOWN_PARTY = "neznáma partia";
-var NOTICE_LINES = ["1. Pridaj svoju partiu.", "2. Vyber, za ktorú partiu si.", "3. Ťukni na posteľ a zapíš sa.", "4. Skontroluj všetky tri noci."];
+var UNKNOWN_PARTY = "neznámy";
+var NOTICE_LINES = ["1. Pridaj sa (koľko vás príde).", "2. Vyber, kto si.", "3. Ťukni na posteľ a zapíš sa.", "4. Skontroluj všetky tri noci."];
 // Same limits as the server (PartyInput in app/models.py).
 var PARTY_LIMITS = { name: 60, arrival_time: 60, note: 300, countMax: 20 };
 var LONG_PRESS_SLOP = 10;   // px a finger may move during a long press
