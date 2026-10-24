@@ -773,3 +773,98 @@ async def test_assign_stay_raises_places(app, group_client):
     resp = await group_client.post("/api/assign-stay", json={"slots": [A1, A2], "party_id": p["id"]})
     assert resp.status_code == 200
     assert places_of(app, p["id"]) == {}
+
+
+# --- day visits (T-036) ----------------------------------------------------------
+
+
+def day_body(name="Hosť", **overrides) -> dict:
+    return party_body(name, **{"arrive": None, "leave": None, "day_visits": [SAT, THU], **overrides})
+
+
+async def test_create_day_only_party_stores_sorted_days_and_null_stay(app, group_client):
+    resp = await group_client.post("/api/parties", json=day_body(kids=1), headers=CLIENT)
+    assert resp.status_code == 200
+    party = resp.json()["party"]
+    assert (party["arrive"], party["leave"], party["day_visits"]) == (None, None, [THU, SAT])
+    state = (await group_client.get("/api/state")).json()["state"]
+    assert state["parties"][0]["day_visits"] == [THU, SAT] and state["parties"][0]["arrive"] is None
+    overnight = await mk_party(group_client, "Ivan a Eva")
+    state = (await group_client.get("/api/state")).json()["state"]
+    assert [p["day_visits"] for p in state["parties"]] == [[THU, SAT], []]
+    assert overnight["day_visits"] == []
+
+
+@pytest.mark.parametrize(
+    "overrides,reason,field",
+    [
+        ({"arrive": THU}, "stay_mode_mixed", "day_visits"),
+        ({"day_visits": []}, "day_visits_empty", "day_visits"),
+        ({"day_visits": [THU, THU]}, "duplicate_day", "day_visits"),
+        ({"day_visits": ["2026-11-05"]}, "day_outside_event", "day_visits"),
+        ({"kids": 1, "kids_in_parents_bed": 1}, "day_only_kids_in_bed", "kids_in_parents_bed"),
+    ],
+)
+async def test_create_day_only_party_invalid(app, group_client, overrides, reason, field):
+    before = snapshot(app)
+    resp = await group_client.post("/api/parties", json=day_body(**overrides), headers=CLIENT)
+    assert resp.status_code == 422
+    err = error_of(resp)
+    assert (err["code"], err["params"]["reason"], err["params"]["field"]) == ("invalid", reason, field)
+    assert snapshot(app) == before
+
+
+async def test_create_party_without_stay_or_with_half_a_stay_is_invalid(group_client):
+    body = party_body()
+    del body["arrive"], body["leave"]
+    err = error_of(await group_client.post("/api/parties", json=body, headers=CLIENT))
+    assert err["params"]["reason"] == "day_visits_empty"
+    err = error_of(await group_client.post("/api/parties", json={**body, "arrive": THU}, headers=CLIENT))
+    assert (err["params"]["reason"], err["params"]["field"]) == ("stay_incomplete", "leave")
+
+
+async def test_day_only_party_cannot_be_placed(app, group_client):
+    guest = (await group_client.post("/api/parties", json=day_body(), headers=CLIENT)).json()["party"]
+    before = snapshot(app)
+    resp = await group_client.post("/api/assign", json={"night": THU, "slots": [A1], "party_id": guest["id"]})
+    assert resp.status_code == 409 and error_of(resp)["code"] == "not_present"
+    resp = await group_client.post("/api/places", json={"party_id": guest["id"], "night": THU, "places": 1})
+    assert resp.status_code == 409 and error_of(resp)["code"] == "not_present"
+    resp = await group_client.post("/api/assign-stay", json={"slots": [A1], "party_id": guest["id"]})
+    assert resp.status_code == 422
+    assert error_of(resp)["params"]["reason"] == "no_event_nights"
+    assert snapshot(app) == before
+
+
+async def test_update_to_day_only_frees_slots_and_back(app, group_client):
+    ivan = await mk_party(group_client)
+    for night in (THU, FRI):
+        await group_client.post("/api/assign", json={"night": night, "slots": [A1, A2], "party_id": ivan["id"]})
+    await group_client.post("/api/places", json={"party_id": ivan["id"], "night": THU, "places": 1})
+    before = snapshot(app)
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=day_body("Ivan a Eva"), headers=CLIENT)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["freed"] == [
+        {"night": THU, "slot": A1}, {"night": THU, "slot": A2},
+        {"night": FRI, "slot": A1}, {"night": FRI, "slot": A2},
+    ]
+    assert body["state"]["sleeping"] == {}
+    assert body["party"]["places"] == {} and body["party"]["arrive"] is None
+    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)  # one write, one audit entry
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=party_body("Ivan a Eva"), headers=CLIENT)
+    assert resp.status_code == 200
+    party = resp.json()["party"]
+    assert (party["arrive"], party["leave"], party["day_visits"]) == (THU, SUN, [])
+    resp = await group_client.post("/api/assign", json={"night": THU, "slots": [A1], "party_id": ivan["id"]})
+    assert resp.status_code == 200
+
+
+async def test_update_party_mode_errors_write_nothing(app, group_client):
+    ivan = await mk_party(group_client)
+    before = snapshot(app)
+    resp = await group_client.put(
+        f"/api/parties/{ivan['id']}", json=party_body(day_visits=[THU]), headers=CLIENT
+    )
+    assert resp.status_code == 422 and error_of(resp)["params"]["reason"] == "stay_mode_mixed"
+    assert snapshot(app) == before

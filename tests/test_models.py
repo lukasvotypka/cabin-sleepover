@@ -352,6 +352,22 @@ def test_arrive_must_be_quoted_iso_date():
         party_input(arrive="29. 10. 2026")
 
 
+def test_day_visits_default_empty_and_stay_optional():
+    p = PartyUpdate(name="Hosť", adults=1, kids=0, kids_in_parents_bed=0)
+    assert (p.arrive, p.leave, p.day_visits) == (None, None, [])
+
+
+def test_day_visits_are_sorted_dates_with_a_cap():
+    p = party_input(arrive=None, leave=None, day_visits=["2026-10-31", "2026-10-29"])
+    assert p.day_visits == ["2026-10-29", "2026-10-31"]
+    with pytest.raises(ValidationError):
+        party_input(day_visits=["29. 10. 2026"])
+    with pytest.raises(ValidationError):
+        party_input(day_visits=[f"2026-10-{d:02d}" for d in range(1, 12)])
+    # the mode (mixed, empty) is not a shape rule: validate.py judges it
+    assert party_input(day_visits=["2026-10-29"]).arrive == BASE["arrive"]
+
+
 FULL = {
     **BASE,
     "id": "p-7f3k2a",

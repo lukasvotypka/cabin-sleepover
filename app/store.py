@@ -35,7 +35,7 @@ import yaml
 from pydantic import ValidationError
 
 from app.models import Layout, State, format_validation_error
-from app.validate import RuleError, check_party_name
+from app.validate import RuleError, check_party_name, check_stay_shape, is_present
 
 log = logging.getLogger("chrapa.store")
 
@@ -104,12 +104,17 @@ def _data_problems(state: State, layout: Layout) -> list[str]:
                 f"parties[{i}].name: duplicate party name “{party.name}” (same as party {exc.params['party_id']}, ignoring case)"
             )
     for i, party in enumerate(state.parties):
+        try:  # the same mode rules as for a request, so the two cannot drift
+            check_stay_shape(layout, party)
+        except RuleError as exc:
+            problems.append(f"parties[{i}].{exc.params['field']}: {exc.message}")
+    for i, party in enumerate(state.parties):
         full = party.adults + party.kids - party.kids_in_parents_bed
         for night, count in party.places.items():
             where = f"parties[{i}].places.{night}"
             if night not in layout.event.nights:
                 problems.append(f"{where}: night is not in event.nights of cabin.yaml")
-            elif not party.arrive <= night < party.leave:
+            elif not is_present(party, night):
                 problems.append(f"{where}: night is outside the stay of the party")
             elif count > full:
                 problems.append(f"{where}: {count} is more than the {full} places the party needs")

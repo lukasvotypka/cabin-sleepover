@@ -1,7 +1,7 @@
 import pytest
 
 from app import validate as v
-from app.models import PartyCreate
+from app.models import PartyCreate, PartyUpdate, State
 from app.validate import RuleError
 from tests.conftest import FRI, SAT, SUN, THU
 
@@ -470,7 +470,7 @@ def test_validate_module_has_no_io_or_fastapi_imports():
             imported |= {a.name.split(".")[0] for a in node.names}
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module.split(".")[0])
-    assert imported <= {"collections", "dataclasses", "typing", "unicodedata", "app"}
+    assert imported <= {"collections", "dataclasses", "datetime", "typing", "unicodedata", "app"}
 
 
 # --- party color ----------------------------------------------------------------
@@ -504,8 +504,6 @@ def test_check_party_create_checks_only_a_given_color(layout, make_state):
 
 
 def test_check_party_update_checks_the_color_only_when_it_changes(layout, make_state, make_party):
-    from app.models import PartyUpdate
-
     pale = make_party(color="#FFFFFF")
     state = make_state([pale])
 
@@ -579,3 +577,97 @@ def test_raise_places_to_placed(make_state, make_party):
     st.sleeping[THU][OKNO] = p.id
     v.raise_places_to_placed(st, p, THU)
     assert p.places == {}
+
+
+# --- day visits (T-036) ----------------------------------------------------------
+
+
+def day_only(make_party, **kw):
+    return make_party(arrive=None, leave=None, day_visits=[THU], **kw)
+
+
+def test_event_days_run_from_first_arrive_day_to_last_leave_day(layout):
+    assert v.event_days(layout) == [THU, FRI, SAT, SUN]
+
+
+def test_day_only_party_is_never_present_and_needs_nothing(layout, make_party):
+    guest = day_only(make_party, adults=2, kids=1)
+    assert v.is_day_only(guest)
+    assert not any(v.is_present(guest, n) for n in layout.event.nights)
+    assert [v.needed_on_night(guest, n) for n in layout.event.nights] == [0, 0, 0]
+    assert v.party_nights(guest, layout) == []
+    assert not v.is_day_only(make_party())
+    assert not v.is_day_only(make_party(day_visits=[], arrive=None, leave=None))
+
+
+def test_stay_shortening_without_a_stay_frees_everything(layout, make_state, make_party):
+    ivan = make_party(id="p-ivan01")
+    state = make_state([ivan], {THU: {A1: ivan.id}, FRI: {A2: ivan.id}})
+    assert v.stay_shortening(state, layout, ivan.id, None, None) == [
+        {"night": THU, "slot": A1}, {"night": FRI, "slot": A2},
+    ]
+
+
+def mode_error(layout, **fields):
+    base = {"name": "Hosť", "adults": 1, "kids": 0, "kids_in_parents_bed": 0}
+    return err(v.check_party_create, State(version=0, updated_at="2026-10-25T19:02:11+02:00"), layout,
+               PartyCreate(**{**base, **fields}))
+
+
+@pytest.mark.parametrize(
+    "fields,reason,field,extra",
+    [
+        ({"day_visits": [THU], "arrive": THU}, "stay_mode_mixed", "day_visits", {}),
+        ({"day_visits": [THU], "leave": SUN}, "stay_mode_mixed", "day_visits", {}),
+        ({"day_visits": [THU], "arrive": THU, "leave": SUN}, "stay_mode_mixed", "day_visits", {}),
+        ({}, "day_visits_empty", "day_visits", {}),
+        ({"arrive": THU}, "stay_incomplete", "leave", {}),
+        ({"leave": SUN}, "stay_incomplete", "arrive", {}),
+        ({"day_visits": [THU, THU]}, "duplicate_day", "day_visits", {"day": THU}),
+        ({"day_visits": [THU, "2026-11-05"]}, "day_outside_event", "day_visits", {"day": "2026-11-05"}),
+        ({"day_visits": ["2026-10-28"]}, "day_outside_event", "day_visits", {"day": "2026-10-28"}),
+        ({"day_visits": [THU], "kids": 1, "kids_in_parents_bed": 1}, "day_only_kids_in_bed",
+         "kids_in_parents_bed", {}),
+    ],
+)
+def test_party_mode_rules(layout, fields, reason, field, extra):
+    e = mode_error(layout, **fields)
+    assert (e.code, e.status) == ("invalid", 422)
+    assert e.params == {"reason": reason, "field": field, **extra}
+    assert e.message.isascii()
+
+
+def test_mode_rules_are_checked_in_order(layout):
+    # mixed comes before day checks, duplicates before the event range
+    assert mode_error(layout, day_visits=["2026-11-05"], arrive=THU).params["reason"] == "stay_mode_mixed"
+    assert mode_error(layout, day_visits=["2026-11-05", "2026-11-05"]).params["reason"] == "duplicate_day"
+
+
+def test_day_only_party_with_kids_and_all_event_days_is_valid(layout, make_state):
+    data = PartyCreate(name="Hosť", adults=2, kids=2, kids_in_parents_bed=0, day_visits=[SUN, THU, FRI, SAT])
+    assert data.day_visits == [THU, FRI, SAT, SUN]  # sorted
+    v.check_party_create(make_state(), layout, data)
+
+
+def test_overnight_party_keeps_the_stay_reasons(layout, make_state):
+    with pytest.raises(RuleError) as exc:
+        v.check_party_create(make_state(), layout, PartyCreate(
+            name="X", adults=1, kids=0, kids_in_parents_bed=0, arrive=SAT, leave=FRI))
+    assert exc.value.params["reason"] == "leave_not_after_arrive"
+
+
+def test_update_to_day_only_frees_all_slots(layout, make_state, make_party):
+    ivan = make_party(id="p-ivan01")
+    state = make_state([ivan], {THU: {A1: ivan.id}, FRI: {A1: ivan.id}})
+    data = PartyUpdate(name=ivan.name, adults=2, kids=0, kids_in_parents_bed=0, day_visits=[FRI])
+    assert v.check_party_update(state, layout, ivan.id, data) == [
+        {"night": THU, "slot": A1}, {"night": FRI, "slot": A1},
+    ]
+
+
+def test_assign_and_places_refuse_a_day_only_party(layout, make_state, make_party):
+    guest = day_only(make_party, id="p-guest1")
+    state = make_state([guest])
+    assert err(v.check_assign, state, layout, THU, [A1], guest.id).code == "not_present"
+    assert err(v.check_places, state, layout, guest.id, THU, 1).code == "not_present"
+    assert err(v.check_assign_stay, state, layout, [A1], guest.id).params["reason"] == "no_event_nights"

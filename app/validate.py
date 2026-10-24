@@ -14,6 +14,7 @@ only as a quick pre-check. There is no other place for rules.
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 
 from app.models import Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
@@ -65,9 +66,26 @@ def occupant(state: State, night: str, slot: str) -> str | None:
     return state.sleeping.get(night, {}).get(slot)
 
 
+def is_day_only(party: Party | PartyInput) -> bool:
+    """A day-only party comes for the day (`day_visits`) and never sleeps: no arrive, no leave."""
+    return bool(party.day_visits) and party.arrive is None and party.leave is None
+
+
 def is_present(party: Party | PartyInput, night: str) -> bool:
-    """A party is present on a night if arrive ≤ night < leave (ISO strings compare as text)."""
+    """A party is present on a night if arrive ≤ night < leave (ISO strings compare as text).
+
+    A party without a stay (day-only) is never present.
+    """
+    if party.arrive is None or party.leave is None:
+        return False
     return party.arrive <= night < party.leave
+
+
+def event_days(layout: Layout) -> list[str]:
+    """Every calendar day from the first arrive day to the last leave day, inclusive (derived, not configured)."""
+    first = date.fromisoformat(layout.event.arrive_days[0])
+    last = date.fromisoformat(layout.event.leave_days[-1])
+    return [(first + timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
 
 
 def needed_slots(party: Party | PartyInput) -> int:
@@ -254,6 +272,58 @@ def check_stay(layout: Layout, arrive: str, leave: str) -> None:
         )
 
 
+def check_stay_mode(data: Party | PartyInput) -> None:
+    """The party is either overnight (`arrive` and `leave`) or day-only (`day_visits`), never both or neither.
+
+    Shared by the request path and the startup check. The arrive and leave values of an overnight
+    party are checked separately by `check_stay`.
+    """
+    if data.day_visits and (data.arrive is not None or data.leave is not None):
+        raise _invalid(
+            "stay_mode_mixed", "A party with day visits cannot also have arrive or leave", field="day_visits"
+        )
+    if data.arrive is None and data.leave is None and not data.day_visits:
+        raise _invalid("day_visits_empty", "Give arrive and leave, or at least one day visit", field="day_visits")
+    if not data.day_visits and (data.arrive is None or data.leave is None):
+        missing = "arrive" if data.arrive is None else "leave"
+        raise _invalid("stay_incomplete", f"Only one of arrive and leave is given: {missing} is missing", field=missing)
+
+
+def check_day_visits(layout: Layout, data: Party | PartyInput) -> None:
+    """Rules for a day-only party: known, distinct event days, and no kid in the parents' bed."""
+    days = event_days(layout)
+    seen: set[str] = set()
+    for day in data.day_visits:
+        if day in seen:
+            raise _invalid("duplicate_day", f"Day {day} is listed more than once", field="day_visits", day=day)
+        seen.add(day)
+    for day in data.day_visits:
+        if day not in days:
+            raise _invalid(
+                "day_outside_event", f"Day {day} is outside the event ({days[0]} to {days[-1]})",
+                field="day_visits", day=day,
+            )
+    if data.kids_in_parents_bed > 0:
+        raise _invalid(
+            "day_only_kids_in_bed", "A day-only party has no bed, so kids_in_parents_bed must be 0",
+            field="kids_in_parents_bed",
+        )
+
+
+def check_stay_shape(layout: Layout, data: Party | PartyInput) -> None:
+    """The mode rules plus the day-visit rules. The startup check of stored parties calls this."""
+    check_stay_mode(data)
+    if is_day_only(data):
+        check_day_visits(layout, data)
+
+
+def check_party_stay(layout: Layout, data: Party | PartyInput) -> None:
+    """All stay rules of a party request: `check_stay_shape`, then arrive and leave of an overnight party."""
+    check_stay_shape(layout, data)
+    if not is_day_only(data):
+        check_stay(layout, data.arrive, data.leave)
+
+
 def _party_entries(state: State, layout: Layout, party_id: str, keep: Callable[[str], bool] | None = None) -> list[dict[str, str]]:
     """The party’s {night, slot} entries, ordered by night, then by slot order in cabin.yaml.
 
@@ -270,8 +340,15 @@ def _party_entries(state: State, layout: Layout, party_id: str, keep: Callable[[
     return entries
 
 
-def stay_shortening(state: State, layout: Layout, party_id: str, arrive: str, leave: str) -> list[dict[str, str]]:
-    """The party’s slots on nights outside the new stay: a list of {night, slot} (the future `freed`)."""
+def stay_shortening(
+    state: State, layout: Layout, party_id: str, arrive: str | None, leave: str | None
+) -> list[dict[str, str]]:
+    """The party’s slots on nights outside the new stay: a list of {night, slot} (the future `freed`).
+
+    Without a stay (day-only), that is all of its slots.
+    """
+    if arrive is None or leave is None:
+        return _party_entries(state, layout, party_id)
     return _party_entries(state, layout, party_id, keep=lambda night: arrive <= night < leave)
 
 
@@ -301,7 +378,7 @@ def check_party_color(color: str) -> None:
 
 def check_party_create(state: State, layout: Layout, data: PartyCreate) -> None:
     check_party_name(state, data.name)
-    check_stay(layout, data.arrive, data.leave)
+    check_party_stay(layout, data)
     if data.color is not None:
         check_party_color(data.color)
 
@@ -310,7 +387,7 @@ def check_party_update(state: State, layout: Layout, party_id: str, data: PartyU
     """Check a party update and return the slots freed by shortening the stay."""
     party = find_party(state, party_id)
     check_party_name(state, data.name, own_id=party_id)
-    check_stay(layout, data.arrive, data.leave)
+    check_party_stay(layout, data)
     # An unchanged color is not checked again, so a color stored earlier never blocks other edits.
     if data.color is not None and data.color.upper() != party.color.upper():
         check_party_color(data.color)

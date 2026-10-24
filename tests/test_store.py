@@ -9,7 +9,7 @@ from app import store as store_module
 from app.models import State
 from app.store import AUDIT_FILE, BACKUP_DIR, DATA_FILE, Store, StartupError, now_iso
 from app.validate import RuleError, check_assign
-from tests.conftest import FRI, THU
+from tests.conftest import FRI, SAT, SUN, THU
 
 SLOT1, SLOT2 = "left-double-1", "left-double-2"
 
@@ -562,3 +562,60 @@ def test_startup_good_places_and_missing_places(layout, data_dir, make_party):
     del data["parties"][0]["places"]
     write_data(data_dir, data)
     assert Store(layout, data_dir=data_dir).read().parties[0].places == {}
+
+
+# --- day visits (T-036) ------------------------------------------------------------
+
+
+def guest_data(make_party, **kw):
+    guest = make_party(id="p-guest1", arrive=None, leave=None, day_visits=[THU, SAT], **kw)
+    return good_data(make_party, [guest])
+
+
+def test_startup_existing_file_without_day_visits_loads_unchanged(layout, data_dir, make_party):
+    data = good_data(make_party, [make_party(id="p-ivan01")])
+    del data["parties"][0]["day_visits"]
+    write_data(data_dir, data)
+    party = Store(layout, data_dir=data_dir).read().parties[0]
+    assert (party.arrive, party.leave, party.day_visits) == (THU, SUN, [])
+
+
+def test_startup_day_only_party_loads(layout, data_dir, make_party):
+    write_data(data_dir, guest_data(make_party))
+    party = Store(layout, data_dir=data_dir).read().parties[0]
+    assert (party.arrive, party.leave, party.day_visits) == (None, None, [THU, SAT])
+
+
+@pytest.mark.parametrize(
+    "change,expected",
+    [
+        ({"day_visits": [THU], "arrive": THU}, "parties[0].day_visits: A party with day visits cannot also"),
+        ({"day_visits": []}, "parties[0].day_visits: Give arrive and leave, or at least one day visit"),
+        ({"day_visits": [], "leave": SUN}, "parties[0].arrive: Only one of arrive and leave"),
+        ({"day_visits": [THU, THU]}, "parties[0].day_visits: Day 2026-10-29 is listed more than once"),
+        ({"day_visits": [THU, "2026-11-05"]},
+         "parties[0].day_visits: Day 2026-11-05 is outside the event (2026-10-29 to 2026-11-01)"),
+        ({"kids": 1, "kids_in_parents_bed": 1}, "parties[0].kids_in_parents_bed: A day-only party has no bed"),
+    ],
+)
+def test_startup_bad_stay_mode(layout, data_dir, make_party, change, expected):
+    data = guest_data(make_party)
+    data["parties"][0].update(change)
+    write_data(data_dir, data)
+    assert expected in start_error(layout, data_dir)
+
+
+def test_startup_places_on_a_day_only_party_is_outside_the_stay(layout, data_dir, make_party):
+    data = guest_data(make_party)
+    data["parties"][0]["places"] = {THU: 1}
+    write_data(data_dir, data)
+    msg = start_error(layout, data_dir)
+    assert "parties[0].places" in msg and "outside the stay" in msg
+
+
+async def test_day_only_party_survives_a_save_and_load(layout, data_dir, make_party):
+    store = Store(layout, data_dir=data_dir)
+    await add_party(store, make_party, id="p-guest1", arrive=None, leave=None, day_visits=[THU, SAT])
+    assert yaml.safe_load((data_dir / DATA_FILE).read_text(encoding="utf-8"))["parties"][0]["day_visits"] == [THU, SAT]
+    party = Store(layout, data_dir=data_dir).read().parties[0]
+    assert (party.arrive, party.leave, party.day_visits) == (None, None, [THU, SAT])

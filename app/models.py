@@ -40,6 +40,7 @@ PARTY_PALETTE = (
 # Upper bounds for lists in requests. They are far above real use (the biggest bed has 3 slots,
 # the event has 3 nights) and exist so that one huge body cannot block the single worker.
 MAX_SLOTS_PER_REQUEST = 32
+MAX_DAY_VISITS = 10
 MAX_NIGHTS_PER_REQUEST = 10
 
 
@@ -288,8 +289,11 @@ class PartyInput(_Model):
     adults: Count
     kids: Count
     kids_in_parents_bed: Count
-    arrive: IsoDate
-    leave: IsoDate
+    # An overnight party has `arrive` and `leave`. A day-only party has `day_visits` instead.
+    # Which combination is allowed is a rule, so it lives in validate.py (`check_stay_mode`), not here.
+    arrive: IsoDate | None = None
+    leave: IsoDate | None = None
+    day_visits: Annotated[list[IsoDate], Field(max_length=MAX_DAY_VISITS)] = []
     arrival_time: Annotated[
         str, _Text, Field(max_length=60), AfterValidator(_normalize_nfc), AfterValidator(_reject_control_chars)
     ] = ""
@@ -297,6 +301,11 @@ class PartyInput(_Model):
     note: Annotated[
         str, _Text, Field(max_length=300), AfterValidator(_normalize_nfc), AfterValidator(_reject_control_chars_keep_newlines)
     ] = ""
+
+    @field_validator("day_visits")
+    @classmethod
+    def _sort_days(cls, value: list[str]) -> list[str]:
+        return sorted(value)  # stored ascending
 
     @field_validator("kids_in_parents_bed")
     @classmethod
