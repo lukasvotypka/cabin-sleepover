@@ -3074,9 +3074,42 @@ test("foodCount: a day visitor counts only on their days", () => {
   assert.equal(L.foodCount(s, SUN), 2);
 });
 
-test("foodCount: kids in the parents' bed count, places overrides are ignored", () => {
-  const p = party({ adults: 2, kids: 2, kids_in_parents_bed: 1, arrive: THU, leave: SUN, places: { [FRI]: 1 } });
+test("foodCount: kids in the parents' bed still count with no places", () => {
+  const p = party({ adults: 2, kids: 2, kids_in_parents_bed: 1, arrive: THU, leave: SUN });
   assert.equal(L.foodCount(realState([p], {}), FRI), 4);
+});
+
+test("foodCount: a reduced night lowers the count (1 of 3 plus a party of 2 is 3)", () => {
+  const a = party({ adults: 2, kids: 1, arrive: THU, leave: FRI, places: { [THU]: 1 } });
+  const b = party({ id: "p-bbbbbb", name: "Dvaja", adults: 2, arrive: THU, leave: FRI });
+  assert.equal(L.foodCount(realState([a, b], {}), THU), 3);
+});
+
+test("foodCount: arrival day uses only the first night, leave day only the last night", () => {
+  const p = party({ adults: 3, arrive: THU, leave: SAT, places: { [THU]: 1, [FRI]: 2 } });
+  const s = realState([p], {});
+  assert.equal(L.foodCount(s, THU), 1);
+  assert.equal(L.foodCount(s, SAT), 2);
+});
+
+test("foodCount: a day between a reduced night and a full night counts the full party", () => {
+  const p = party({ adults: 3, arrive: THU, leave: SUN, places: { [THU]: 1 } });
+  const s = realState([p], {});
+  assert.equal(L.foodCount(s, THU), 1);
+  assert.equal(L.foodCount(s, FRI), 3);
+});
+
+test("foodCount: two reduced nights in a row use the larger count", () => {
+  const p = party({ adults: 4, arrive: THU, leave: SUN, places: { [THU]: 1, [FRI]: 2, [SAT]: 3 } });
+  const s = realState([p], {});
+  assert.equal(L.foodCount(s, FRI), 2);
+  assert.equal(L.foodCount(s, SAT), 3);
+  assert.equal(L.foodCount(s, SUN), 3);
+});
+
+test("foodCount: kid in the parents' bed, reduced from 2 to 1 slots, counts 2 people", () => {
+  const p = party({ adults: 2, kids: 1, kids_in_parents_bed: 1, arrive: THU, leave: FRI, places: { [THU]: 1 } });
+  assert.equal(L.foodCount(realState([p], {}), THU), 2);
 });
 
 test("dayVisitRows: non-consecutive days, two visitors on one day, none without visitors", () => {

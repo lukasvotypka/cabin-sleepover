@@ -266,14 +266,27 @@ function peopleCountText(n) {
   return n + (n === 1 ? " človek" : n >= 2 && n <= 4 ? " ľudia" : " ľudí");
 }
 
-// How many people eat on a day. The rule (an open decision, change it only here): the sum of
-// `adults + kids` of every overnight party with `arrive <= day <= leave`, plus `adults + kids` of every
-// day-only party that has `day` in `day_visits`. Kids in the parents' bed count; `places` overrides are ignored.
+// How many people eat on a day. The rule (an open decision, change it only here): a day-only party counts
+// `adults + kids` on its `day_visits`. An overnight party with `arrive <= day <= leave` counts
+// `adults + kids - missing`, where missing(n) = neededSlots - neededOnNight for night n. Day D touches night D - 1
+// (morning) and night D (evening) when they lie inside the stay (`arrive <= n < leave`): the arrival day only has
+// night D, the leave day only night D - 1. The night with the smaller `missing` (more people) wins. Kids in the
+// parents' bed count, because only the reduction is subtracted, never the slots. Never below 0.
 function foodCount(state, day) {
   var total = 0;
   ((state && state.parties) || []).forEach(function (p) {
-    var here = isDayOnly(p) ? p.day_visits.indexOf(day) !== -1 : !!p.arrive && !!p.leave && p.arrive <= day && day <= p.leave;
-    if (here) total += p.adults + p.kids;
+    if (isDayOnly(p)) {
+      if (p.day_visits.indexOf(day) !== -1) total += p.adults + p.kids;
+      return;
+    }
+    if (!p.arrive || !p.leave || day < p.arrive || day > p.leave) return;
+    var missing = null;
+    [addDays(day, -1), day].forEach(function (n) {
+      if (!isPresent(p, n)) return;
+      var m = neededSlots(p) - neededOnNight(p, n);
+      if (missing === null || m < missing) missing = m;
+    });
+    total += Math.max(0, p.adults + p.kids - (missing || 0));
   });
   return total;
 }
