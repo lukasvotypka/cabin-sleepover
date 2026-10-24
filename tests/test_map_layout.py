@@ -47,7 +47,7 @@ vm.runInContext(input.logic, L);
 const overlap = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 const { rooms, houses, map } = input.layout;
 const [vw] = map.viewbox;
-const TREE = [0, 142, 8, 42];                 // the decorative tree (drawTree), fixed strip at the left edge
+const TREE = [-20, 184, 34, 68];              // the decorative tree (drawTree): crown and trunk at the left edge
 const problems = [];
 const scene = Object.entries(map.scene);
 const furniture = rooms.flatMap((r) => r.beds.map((b) => [b.id, L.furnitureBounds(b)]));

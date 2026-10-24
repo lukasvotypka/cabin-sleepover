@@ -221,17 +221,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   100% { opacity: 0; transform: translate(var(--dx, 3px), -24px); }
 }
 
-/* --- nature decor: a small tree beside the house that sheds a leaf every few seconds, and a bird that
+/* --- nature decor: a tree on the left edge whose six leaves each drift down in turn, and a bird that
    occasionally crosses the whole screen. Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
    colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
 #scene svg .tree { pointer-events: none; }
-#scene svg .shedleaf { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: leafDrop 26s linear infinite; }
+#scene svg .shedleaf { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: leafDrop var(--dur) linear var(--delay) infinite; }
 @keyframes leafDrop {
-  0%, 2% { opacity: 0; transform: translate(0px, 0px) rotate(0deg); }
-  6% { opacity: 1; transform: translate(1px, 4px) rotate(8deg); }
-  10% { transform: translate(-2px, 11px) rotate(-14deg); }
-  14% { transform: translate(1px, 19px) rotate(18deg); }
-  17%, 100% { opacity: 0; transform: translate(-1px, 27px) rotate(-8deg); }
+  0% { opacity: 0; transform: translate(0px, 0px) rotate(0deg); }
+  6% { opacity: 1; }
+  25% { transform: translate(calc(var(--dx) * .9), calc(var(--fall) * .25)) rotate(calc(var(--rot) * .3)); }
+  50% { transform: translate(calc(var(--dx) * -.2), calc(var(--fall) * .5)) rotate(calc(var(--rot) * -.5)); }
+  75% { transform: translate(calc(var(--dx) * .7), calc(var(--fall) * .78)) rotate(calc(var(--rot) * .8)); }
+  90% { opacity: 1; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
+  100% { opacity: 0; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
 }
 .bird {
   position: fixed; top: 11%; left: -40px; width: 28px; height: 12px; z-index: 1; pointer-events: none;

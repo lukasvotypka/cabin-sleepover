@@ -20,27 +20,53 @@ function drawGround(g, bounds) {
   r.setAttribute("height", gr[3]);
 }
 
-// A small decorative tree, fixed at x 0-8 (any y), a strip that no room, board or path in config/cabin.yaml
-// ever reaches (the leftmost rooms start at x 10, the leftmost scene board at x 16): pure decor, not derived
-// from the layout, so it stays clear of every bed, board and tap target however cabin.yaml is edited. It sheds
-// one leaf every few seconds; `prefers-reduced-motion` stops the fall (the global rule near `.free` above).
-var TREE_LEAVES = [
-  { x: 2, y: 150, delay: "0s" },
-  { x: 6, y: 146, delay: "5s" },
-  { x: 1, y: 156, delay: "10s" },
-  { x: 7, y: 152, delay: "16s" },
-  { x: 3, y: 144, delay: "21s" }
-];
+// A decorative autumn tree on the left edge. Its crown (x -20 to 14, y 184 to 222) sits below the upper house
+// rooms (which end at y 176) and left of the „Zápis je zatvorený“ sign (x 16), a strip that no room, board or path
+// in config/cabin.yaml reaches: pure decor, not derived from the layout, so it stays clear of every bed, board and
+// tap target however cabin.yaml is edited. On a phone (map x 0 to 380) the left half of the crown is off the map;
+// on a wider screen or a panned map it shows whole. Six leaves drift down from the crown in turn, and a few lie
+// under it; `prefers-reduced-motion` stops the fall (the global rule near the end of the style sheet).
+var TREE_CROWN = { cx: -3, cy: 203, rx: 17, ry: 19, cell: 2 };
+var TREE_FALLEN = 12;
+var TREE_FALLING = 6;
+// A deterministic pseudo-random number in [0, 1), so the tree looks the same on every draw and every device.
+function treeNoise(i, seed) {
+  var v = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+}
 function drawTree(g) {
   var t = svgEl(g, "g", { "aria-hidden": "true", "class": "tree" });
-  rect(t, 2, 164, 4, 20, COLORS.woodDark);          // trunk
-  rect(t, 1, 142, 6, 6, COLORS.leafOchre);          // canopy, three overlapping tiers
-  rect(t, 0, 148, 8, 8, COLORS.leafRust);
-  rect(t, 1, 156, 6, 6, COLORS.leafRed);
-  TREE_LEAVES.forEach(function (l, i) {
-    var color = i % 3 === 0 ? COLORS.leafOchre : i % 3 === 1 ? COLORS.leafRust : COLORS.leafRed;
-    rect(t, l.x, l.y, 3, 3, color, { "class": "shedleaf", style: "animation-delay:" + l.delay + ";" });
-  });
+  var c = TREE_CROWN, leafColors = [COLORS.leafOchre, COLORS.leafRust, COLORS.leafRed], x, y, i;
+  rect(t, -6, 218, 6, 34, COLORS.woodDark);         // trunk and two branches
+  rect(t, -8, 248, 10, 4, COLORS.woodDark);
+  rect(t, -10, 212, 4, 6, COLORS.woodDark);
+  rect(t, 0, 210, 4, 8, COLORS.woodDark);
+  // crown: a bumpy ellipse of 2 x 2 cells, ochre on top, rust in the middle, red below, with speckles
+  for (y = c.cy - c.ry; y < c.cy + c.ry; y += c.cell) {
+    for (x = c.cx - c.rx; x < c.cx + c.rx; x += c.cell) {
+      var dx = (x + 1 - c.cx) / c.rx, dy = (y + 1 - c.cy) / c.ry;
+      if (dx * dx + dy * dy > 1 + (treeNoise(x, y) - .5) * .22) continue;
+      var f = (y - (c.cy - c.ry)) / (2 * c.ry), n = treeNoise(x * 3, y * 7);
+      var color = f < .34 ? COLORS.leafOchre : f < .68 ? COLORS.leafRust : COLORS.leafRed;
+      if (n < .16) color = f < .34 ? COLORS.leafRust : f < .68 ? (n < .08 ? COLORS.leafOchre : COLORS.leafRed) : COLORS.leafRust;
+      else if (n > .93) color = COLORS.leafOchre;
+      rect(t, x, y, c.cell, c.cell, color);
+    }
+  }
+  for (x = c.cx - 12; x < c.cx + 12; x += c.cell) {  // darker underside
+    if (treeNoise(x, 5) < .6) rect(t, x, c.cy + c.ry - 2, c.cell, 2, COLORS.redEdge);
+  }
+  for (i = 0; i < TREE_FALLEN; i++) {                // leaves on the grass under the tree
+    rect(t, -24 + i * 2.8 + treeNoise(i, 2) * 3, 250 + treeNoise(i, 3) * 14, 3, 3, leafColors[i % 3]);
+  }
+  for (i = 0; i < TREE_FALLING; i++) {               // falling leaves: start in the crown, sway down 26 to 56 px
+    var size = i % 4 === 0 ? 4 : 3;
+    var vars = "--dx:" + ((treeNoise(i, 13) - .5) * 16).toFixed(1) + "px;--fall:" + (26 + treeNoise(i, 14) * 30).toFixed(0) +
+      "px;--rot:" + ((treeNoise(i, 17) - .5) * 160).toFixed(0) + "deg;--dur:" + (11 + treeNoise(i, 15) * 8).toFixed(1) +
+      "s;--delay:" + (-treeNoise(i, 16) * 19).toFixed(1) + "s";
+    rect(t, c.cx - 14 + treeNoise(i, 11) * 28, c.cy - 6 + treeNoise(i, 12) * 20, size, size, leafColors[i % 3],
+      { "class": "shedleaf", style: vars });
+  }
 }
 
 // Roofs and chimneys (T-029, organizer request 24. 10. 2026): purely cosmetic and derived from `layout.houses`
