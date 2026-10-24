@@ -7,7 +7,7 @@
 
 function applyView() {
   app.svg.setAttribute("viewBox", viewBoxText(app.view));
-  app.zoomReset.hidden = !resetShown(app.view, app.bounds);
+  app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds);
 }
 
 function setView(view) {
@@ -18,6 +18,66 @@ function setView(view) {
 function resetView() {
   setView(wholeView(app.bounds));
 }
+
+// --- the one-time intro zoom: the map starts zoomed on the top of the scene and eases out to the fitted view ---
+
+function introActive() {
+  return app.introZoom === "held" || app.introZoom === "running";
+}
+
+// At the start of the splash's fall: put the map on the start view under the splash, so there is no jump later.
+// Reduced motion or the move mode: no intro.
+function holdIntroZoom() {
+  if (app.introZoom !== "idle") return;
+  if (prefersReducedMotion() || !app.bounds || !app.sceneSize || app.move) {
+    app.introZoom = "done";
+    return;
+  }
+  app.introZoom = "held";
+  setView(introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1]));
+}
+
+// The splash is gone: ease out to the fitted view.
+function startIntroZoom() {
+  if (app.introZoom !== "held") return;
+  app.introZoom = "running";
+  app.introZoomAt = performance.now();
+  app.introRaf = requestAnimationFrame(introFrame);
+}
+
+// Both ends are read each frame, so a re-render or a change of the bounds (the HUD grew) cannot make it jump back.
+function introFrame() {
+  app.introRaf = 0;
+  if (app.introZoom !== "running") return;
+  var t = (performance.now() - app.introZoomAt) / INTRO_ZOOM_MS;
+  var to = wholeView(app.bounds);
+  if (t >= 1) {
+    app.introZoom = "done";
+    setView(to);
+    return;
+  }
+  var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1]);
+  setView(introViewAt(from, to, t));
+  app.introRaf = requestAnimationFrame(introFrame);
+}
+
+// A touch, wheel or key on the map, a resize or the move mode ends the intro where it is (no snap), so the touch
+// that stopped it acts on what is under the finger. Still under the splash, it goes back to the fitted view.
+// A panel does not stop it: „Kto si?“ opens right after the splash and the map eases out behind its backdrop.
+function stopIntroZoom() {
+  var was = app.introZoom;
+  if (was !== "held" && was !== "running") return;
+  if (app.introRaf) cancelAnimationFrame(app.introRaf);
+  app.introRaf = 0;
+  app.introZoom = "done";
+  if (was === "held") setView(wholeView(app.bounds));
+  else applyView();
+}
+
+["pointerdown", "touchstart", "wheel", "keydown"].forEach(function (type) {
+  $("scene").addEventListener(type, stopIntroZoom, { capture: true, passive: true });
+});
+window.addEventListener("resize", stopIntroZoom);
 
 // The safe-area insets (notch, home bar) in CSS px, read from a probe whose padding is the env() values.
 function readInsets() {

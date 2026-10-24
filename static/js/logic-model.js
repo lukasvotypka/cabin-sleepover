@@ -14,6 +14,8 @@ var LONG_PRESS_SLOP = 10;   // px a finger may move during a long press
 var ZOOM_MAX = 4;           // the map zooms in to this multiple of the fitted view (1 = whole scene)
 var ZOOM_MIN = 0.6;         // the map zooms out to this fraction of the fitted view
 var ZOOM_KEY_STEP = 1.25;   // factor of one + or - key press
+var INTRO_ZOOM_MS = 2800;   // the one-time intro: the map eases from the zoomed start view out to the fitted view
+var INTRO_ZOOM_START = 2;   // zoom of the intro's start view (on the top of the scene)
 var PAN_MARGIN = 0.25;      // the view may pan this fraction of its own size past the bounds
 
 // --- dates ---

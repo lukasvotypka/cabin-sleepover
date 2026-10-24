@@ -1651,7 +1651,7 @@ test("zoom: the page drags at every zoom and shows the reset button when off hom
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(app, /setView\(dragView\(app\.view, app\.bounds, box\(\), e\.clientX - drag\.lx, e\.clientY - drag\.ly\)\)/);
   assert.doesNotMatch(app, /if \(isZoomed\(app\.view, app\.bounds\)\) setView\(dragView/);
-  assert.match(app, /app\.zoomReset\.hidden = !resetShown\(app\.view, app\.bounds\)/);
+  assert.match(app, /app\.zoomReset\.hidden = introActive\(\) \|\| !resetShown\(app\.view, app\.bounds\)/);
   assert.match(app, /!resetShown\(app\.view, app\.bounds\) \|\| !node\.getBBox \|\| Date\.now\(\)/);
   assert.match(app, /node === svg \|\| !resetShown\(app\.view, app\.bounds\)\) return;/);
 });
@@ -3212,4 +3212,51 @@ test("drawPartyTable: one button over the drawn board, moon and sun from rects, 
   assert.match(body, /"Cez deň"/);
   assert.match(body, /"spolu na jedlo"/);
   assert.doesNotMatch(body, /innerHTML|☀|🌙|☾/);
+});
+
+test("intro zoom: constants", () => {
+  assert.equal(L.INTRO_ZOOM_MS, 2800);
+  assert.equal(L.INTRO_ZOOM_START, 2);
+});
+
+test("intro zoom: the start view is 2x, centered on the scene, at the scene top and valid", () => {
+  for (const [vw, vh] of [[375, 667], [1280, 800]]) {
+    const B = L.fitBounds(vw, vh, SW, SH, { bottom: 56 });
+    const v = plain(L.introStartView(B, SW, SH));
+    assert.ok(Math.abs(L.viewZoom(v, B) - 2) < 1e-9, "zoom 2");
+    assert.ok(Math.abs(v.x + v.w / 2 - SW / 2) < 1e-9, "centered on the scene");
+    assert.equal(v.y, 0);
+    assert.ok(Math.abs(v.h - v.w * B.h / B.w) < 1e-9, "aspect ratio of the bounds");
+    assert.deepEqual(plain(L.clampView(v, B)), v);
+  }
+});
+
+test("intro zoom: introViewAt eases between the views and clamps t", () => {
+  const from = { x: 90, y: 0, w: 100, h: 200 }, to = { x: 0, y: -20, w: 380, h: 760 };
+  assert.deepEqual(plain(L.introViewAt(from, to, 0)), from);
+  assert.deepEqual(plain(L.introViewAt(from, to, 1)), to);
+  assert.deepEqual(plain(L.introViewAt(from, to, -3)), from);
+  assert.deepEqual(plain(L.introViewAt(from, to, 7)), to);
+  assert.deepEqual(plain(L.introViewAt(from, to, NaN)), from);
+  const mid = plain(L.introViewAt(from, to, 0.5));
+  assert.ok(mid.w > from.w && mid.w < to.w);
+  assert.ok(Math.abs(mid.w - 240) < 1e-9, "ease in-out is symmetric around the middle");
+  const early = plain(L.introViewAt(from, to, 0.1)), late = plain(L.introViewAt(from, to, 0.9));
+  assert.ok(early.w - from.w < (to.w - from.w) * 0.1, "starts slowly");
+  assert.ok(to.w - late.w < (to.w - from.w) * 0.1, "ends slowly");
+});
+
+test("intro zoom: the app wires it to the splash, stops on input and skips reduced motion", () => {
+  assert.match(appSource, /function finishSplash\(\)[\s\S]*?hideBoot\(\);[\s\S]*?startIntroZoom\(\);/);
+  assert.match(appSource, /function holdIntroZoom\(\)[\s\S]*?prefersReducedMotion\(\)/);
+  assert.match(appSource, /\["pointerdown", "touchstart", "wheel", "keydown"\]/);
+  const openPanelSource = appSource.match(/function openPanel\(title, build, opts\) \{[\s\S]*?\n\}\n/)[0];
+  assert.doesNotMatch(openPanelSource, /IntroZoom/, "a panel must not stop the intro");
+  assert.match(appSource, /function startMove\(slot\) \{\n  stopIntroZoom\(\);/);
+});
+
+test("intro zoom: the code screen (a 401) ends the intro, so the map is never stuck at 2x", () => {
+  // The fall's end timer is cancelled by hideBoot(), so finishSplash() never runs after a 401 during the fall.
+  const showCodeSource = appSource.match(/function showCodeScreen\(\) \{[\s\S]*?\n\}\n/)[0];
+  assert.match(showCodeSource, /hideBoot\(\);\n  stopIntroZoom\(\);/);
 });

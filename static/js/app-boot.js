@@ -96,9 +96,9 @@ function paintSplash(elapsedMs) {
 
 // Start the fall of the splash. The map is already drawn underneath. With reduced motion there is no fall.
 function startFall() {
+  holdIntroZoom();      // the map waits on the intro's start view under the splash
   if (bootFallMs(prefersReducedMotion()) === 0 || $("boot").hidden || !splash.ctx) {
-    hideBoot();
-    openWhoIfAsked();
+    finishSplash();
     return;
   }
   splash.falling = true;
@@ -106,10 +106,16 @@ function startFall() {
   splash.lastStep = -1;
   $("boot").classList.add("boot--falling");
   splash.endTimer = setTimeout(function () {      // not rAF: that stops in a background tab
-    hideBoot();
-    openWhoIfAsked();
+    finishSplash();
   }, BOOT_FALL_MS);
   fallFrame();
+}
+
+// The splash is gone: ask „Kto si?“ if needed, then (once per page load) the intro zoom.
+function finishSplash() {
+  hideBoot();
+  openWhoIfAsked();
+  startIntroZoom();
 }
 
 // Time comes from the clock, not from a frame count. The canvas is redrawn only when the step changes.

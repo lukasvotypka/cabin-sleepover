@@ -102,6 +102,9 @@ var app = {
   sceneSize: null,
   pinching: false,     // two or more fingers are down on the map
   blockClick: false,   // a drag just ended: its click must not count as a tap
+  introZoom: "idle",    // the one-time intro zoom: idle, held (start view under the splash), running or done
+  introRaf: 0,         // id of the intro's animation frame
+  introZoomAt: 0,      // performance.now() when the intro zoom began easing
   hudHeight: 0,        // height of the bottom HUD in CSS px, to refit the scene when it changes
   ageNode: null        // the „aktualizované pred …“ line in the bottom HUD
 };

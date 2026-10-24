@@ -179,6 +179,27 @@ function revealRect(view, bounds, r, margin) {
   return panView(view, bounds, dx, dy);
 }
 
+// The first view of the one-time intro: zoomed INTRO_ZOOM_START times, centered on the scene horizontally, with the
+// top edge at the top of the scene (the W x H scene sits at 0, 0 in the bounds' coordinates).
+function introStartView(bounds, W, H) {
+  var w = bounds.w / INTRO_ZOOM_START;
+  var h = w * bounds.h / bounds.w;
+  return clampView({ x: W / 2 - w / 2, y: 0, w: w, h: h }, bounds);
+}
+
+// The view `t` (0 to 1, clamped) of the way from `from` to `to`, eased in and out. Exactly `from` at 0, `to` at 1.
+function introViewAt(from, to, t) {
+  if (!(t > 0)) return { x: from.x, y: from.y, w: from.w, h: from.h };
+  if (t >= 1) return { x: to.x, y: to.y, w: to.w, h: to.h };
+  var k = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  return {
+    x: from.x + (to.x - from.x) * k,
+    y: from.y + (to.y - from.y) * k,
+    w: from.w + (to.w - from.w) * k,
+    h: from.h + (to.h - from.h) * k
+  };
+}
+
 function viewBoxText(view) {
   return [view.x, view.y, view.w, view.h].map(function (n) { return String(Math.round(n * 1000) / 1000); }).join(" ");
 }

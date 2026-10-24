@@ -64,7 +64,7 @@ function renderHud() {
   keepFocus($("hud"), function () {
     clearNode(slot);
     drawHudStatus(slot, statusHud(status, app.night));
-  });
+  }, function () { return $("hudWho"); });      // the sign became a plain label: „Si: …“ takes the focus
   var before = app.hudHeight;
   app.hudHeight = hudHeight();
   if (before !== app.hudHeight && app.refit) app.refit();      // the scene must stay above the HUD

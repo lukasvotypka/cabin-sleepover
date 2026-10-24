@@ -67,6 +67,7 @@ function showCodeScreen() {
     app.introTimer = null;
   }
   hideBoot();
+  stopIntroZoom();     // a 401 during the fall never reaches finishSplash: the intro must not wait on a touch
   showScene(false);
   $("codeScreen").hidden = false;
   $("codeInput").focus();

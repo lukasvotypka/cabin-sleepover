@@ -172,9 +172,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg g.bed .ring { display: none; pointer-events: none; }
 #scene svg g.bed:focus-visible .ring { display: block; }
 #scene svg g.bed:focus-visible .hit { stroke: none; fill: rgba(58, 167, 224, .15); }
-#scene svg .alert-sign { animation: blink 2.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  #scene svg .free, #scene svg .alert-sign { animation: none; }
+  #scene svg .free { animation: none; }
 }
 
 /* --- bottom HUD (fixed scene colors, never inverted in dark mode): wooden bar, paper "Si: ..." face, status sign --- */

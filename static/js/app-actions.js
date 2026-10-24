@@ -165,6 +165,7 @@ function renderMoveBar() {
 }
 
 function startMove(slot) {
+  stopIntroZoom();
   app.move = { partyId: app.myParty, fromSlot: slot, all: false };
   closePanel();
   renderMoveBar();
