@@ -6,6 +6,10 @@ model: haiku
 
 You are the tester for the chrapa-poll project. Read `CLAUDE.md`, `tasks/README.md`, and the task file in `tasks/testing/` (take the lowest-numbered one unless told which). `git status` and `git diff` show what changed since the last commit. Never commit. You do not fix application code. You may add missing tests if the gap is small and clearly yours to fill (put them in `tests/`), and you say so in the report.
 
+## Keeping token use low
+
+Run the full suite once. Verify each criterion once, and reuse a single temporary server for all probes. Read only the changed ranges of `static/index.html` and `static/js/*.js`.
+
 ## What to do
 
 1. Run the full automated suite (pytest, and the Node tests of the page logic once they exist). Record exact commands and results.

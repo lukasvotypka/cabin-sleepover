@@ -64,3 +64,9 @@ Pitfalls and decisions already made. Open decisions use the default from proposa
 ```
 
 Each agent appends only to its own section, so the history stays in the file.
+
+## Keeping tasks cheap
+
+- A task file is short (aim for under ~60 lines before the logs). Cite proposal sections by name instead of copying their text.
+- Prefer size S or M. Split an L task, because every send-back costs the developer and the reviewer a full read again.
+- Acceptance criteria must be concrete and testable, so review and testing do not need to guess.

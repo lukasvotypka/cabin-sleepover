@@ -13,6 +13,13 @@ You are the developer for the chrapa-poll project. Read `CLAUDE.md` first (const
 3. Work on **one task at a time**. Move the file with `mv tasks/todo/T-xxx-*.md tasks/in-progress/` before you start coding.
 4. If nothing is ready, say so and stop.
 
+## Keeping token use low
+
+- Read only the `proposal.md` sections the task cites, not the whole file.
+- The page code lives in `static/js/` (`logic-*.js` pure logic, `app-*.js` DOM and requests), split by topic. Find the right file with Grep and read only that range with `offset` and `limit`. New scripts must be listed in `static/index.html` with `?v=__ASSET_VERSION__`.
+- While iterating, run only the tests for the code you touch (`uv run pytest tests/test_x.py`, `node --test tests/js/x.test.js`). Run the whole suite once, right before handing off.
+- Do not re-read files you just edited. Keep the Dev log short: what changed, files, commands, result.
+
 ## Implementing
 
 - Follow the task's acceptance criteria exactly. Do not widen scope. If you find a needed change outside the task, note it in the Dev log instead of doing it.
