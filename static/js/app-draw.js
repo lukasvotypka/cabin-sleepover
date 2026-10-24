@@ -67,12 +67,16 @@ function drawTree(g) {
     rect(t, c.cx - 14 + treeNoise(i, 11) * 28, c.cy - 6 + treeNoise(i, 12) * 20, size, size, leafColors[i % 3],
       { "class": "shedleaf", style: vars });
   }
+  // The tap target (crown and trunk, a little larger than both): the leaves rustle (app-sound.js). Decor, so it
+  // stays aria-hidden and out of the Tab order; it ends at x 16, where the „Zápis je zatvorený“ sign starts.
+  rect(t, c.cx - c.rx - 4, c.cy - c.ry - 4, 2 * c.rx + 6, 252 - (c.cy - c.ry) + 4, "transparent", { "class": "tree-hit" })
+    .addEventListener("click", function () { rustleTree(t); });
 }
 
 // A decorative bird that crosses the map every 28 s (see `.bird` in the style sheet). It is drawn in the svg
 // in map units, so it stays over the land when the map is panned or zoomed. It flies from just left of the map
 // to just right of it along `BIRD.y`, over everything, in its own aria-hidden layer that ignores taps. Two frames
-// of 7 x 3 cells flap the wings; `prefers-reduced-motion` hides it.
+// of 7 x 3 cells flap the wings; `prefers-reduced-motion` hides it. It chirps once per flight (app-sound.js).
 var BIRD = { y: 60, cell: 4, margin: 40 };
 var BIRD_FRAMES = [
   [[1, 0, 1], [5, 0, 1], [2, 1, 3]],               // wings up: [x, y, width] in cells
@@ -81,6 +85,8 @@ var BIRD_FRAMES = [
 function drawBird(g, layout) {
   var c = BIRD.cell, x0 = -BIRD.margin - 7 * c, fly = layout.map.viewbox[0] + 2 * BIRD.margin + 7 * c;
   var bird = svgEl(g, "g", { "aria-hidden": "true", "class": "bird", style: "--fly:" + fly + "px" });
+  bird.addEventListener("animationstart", onBirdFlight);
+  bird.addEventListener("animationiteration", onBirdFlight);
   BIRD_FRAMES.forEach(function (frame, k) {
     var f = svgEl(bird, "g", { "class": k === 0 ? "bird-frame-a" : "bird-frame-b" });
     frame.forEach(function (r) { rect(f, x0 + r[0] * c, BIRD.y + r[1] * c, r[2] * c, c, COLORS.ink); });

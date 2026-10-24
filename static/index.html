@@ -246,7 +246,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* --- nature decor: a tree on the left edge whose six leaves each drift down in turn, and a bird that
    occasionally crosses the map (drawn in the svg, so it pans and zooms with the land). Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
    colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
-#scene svg .tree { pointer-events: none; }
+#scene svg .tree { pointer-events: none; transform-box: fill-box; transform-origin: 50% 100%; }
+/* A tap on the tree rustles it (with a sound, app-sound.js): the crown sways for a moment. */
+#scene svg .tree-hit { pointer-events: all; cursor: pointer; }
+#scene svg .tree.rustle { animation: treeSway .7s ease-out; }
+@keyframes treeSway {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(2.5deg); }
+  45% { transform: rotate(-2deg); }
+  70% { transform: rotate(1deg); }
+}
 #scene svg .shedleaf { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: leafDrop var(--dur) linear var(--delay) infinite; }
 @keyframes leafDrop {
   0% { opacity: 0; transform: translate(0px, 0px) rotate(0deg); }
@@ -417,6 +426,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/logic-summary.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-errors.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-boot.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-sound.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-core.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-boot.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-scene.js?v=__ASSET_VERSION__"></script>
@@ -429,6 +439,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-sheet.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-form.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-summary.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-sound.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-start.js?v=__ASSET_VERSION__"></script>
 </body>
 </html>

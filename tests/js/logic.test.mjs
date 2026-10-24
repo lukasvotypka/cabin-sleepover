@@ -3362,3 +3362,28 @@ test("intro zoom: the code screen (a 401) ends the intro, so the map is never st
   const showCodeSource = appSource.match(/function showCodeScreen\(\) \{[\s\S]*?\n\}\n/)[0];
   assert.match(showCodeSource, /hideBoot\(\);\n  stopIntroZoom\(\);/);
 });
+
+test("sound: the bird chirps while it is over the map, and the chirp and rustle are short", () => {
+  const seq = (values) => { let i = 0; return () => values[i++ % values.length]; };
+  for (const r of [0, 0.5, 0.999]) {
+    const d = L.birdChirpDelay(() => r);
+    assert.ok(d >= 0.8 && d <= L.BIRD_FLIGHT_S - 0.8, `delay ${d} inside the flight`);
+  }
+  for (const r of [0, 0.3, 0.999]) {
+    const notes = plain(L.chirpNotes(() => r));
+    assert.ok(notes.length >= 2 && notes.length <= 4);
+    const end = notes[notes.length - 1].at + notes[notes.length - 1].dur;
+    assert.ok(end < 1, "a chirp lasts under a second");
+    notes.forEach((n) => assert.ok(n.f0 > 1000 && n.f1 > 1000 && n.dur > 0 && n.gain > 0 && n.gain <= 1));
+  }
+  const bursts = plain(L.rustleBursts(seq([0.2, 0.7, 0.4, 0.9])));
+  assert.ok(bursts.length >= 4 && bursts.length <= 6);
+  bursts.forEach((b) => assert.ok(b.at + b.dur < L.RUSTLE_GUST.dur && b.gain > 0 && b.gain <= 1));
+});
+
+test("sound: the bird chirps per flight and a tap on the tree rustles it", () => {
+  assert.match(appSource, /bird\.addEventListener\("animationiteration", onBirdFlight\)/);
+  assert.match(appSource, /e\.animationName !== "birdFly"/);
+  assert.match(appSource, /"tree-hit"[\s\S]*?rustleTree\(t\)/);
+  assert.match(html, /#scene svg \.tree-hit \{ pointer-events: all;/);
+});
