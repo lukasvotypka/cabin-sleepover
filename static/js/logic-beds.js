@@ -178,25 +178,11 @@ function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) 
   return out;
 }
 
-var MEADOW_HIT_H = 44;   // touch target height in scene units
-// Hit rect of the meadow button: starts at the meadow top (below the letter and key icons) and reaches down past
-// the scene bottom into the grass that taller phones show around it (fitBounds), so it is 44 units tall.
-function meadowHitRect(meadow) {
-  return [meadow[0], meadow[1] - 1, meadow[2], MEADOW_HIT_H];
-}
-
 // Screen-reader label of the meadow group, "" for 0.
 function meadowLabel(count) {
   if (!(count > 0)) return "";
   var word = count === 1 ? "čaká 1 človek" : count < 5 ? "čakajú " + count + " ľudia" : "čaká " + count + " ľudí";
   return "Na lúke " + word + " z vás bez postele";
-}
-
-// Screen reader label of the meadow button: how many of my party have no bed yet and what a tap does.
-function meadowButtonLabel(count) {
-  if (!(count > 0)) return "";
-  var who = count === 1 ? "1 z vás ešte nemá posteľ" : count < 5 ? count + " z vás ešte nemajú posteľ" : count + " z vás ešte nemá posteľ";
-  return who + ". Ťuknutím otvoríš možnosti.";
 }
 
 function isFreeSlot(state, slot, night) {

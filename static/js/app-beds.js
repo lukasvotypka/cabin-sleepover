@@ -75,14 +75,13 @@ function drawBeds() {
   drawMeadow(g, view);
 }
 
-// My party's people without a bed on the selected night, standing on the meadow. One button that opens the
-// places panel (T-034).
+// My party's people without a bed on the selected night, standing on the meadow. Not a button.
 function drawMeadow(parent, view) {
   var party = app.myParty ? partyById(view.state, app.myParty) : null;
   var waiting = waitingFigures(view.state, party, app.night);
   if (!waiting.length) return;
   var spot = meadowLayout(view.state.layout.map.scene.meadow, waiting.length);
-  var g = svgEl(parent, "g");
+  var g = svgEl(parent, "g", { role: "img", "aria-label": meadowLabel(waiting.length), "pointer-events": "none" });
   var ch = shirtChar(party.name);
   spot.cells.forEach(function (cell, i) {
     drawFigure(g, cell[0], cell[1], party.color, waiting[i].kind, ch);
@@ -92,8 +91,6 @@ function drawMeadow(parent, view) {
     board(g, chip, COLORS.plank);
     addText(g, chip[0] + 6, chip[1] + 8.5, "+" + spot.more, 7, COLORS.paper, { anchor: "middle", bold: true });
   }
-  hitRect(g, meadowHitRect(view.state.layout.map.scene.meadow));
-  makeButton(g, meadowButtonLabel(waiting.length), "meadow", function () { openPlacesPanel(app.night); });
 }
 
 function drawBed(parent, layout, view, room, bed) {

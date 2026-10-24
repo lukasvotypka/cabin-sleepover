@@ -9,7 +9,6 @@ var REASON_TEXTS = {
   leave_not_after_arrive: "Odchod musí byť po príchode.",
   name_empty: "Napíš meno.",
   color_too_light: "Táto farba je príliš svetlá, postavičku by na posteli nebolo vidno. Vyber tmavšiu.",
-  places_out_of_range: "Počet miest nesedí. Obnov stránku a skús to znova.",
   color_too_dark: "Táto farba je príliš tmavá, postavičku by na posteli nebolo vidno. Vyber svetlejšiu."
 };
 

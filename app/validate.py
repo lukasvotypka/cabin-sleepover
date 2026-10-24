@@ -74,18 +74,6 @@ def needed_slots(party: Party | PartyInput) -> int:
     return party.adults + party.kids - party.kids_in_parents_bed
 
 
-def needed_on_night(party: Party, night: str) -> int:
-    """Places the party needs on a night: 0 when absent, the `places` override when set, else the full count."""
-    if not is_present(party, night):
-        return 0
-    full = needed_slots(party)
-    return min(party.places.get(night, full), full)
-
-
-def placed_on_night(state: State, party_id: str, night: str) -> int:
-    return sum(1 for pid in state.sleeping.get(night, {}).values() if pid == party_id)
-
-
 def party_nights(party: Party | PartyInput, layout: Layout) -> list[str]:
     """Event nights on which the party is at the cabin."""
     return [n for n in layout.event.nights if is_present(party, n)]
@@ -321,50 +309,3 @@ def check_party_delete(state: State, layout: Layout, party_id: str) -> list[dict
     """Return all slots of a deleted party (they get freed)."""
     find_party(state, party_id)
     return _party_entries(state, layout, party_id)
-
-
-# --- per-night places override -----------------------------------------------
-
-
-def check_places(state: State, layout: Layout, party_id: str, night: str, places: int) -> Party:
-    """Check a `places` request: 1 <= places <= full count, party present. Returns the party."""
-    party = find_party(state, party_id)
-    _check_night(layout, night)
-    if not is_present(party, night):
-        raise RuleError(
-            "not_present",
-            "Party is not at the cabin on this night",
-            {"night": night, "party_id": party.id, "party_name": party.name},
-        )
-    if not 1 <= places <= needed_slots(party):
-        raise _invalid(
-            "places_out_of_range", "Places must be between 1 and the full count of the party",
-            field="places", night=night, places=places, party_id=party.id, party_name=party.name,
-        )
-    return party
-
-
-def set_places(party: Party, night: str, places: int) -> None:
-    """Store the override; the full count removes the night's entry."""
-    if places >= needed_slots(party):
-        party.places.pop(night, None)
-    else:
-        party.places[night] = places
-
-
-def adjust_places(party: Party) -> None:
-    """After a party edit: drop nights outside the stay, clamp values to the full count, drop entries equal to it."""
-    full = needed_slots(party)
-    for night in list(party.places):
-        if not is_present(party, night) or party.places[night] >= full:
-            del party.places[night]
-
-
-def raise_places_to_placed(state: State, party: Party, night: str) -> None:
-    """After placing: lift the override to the placed count; at the full count it disappears. Never lowers it."""
-    current = party.places.get(night)
-    if current is None:
-        return
-    placed = placed_on_night(state, party.id, night)
-    if placed > current:
-        set_places(party, night, placed)

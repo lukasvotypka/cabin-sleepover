@@ -41,7 +41,6 @@ from app.models import (
     ConfigError,
     Layout,
     MoveRequest,
-    PlacesRequest,
     PartyId,
     Party,
     PartyCreate,
@@ -61,12 +60,8 @@ from app.validate import (
     check_move,
     check_party_create,
     check_party_update,
-    check_places,
     check_signup_open,
-    adjust_places,
     find_party,
-    raise_places_to_placed,
-    set_places,
 )
 
 log = logging.getLogger("chrapa.app")
@@ -525,7 +520,6 @@ def create_app(
             slots = check_assign(tx.state, rt.layout, body.night, body.slots, body.party_id)
             for slot in slots:
                 tx.state.sleeping.setdefault(body.night, {})[slot] = body.party_id
-            raise_places_to_placed(tx.state, find_party(tx.state, body.party_id), body.night)
             tx.audit(party=body.party_id, nights=[body.night], slots=slots, before=None, after=body.party_id)
         return ok_response(rt, tx.state)
 
@@ -539,8 +533,6 @@ def create_app(
             for night in plan.nights:
                 for slot in plan.slots:
                     tx.state.sleeping.setdefault(night, {})[slot] = body.party_id
-            for night in plan.nights:
-                raise_places_to_placed(tx.state, find_party(tx.state, body.party_id), night)
             tx.audit(
                 party=body.party_id,
                 nights=plan.nights,
@@ -586,21 +578,6 @@ def create_app(
             )
         return ok_response(rt, tx.state)
 
-    @app.post("/api/places", dependencies=[Limited])
-    async def places(request: Request, body: PlacesRequest, auth: Group) -> JSONResponse:
-        async with rt.store.write(
-            action="places", source=audit_source(auth, "map"), client_id=client_id_of(request)
-        ) as tx:
-            check_signup_open(tx.state, auth.is_admin)
-            party = check_places(tx.state, rt.layout, body.party_id, body.night, body.places)
-            before = party.places.get(body.night)
-            set_places(party, body.night, body.places)
-            tx.audit(
-                party=party.id, nights=[body.night], before=before, after=party.places.get(body.night),
-                places=body.places,
-            )
-        return ok_response(rt, tx.state)
-
     @app.post("/api/parties", dependencies=[Limited])
     async def create_party(request: Request, body: PartyCreate, auth: Group) -> JSONResponse:
         async with rt.store.write(
@@ -634,7 +611,6 @@ def create_app(
             if body.color is not None:
                 party.color = body.color.upper()
             party.updated_at = now_iso()
-            adjust_places(party)
             for entry in freed:
                 release_slot(tx.state, entry["night"], entry["slot"])
             tx.audit(

@@ -333,7 +333,7 @@ function drawPartyTable(parent, r, state) {
 function drawStatus(parent, r, state) {
   var half = r[3] / 2;
   var party = partyById(state, app.myParty);
-  var status = myPartyStatus(state, party, app.night);
+  var status = myPartyStatus(state, party);
 
   // top row: who am I and how fresh is the data
   var top = [r[0], r[1], r[2], half];
@@ -350,28 +350,13 @@ function drawStatus(parent, r, state) {
   var b = svgEl(parent, "g");
   var inner = [bot[0], bot[1] + 2, bot[2], bot[3] - 4];
   if (status.kind === "missing") {
-    raisedBoard(b, inner, COLORS.red, COLORS.redEdge);
-    var sign = svgEl(b, "g", { "class": "alert-sign" });
-    rect(sign, inner[0] + 8, inner[1] + 8, 20, 20, COLORS.white);       // exclamation mark sign
-    rect(sign, inner[0] + 17, inner[1] + 11, 2, 9, COLORS.red);
-    rect(sign, inner[0] + 17, inner[1] + 22, 2, 3, COLORS.red);
-    var lines = statusBoardLines(status);
-    addText(b, inner[0] + 34, inner[1] + 17, lines[0], 7, COLORS.white, { bold: true, maxWidth: inner[2] - 40 });
-    addText(b, inner[0] + 34, inner[1] + 29, lines[1], 6.5, COLORS.white, { maxWidth: inner[2] - 40 });
+    board(b, inner, COLORS.red, COLORS.redEdge);
+    rect(b, inner[0] + 8, inner[1] + 8, 20, 20, COLORS.white);       // exclamation mark sign
+    rect(b, inner[0] + 17, inner[1] + 11, 2, 9, COLORS.red);
+    rect(b, inner[0] + 17, inner[1] + 22, 2, 3, COLORS.red);
+    drawLines(b, wrapText(status.text, 14, 3), inner[0] + 34, inner[1] + 14, 6.5, COLORS.white, inner[2] - 40);
     hitRect(b, bot);
-    makeButton(b, status.text + ". Ťuknutím " + (status.night === app.night ? "otvoríš možnosti." : "zvolíš túto noc."), "status",
-      function () {
-        if (status.night === app.night) openPlacesPanel(status.night);
-        else selectNight(status.night);
-      });
-  } else if (status.kind === "fewer") {
-    raisedBoard(b, inner, COLORS.green, COLORS.greenEdge);
-    [[0, 6], [3, 9], [6, 12], [9, 9], [12, 6], [15, 3], [18, 0]].forEach(function (p) {   // pixel check mark
-      rect(b, inner[0] + 8 + p[0] * 0.7, inner[1] + 12 + p[1] * 0.7, 2.1, 2.1, COLORS.white);
-    });
-    addText(b, inner[0] + 26, inner[1] + 23, statusBoardLines(status)[0], 6.5, COLORS.white, { bold: true, maxWidth: inner[2] - 32 });
-    hitRect(b, bot);
-    makeButton(b, status.text + ". Ťuknutím môžeš vrátiť plný počet.", "status", function () { openPlacesUndoPanel(status.night); });
+    makeButton(b, status.text + ". Ťuknutím zvolíš túto noc.", "status", function () { selectNight(status.night); });
   } else if (status.kind === "extra") {
     board(b, inner, COLORS.amber, COLORS.amberEdge);
     drawLines(b, wrapText(status.text, 19, 3), inner[0] + 8, inner[1] + 14, 6.5, COLORS.ink, inner[2] - 16);
@@ -391,14 +376,6 @@ function drawStatus(parent, r, state) {
     hitRect(b, bot);
     makeButton(b, "Najprv vyber, kto si. Ťuknutím to vyberieš.", "status", openWho);
   }
-}
-
-// A board that looks pressed out like a key: light top and left edge, dark bottom and right edge.
-function raisedBoard(parent, r, face, edge) {
-  board(parent, r, face, edge);
-  rect(parent, r[0] + 3, r[1] + 3, 2, r[3] - 6, COLORS.white, { opacity: ".35" });
-  rect(parent, r[0] + r[2] - 5, r[1] + 3, 2, r[3] - 6, COLORS.woodDark, { opacity: ".45" });
-  rect(parent, r[0] + 3, r[1] + r[3] - 5, r[2] - 6, 2, COLORS.woodDark, { opacity: ".45" });
 }
 
 function drawLines(parent, lines, x, y, size, fill, maxWidth) {

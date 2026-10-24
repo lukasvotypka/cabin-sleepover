@@ -533,32 +533,3 @@ async def test_new_store_on_same_directory_sees_the_same_data(layout, data_dir, 
     restarted = Store(layout, data_dir=data_dir)  # a restart
     assert restarted.read() == first.read() == State.model_validate(yaml.safe_load((data_dir / DATA_FILE).read_text("utf-8")))
     assert restarted.read().version == 2
-
-
-@pytest.mark.parametrize(
-    "places,expected",
-    [
-        ({"2026-12-01": 1}, "not in event.nights"),
-        ({FRI: 1}, "outside the stay"),
-        ({THU: 0}, "parties[0].places"),
-        ({THU: 3}, "more than the 2 places"),
-    ],
-)
-def test_startup_bad_places(layout, data_dir, make_party, places, expected):
-    ivan = make_party(id="p-ivan01", arrive=THU, leave=FRI)
-    data = good_data(make_party, [ivan])
-    data["parties"][0]["places"] = places
-    write_data(data_dir, data)
-    msg = start_error(layout, data_dir)
-    assert "parties[0].places" in msg and expected in msg
-
-
-def test_startup_good_places_and_missing_places(layout, data_dir, make_party):
-    ivan = make_party(id="p-ivan01", arrive=THU, leave=FRI)
-    data = good_data(make_party, [ivan])
-    data["parties"][0]["places"] = {THU: 1}
-    write_data(data_dir, data)
-    assert Store(layout, data_dir=data_dir).read().parties[0].places == {THU: 1}
-    del data["parties"][0]["places"]
-    write_data(data_dir, data)
-    assert Store(layout, data_dir=data_dir).read().parties[0].places == {}

@@ -122,7 +122,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.secondary { background: transparent; color: var(--forest); }
 .btn:disabled { opacity: .6; cursor: default; }
 .board .btn { width: 100%; }
-.places-panel .btn { width: 100%; margin-top: 8px; }
 .btn:focus-visible, .party-row:focus-visible, .close:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 
 #panelRoot .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(26, 20, 16, .5); }
@@ -165,9 +164,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg g.bed .ring { display: none; pointer-events: none; }
 #scene svg g.bed:focus-visible .ring { display: block; }
 #scene svg g.bed:focus-visible .hit { stroke: none; fill: rgba(58, 167, 224, .15); }
-#scene svg .alert-sign { animation: blink 2.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  #scene svg .free, #scene svg .alert-sign { animation: none; }
+  #scene svg .free { animation: none; }
 }
 
 /* --- roofs and chimneys (T-029): the smoke of the three chimneys. Each puff starts at the top of its chimney, rises

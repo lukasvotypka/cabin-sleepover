@@ -16,7 +16,6 @@ WRITES = [
     ("post", "/api/assign-stay", {"slots": [A1], "party_id": "p-abcdef"}),
     ("post", "/api/clear", {"night": THU, "slot": A1}),
     ("post", "/api/move", {"party_id": "p-abcdef", "from_slot": A1, "to_slot": A2, "nights": [THU]}),
-    ("post", "/api/places", {"party_id": "p-abcdef", "night": THU, "places": 1}),
     ("post", "/api/parties", party_body()),
     ("put", "/api/parties/p-abcdef", party_body()),
 ]
@@ -686,90 +685,3 @@ async def test_the_31st_write_in_a_minute_is_rate_limited(app, group_client, clo
     assert snapshot(app) == before
     clock.advance(61)
     assert (await group_client.post("/api/clear", json={"night": THU, "slot": A1}, headers=headers)).status_code == 200
-
-
-# --- per-night places (T-033) --------------------------------------------------------
-
-
-def places_of(app, pid):
-    return next(p for p in app.state.runtime.store.read().parties if p.id == pid).places
-
-
-async def set_places(client, pid, night, places):
-    return await client.post("/api/places", json={"party_id": pid, "night": night, "places": places}, headers=CLIENT)
-
-
-async def test_places_sets_and_audits(app, group_client):
-    p = await mk_party(group_client, adults=3)
-    before = snapshot(app)
-    resp = await set_places(group_client, p["id"], THU, 1)
-    assert resp.status_code == 200
-    assert [x for x in resp.json()["state"]["parties"] if x["id"] == p["id"]][0]["places"] == {THU: 1}
-    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
-    doc = audit_docs(app)[-1]
-    assert (doc["action"], doc["source"], doc["before"], doc["after"]) == ("places", "map", None, 1)
-
-
-async def test_places_full_count_removes_entry(app, group_client):
-    p = await mk_party(group_client, adults=3)
-    await set_places(group_client, p["id"], THU, 1)
-    assert (await set_places(group_client, p["id"], THU, 3)).status_code == 200
-    assert places_of(app, p["id"]) == {}
-
-
-@pytest.mark.parametrize("night,places,code", [(THU, 0, "invalid"), (THU, 4, "invalid"), (SAT, 1, "not_present"), ("2026-12-01", 1, "invalid")])
-async def test_places_errors(app, group_client, night, places, code):
-    p = await mk_party(group_client, adults=3, leave=FRI)
-    before = snapshot(app)
-    resp = await set_places(group_client, p["id"], night, places)
-    assert error_of(resp)["code"] == code
-    assert snapshot(app) == before
-
-
-async def test_places_unknown_party_and_locked(app, group_client):
-    assert error_of(await set_places(group_client, "p-nobody", THU, 1))["code"] == "unknown_party"
-    p = await mk_party(group_client, adults=3)
-    await lock_signup(app)
-    assert error_of(await set_places(group_client, p["id"], THU, 1))["code"] == "signup_closed"
-
-
-async def test_party_update_adjusts_places(app, group_client):
-    p = await mk_party(group_client, adults=3, arrive=THU, leave=SUN)
-    await set_places(group_client, p["id"], THU, 2)
-    await set_places(group_client, p["id"], SAT, 1)
-    put = lambda **o: group_client.put(f"/api/parties/{p['id']}", json=party_body(**{"adults": 3, "arrive": THU, "leave": SUN, **o}))
-    assert (await put(adults=4)).status_code == 200  # higher full count keeps the overrides
-    assert places_of(app, p["id"]) == {THU: 2, SAT: 1}
-    assert (await put(adults=2, leave=FRI)).status_code == 200  # shorter stay, lower full count
-    # THU=2 equals the new full count 2, so it disappears; SAT is outside the shorter stay
-    assert places_of(app, p["id"]) == {}
-
-
-async def test_party_update_clamps_places(app, group_client):
-    p = await mk_party(group_client, adults=4)
-    await set_places(group_client, p["id"], THU, 3)
-    resp = await group_client.put(f"/api/parties/{p['id']}", json=party_body(adults=3))
-    assert resp.status_code == 200
-    assert places_of(app, p["id"]) == {}
-
-
-async def test_assign_raises_places_and_clear_move_never_lower(app, group_client):
-    p = await mk_party(group_client, adults=3)
-    await set_places(group_client, p["id"], THU, 1)
-    await group_client.post("/api/assign", json={"night": THU, "slots": [A1], "party_id": p["id"]})
-    assert places_of(app, p["id"]) == {THU: 1}
-    await group_client.post("/api/assign", json={"night": THU, "slots": [A2], "party_id": p["id"]})
-    assert places_of(app, p["id"]) == {THU: 2}
-    await group_client.post("/api/move", json={"party_id": p["id"], "from_slot": A2, "to_slot": OKNO, "nights": [THU]})
-    await group_client.post("/api/clear", json={"night": THU, "slot": A1})
-    assert places_of(app, p["id"]) == {THU: 2}
-    await group_client.post("/api/assign", json={"night": THU, "slots": [A1, A2], "party_id": p["id"]})
-    assert places_of(app, p["id"]) == {}
-
-
-async def test_assign_stay_raises_places(app, group_client):
-    p = await mk_party(group_client, adults=2, arrive=THU, leave=SAT)
-    await set_places(group_client, p["id"], FRI, 1)
-    resp = await group_client.post("/api/assign-stay", json={"slots": [A1, A2], "party_id": p["id"]})
-    assert resp.status_code == 200
-    assert places_of(app, p["id"]) == {}
