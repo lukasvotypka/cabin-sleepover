@@ -2924,3 +2924,99 @@ test("checkPartyPayload in day mode: empty, outside the event, ignores arrive an
   assert.equal(L.errorText(check([])), "Vyber aspoň jeden deň, keď prídeš.");
   assert.equal(L.errorField(err("invalid", { field: "day_visits" })), "day_visits");
 });
+
+// --- day visits in the summaries (T-039) ---
+
+const SUN = "2026-11-01";
+const visitState = () => {
+  const ivan = party(), riso = party({ id: "p-bbbbbb", name: "Riso a Ben", adults: 1, kids: 1, color: "#2F7D6D" });
+  const jakub = dayOnly({ adults: 1, day_visits: [FRI, SUN] });
+  const katka = dayOnly({ id: "p-eeeeee", name: "Katka a Peťo", adults: 2, color: "#C04388", day_visits: [SAT] });
+  const eva = dayOnly({ id: "p-ffffff", name: "Zuzka", adults: 3, kids: 1, day_visits: [SAT] });
+  return realState([ivan, riso, jakub, katka, eva], {
+    [THU]: { ...hold(ivan.id, ["left-double-1", "left-double-2"]), "konica-lower-mats-1": riso.id },
+  });
+};
+
+test("peopleCountText plurals", () => {
+  assert.equal(L.peopleCountText(1), "1 človek");
+  assert.equal(L.peopleCountText(2), "2 ľudia");
+  assert.equal(L.peopleCountText(4), "4 ľudia");
+  assert.equal(L.peopleCountText(5), "5 ľudí");
+  assert.equal(L.peopleCountText(0), "0 ľudí");
+  assert.equal(L.peopleCountText(12), "12 ľudí");
+});
+
+test("foodCount: arrival and leave days count, the day before arrival does not", () => {
+  const s = realState([party({ adults: 2, kids: 1, arrive: FRI, leave: SAT })], {});
+  assert.equal(L.foodCount(s, THU), 0);
+  assert.equal(L.foodCount(s, FRI), 3);
+  assert.equal(L.foodCount(s, SAT), 3);
+  assert.equal(L.foodCount(s, SUN), 0);
+});
+
+test("foodCount: a day visitor counts only on their days", () => {
+  const s = realState([dayOnly({ adults: 2, kids: 0, day_visits: [FRI, SUN] })], {});
+  assert.equal(L.foodCount(s, THU), 0);
+  assert.equal(L.foodCount(s, FRI), 2);
+  assert.equal(L.foodCount(s, SAT), 0);
+  assert.equal(L.foodCount(s, SUN), 2);
+});
+
+test("foodCount: kids in the parents' bed count, places overrides are ignored", () => {
+  const p = party({ adults: 2, kids: 2, kids_in_parents_bed: 1, arrive: THU, leave: SUN, places: { [FRI]: 1 } });
+  assert.equal(L.foodCount(realState([p], {}), FRI), 4);
+});
+
+test("dayVisitRows: non-consecutive days, two visitors on one day, none without visitors", () => {
+  const rows = plain(L.dayVisitRows(visitState()));
+  assert.deepEqual(rows.map((r) => [r.day, r.label, r.food]), [[FRI, "Pi 30. 10.", 5], [SAT, "So 31. 10.", 10], [SUN, "Ne 1. 11.", 5]]);
+  assert.deepEqual(rows[1].parties.map((p) => [p.id, p.name, p.color, p.people]),
+    [["p-eeeeee", "Katka a Peťo", "#C04388", 2], ["p-ffffff", "Zuzka", "#D07A2B", 4]]);
+  assert.deepEqual(plain(L.dayVisitRows(summaryState())), []);
+});
+
+test("summaryText lists the day visits after the nights and before the missing places", () => {
+  const s = visitState();
+  s.parties[1].arrive = THU; s.parties[1].leave = FRI;   // Riso a Ben stay one night and miss a place on it
+  const lines = L.summaryText(s, "https://cabin.example/").split("\n");
+  const from = lines.indexOf("Cez deň (bez spania):");
+  assert.deepEqual(lines.slice(from - 1, from + 8), [
+    "",
+    "Cez deň (bez spania):",
+    "Pi 30. 10.: Jakub (1)",
+    "   → spolu 5 ľudí na jedlo",
+    "So 31. 10.: Katka a Peťo (2), Zuzka (4)",
+    "   → spolu 8 ľudí na jedlo",
+    "Ne 1. 11.: Jakub (1)",
+    "   → spolu 3 ľudia na jedlo",
+    "",
+  ]);
+  assert.ok(from > lines.findIndex((l) => l.startsWith("So → Ne")));
+  assert.ok(from < lines.indexOf("Chýbajú miesta:"));
+  assert.doesNotMatch(lines.slice(0, from).concat(lines.slice(lines.indexOf("Chýbajú miesta:"))).join("\n"), /Jakub|Katka|Zuzka/);
+  assert.equal(lines[lines.length - 1], "Tu sa zapíšeš: https://cabin.example/");
+});
+
+test("summaryText is unchanged without day-only parties", () => {
+  const plainText = L.summaryText(summaryState(), "https://cabin.example/");
+  assert.doesNotMatch(plainText, /Cez deň|na jedlo/);
+  const withLeftover = summaryState();
+  withLeftover.parties.push(party({ id: "p-zzzzzz", name: "Nikto", day_visits: [], arrive: null, leave: null }));
+  assert.equal(L.summaryText(withLeftover, "https://cabin.example/").includes("Cez deň"), false);
+});
+
+test("hiddenSummary has the day visits, one line per day", () => {
+  assert.deepEqual(plain(L.hiddenSummary(visitState(), THU).dayVisits), [
+    "Piatok 30. 10. cez deň: Jakub (1 človek), spolu 5 ľudí na jedlo",
+    "Sobota 31. 10. cez deň: Katka a Peťo (2 ľudia), Zuzka (4 ľudia), spolu 10 ľudí na jedlo",
+    "Nedeľa 1. 11. cez deň: Jakub (1 človek), spolu 5 ľudí na jedlo",
+  ]);
+  assert.deepEqual(plain(L.hiddenSummary(summaryState(), THU).dayVisits), []);
+});
+
+test("day-only parties never appear in room lines or the hidden rooms", () => {
+  const hidden = L.hiddenSummary(visitState(), FRI);
+  assert.doesNotMatch(JSON.stringify(plain(hidden.rooms)), /Jakub|Katka|Zuzka/);
+  assert.equal(hidden.night, "Noc Pi → So (30./31. 10.), obsadené 0 z 20");
+});

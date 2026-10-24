@@ -158,6 +158,12 @@ function renderSummary() {
   if (!lines.length) lines = ["Zatiaľ tu nikto nie je."];
   lines.forEach(function (line) { parties.appendChild(htmlEl("li", null, line)); });
   host.appendChild(parties);
+  if (h.dayVisits.length) {
+    host.appendChild(htmlEl("h3", null, "Návštevy cez deň"));
+    var visits = htmlEl("ul");
+    h.dayVisits.forEach(function (line) { visits.appendChild(htmlEl("li", null, line)); });
+    host.appendChild(visits);
+  }
 }
 
 function renderBoards() {

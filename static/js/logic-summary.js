@@ -207,6 +207,38 @@ var FREED_TEXTS = {
 
 // --- summary for WhatsApp and the hidden summary for screen readers ---
 
+// "1 človek", "2 ľudia" (2-4), "5 ľudí" (0 and 5+).
+function peopleCountText(n) {
+  return n + (n === 1 ? " človek" : n >= 2 && n <= 4 ? " ľudia" : " ľudí");
+}
+
+// How many people eat on a day. The rule (an open decision, change it only here): the sum of
+// `adults + kids` of every overnight party with `arrive <= day <= leave`, plus `adults + kids` of every
+// day-only party that has `day` in `day_visits`. Kids in the parents' bed count; `places` overrides are ignored.
+function foodCount(state, day) {
+  var total = 0;
+  ((state && state.parties) || []).forEach(function (p) {
+    var here = isDayOnly(p) ? p.day_visits.indexOf(day) !== -1 : !!p.arrive && !!p.leave && p.arrive <= day && day <= p.leave;
+    if (here) total += p.adults + p.kids;
+  });
+  return total;
+}
+
+// One row per event day that has a day-only party, in day order: {day, label, parties, food}.
+function dayVisitRows(state) {
+  var rows = [];
+  eventDays(state.event).forEach(function (day) {
+    var parties = [];
+    (state.parties || []).forEach(function (p) {
+      if (isDayOnly(p) && p.day_visits.indexOf(day) !== -1) {
+        parties.push({ id: p.id, name: p.name, color: p.color, people: p.adults + p.kids });
+      }
+    });
+    if (parties.length) rows.push({ day: day, label: dayLabel(day), parties: parties, food: foodCount(state, day) });
+  });
+  return rows;
+}
+
 // "Prehľad na poslanie": the name and dates, for each night the rooms with the party names, then the
 // parties that lack places, then the page link. Plain text, no codes.
 function summaryText(state, link) {
@@ -223,6 +255,15 @@ function summaryText(state, link) {
         (o.names.length && o.free ? " (" + freeText(o.free) + ")" : ""));
     });
   });
+  var visits = dayVisitRows(state);
+  if (visits.length) {
+    lines.push("");
+    lines.push("Cez deň (bez spania):");
+    visits.forEach(function (row) {
+      lines.push(row.label + ": " + row.parties.map(function (p) { return p.name + " (" + p.people + ")"; }).join(", "));
+      lines.push("   → spolu " + peopleCountText(row.food) + " na jedlo");
+    });
+  }
   var warnings = [];
   (state.parties || []).forEach(function (party) {
     var parts = [];
@@ -242,14 +283,19 @@ function summaryText(state, link) {
   return lines.join("\n");
 }
 
-// The text a screen reader gets for the selected night: {title, dates, instructions, night, rooms}, where
-// rooms is [{name, beds: [{name, names, free, text}]}]. `text` is the party names, "voľné" for a free bed.
+// The text a screen reader gets for the selected night: {title, dates, instructions, night, rooms, dayVisits}, where
+// dayVisits is one line per day with day-only parties and rooms is [{name, beds: [{name, names, free, text}]}]. `text` is the party names, "voľné" for a free bed.
 function hiddenSummary(state, night) {
   var info = nightInfo(night) || { label: night, dates: "" };
   return {
     title: state.event.name,
     dates: eventDateText(state.event),
     instructions: NOTICE_LINES.slice(),
+    dayVisits: dayVisitRows(state).map(function (row) {
+      return dayOptionText(row.day) + " cez deň: " + row.parties.map(function (p) {
+        return p.name + " (" + peopleCountText(p.people) + ")";
+      }).join(", ") + ", spolu " + peopleCountText(row.food) + " na jedlo";
+    }),
     night: "Noc " + info.label + " (" + info.dates + "), obsadené " + usedCount(state, night) + " z " + totalSlots(state.layout),
     rooms: state.layout.rooms.map(function (room) {
       return {
