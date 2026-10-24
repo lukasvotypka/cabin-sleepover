@@ -145,7 +145,6 @@ class SceneRects(_Model):
     title: Rect
     nights: Rect
     notice: Rect
-    status: Rect
     locked: Rect
     letter: Rect
     key: Rect

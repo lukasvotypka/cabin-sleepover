@@ -13,7 +13,8 @@ function closePanel() {
   clearNode($("panelRoot"));
   if (p.onClose) p.onClose();
   // The scene is redrawn while a panel is open, so find the opener again by its key.
-  var target = p.returnKey && app.layers ? byKey($("scene"), p.returnKey) : null;
+  // The „Si: …“ button and the status sign live in the bottom HUD, outside the scene.
+  var target = p.returnKey && app.layers ? byKey($("scene"), p.returnKey) || byKey($("hud"), p.returnKey) : null;
   if (!target && p.returnFocus && document.contains(p.returnFocus)) target = p.returnFocus;
   if (target && target.focus) target.focus({ preventScroll: true });
 }

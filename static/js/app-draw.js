@@ -1,6 +1,6 @@
 "use strict";
 
-// App part 5: drawing the scene (ground, houses, boards, signposts, status).
+// App part 5: drawing the scene (ground, houses, boards, signposts).
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 function drawGround(g, bounds) {
@@ -133,6 +133,7 @@ function render() {
     drawBoards();
     drawBeds();
   });
+  renderHud();
   renderSummary();
   renderMoveBar();
 }
@@ -178,15 +179,12 @@ function drawBoards() {
   var state = app.state, scene = state.layout.map.scene;
   var g = app.layers.boards;
   clearNode(g);
-  app.ageNode = null;
   drawTitle(g, scene.title, state);
   drawNights(g, scene, state);
   drawNotice(g, scene.notice);
   drawPartyTable(g, scene.parties, state);
-  drawStatus(g, scene.status, state);
   drawLetter(g, scene.letter);
   drawLegend(g, scene.legend);
-  renderAge();
 }
 
 // The letter icon opens „Prehľad na poslanie“. The hit area is the whole `map.scene.letter` rect.
@@ -370,81 +368,4 @@ function drawPartyTable(parent, r, state) {
   hitRect(g, [r[0], r[1], r[2], lay.height]);
   makeButton(g, "Kto kde spí po nociach, kto príde cez deň a koľko vás je na jedlo. Ťuknutím otvoríš „Kto je kto“.",
     "parties", function () { openLegend("parties"); });
-}
-
-function drawStatus(parent, r, state) {
-  var half = r[3] / 2;
-  var party = partyById(state, app.myParty);
-  var status = myPartyStatus(state, party, app.night);
-
-  // top row: who am I and how fresh is the data
-  var top = [r[0], r[1], r[2], half];
-  var g = svgEl(parent, "g");
-  board(g, [top[0], top[1] + 2, top[2], top[3] - 4], COLORS.plank);
-  addText(g, top[0] + 8, top[1] + 18, whoText(party), 8, COLORS.paper, { bold: true, maxWidth: r[2] - 16 });
-  app.ageNode = addText(g, top[0] + 8, top[1] + 32, "", 6, COLORS.paper, { maxWidth: r[2] - 16 });
-  app.ageMax = r[2] - 16;
-  hitRect(g, top);
-  makeButton(g, (party ? "Si: " + party.name + ". " : "Zatiaľ nevieme, kto si. ") + "Ťuknutím vyberieš, kto si.", "who", openWho);
-
-  // bottom row: the status of my party
-  var bot = [r[0], r[1] + half, r[2], half];
-  var b = svgEl(parent, "g");
-  var inner = [bot[0], bot[1] + 2, bot[2], bot[3] - 4];
-  if (status.kind === "missing") {
-    raisedBoard(b, inner, COLORS.red, COLORS.redEdge);
-    var sign = svgEl(b, "g", { "class": "alert-sign" });
-    rect(sign, inner[0] + 8, inner[1] + 8, 20, 20, COLORS.white);       // exclamation mark sign
-    rect(sign, inner[0] + 17, inner[1] + 11, 2, 9, COLORS.red);
-    rect(sign, inner[0] + 17, inner[1] + 22, 2, 3, COLORS.red);
-    var lines = statusBoardLines(status);
-    addText(b, inner[0] + 34, inner[1] + 17, lines[0], 7, COLORS.white, { bold: true, maxWidth: inner[2] - 40 });
-    addText(b, inner[0] + 34, inner[1] + 29, lines[1], 6.5, COLORS.white, { maxWidth: inner[2] - 40 });
-    hitRect(b, bot);
-    makeButton(b, status.text + ". Ťuknutím " + (status.night === app.night ? "otvoríš možnosti." : "zvolíš túto noc."), "status",
-      function () {
-        if (status.night === app.night) openPlacesPanel(status.night);
-        else selectNight(status.night);
-      });
-  } else if (status.kind === "fewer") {
-    raisedBoard(b, inner, COLORS.green, COLORS.greenEdge);
-    [[0, 6], [3, 9], [6, 12], [9, 9], [12, 6], [15, 3], [18, 0]].forEach(function (p) {   // pixel check mark
-      rect(b, inner[0] + 8 + p[0] * 0.7, inner[1] + 12 + p[1] * 0.7, 2.1, 2.1, COLORS.white);
-    });
-    addText(b, inner[0] + 26, inner[1] + 23, statusBoardLines(status)[0], 6.5, COLORS.white, { bold: true, maxWidth: inner[2] - 32 });
-    hitRect(b, bot);
-    makeButton(b, status.text + ". Ťuknutím môžeš vrátiť plný počet.", "status", function () { openPlacesUndoPanel(status.night); });
-  } else if (status.kind === "extra") {
-    board(b, inner, COLORS.amber, COLORS.amberEdge);
-    drawLines(b, wrapText(status.text, 19, 3), inner[0] + 8, inner[1] + 14, 6.5, COLORS.ink, inner[2] - 16);
-    hitRect(b, bot);
-    makeButton(b, status.text + ". Ťuknutím zvolíš túto noc.", "status", function () { selectNight(status.night); });
-  } else if (status.kind === "ok") {
-    board(b, inner, COLORS.green, COLORS.greenEdge);
-    [[0, 6], [3, 9], [6, 12], [9, 9], [12, 6], [15, 3], [18, 0]].forEach(function (p) {   // pixel check mark
-      rect(b, inner[0] + 10 + p[0], inner[1] + 12 + p[1], 3, 3, COLORS.white);
-    });
-    addText(b, inner[0] + 38, inner[1] + 23, status.text, 7, COLORS.white, { bold: true, maxWidth: inner[2] - 44 });
-    b.setAttribute("role", "img");
-    b.setAttribute("aria-label", status.text);
-  } else {
-    board(b, inner, COLORS.plank);
-    drawLines(b, wrapText("Najprv vyber, kto si", 19, 2), inner[0] + 8, inner[1] + 17, 7, COLORS.paper, inner[2] - 16);
-    hitRect(b, bot);
-    makeButton(b, "Najprv vyber, kto si. Ťuknutím to vyberieš.", "status", openWho);
-  }
-}
-
-// A board that looks pressed out like a key: light top and left edge, dark bottom and right edge.
-function raisedBoard(parent, r, face, edge) {
-  board(parent, r, face, edge);
-  rect(parent, r[0] + 3, r[1] + 3, 2, r[3] - 6, COLORS.white, { opacity: ".35" });
-  rect(parent, r[0] + r[2] - 5, r[1] + 3, 2, r[3] - 6, COLORS.woodDark, { opacity: ".45" });
-  rect(parent, r[0] + 3, r[1] + r[3] - 5, r[2] - 6, 2, COLORS.woodDark, { opacity: ".45" });
-}
-
-function drawLines(parent, lines, x, y, size, fill, maxWidth) {
-  lines.forEach(function (line, i) {
-    addText(parent, x, y + i * (size + 2.5), line, size, fill, { maxWidth: maxWidth });
-  });
 }

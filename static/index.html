@@ -63,7 +63,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg:focus:not(:focus-visible) { outline: none; }     /* a mouse press focuses the svg: no ring around the whole screen */
 #scene svg:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
 .zoom-reset {
-  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); min-width: 44px; min-height: 44px; padding: 6px 12px;
+  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(8px + max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px))); min-width: 44px; min-height: 44px; padding: 6px 12px;
   background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
   font-weight: 700; cursor: pointer; touch-action: manipulation;
 }
@@ -177,6 +177,39 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .free, #scene svg .alert-sign { animation: none; }
 }
 
+/* --- bottom HUD (fixed scene colors, never inverted in dark mode): wooden bar, paper "Si: ..." face, status sign --- */
+.hud {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; display: flex; align-items: stretch; gap: 8px;
+  padding: 8px calc(8px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
+  background: #8A5A34; border-top: 4px solid #5C4033; box-shadow: 0 -3px 0 rgba(0, 0, 0, .18);
+  font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 14px; line-height: 1.25;
+}
+.hud button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.hud-who, .hud-status {
+  min-height: 56px; padding: 6px 10px; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
+  text-align: left; font: inherit; min-width: 0;
+}
+.hud-who { flex: 1 1 48%; display: flex; flex-direction: column; justify-content: center; background: #F4EBD0; color: #2E1F14; }
+.hud-who-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-age { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-slot { flex: 1 1 52%; display: flex; min-width: 0; }
+.hud-status { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; color: #FFFFFF; }
+.hud-lines { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.hud-line-main { font-weight: 700; }
+.hud-icon { flex: none; display: block; }
+.hud-missing { background: #B4472F; border-color: #6E2414; }
+.hud-fewer, .hud-ok { background: #3D7A55; border-color: #1F4A31; }
+.hud-extra .hud-lines { font-size: 12px; }
+.hud-extra { background: #F3E3C0; border-color: #C98A1C; color: #2E1F14; }
+.hud-none { background: #6B4426; color: #F4EBD0; }
+.hud-bang { animation: blink 2.4s ease-in-out infinite; }
+.hud-who:focus-visible, .hud-status:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+.hud-who:active, button.hud-status:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0, 0, 0, .28); }
+@media (prefers-reduced-motion: reduce) {
+  .hud-bang { animation: none; }
+  .hud-who:active, button.hud-status:active { transform: none; }
+}
+
 /* --- roofs and chimneys (T-029): the smoke of the three chimneys. Each puff starts at the top of its chimney, rises
    about 24 px, drifts sideways by --dx and fades out; three puffs per chimney on staggered delays, one loop of 8.7 s.
    Hidden until its delay has passed. Covered by the global reduced-motion rule below (the puffs stay invisible). */
@@ -229,7 +262,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 #toast {
   position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 40; max-width: 536px; margin: 0 auto; padding: 12px 14px;
+  bottom: calc(12px + max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px))); z-index: 40; max-width: 536px; margin: 0 auto; padding: 12px 14px;
   background: var(--surface); color: var(--ink); border: 4px solid #5C4033; border-left-width: 8px; font-weight: 500;
   box-shadow: 4px 4px 0 rgba(0, 0, 0, .28); cursor: pointer;
 }
@@ -347,6 +380,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
     <rect x="5" y="2" width="1" height="1" fill="#2E1F14"/>
   </svg>
 </div>
+<!-- Bottom HUD: fixed to the viewport (not part of the zoomable svg). Filled by app-hud.js; shown only with the map. -->
+<div id="hud" class="hud" role="group" aria-label="Kto si a stav" hidden>
+  <button id="hudWho" class="hud-who" type="button" data-key="who">
+    <span id="hudWhoName" class="hud-who-name"></span>
+    <span id="hudAge" class="hud-age"></span>
+  </button>
+  <div id="hudStatus" class="hud-slot"></div>
+</div>
 <section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -375,6 +416,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-scene.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-zoom.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-draw.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-hud.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-beds.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-panels.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-actions.js?v=__ASSET_VERSION__"></script>

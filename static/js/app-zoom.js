@@ -30,7 +30,9 @@ function readInsets() {
   // is the top inset when that is larger.
   var bar = $("moveBar"), top = parseFloat(cs.paddingTop);
   if (!bar.hidden && bar.offsetHeight > top) top = bar.offsetHeight;
-  return { top: top, right: parseFloat(cs.paddingRight), bottom: parseFloat(cs.paddingBottom), left: parseFloat(cs.paddingLeft) };
+  // The bottom HUD already includes the home-bar inset in its height; the scene must sit above it.
+  var bottom = Math.max(parseFloat(cs.paddingBottom), hudHeight());
+  return { top: top, right: parseFloat(cs.paddingRight), bottom: bottom, left: parseFloat(cs.paddingLeft) };
 }
 
 function setupZoom(host, svg, W, H) {

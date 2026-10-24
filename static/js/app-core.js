@@ -102,18 +102,19 @@ var app = {
   sceneSize: null,
   pinching: false,     // two or more fingers are down on the map
   blockClick: false,   // a drag just ended: its click must not count as a tap
-  ageNode: null,
-  ageMax: 0
+  hudHeight: 0,        // height of the bottom HUD in CSS px, to refit the scene when it changes
+  ageNode: null        // the „aktualizované pred …“ line in the bottom HUD
 };
 // The role from /api/join is kept for T-009 (admin). Nothing uses it yet.
 app.role = storage.get(KEYS.role);
 
 function $(id) { return document.getElementById(id); }
 
-// The scene and its hidden text summary are shown and hidden together.
+// The scene, its hidden text summary and the bottom HUD are shown and hidden together.
 function showScene(on) {
   $("scene").hidden = !on;
   $("srSummary").hidden = !on;
+  $("hud").hidden = !on;
 }
 
 function htmlEl(tag, attrs, text) {

@@ -279,6 +279,46 @@ test("status: kids sleeping with the parents are not counted", () => {
   assert.equal(L.myPartyStatus(s, p).kind, "ok");
 });
 
+test("statusHud: missing opens the places panel on the selected night, else selects that night", () => {
+  const p = party({ adults: 2 });
+  const s = stateWith([p], { [SAT]: hold(p.id, ["left-window-1"]) });
+  const st = L.myPartyStatus(s, p);
+  const here = plain(L.statusHud(st, st.night));
+  assert.equal(here.kind, "missing");
+  assert.equal(here.action, "places");
+  assert.deepEqual(here.lines, plain(L.statusBoardLines(st)));
+  assert.equal(here.label, st.text + ". Ťuknutím otvoríš možnosti.");
+  const other = plain(L.statusHud(st, st.night === THU ? FRI : THU));
+  assert.equal(other.action, "night");
+  assert.equal(other.label, st.text + ". Ťuknutím zvolíš túto noc.");
+});
+
+test("statusHud: fewer, extra, ok and none", () => {
+  const fewer = { kind: "fewer", night: THU, count: 1, full: 3, text: "Št: len 1 z 3" };
+  assert.deepEqual(plain(L.statusHud(fewer, THU)),
+    { kind: "fewer", lines: ["Št: len 1 z 3 ›"], action: "undo", label: "Št: len 1 z 3. Ťuknutím môžeš vrátiť plný počet." });
+  const extra = { kind: "extra", night: FRI, count: 1, text: "Máš o 1 miesto viac, než potrebuješ" };
+  assert.deepEqual(plain(L.statusHud(extra, THU)),
+    { kind: "extra", lines: [extra.text], action: "night", label: extra.text + ". Ťuknutím zvolíš túto noc." });
+  const ok = { kind: "ok", night: null, count: 0, text: "Všetko máš" };
+  assert.deepEqual(plain(L.statusHud(ok, THU)), { kind: "ok", lines: ["Všetko máš"], action: null, label: "Všetko máš" });
+  const dayOnly = L.myPartyStatus(stateWith([party({ arrive: null, leave: null, day_visits: [THU] })]), party({ arrive: null, leave: null, day_visits: [THU] }), THU);
+  assert.deepEqual(plain(L.statusHud(dayOnly, THU)), { kind: "ok", lines: ["Prídeš len cez deň"], action: null, label: "Prídeš len cez deň" });
+  assert.deepEqual(plain(L.statusHud(L.myPartyStatus(stateWith([]), null), THU)),
+    { kind: "none", lines: ["Najprv vyber, kto si"], action: "who", label: "Najprv vyber, kto si. Ťuknutím to vyberieš." });
+});
+
+test("the HUD: markup, no status board in the scene, listed before app-start.js", () => {
+  assert.ok(!new RegExp("draw" + "Status|scene\\.sta" + "tus").test(appSource + logicSource), "the status board left the scene");
+  assert.match(pageFile, /<div id="hud"[^>]*\bhidden\b/);
+  assert.match(pageFile, /<button id="hudWho"[^>]*type="button"/);
+  assert.ok(scriptTags.indexOf("static/js/app-hud.js") > -1 && scriptTags.indexOf("static/js/app-hud.js") < scriptTags.indexOf("static/js/app-start.js"));
+  assert.match(pageFile, /\.hud \{[^}]*z-index: 12/);
+  assert.match(pageFile, /\.zoom-reset \{[^}]*var\(--hud-h/);
+  assert.match(pageFile, /#toast \{[^}]*var\(--hud-h/);
+  assert.ok(!/innerHTML/.test(readScripts("app-hud")), "human text goes in via textContent");
+});
+
 // --- night tally (chips on the night signposts) ---
 
 const tallyOf = (s, p, night) => plain(L.nightTally(s, p, night));
@@ -464,7 +504,7 @@ const realBeds = {
   "right-bunk-1": ["bunk", [276, 220, 24, 42], 2], "right-bunk-2": ["bunk", [308, 220, 24, 42], 2],
   "right-sofa": ["sofa1", [336, 272, 28, 36], 1], "kitchen-stove": ["stove", [22, 352, 56, 28], 2],
 };
-const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [328, 112, 44, 44], status: [278, 322, 94, 88],
+const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [328, 112, 44, 44],
   locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
   legend: [24, 264, 44, 44], parties: [176, 112, 148, 82], meadow: [112, 381, 124, 14] };
 const realLayout = {
@@ -3163,7 +3203,7 @@ test("foodRow: foodCount of every event day, zero included", () => {
 });
 
 test("drawPartyTable: one button over the drawn board, moon and sun from rects, no emoji", () => {
-  const body = html.slice(html.indexOf("function drawMoon("), html.indexOf("function drawStatus("));
+  const body = html.slice(html.indexOf("function drawMoon("), html.indexOf("// App part 5b"));
   assert.match(body, /partyTableLayout\(r, rows\.length, dayRows\.length, nights\.length, days\.length\)/);
   assert.match(body, /hitRect\(g, \[r\[0\], r\[1\], r\[2\], lay\.height\]\)/);
   assert.match(body, /Kto kde spí po nociach, kto príde cez deň a koľko vás je na jedlo\. Ťuknutím otvoríš „Kto je kto“\./);

@@ -176,7 +176,7 @@ function growRect(rect, obstacles, caps, bounds) {
   return [x - left, y - up, w + left + right, h + up + down];
 }
 
-// The rects of the scene boards from `map.scene` (title, nights, notice, status, ...), except `skip`.
+// The rects of the scene boards from `map.scene` (title, nights, notice, ...), except `skip`.
 function sceneRects(layout, skip) {
   var scene = layout.map.scene, out = [];
   Object.keys(scene).forEach(function (key) {
@@ -381,6 +381,24 @@ function statusBoardLines(status) {
   if (status.kind === "missing") return [dayShort(status.night) + ": " + missingVerb(status.count) + " " + status.count, "Ťukni sem ›"];
   if (status.kind === "fewer") return [status.text + " ›"];
   return [];
+}
+
+// The status sign in the bottom HUD: {kind, lines, label, action}. `action` says what a tap does:
+// "places" (open the places panel), "night" (select the night), "undo" (undo „nás viac nebude“),
+// "who" (open „Kto si?“) or null (kind "ok" is not a button). `selectedNight` is the night shown on the map.
+function statusHud(status, selectedNight) {
+  var text = status.text, kind = status.kind;
+  if (kind === "missing") {
+    var here = status.night === selectedNight;
+    return {
+      kind: kind, lines: statusBoardLines(status), action: here ? "places" : "night",
+      label: text + ". Ťuknutím " + (here ? "otvoríš možnosti." : "zvolíš túto noc.")
+    };
+  }
+  if (kind === "fewer") return { kind: kind, lines: statusBoardLines(status), action: "undo", label: text + ". Ťuknutím môžeš vrátiť plný počet." };
+  if (kind === "extra") return { kind: kind, lines: [text], action: "night", label: text + ". Ťuknutím zvolíš túto noc." };
+  if (kind === "ok") return { kind: kind, lines: [text], action: null, label: text };
+  return { kind: "none", lines: ["Najprv vyber, kto si"], action: "who", label: "Najprv vyber, kto si. Ťuknutím to vyberieš." };
 }
 
 // Panel for undoing „nás viac nebude“ on a night that has a lowered need, or null when it has none.

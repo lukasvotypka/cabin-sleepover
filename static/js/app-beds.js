@@ -180,5 +180,5 @@ function showTip(bed) {
 
 function renderAge() {
   if (!app.ageNode || !app.fetchedAt) return;
-  setText(app.ageNode, updatedAgoText(app.fetchedAt, Date.now()), app.ageMax);
+  app.ageNode.textContent = updatedAgoText(app.fetchedAt, Date.now());
 }

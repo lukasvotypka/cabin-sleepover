@@ -13,7 +13,6 @@ map:
     title:  [176, 10, 196, 30]   # event name
     nights: [176, 46, 196, 58]   # three night signposts
     notice: [24, 316, 44, 44]    # „?“ icon that opens the how-to window
-    status: [278, 394, 94, 88]   # „Si: …“, last update, warning (two rows of 44)
     locked: [16, 190, 62, 56]    # „Zápis je zatvorený“ sign
     letter: [128, 408, 44, 44]   # letter icon, summary to send
     key:    [184, 408, 44, 44]   # key icon, admin only
