@@ -108,8 +108,10 @@ function ensureScene() {
     beds: svgEl(svg, "g"),
     walk: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
     boards: svgEl(svg, "g"),
-    tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
+    tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
+    sky: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
   };
   drawBase(app.layers.base, layout);
+  drawBird(app.layers.sky, layout);
   setupZoom(host, svg, vb[0], vb[1]);
 }

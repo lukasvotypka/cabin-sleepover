@@ -69,6 +69,24 @@ function drawTree(g) {
   }
 }
 
+// A decorative bird that crosses the map every 28 s (see `.bird` in the style sheet). It is drawn in the svg
+// in map units, so it stays over the land when the map is panned or zoomed. It flies from just left of the map
+// to just right of it along `BIRD.y`, over everything, in its own aria-hidden layer that ignores taps. Two frames
+// of 7 x 3 cells flap the wings; `prefers-reduced-motion` hides it.
+var BIRD = { y: 60, cell: 4, margin: 40 };
+var BIRD_FRAMES = [
+  [[1, 0, 1], [5, 0, 1], [2, 1, 3]],               // wings up: [x, y, width] in cells
+  [[2, 1, 3], [1, 2, 1], [5, 2, 1]]                // wings down
+];
+function drawBird(g, layout) {
+  var c = BIRD.cell, x0 = -BIRD.margin - 7 * c, fly = layout.map.viewbox[0] + 2 * BIRD.margin + 7 * c;
+  var bird = svgEl(g, "g", { "aria-hidden": "true", "class": "bird", style: "--fly:" + fly + "px" });
+  BIRD_FRAMES.forEach(function (frame, k) {
+    var f = svgEl(bird, "g", { "class": k === 0 ? "bird-frame-a" : "bird-frame-b" });
+    frame.forEach(function (r) { rect(f, x0 + r[0] * c, BIRD.y + r[1] * c, r[2] * c, c, COLORS.ink); });
+  });
+}
+
 // Roofs and chimneys (T-029, organizer request 24. 10. 2026): purely cosmetic and derived from `layout.houses`
 // and the room rects, so they follow the layout. `houseOutline` and `roofRows` are in the logic script. The roof
 // is drawn over the top wall of its house (the rooms start right below it); everything is aria-hidden and ignores taps.

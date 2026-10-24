@@ -222,7 +222,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* --- nature decor: a tree on the left edge whose six leaves each drift down in turn, and a bird that
-   occasionally crosses the whole screen. Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
+   occasionally crosses the map (drawn in the svg, so it pans and zooms with the land). Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
    colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
 #scene svg .tree { pointer-events: none; }
 #scene svg .shedleaf { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: leafDrop var(--dur) linear var(--delay) infinite; }
@@ -235,19 +235,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
   90% { opacity: 1; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
   100% { opacity: 0; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
 }
-.bird {
-  position: fixed; top: 11%; left: -40px; width: 28px; height: 12px; z-index: 1; pointer-events: none;
-  animation: birdFly 28s linear infinite;
-}
-.bird-frame { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.bird-frame-b { opacity: 0; }
-.bird-frame-a, .bird-frame-b { animation: birdFlap .5s linear infinite; }
-.bird-frame-b { animation-delay: .25s; }
+#scene svg .bird { pointer-events: none; animation: birdFly 28s linear infinite; }
+#scene svg .bird-frame-a, #scene svg .bird-frame-b { animation: birdFlap .5s linear infinite; }
+#scene svg .bird-frame-b { opacity: 0; animation-delay: .25s; }
 @keyframes birdFlap { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+/* The bird is hidden while it waits off the map between flights, so a zoomed-out map never shows it parked. */
 @keyframes birdFly {
-  0% { left: -40px; }
-  22% { left: calc(100% + 40px); }
-  22.01%, 100% { left: -40px; }
+  0% { visibility: visible; transform: translate(0px, 0px); }
+  22% { visibility: visible; transform: translate(var(--fly), 0px); }
+  22.01%, 100% { visibility: hidden; transform: translate(0px, 0px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #scene svg .bird { display: none; }
 }
 
 .movebar {
@@ -367,20 +366,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   <button id="moveCancel" class="btn secondary" type="button">Zrušiť</button>
 </div>
 <main id="scene" hidden></main>
-<!-- Decorative bird, purely cosmetic: lives outside #scene's zoomable svg, so it crosses the whole screen at a
-     flat speed no matter how the map is zoomed or panned. Fixed scene colors, pointer-events: none throughout. -->
-<div id="bird" class="bird" aria-hidden="true">
-  <svg class="bird-frame bird-frame-a" viewBox="0 0 7 3" shape-rendering="crispEdges">
-    <rect x="1" y="0" width="1" height="1" fill="#2E1F14"/>
-    <rect x="5" y="0" width="1" height="1" fill="#2E1F14"/>
-    <rect x="2" y="1" width="3" height="1" fill="#2E1F14"/>
-  </svg>
-  <svg class="bird-frame bird-frame-b" viewBox="0 0 7 3" shape-rendering="crispEdges">
-    <rect x="2" y="1" width="3" height="1" fill="#2E1F14"/>
-    <rect x="1" y="2" width="1" height="1" fill="#2E1F14"/>
-    <rect x="5" y="2" width="1" height="1" fill="#2E1F14"/>
-  </svg>
-</div>
 <!-- Bottom HUD: fixed to the viewport (not part of the zoomable svg). Filled by app-hud.js; shown only with the map. -->
 <div id="hud" class="hud" role="group" aria-label="Kto si a stav" hidden>
   <button id="hudWho" class="hud-who" type="button" data-key="who">
