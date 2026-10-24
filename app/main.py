@@ -588,10 +588,10 @@ def create_app(
             stamp = now_iso()
             party = Party(
                 id=new_party_id(tx.state),
-                color=next_party_color(tx.state),
+                color=body.color.upper() if body.color else next_party_color(tx.state),
                 created_at=stamp,
                 updated_at=stamp,
-                **body.model_dump(),
+                **body.model_dump(exclude={"color"}),
             )
             tx.state.parties.append(party)
             tx.audit(party=party.id, before=None, after=party.model_dump())
@@ -606,8 +606,10 @@ def create_app(
             freed = check_party_update(tx.state, rt.layout, party_id, body)
             party = find_party(tx.state, party_id)
             before = party.model_dump()
-            for key, value in body.model_dump().items():
+            for key, value in body.model_dump(exclude={"color"}).items():
                 setattr(party, key, value)
+            if body.color is not None:
+                party.color = body.color.upper()
             party.updated_at = now_iso()
             for entry in freed:
                 release_slot(tx.state, entry["night"], entry["slot"])

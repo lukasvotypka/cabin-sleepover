@@ -338,7 +338,7 @@ def test_kids_in_parents_bed_not_more_than_kids():
 
 def test_unknown_party_fields_rejected():
     with pytest.raises(ValidationError):
-        party_input(color="#000000")
+        party_input(id="p-abcdef")
     with pytest.raises(ValidationError):
         PartyUpdate(**BASE, extra_field=1)
 
@@ -577,3 +577,12 @@ def test_text_is_normalised_to_nfc():
     assert party_input(name=decomposed).name == "Mar\u00eda"
     assert party_input(arrival_time=decomposed).arrival_time == "Mar\u00eda"
     assert party_input(note=decomposed).note == "Mar\u00eda"
+
+
+@pytest.mark.parametrize("model", [PartyCreate, PartyUpdate])
+def test_party_input_color_is_optional_and_a_strict_hex(model):
+    assert model(**BASE).color is None
+    assert model(**BASE, color="#2f7d6d").color == "#2f7d6d"
+    for bad in ["#abc", "red", "#GGGGGG", 123, ""]:
+        with pytest.raises(ValidationError):
+            model(**BASE, color=bad)

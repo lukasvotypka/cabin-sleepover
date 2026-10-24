@@ -7,7 +7,7 @@
 
 var FORM_LABELS = {
   name: "Meno", adults: "Dospelí", kids: "Deti", kids_in_parents_bed: "Deti spiace s rodičmi",
-  arrive: "Príchod", leave: "Odchod", arrival_time: "Čas príchodu", note: "Poznámka"
+  arrive: "Príchod", leave: "Odchod", arrival_time: "Čas príchodu", note: "Poznámka", color: "Farba"
 };
 
 // The party form for a new party (`party` is null) or to edit one. `opts.returnKey` is the scene element
@@ -62,6 +62,62 @@ function openPartyForm(party, opts) {
       return sel;
     }
 
+    // The color picker: „Vyberie sa sama“ (create only), the palette swatches and a free color input.
+    // `group.value` holds the chosen "#RRGGBB" ("" = the server picks) and is read like an input's value.
+    function colorField() {
+      var wrap = htmlEl("div", { "class": "field" });
+      var group = htmlEl("div", { "class": "colors", role: "group", "aria-labelledby": "pf-color-label", tabindex: "-1", id: "pf-color" });
+      group.value = values.color;
+      var buttons = [];
+      var custom = htmlEl("input", { type: "color", "aria-label": "Vlastná farba", id: "pf-color-custom" });
+      custom.value = /^#[0-9A-Fa-f]{6}$/.test(values.color) ? values.color.toLowerCase() : "#2f7d6d";
+
+      function mark() {
+        var chosen = group.value.toUpperCase();
+        buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-color") === chosen)); });
+        var inPalette = PARTY_PALETTE.indexOf(chosen) !== -1;
+        custom.classList.toggle("chosen", chosen !== "" && !inPalette);
+      }
+      function choose(value) {
+        group.value = value;
+        mark();
+        group.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      var swatches = htmlEl("div", { "class": "swatches" });
+      if (!editing) {
+        var auto = htmlEl("button", { "class": "swatch auto", type: "button", "data-color": "", "aria-pressed": "false" }, "Vyberie sa sama");
+        auto.addEventListener("click", function () { choose(""); });
+        buttons.push(auto);
+        swatches.appendChild(auto);
+      }
+      PARTY_PALETTE.forEach(function (color, i) {
+        var b = htmlEl("button", {
+          "class": "swatch", type: "button", "data-color": color, "aria-pressed": "false", "aria-label": "Farba " + (i + 1)
+        });
+        b.style.background = color;
+        b.style.color = shirtInk(color);
+        b.addEventListener("click", function () { choose(color); });
+        buttons.push(b);
+        swatches.appendChild(b);
+      });
+      custom.addEventListener("input", function () { choose(custom.value.toUpperCase()); });
+
+      var customRow = htmlEl("div", { "class": "custom-color" });
+      customRow.appendChild(htmlEl("label", { "for": "pf-color-custom" }, "Vlastná farba"));
+      customRow.appendChild(custom);
+      group.appendChild(swatches);
+      group.appendChild(customRow);
+      wrap.appendChild(htmlEl("span", { "class": "label", id: "pf-color-label" }, FORM_LABELS.color));
+      wrap.appendChild(group);
+      var err = htmlEl("p", { "class": "field-error", id: "pf-color-err", hidden: "" });
+      wrap.appendChild(err);
+      fields.color = group;
+      errors.color = err;
+      mark();
+      return wrap;
+    }
+
     var note = htmlEl("textarea", { maxlength: String(PARTY_LIMITS.note), rows: "3" });
     note.value = values.note;
 
@@ -80,6 +136,7 @@ function openPartyForm(party, opts) {
     form.appendChild(days);
     form.appendChild(field("arrival_time", textInput("arrival_time", PARTY_LIMITS.arrival_time), { optional: true }));
     form.appendChild(field("note", note, { optional: true }));
+    form.appendChild(colorField());
 
     var confirmBox = htmlEl("div", { "class": "note", hidden: "", role: "alert" });
     form.appendChild(confirmBox);
@@ -196,7 +253,7 @@ function openPartyForm(party, opts) {
       if (save.disabled) return;
       clearErrors();
       var payload = readPayload();
-      var problem = checkPartyPayload(payload, event);
+      var problem = checkPartyPayload(payload, event, editing ? party.color : "");
       if (problem) { hideConfirm(); showError(problem); return; }
       if (editing && !save.getAttribute("data-confirm")) {
         var freed = freedByStay(app.state, party.id, payload.arrive, payload.leave);

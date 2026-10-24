@@ -107,6 +107,7 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 ## 7. Party form and „Prehľad na poslanie“
 
 - [ ] **Party form on a phone:** the number fields bring up the numeric keyboard, the Slovak error text appears right under the field with the keyboard open (not hidden behind it), and „Uložiť“ stays reachable. An empty name shows „Napíš meno partie.“. Opening the form from the sheet's „Upraviť príchod a odchod“ puts focus on the name field: check this does not feel odd with the keyboard.
+- [ ] **Party color (T-031):** on a 380 px iPhone Safari and Android Chrome, in light and dark mode: the „Farba“ row shows „Vyberie sa sama“ (pressed on create) and 12 swatches of 48 px that wrap cleanly. The chosen swatch has a check mark and a dark frame. „Vlastná farba“ opens the native picker (iOS wheel, Android palette); a white or near-black color shows the Slovak message under „Farba“ and nothing is saved; a valid custom color is saved and the figure, the legend and the „Kto je kto“ rows show it. Editing a party preselects its current color, and the keyboard does not zoom the page when focusing the picker.
 - [ ] **Copy:** „Kopírovať“ on iPhone Safari, Android Chrome and the WhatsApp in-app browser: paste into a WhatsApp chat and check the text is complete (all nights, the „Chýbajú miesta“ block, the page link, no code). Where `navigator.clipboard` is blocked, the text is selected and the Slovak „Text je označený, skopíruj ho.“ is shown. (So far tried only in desktop headless Chrome.)
 - [ ] **Texts match the map:** „Prehľad na poslanie“ and the hidden text summary agree with what the map shows (same parties and places, per night).
 
@@ -121,6 +122,7 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 - [ ] **Meadow (T-016):** VoiceOver/TalkBack reads „Na lúke čakajú 2 ľudia z tvojej partie bez postele“ (or the right form for the count) and does not stop on the meadow as a button.
 - [ ] **Hidden summary:** the text summary after the map is reachable and read per room and bed. The night headings read „Noc Št → Pi“: check how the arrow is read (maybe „right arrow“) and consider „zo štvrtka na piatok“.
 - [ ] **Form:** the party form fields are announced with their labels and the field errors are read out.
+- [ ] **Party color (T-031):** VoiceOver and TalkBack read each swatch as „Farba 1“ … „Farba 12“ with its pressed state, „Vyberie sa sama“ with its pressed state, and the picker as „Vlastná farba“. After a rejected custom color the field error is read out (the „Farba“ group has no `aria-describedby` to its error yet, see the test report of T-031).
 
 ## Decisions to confirm with the organizer
 
@@ -131,4 +133,5 @@ These are not defects, they are the developer's own choices that need a human op
 - [ ] Shorten „Chodbička“ and „Letná kuchynka“ in `config/cabin.yaml` if the labels look bad (no code change needed).
 - [ ] **Konica smoke (T-029):** on the desktop fit view the map's top edge is y 0, so the Konica chimney's puffs are cut off almost at once (the chimney itself is visible). In the phone view and when panned up they show. Accept this, or let the organizer decide whether the Konica chimney needs a different place or the view needs grass above the map.
 - [ ] The open decisions listed in `README.md` (section 6) still have the defaults.
+- [ ] **Party color names (T-031):** the swatches are labelled „Farba 1“ … „Farba 12“ without color names. Decide whether Slovak color names (e.g. „zelenomodrá“) are wanted for screen-reader users; default: numbers.
 - [ ] **No „partia“ (T-030):** read every text on iPhone Safari and Android Chrome at 380 px (scene boards, „Kto si?“, the add form, „Prehľad na poslanie“, errors). None says „partia“, the notice reads „1. Pridaj sa (koľko vás príde).“ and „2. Vyber, kto si.“, and the name field shows the hint „napr. Jano, Jano a Zuzka, Novákovci“. The texts read naturally to friends who do not know the app.

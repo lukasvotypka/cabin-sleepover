@@ -670,10 +670,10 @@ test("a finger may move up to the slop during a long press", () => {
 
 test("form defaults and values of an existing party", () => {
   assert.deepEqual(plain(L.defaultPartyForm(event)),
-    { name: "", adults: 2, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "", note: "" });
-  const p = party({ kids: 1, arrival_time: "po 18:00", note: "pes" });
+    { name: "", adults: 2, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "", note: "", color: "" });
+  const p = party({ kids: 1, arrival_time: "po 18:00", note: "pes", color: "#2F7D6D" });
   assert.deepEqual(plain(L.partyToForm(p)),
-    { name: "Ivan a Eva", adults: 2, kids: 1, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "po 18:00", note: "pes" });
+    { name: "Ivan a Eva", adults: 2, kids: 1, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "po 18:00", note: "pes", color: "#2F7D6D" });
 });
 
 test("party payload trims text and reads counts", () => {
@@ -683,6 +683,47 @@ test("party payload trims text and reads counts", () => {
   assert.ok(Number.isNaN(L.partyPayload({ ...raw, adults: "1.5" }).adults));
   assert.ok(Number.isNaN(L.partyPayload({ ...raw, kids: "-1" }).kids));
   assert.ok(Number.isNaN(L.partyPayload({ ...raw, kids: "?" }).kids));
+});
+
+const FORM_PALETTE = ["#2F7D6D", "#D07A2B", "#6D5BA8", "#C08A1E", "#3E6FB0", "#9C4A7A", "#5E8A2E", "#8A6A4A", "#2E8AA0", "#C0603A", "#7A7F2B", "#A04848"];
+
+test("colorProblem: the palette passes, too light, too dark and bad formats fail", () => {
+  assert.deepEqual(plain(L.PARTY_PALETTE), FORM_PALETTE);
+  assert.equal(L.COLOR_MIN_LUMINANCE, 0.06);
+  assert.equal(L.COLOR_MAX_LUMINANCE, 0.36);
+  for (const c of FORM_PALETTE) assert.equal(L.colorProblem(c), null, c);
+  assert.equal(L.colorProblem("#2f7d6d"), null);
+  for (const c of ["#FFFFFF", "#E8D2A6"]) assert.equal(L.colorProblem(c), "color_too_light", c);
+  for (const c of ["#000000", "#222222"]) assert.equal(L.colorProblem(c), "color_too_dark", c);
+  for (const c of ["#abc", "red", "#GGGGGG", "", 123, null, undefined]) assert.equal(L.colorProblem(c), "color_format", String(c));
+});
+
+test("party payload carries the color only when one is chosen", () => {
+  const raw = { ...L.defaultPartyForm(event), name: "Ivan a Eva" };
+  assert.equal("color" in L.partyPayload(raw), false);                       // „Vyberie sa sama“
+  assert.equal("color" in L.partyPayload({ ...raw, color: undefined }), false);
+  assert.equal(L.partyPayload({ ...raw, color: " #3E6FB0 " }).color, "#3E6FB0");
+});
+
+test("form pre-check of the color names the field and the reason", () => {
+  const ok = L.partyPayload({ ...L.defaultPartyForm(event), name: "Ivan a Eva", color: "#3E6FB0" });
+  assert.equal(L.checkPartyPayload(ok, event), null);
+  assert.equal(L.checkPartyPayload({ ...ok, color: undefined }, event), null);
+  const e = (color, current) => L.checkPartyPayload({ ...ok, color }, event, current);
+  assert.deepEqual(plain(e("#FFFFFF")), { code: "invalid", params: { field: "color", reason: "color_too_light" } });
+  assert.deepEqual(plain(e("#000000")), { code: "invalid", params: { field: "color", reason: "color_too_dark" } });
+  assert.deepEqual(plain(e("#abc")), { code: "invalid", params: { field: "color" } });
+  assert.equal(e("#ffffff", "#FFFFFF"), null);                               // unchanged: not checked again
+  assert.equal(L.errorField(e("#FFFFFF")), "color");
+});
+
+test("color errors have Slovak texts", () => {
+  assert.equal(L.errorText(err("invalid", { field: "color", reason: "color_too_light", color: "#FFFFFF" })),
+    "Táto farba je príliš svetlá, postavičku by na posteli nebolo vidno. Vyber tmavšiu.");
+  assert.equal(L.errorText(err("invalid", { field: "color", reason: "color_too_dark", color: "#000000" })),
+    "Táto farba je príliš tmavá, postavičku by na posteli nebolo vidno. Vyber svetlejšiu.");
+  assert.equal(L.errorText(err("invalid", { field: "color" })), "Skontroluj pole „farba“.");
+  assert.equal(L.errorField(err("invalid", { field: "color" })), "color");
 });
 
 test("form pre-check names the field like the server does", () => {

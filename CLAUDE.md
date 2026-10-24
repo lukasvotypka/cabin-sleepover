@@ -79,7 +79,7 @@ Single uvicorn process with **one worker**, bound to `127.0.0.1` (default port 8
 ### Data model essentials
 
 - A night is identified by its start date (`2026-10-29` = Thu→Fri; nights are 2026-10-29, 2026-10-30, 2026-10-31). `sleeping` is `night → slot → party_id`, so double-booking is impossible by structure, and a free slot is simply absent.
-- Party `id` is `p-` plus 6 random chars. The name is case-insensitively unique and can be renamed without touching `sleeping`. The server assigns the color from the 12-color palette listed in the proposal's "Vzhľad" section.
+- Party `id` is `p-` plus 6 random chars. The name is case-insensitively unique and can be renamed without touching `sleeping`. The server assigns the color from the 12-color palette listed in the proposal's "Vzhľad" section unless the request carries its own `color` (T-031, organizer's decision of 24. 10. 2026: chosen on create, overridable on edit; free hex colors allowed, but the server rejects ones too light or too dark with `invalid` and a reason in `params`).
 - Needed slots per night = `adults + kids − kids_in_parents_bed`. A party is present on night *n* if `arrive ≤ n < leave`.
 - Dates and times in YAML must be **quoted strings** so PyYAML does not parse them into `date` objects.
 

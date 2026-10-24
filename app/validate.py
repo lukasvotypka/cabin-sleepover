@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from app.models import Layout, Party, PartyInput, State
+from app.models import Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
 
 ERROR_STATUS: dict[str, int] = {
     "bad_code": 401,
@@ -263,16 +263,45 @@ def stay_shortening(state: State, layout: Layout, party_id: str, arrive: str, le
     return _party_entries(state, layout, party_id, keep=lambda night: arrive <= night < leave)
 
 
-def check_party_create(state: State, layout: Layout, data: PartyInput) -> None:
+# Allowed WCAG relative luminance of a party color: dark enough to show on the light room floors,
+# light enough to show on the dark ones. static/js/logic-form.js (`colorProblem`) mirrors these two values.
+COLOR_MIN_LUMINANCE = 0.06
+COLOR_MAX_LUMINANCE = 0.36
+
+
+def relative_luminance(color: str) -> float:
+    """WCAG relative luminance of "#RRGGBB"."""
+    channels = []
+    for i in (1, 3, 5):
+        c = int(color[i : i + 2], 16) / 255
+        channels.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def check_party_color(color: str) -> None:
+    """A chosen party color must not be so light or so dark that the figure is lost on the map."""
+    lum = relative_luminance(color)
+    if lum > COLOR_MAX_LUMINANCE:
+        raise _invalid("color_too_light", "Color is too light to show on the map", field="color", color=color)
+    if lum < COLOR_MIN_LUMINANCE:
+        raise _invalid("color_too_dark", "Color is too dark to show on the map", field="color", color=color)
+
+
+def check_party_create(state: State, layout: Layout, data: PartyCreate) -> None:
     check_party_name(state, data.name)
     check_stay(layout, data.arrive, data.leave)
+    if data.color is not None:
+        check_party_color(data.color)
 
 
-def check_party_update(state: State, layout: Layout, party_id: str, data: PartyInput) -> list[dict[str, str]]:
+def check_party_update(state: State, layout: Layout, party_id: str, data: PartyUpdate) -> list[dict[str, str]]:
     """Check a party update and return the slots freed by shortening the stay."""
-    find_party(state, party_id)
+    party = find_party(state, party_id)
     check_party_name(state, data.name, own_id=party_id)
     check_stay(layout, data.arrive, data.leave)
+    # An unchanged color is not checked again, so a color stored earlier never blocks other edits.
+    if data.color is not None and data.color.upper() != party.color.upper():
+        check_party_color(data.color)
     return stay_shortening(state, layout, party_id, data.arrive, data.leave)
 
 

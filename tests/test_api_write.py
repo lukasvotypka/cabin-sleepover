@@ -577,6 +577,97 @@ async def test_concurrent_overlapping_lists_never_write_partially(app, two_clien
     assert error_of(next(r for r in results if r.status_code == 409))["code"] == "slot_taken"
 
 
+# --- party color -------------------------------------------------------------------------
+
+
+async def test_create_party_with_a_chosen_color_stores_it_upper_case(app, group_client):
+    party = await mk_party(group_client, color="#2f7d6d")
+    assert party["color"] == "#2F7D6D"
+    assert audit_docs(app)[-1]["after"]["color"] == "#2F7D6D"
+    other = await mk_party(group_client, "Druhí", color="#3e6fb0")  # not the next palette color
+    assert other["color"] == "#3E6FB0"
+    same = await mk_party(group_client, "Tretí", color="#3E6FB0")  # the same color twice is fine
+    assert same["color"] == other["color"]
+
+
+async def test_create_party_without_color_or_with_null_gets_the_palette_color(group_client):
+    first = await mk_party(group_client)
+    second = await mk_party(group_client, "Druhí", color=None)
+    assert (first["color"], second["color"]) == (PALETTE[0], PALETTE[1])
+
+
+@pytest.mark.parametrize("color", ["#abc", "red", "#GGGGGG", 123, ""])
+async def test_party_color_with_a_bad_format_is_invalid(app, group_client, color):
+    ivan = await mk_party(group_client)
+    before = snapshot(app)
+    for resp in (
+        await group_client.post("/api/parties", json=party_body("Druhí", color=color), headers=CLIENT),
+        await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(color=color), headers=CLIENT),
+    ):
+        assert resp.status_code == 422
+        err = error_of(resp)
+        assert (err["code"], err["params"]["field"]) == ("invalid", "color")
+    assert snapshot(app) == before
+
+
+@pytest.mark.parametrize(
+    "color,reason", [("#FFFFFF", "color_too_light"), ("#E8D2A6", "color_too_light"),
+                     ("#000000", "color_too_dark"), ("#222222", "color_too_dark")],
+)
+async def test_party_color_too_light_or_dark_is_invalid(app, group_client, color, reason):
+    ivan = await mk_party(group_client)
+    before = snapshot(app)
+    for resp in (
+        await group_client.post("/api/parties", json=party_body("Druhí", color=color), headers=CLIENT),
+        await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(color=color), headers=CLIENT),
+    ):
+        assert resp.status_code == 422
+        err = error_of(resp)
+        assert err["code"] == "invalid"
+        assert err["params"] == {"reason": reason, "field": "color", "color": color}
+    assert snapshot(app) == before
+
+
+@pytest.mark.parametrize("color", PALETTE)
+async def test_every_palette_color_is_accepted(group_client, color):
+    assert (await mk_party(group_client, color=color))["color"] == color
+
+
+async def test_update_party_changes_the_color(app, group_client):
+    ivan = await mk_party(group_client)
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(color="#a04848"), headers=CLIENT)
+    assert resp.status_code == 200
+    assert resp.json()["party"]["color"] == "#A04848"
+    doc = audit_docs(app)[-1]
+    assert (doc["action"], doc["before"]["color"], doc["after"]["color"]) == ("party-update", PALETTE[0], "#A04848")
+
+
+@pytest.mark.parametrize("overrides", [{}, {"color": None}])
+async def test_update_party_without_color_keeps_it(group_client, overrides):
+    ivan = await mk_party(group_client, color="#A04848")
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(kids=1, **overrides), headers=CLIENT)
+    assert resp.status_code == 200
+    assert resp.json()["party"]["color"] == "#A04848"
+
+
+async def test_update_party_does_not_recheck_an_unchanged_color(app, group_client):
+    ivan = await mk_party(group_client)
+    # A color stored before the brightness rule (here written to the store directly) never blocks other edits.
+    async with app.state.runtime.store.write(action="test", source="admin", client_id=None) as tx:
+        tx.state.parties[0].color = "#FFFFFF"
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(kids=1, color="#ffffff"), headers=CLIENT)
+    assert resp.status_code == 200 and resp.json()["party"]["color"] == "#FFFFFF"
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(color="#FFFFFE"), headers=CLIENT)
+    assert resp.status_code == 422
+
+
+async def test_party_color_follows_the_signup_lock(app, group_client):
+    ivan = await mk_party(group_client)
+    await lock_signup(app)
+    resp = await group_client.put(f"/api/parties/{ivan['id']}", json=party_body(color="#A04848"), headers=CLIENT)
+    assert (resp.status_code, error_of(resp)["code"]) == (403, "signup_closed")
+
+
 # --- rate limit ------------------------------------------------------------------------
 
 

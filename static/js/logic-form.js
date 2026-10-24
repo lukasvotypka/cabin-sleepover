@@ -4,17 +4,20 @@
 
 // --- party form ---
 
+// `color` is "" for „Vyberie sa sama“ (the server picks), else "#RRGGBB".
 function defaultPartyForm(event) {
   return {
     name: "", adults: 2, kids: 0, kids_in_parents_bed: 0,
-    arrive: event.arrive_days[0], leave: event.leave_days[event.leave_days.length - 1], arrival_time: "", note: ""
+    arrive: event.arrive_days[0], leave: event.leave_days[event.leave_days.length - 1], arrival_time: "", note: "",
+    color: ""
   };
 }
 
 function partyToForm(party) {
   return {
     name: party.name, adults: party.adults, kids: party.kids, kids_in_parents_bed: party.kids_in_parents_bed,
-    arrive: party.arrive, leave: party.leave, arrival_time: party.arrival_time || "", note: party.note || ""
+    arrive: party.arrive, leave: party.leave, arrival_time: party.arrival_time || "", note: party.note || "",
+    color: party.color
   };
 }
 
@@ -29,10 +32,33 @@ function partyPayload(raw) {
   function text(v) {
     return v === undefined || v === null ? "" : String(v).trim();
   }
-  return {
+  var payload = {
     name: text(raw.name), adults: count(raw.adults), kids: count(raw.kids), kids_in_parents_bed: count(raw.kids_in_parents_bed),
     arrive: text(raw.arrive), leave: text(raw.leave), arrival_time: text(raw.arrival_time), note: text(raw.note)
   };
+  // No color key at all means „Vyberie sa sama“ (create) or „keep the color“ (edit).
+  if (text(raw.color) !== "") payload.color = text(raw.color);
+  return payload;
+}
+
+// The 12 party colors offered as swatches; the same list as PARTY_PALETTE in app/models.py.
+var PARTY_PALETTE = [
+  "#2F7D6D", "#D07A2B", "#6D5BA8", "#C08A1E", "#3E6FB0", "#9C4A7A",
+  "#5E8A2E", "#8A6A4A", "#2E8AA0", "#C0603A", "#7A7F2B", "#A04848"
+];
+
+// Allowed relative luminance of a party color. These mirror COLOR_MIN_LUMINANCE / COLOR_MAX_LUMINANCE
+// in app/validate.py; keep both equal.
+var COLOR_MIN_LUMINANCE = 0.06;
+var COLOR_MAX_LUMINANCE = 0.36;
+
+// null when the color is fine, else "color_format", "color_too_light" or "color_too_dark".
+function colorProblem(hex) {
+  if (typeof hex !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return "color_format";
+  var lum = relLuminance(hex);
+  if (lum > COLOR_MAX_LUMINANCE) return "color_too_light";
+  if (lum < COLOR_MIN_LUMINANCE) return "color_too_dark";
+  return null;
 }
 
 function isCount(n) {
@@ -41,7 +67,8 @@ function isCount(n) {
 
 // A quick pre-check of the form, only for speed: the server checks again. Returns null, or an error in
 // the shape of a server error ({code: "invalid", params: {field}}) so that errorText words it.
-function checkPartyPayload(p, event) {
+// `currentColor` is the stored color of the party being edited: the server skips the brightness check for it.
+function checkPartyPayload(p, event, currentColor) {
   function bad(field, reason) {
     return { code: "invalid", params: reason ? { field: field, reason: reason } : { field: field } };
   }
@@ -55,10 +82,15 @@ function checkPartyPayload(p, event) {
   if (!(p.arrive < p.leave)) return bad("leave", "leave_not_after_arrive");
   if (p.arrival_time.length > PARTY_LIMITS.arrival_time) return bad("arrival_time");
   if (p.note.length > PARTY_LIMITS.note) return bad("note");
+  if (p.color !== undefined && !(currentColor && String(currentColor).toUpperCase() === p.color.toUpperCase())) {
+    var problem = colorProblem(p.color);
+    if (problem === "color_format") return bad("color");
+    if (problem) return bad("color", problem);
+  }
   return null;
 }
 
-var FORM_FIELDS = ["name", "adults", "kids", "kids_in_parents_bed", "arrive", "leave", "arrival_time", "note"];
+var FORM_FIELDS = ["name", "adults", "kids", "kids_in_parents_bed", "arrive", "leave", "arrival_time", "note", "color"];
 
 // The form field a server error is about (`params.field`), or "" when it is not one of the form fields.
 function errorField(error) {

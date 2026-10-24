@@ -30,7 +30,8 @@ PARTY_ID_PATTERN = r"^p-[A-Za-z0-9]{6}$"
 COLOR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
 IDENT_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 
-# Party colors in the order they are handed out (the "Vzhľad" section of proposal.md). Only the server picks them.
+# Party colors in the order they are handed out (the "Vzhľad" section of proposal.md).
+# The server picks one when a party is created without a color; a party may also choose any color itself.
 PARTY_PALETTE = (
     "#2F7D6D", "#D07A2B", "#6D5BA8", "#C08A1E", "#3E6FB0", "#9C4A7A",
     "#5E8A2E", "#8A6A4A", "#2E8AA0", "#C0603A", "#7A7F2B", "#A04848",
@@ -309,11 +310,11 @@ class PartyInput(_Model):
 
 
 class PartyCreate(PartyInput):
-    pass
+    color: HexColor | None = None  # None: the server assigns the next palette color
 
 
 class PartyUpdate(PartyInput):
-    pass
+    color: HexColor | None = None  # None: the stored color stays
 
 
 class Party(PartyInput):

@@ -471,3 +471,48 @@ def test_validate_module_has_no_io_or_fastapi_imports():
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module.split(".")[0])
     assert imported <= {"collections", "dataclasses", "typing", "unicodedata", "app"}
+
+
+# --- party color ----------------------------------------------------------------
+
+
+def test_luminance_limits_and_the_palette():
+    from app.models import PARTY_PALETTE
+
+    assert v.COLOR_MIN_LUMINANCE == 0.06 and v.COLOR_MAX_LUMINANCE == 0.36
+    assert v.relative_luminance("#FFFFFF") == pytest.approx(1.0)
+    assert v.relative_luminance("#000000") == 0
+    for color in PARTY_PALETTE:
+        v.check_party_color(color)
+
+
+@pytest.mark.parametrize(
+    "color,reason", [("#FFFFFF", "color_too_light"), ("#E8D2A6", "color_too_light"),
+                     ("#000000", "color_too_dark"), ("#222222", "color_too_dark")],
+)
+def test_check_party_color_rejects_too_light_and_too_dark(color, reason):
+    e = err(v.check_party_color, color)
+    assert (e.code, e.status) == ("invalid", 422)
+    assert e.params == {"reason": reason, "field": "color", "color": color}
+
+
+def test_check_party_create_checks_only_a_given_color(layout, make_state):
+    state = make_state([])
+    v.check_party_create(state, layout, create())
+    v.check_party_create(state, layout, create(color="#2F7D6D"))
+    assert err(v.check_party_create, state, layout, create(color="#FFFFFF")).params["reason"] == "color_too_light"
+
+
+def test_check_party_update_checks_the_color_only_when_it_changes(layout, make_state, make_party):
+    from app.models import PartyUpdate
+
+    pale = make_party(color="#FFFFFF")
+    state = make_state([pale])
+
+    def update(**kw):
+        return PartyUpdate(name=pale.name, adults=2, kids=0, kids_in_parents_bed=0, arrive=THU, leave=SUN, **kw)
+
+    v.check_party_update(state, layout, pale.id, update())
+    v.check_party_update(state, layout, pale.id, update(color="#ffffff"))  # unchanged, ignoring case
+    assert err(v.check_party_update, state, layout, pale.id, update(color="#000000")).params["reason"] == "color_too_dark"
+    v.check_party_update(state, layout, pale.id, update(color="#2F7D6D"))

@@ -7,12 +7,14 @@
 // Slovak texts for an `invalid` error with a known `params.reason`; they win over the generic field text.
 var REASON_TEXTS = {
   leave_not_after_arrive: "Odchod musí byť po príchode.",
-  name_empty: "Napíš meno."
+  name_empty: "Napíš meno.",
+  color_too_light: "Táto farba je príliš svetlá, postavičku by na posteli nebolo vidno. Vyber tmavšiu.",
+  color_too_dark: "Táto farba je príliš tmavá, postavičku by na posteli nebolo vidno. Vyber svetlejšiu."
 };
 
 var FIELD_NAMES = {
   name: "meno", adults: "počet dospelých", kids: "počet detí", kids_in_parents_bed: "deti spiace s rodičmi",
-  arrive: "príchod", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka",
+  arrive: "príchod", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka", color: "farba",
   night: "noc", nights: "noci", slot: "miesto", slots: "miesta", from_slot: "miesto", to_slot: "miesto",
   party_id: "výber, kto si", code: "kód"
 };
