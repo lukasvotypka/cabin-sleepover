@@ -182,7 +182,7 @@ function drawBoards() {
   drawTitle(g, scene.title, state);
   drawNights(g, scene, state);
   drawNotice(g, scene.notice);
-  if (app.noticeCollapsed) drawPartyTable(g, scene.parties, state);
+  drawPartyTable(g, scene.parties, state);
   drawStatus(g, scene.status, state);
   drawLetter(g, scene.letter);
   drawLegend(g, scene.legend);
@@ -284,29 +284,16 @@ function drawNights(parent, scene, state) {
   });
 }
 
+// The „?“ icon that opens „Návod“. The hit area is the whole `map.scene.notice` rect (44×44).
 function drawNotice(parent, r) {
   var g = svgEl(parent, "g");
-  if (app.noticeCollapsed) {
-    var box = noticeIconRect(r);
-    board(g, [box[0] + 4, box[1] + 4, 36, 36], COLORS.plank);
-    addText(g, box[0] + 22, box[1] + 30, "?", 22, COLORS.paper, { anchor: "middle", bold: true });
-    hitRect(g, box);
-    makeButton(g, "Návod. Ťuknutím ho rozbalíš.", "notice", expandNotice);
-    return;
-  }
-  board(g, r, COLORS.paper, COLORS.woodDark);
-  rect(g, r[0] + 6, r[1] + 6, 3, 3, COLORS.red);
-  rect(g, r[0] + r[2] - 9, r[1] + 6, 3, 3, COLORS.red);
-  var lay = noticeLayout(r, NOTICE_LINES.length);
-  addText(g, lay.x, lay.heading, "Návod", 9, COLORS.ink, { bold: true });
-  NOTICE_LINES.forEach(function (line, i) {
-    addText(g, lay.x, lay.lines[i], line, 7.5, COLORS.ink, { maxWidth: lay.maxWidth });
-  });
+  board(g, [r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8], COLORS.plank);
+  addText(g, r[0] + r[2] / 2, r[1] + 30, "?", 22, COLORS.paper, { anchor: "middle", bold: true });
   hitRect(g, r);
-  makeButton(g, "Návod: " + NOTICE_LINES.join(" ") + " Ťuknutím ho zbalíš.", "notice", collapseNotice);
+  makeButton(g, "Návod. Ťuknutím ho otvoríš.", "notice", openNotice);
 }
 
-// The table of all parties under the signposts, drawn while the noticeboard is collapsed: a row per party
+// The table of all parties under the signposts: a row per party
 // (colour square and name), a column per night with placed/needed places. The whole table is one button
 // that opens „Kto je kto“. The numbers are the same nightTally as on the signpost chips.
 function drawPartyTable(parent, r, state) {

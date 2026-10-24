@@ -185,19 +185,6 @@ function sceneRects(layout, skip) {
   return out;
 }
 
-// The collapsed noticeboard's „?“ box: the top-right 44×44 of the notice rect.
-function noticeIconRect(r) {
-  return [r[0] + r[2] - 44, r[1], 44, 44];
-}
-
-// Row positions of the expanded noticeboard inside `rect` ([x, y, w, h]) for `count` text lines.
-// All y values are absolute scene units derived from rect[1]. {x, maxWidth, heading, lines: [baseline, ...]}
-function noticeLayout(rect, count) {
-  var top = rect[1], lines = [], i;
-  for (i = 0; i < count; i++) lines.push(top + 36 + i * 12);
-  return { x: rect[0] + 12, maxWidth: rect[2] - 24, heading: top + 20, lines: lines };
-}
-
 // Boards and row positions of the night signposts inside `rect` ([x, y, w, h]) for `count` nights and
 // `gap` units between boards. All y values are absolute scene units derived from rect[1] and rect[3].
 // {w, boards: [[x, y, w, h], ...],

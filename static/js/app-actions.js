@@ -195,7 +195,6 @@ function moveTo(bed) {
 }
 
 function onBedTap(room, bed) {
-  collapseNotice();
   if (app.move) moveTo(bed);
   else openBedSheet(room, bed);
 }

@@ -108,7 +108,6 @@ def test_roofs_and_chimneys_clear_of_everything():
 def test_scene_boards_stay_clear_of_rooms_and_each_other():
     layout = yaml.safe_load((ROOT / "config" / "cabin.yaml").read_text(encoding="utf-8"))
     width, height = layout["map"]["viewbox"]
-    # `parties` is shown instead of `notice` when the board is collapsed (same place), so these two may overlap
     boards = {k: v for k, v in layout["map"]["scene"].items()}
     rooms = {f"room {r['id']}": r["rect"] for r in layout["rooms"]}
     names = sorted(boards)
@@ -118,8 +117,6 @@ def test_scene_boards_stay_clear_of_rooms_and_each_other():
         for name, rect in rooms.items():
             assert not _overlap(boards[a], rect), f"{a} overlaps {name}"
         for b in names[i + 1:]:
-            if {a, b} == {"notice", "parties"}:
-                continue
             assert not _overlap(boards[a], boards[b]), f"{a} overlaps {b}"
 
 

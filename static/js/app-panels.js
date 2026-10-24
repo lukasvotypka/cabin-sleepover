@@ -19,6 +19,7 @@ function closePanel() {
 }
 
 // `build(body, panel)` fills the panel; it may set `panel.refresh` to redraw on new state.
+// `opts.center` shows a small window in the middle of the screen instead of a bottom sheet,
 // `opts.returnKey` is the data-key of the scene element that gets focus back on close,
 // `opts.initialFocus(body)` picks the element that gets focus first (default: the first button), and
 // `opts.onClose` runs after the panel is gone.
@@ -27,7 +28,8 @@ function openPanel(title, build, opts) {
   hideToast();      // a message would sit on top of the sheet buttons
   var root = $("panelRoot");
   var backdrop = htmlEl("div", { "class": "backdrop" });
-  var sheet = htmlEl("div", { "class": "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "panelTitle" });
+  opts = opts || {};
+  var sheet = htmlEl("div", { "class": opts.center ? "sheet center" : "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "panelTitle" });
   var head = htmlEl("div", { "class": "sheet-head" });
   head.appendChild(htmlEl("h2", { id: "panelTitle" }, title));
   var close = htmlEl("button", { "class": "close", type: "button", "aria-label": "Zavrieť" }, "✕");
@@ -38,7 +40,6 @@ function openPanel(title, build, opts) {
   root.appendChild(backdrop);
   root.appendChild(sheet);
 
-  opts = opts || {};
   var panel = {
     returnFocus: document.activeElement, returnKey: opts.returnKey || null, onClose: opts.onClose || null,
     refresh: null, onKey: null

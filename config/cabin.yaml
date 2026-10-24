@@ -12,13 +12,13 @@ map:
   scene:                       # info elements on the grass, rect = [x, y, width, height]
     title:  [176, 10, 196, 30]   # event name
     nights: [176, 46, 196, 58]   # three night signposts
-    notice: [176, 112, 196, 82]  # noticeboard with the how-to
+    notice: [328, 112, 44, 44]   # „?“ icon that opens the how-to window
     status: [278, 338, 94, 88]   # „Si: …“, last update, warning (two rows of 44)
     locked: [16, 190, 62, 56]    # „Zápis je zatvorený“ sign
     letter: [128, 352, 44, 44]   # letter icon, summary to send
     key:    [184, 352, 44, 44]   # key icon, admin only
     legend: [24, 264, 44, 44]    # „Kto je kto“ icon, party color legend
-    parties: [176, 112, 148, 82] # table of parties and their places per night (shown when the noticeboard is collapsed)
+    parties: [176, 112, 148, 82] # table of parties and their places per night
     days:   [16, 440, 220, 48]   # board with the day visitors per day (shown only when there are some)
     meadow: [112, 397, 124, 14]  # meadow where people of my party without a bed wait
 

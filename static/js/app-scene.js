@@ -1,6 +1,6 @@
 "use strict";
 
-// App part 3: choosing the party and night, noticeboard, scene frame helpers.
+// App part 3: choosing the party and night, „Návod“ window, scene frame helpers.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 function forgetMyParty() {
@@ -22,18 +22,11 @@ function selectNight(night) {
   if (app.panel && app.panel.refresh) app.panel.refresh();
 }
 
-// The first tap on any bed also collapses the noticeboard.
-function collapseNotice() {
-  if (app.noticeCollapsed) return;
-  app.noticeCollapsed = true;
-  storage.set(KEYS.notice, "1");
-  renderBoards();
-}
-
-function expandNotice() {
-  app.noticeCollapsed = false;
-  storage.set(KEYS.notice, "0");
-  renderBoards();
+// „Návod“: the four steps in a window in the centre of the screen, opened from the „?“ icon in the scene.
+function openNotice() {
+  openPanel("Návod", function (body) {
+    NOTICE_LINES.forEach(function (line) { body.appendChild(htmlEl("p", null, line)); });
+  }, { returnKey: "notice", center: true });
 }
 
 // --- scene ---

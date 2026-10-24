@@ -6,7 +6,7 @@
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
 var AGE_TICK_MS = 5000;
-var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", notice: "cabin.noticeCollapsed" };
+var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role" };
 var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
 var DAY_SIGN_CHARS = 46;  // most characters of a line on the day-visitors board
@@ -70,7 +70,6 @@ var app = {
   night: null,
   nightSynced: false,  // set by the first applyState: only that one may take the night from the remembered party
   myParty: storage.get(KEYS.party),
-  noticeCollapsed: storage.get(KEYS.notice) !== "0",
   askWho: false,       // open „Kto si?“ once the next state has arrived
   introStart: 0,       // performance.now() when the intro clock started (page start, or the join)
   introTimer: null,    // the one pending timer that reveals the map

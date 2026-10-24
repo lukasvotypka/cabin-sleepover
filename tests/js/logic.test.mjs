@@ -464,7 +464,7 @@ const realBeds = {
   "right-bunk-1": ["bunk", [276, 220, 24, 42], 2], "right-bunk-2": ["bunk", [308, 220, 24, 42], 2],
   "right-sofa": ["sofa1", [336, 272, 28, 36], 1], "kitchen-stove": ["stove", [22, 352, 56, 28], 2],
 };
-const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [176, 112, 196, 82], status: [278, 322, 94, 88],
+const scene = { title: [176, 10, 196, 30], nights: [176, 46, 196, 58], notice: [328, 112, 44, 44], status: [278, 322, 94, 88],
   locked: [16, 190, 62, 56], letter: [128, 336, 44, 44], key: [184, 336, 44, 44],
   legend: [24, 264, 44, 44], parties: [176, 112, 148, 82], meadow: [112, 381, 124, 14] };
 const realLayout = {
@@ -861,56 +861,52 @@ test("NOTICE_LINES is exactly the four numbered steps", () => {
   for (const line of FOUR_LINES) assert.ok(line.length <= 34 && !line.includes('"'), line);
 });
 
-test("noticeLayout: heading, then four lines 12 apart, all inside the real board", () => {
-  const r = scene.notice, lay = plain(L.noticeLayout(r, L.NOTICE_LINES.length));
-  assert.equal(lay.lines.length, 4);
-  assert.equal(lay.x, r[0] + 12);
-  assert.equal(lay.maxWidth, r[2] - 24);
-  assert.ok(lay.heading > r[1]);
-  assert.ok(lay.lines[0] - 6 > lay.heading, "the first line's cap top is below the heading baseline");
-  for (let i = 1; i < lay.lines.length; i++) assert.equal(lay.lines[i] - lay.lines[i - 1], 12);
-  assert.ok(lay.lines[3] + 3 <= r[1] + r[3], "the last line with descenders is inside the board");
-  // 30 characters at 7.5 monospace (about 4.5 units each) fit without squeezing
-  assert.ok(30 * 4.5 <= lay.maxWidth);
-});
-
-test("noticeLayout: the old 66-high board cannot hold four lines (the check would catch it)", () => {
-  const old = [176, 112, 196, 66], lay = plain(L.noticeLayout(old, 4));
-  assert.ok(lay.lines[3] + 3 > old[1] + old[3]);
-});
-
-test("the expanded notice clears rooms, doors, windows and the other scene boards and signposts", () => {
+test("the notice is only the ? icon: 44x44, clear of rooms, doors, windows, the other boards and the signposts", () => {
   const n = scene.notice, windowsHere = [[186, 196, 24, 4], [300, 196, 24, 4]];
+  assert.deepEqual(n, [328, 112, 44, 44]);
   for (const o of [...windowsHere, ...doors, ...realLayout.rooms.map((r) => r.rect)]) assert.ok(!overlap(n, o), `notice overlaps ${o}`);
   for (const [key, r] of Object.entries(scene)) {
-    if (key === "parties" || key === "notice") continue;   // the table replaces the notice by design
+    if (key === "notice") continue;
     assert.ok(!overlap(n, r), `notice overlaps scene.${key}`);
   }
   assert.ok(!overlap(n, [scene.nights[0], scene.nights[1], scene.nights[2], scene.nights[3] + 6]), "notice vs signposts with posts");
-  assert.equal(n[1] + n[3], scene.parties[1] + scene.parties[3], "same bottom as the party table");
 });
 
-test("drawNotice reads its rows from noticeLayout, has no bullets and no innerHTML", () => {
+test("drawNotice draws only the ? icon, opens the Návod window, no innerHTML", () => {
   const body = html.slice(html.indexOf("function drawNotice("), html.indexOf("// The table of all parties"));
   assert.ok(body.length > 100);
-  assert.match(body, /noticeLayout\(/);
-  assert.doesNotMatch(body, /r\[1\] \+ ([1-9]\d|[7-9])\b/, "no row offsets from the rect top (the 6-unit nails are fine)");
-  assert.doesNotMatch(body, /COLORS\.red\);\s*\n\s*addText/);
+  assert.match(body, /"Návod\. Ťuknutím ho otvoríš\."/);
+  assert.match(body, /"notice", openNotice\)/);
+  assert.match(body, /hitRect\(g, r\)/);
+  assert.doesNotMatch(body, /NOTICE_LINES/);
   assert.doesNotMatch(body, /innerHTML/);
-  assert.match(body, /"Návod: " \+ NOTICE_LINES\.join\(" "\) \+ " Ťuknutím ho zbalíš\."/);
+});
+
+test("openNotice opens a centred panel with one textContent paragraph per step and returns focus to the ? icon", () => {
+  const body = html.slice(html.indexOf("function openNotice("), html.indexOf("// --- scene ---"));
+  assert.match(body, /openPanel\("Návod"/);
+  assert.match(body, /NOTICE_LINES\.forEach/);
+  assert.match(body, /returnKey: "notice"/);
+  assert.match(body, /center: true/);
+  assert.doesNotMatch(body, /innerHTML/);
+});
+
+test("the party table is drawn on every drawBoards, and no collapse state is left", () => {
+  const body = html.slice(html.indexOf("function drawBoards("), html.indexOf("// The letter icon"));
+  assert.match(body, /\n\s+drawPartyTable\(g, scene\.parties, state\);/);
+  const gone = ["notice" + "Collapsed", "collapse" + "Notice", "expand" + "Notice", "notice" + "IconRect", "notice" + "Layout", "KEYS.notice"];
+  for (const name of gone) assert.ok(!html.includes(name), `${name} is gone`);
 });
 
 // --- party table under the night signposts (T-023) ---
 
-test("noticeIconRect: the ? box is the top-right 44x44 of the notice and clears the table rect", () => {
-  const box = plain(L.noticeIconRect(scene.notice));
-  assert.deepEqual(box, [328, 112, 44, 44]);
-  assert.ok(!overlap(box, scene.parties));
+test("the party table clears the ? icon, the signposts, rooms, doors, windows and the other boards", () => {
+  assert.ok(!overlap(scene.notice, scene.parties));
   assert.ok(!overlap(scene.parties, scene.nights));
   const windows = [[186, 196, 24, 4], [300, 196, 24, 4]];
   for (const o of [...windows, ...doors, ...realLayout.rooms.map((r) => r.rect)]) assert.ok(!overlap(scene.parties, o), `parties overlaps ${o}`);
   for (const [key, r] of Object.entries(scene)) {
-    if (key === "parties" || key === "notice") continue;   // the table replaces the expanded notice by design
+    if (key === "parties") continue;
     assert.ok(!overlap(scene.parties, r), `parties overlaps scene.${key}`);
   }
 });
@@ -1306,7 +1302,6 @@ test("scene: title board, signposts with posts, and the other boards and rooms d
   assert.ok(!overlap(scene.title, posts), "title vs signposts");
   assert.ok(scene.title[1] + scene.title[3] <= scene.nights[1], "title above signposts");
   for (const key of ["notice", "parties"]) assert.ok(!overlap(posts, scene[key]), `signposts overlap scene.${key}`);
-  assert.ok(!overlap(posts, L.noticeIconRect(scene.notice)), "signposts vs the ? box");
   for (const room of realLayout.rooms) assert.ok(!overlap(posts, room.rect), `signposts overlap ${room.id}`);
   for (const room of realLayout.rooms) assert.ok(!overlap(scene.title, room.rect), `title overlaps ${room.id}`);
   for (const key of ["notice", "parties"]) assert.ok(!overlap(scene.title, scene[key]), `title overlaps scene.${key}`);

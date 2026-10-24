@@ -26,7 +26,7 @@ from tests.conftest import APP_YAML, CABIN_YAML
 SCENE = {
     "title": [176, 10, 196, 30],
     "nights": [176, 46, 196, 58],
-    "notice": [176, 112, 196, 82],
+    "notice": [328, 112, 44, 44],
     "status": [278, 338, 94, 88],
     "locked": [16, 190, 62, 56],
     "letter": [128, 352, 44, 44],
