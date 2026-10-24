@@ -356,9 +356,8 @@ function drawStatus(parent, r, state) {
     rect(sign, inner[0] + 17, inner[1] + 11, 2, 9, COLORS.red);
     rect(sign, inner[0] + 17, inner[1] + 22, 2, 3, COLORS.red);
     var lines = statusBoardLines(status);
-    addText(b, inner[0] + 34, inner[1] + 17, lines[0], 7, COLORS.white, { bold: true, maxWidth: inner[2] - 50 });
-    addText(b, inner[0] + 34, inner[1] + 29, lines[1], 6.5, COLORS.white, { maxWidth: inner[2] - 50 });
-    drawChevron(b, inner[0] + inner[2] - 12, inner[1] + inner[3] / 2, COLORS.white);
+    addText(b, inner[0] + 34, inner[1] + 17, lines[0], 7, COLORS.white, { bold: true, maxWidth: inner[2] - 40 });
+    addText(b, inner[0] + 34, inner[1] + 29, lines[1], 6.5, COLORS.white, { maxWidth: inner[2] - 40 });
     hitRect(b, bot);
     makeButton(b, status.text + ". Ťuknutím " + (status.night === app.night ? "otvoríš možnosti." : "zvolíš túto noc."), "status",
       function () {
@@ -400,13 +399,6 @@ function raisedBoard(parent, r, face, edge) {
   rect(parent, r[0] + 3, r[1] + 3, 2, r[3] - 6, COLORS.white, { opacity: ".35" });
   rect(parent, r[0] + r[2] - 5, r[1] + 3, 2, r[3] - 6, COLORS.woodDark, { opacity: ".45" });
   rect(parent, r[0] + 3, r[1] + r[3] - 5, r[2] - 6, 2, COLORS.woodDark, { opacity: ".45" });
-}
-
-// Pixel chevron „›“ with its tip at the right.
-function drawChevron(parent, x, cy, fill) {
-  [[0, -6], [2, -4], [4, -2], [6, 0], [4, 2], [2, 4], [0, 6]].forEach(function (p) {
-    rect(parent, x + p[0] - 4, cy + p[1] - 1, 2, 2, fill);
-  });
 }
 
 function drawLines(parent, lines, x, y, size, fill, maxWidth) {
