@@ -182,7 +182,7 @@ function openWho(opts) {
       });
     }
     panel.refresh();
-  }, { returnKey: (opts && opts.returnKey) || "who" });
+  }, { returnKey: (opts && opts.returnKey) || "who", headTools: [soundToggle()] });
 }
 
 // The shirt letter at 2 CSS px per pixel, for the legend swatch: the same mark as on the map.

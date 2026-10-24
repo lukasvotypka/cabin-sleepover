@@ -23,7 +23,7 @@ function closePanel() {
 // `opts.center` shows a small window in the middle of the screen instead of a bottom sheet,
 // `opts.returnKey` is the data-key of the scene element that gets focus back on close,
 // `opts.initialFocus(body)` picks the element that gets focus first (default: the first button), and
-// `opts.onClose` runs after the panel is gone.
+// `opts.onClose` runs after the panel is gone, and `opts.headTools` are buttons shown left of the close button.
 function openPanel(title, build, opts) {
   closePanel();
   hideToast();      // a message would sit on top of the sheet buttons
@@ -34,7 +34,10 @@ function openPanel(title, build, opts) {
   var head = htmlEl("div", { "class": "sheet-head" });
   head.appendChild(htmlEl("h2", { id: "panelTitle" }, title));
   var close = htmlEl("button", { "class": "close", type: "button", "aria-label": "Zavrieť" }, "✕");
-  head.appendChild(close);
+  var tools = htmlEl("div", { "class": "sheet-tools" });
+  (opts.headTools || []).forEach(function (node) { tools.appendChild(node); });
+  tools.appendChild(close);
+  head.appendChild(tools);
   var body = htmlEl("div");
   sheet.appendChild(head);
   sheet.appendChild(body);

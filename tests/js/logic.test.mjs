@@ -3395,3 +3395,11 @@ test("sound: the bird chirps per flight and a tap on the tree blows wind through
   assert.match(appSource, /"tree-hit"[\s\S]*?rustleTree\(t\)/);
   assert.match(html, /#scene svg \.tree-hit \{ pointer-events: all;/);
 });
+
+test("sound: „Kto si?“ has a mute button next to the close button, remembered on this device", () => {
+  assert.match(appSource, /openPanel\("Kto si\?"[\s\S]*?headTools: \[soundToggle\(\)\]/);
+  assert.match(appSource, /\(opts\.headTools \|\| \[\]\)\.forEach[\s\S]*?tools\.appendChild\(close\);/);
+  assert.match(appSource, /return !app\.muted && ctx/);
+  assert.match(appSource, /storage\.set\(KEYS\.sound, "off"\)/);
+  assert.match(appSource, /"aria-pressed", app\.muted/);
+});

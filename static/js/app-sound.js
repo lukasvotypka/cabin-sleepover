@@ -3,7 +3,8 @@
 // App part 11b: the scene sounds (organizer request, 24. 10. 2026). The bird chirps once at a random moment of
 // each flight, and a tap on the tree blows wind through its crown. Synthesized with Web Audio, so there
 // are no sound files. Browsers allow sound only after the first touch, click or key, so the audio starts then;
-// before that the bird is silent. With `prefers-reduced-motion` the bird is hidden and never chirps.
+// before that the bird is silent. With `prefers-reduced-motion` the bird is hidden and never chirps. The speaker
+// button in „Kto si?“ mutes all sounds on this device (remembered in browser storage).
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 var SOUND_VOLUME = .12;
@@ -29,10 +30,44 @@ function unlockSound() {
   document.addEventListener(type, unlockSound, { capture: true, passive: true });
 });
 
-// The audio when it may play now: unlocked, running and the tab in front.
+app.muted = storage.get(KEYS.sound) === "off";
+
+// The audio when it may play now: not muted, unlocked, running and the tab in front.
 function liveSound() {
   var ctx = app.audio;
-  return ctx && ctx.state === "running" && document.visibilityState === "visible" ? ctx : null;
+  return !app.muted && ctx && ctx.state === "running" && document.visibilityState === "visible" ? ctx : null;
+}
+
+// A pixel speaker, 9 x 7 cells: [x, y, width, height]. With sound on it sends two waves, muted it has a cross.
+var SPEAKER_CELLS = [[0, 2, 2, 3], [2, 1, 1, 5], [3, 0, 1, 7]];
+var SPEAKER_ON = [[5, 2, 1, 3], [7, 1, 1, 5]];
+var SPEAKER_OFF = [[5, 2, 1, 1], [7, 2, 1, 1], [6, 3, 1, 1], [5, 4, 1, 1], [7, 4, 1, 1]];
+
+function drawSpeaker(button) {
+  clearNode(button);
+  var svg = svgEl(button, "svg", {
+    viewBox: "0 0 9 7", width: "27", height: "21", "shape-rendering": "crispEdges", "aria-hidden": "true", focusable: "false"
+  });
+  SPEAKER_CELLS.concat(app.muted ? SPEAKER_OFF : SPEAKER_ON).forEach(function (c) {
+    svgEl(svg, "rect", { x: c[0], y: c[1], width: c[2], height: c[3], fill: "currentColor" });
+  });
+  button.setAttribute("aria-pressed", app.muted ? "true" : "false");
+  button.setAttribute("aria-label", app.muted ? "Zapnúť zvuky" : "Vypnúť zvuky");
+  button.title = app.muted ? "Zapnúť zvuky" : "Vypnúť zvuky";
+}
+
+// The mute button for a panel head (next to the close button).
+function soundToggle() {
+  var button = htmlEl("button", { "class": "close sound-toggle", type: "button", "data-key": "sound-toggle" });
+  drawSpeaker(button);
+  button.addEventListener("click", function () {
+    app.muted = !app.muted;
+    if (app.muted) storage.set(KEYS.sound, "off");
+    else storage.remove(KEYS.sound);
+    if (app.muted) clearTimeout(app.chirpTimer);
+    drawSpeaker(button);
+  });
+  return button;
 }
 
 function noiseBuffer(ctx) {

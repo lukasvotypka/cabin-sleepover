@@ -6,7 +6,7 @@
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
 var AGE_TICK_MS = 5000;
-var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role" };
+var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound" };
 var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
 var LONG_PRESS_MS = 500;
