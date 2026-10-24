@@ -9,7 +9,7 @@ Give the organizer the admin tools: lock and unlock signup, download the data fi
 
 ## Scope
 - `app/main.py`, `tests/test_api_admin.py`
-- `static/index.html`, `tests/js/logic.test.mjs`
+- `static/index.html`, `static/js/*.js` (admin UI in a new `app-admin.js`, logic in `logic-*.js`), `tests/js/logic.test.mjs`
 - `README.md`, `tests/manual.md` (the admin items)
 
 ## Acceptance criteria

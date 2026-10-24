@@ -4,14 +4,15 @@ A small web app for sorting out sleeping places at the cabin for the event 29. 1
 
 The page itself is Slovak (informal), this README and all code are English.
 
-Stack: FastAPI, Pydantic v2, PyYAML, uvicorn (Python 3.12), managed with [uv](https://docs.astral.sh/uv/). The frontend is one plain `static/index.html` with no build step.
+Stack: FastAPI, Pydantic v2, PyYAML, uvicorn (Python 3.12), managed with [uv](https://docs.astral.sh/uv/). The frontend is plain HTML, CSS and JavaScript with no build step: `static/index.html` plus the scripts in `static/js/`.
 
 Where things are:
 
 | Path | What it is |
 | --- | --- |
 | `app/` | the backend (`main.py` routes, `store.py` YAML storage, `validate.py` all the rules, ...) |
-| `static/index.html` | the whole page (the pixel map, panels, texts) |
+| `static/index.html` | the page shell (markup and CSS); it loads the scripts below |
+| `static/js/` | the page code as plain scripts: `logic-*.js` (pure logic, tested in Node) and `app-*.js` (DOM, drawing, requests); load order is the order of the `<script>` tags in `index.html` |
 | `config/cabin.yaml` | event dates, nights and the cabin layout (rooms, beds, slots, map coordinates) |
 | `config/app.yaml` | limits and `backups_keep` |
 | `data/` | the live data, created on first start, never committed, never served |

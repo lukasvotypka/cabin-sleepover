@@ -1,6 +1,7 @@
 """Startup, page serving, join and cookies, state with ETag, the error envelope, the limits over HTTP."""
 
 import logging
+import re
 import secrets
 import shutil
 
@@ -152,6 +153,37 @@ async def test_health_needs_no_cookie(client):
     resp = await client.get("/api/health")
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
+
+
+SCRIPT_URL = re.compile(r'<script src="(static/js/[\w-]+\.js)\?v=([0-9a-f]{12})"></script>')
+
+
+async def test_page_loads_every_script_with_a_version_query(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-cache"
+    assert "__ASSET_VERSION__" not in resp.text
+    scripts = SCRIPT_URL.findall(resp.text)
+    on_disk = sorted(p.name for p in (ROOT / "static" / "js").glob("*.js"))
+    assert sorted(path.rsplit("/", 1)[1] for path, _ in scripts) == on_disk
+    assert len({version for _, version in scripts}) == 1
+    for path, version in scripts:
+        js = await client.get(f"/{path}?v={version}")
+        assert js.status_code == 200
+
+
+async def test_script_version_changes_with_the_code(make_app, make_client, tmp_path):
+    static = tmp_path / "static"
+    shutil.copytree(ROOT / "static", static)
+    app = make_app(static_dir=static)
+    async with make_client(app) as c:
+        first = SCRIPT_URL.search((await c.get("/")).text).group(2)
+        again = SCRIPT_URL.search((await c.get("/")).text).group(2)
+        assert first == again
+        with (static / "js" / "app-start.js").open("a", encoding="utf-8") as f:
+            f.write("// changed\n")
+        changed = SCRIPT_URL.search((await c.get("/")).text).group(2)
+        assert changed != first
 
 
 async def test_static_folder_is_served(client):

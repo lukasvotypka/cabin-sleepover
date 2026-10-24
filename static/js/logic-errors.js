@@ -1,0 +1,91 @@
+// Pure page logic, part 6: the only place that turns a server error code into Slovak.
+// No DOM, no browser globals: tests/js/logic.test.mjs loads all logic-*.js files into one Node vm context.
+// Plain script, shares the global scope with the other logic-*.js and app-*.js files (see index.html for the order).
+
+// --- error texts: the only place that turns a server `code` into Slovak ---
+
+// Slovak texts for an `invalid` error with a known `params.reason`; they win over the generic field text.
+var REASON_TEXTS = {
+  leave_not_after_arrive: "Odchod musí byť po príchode.",
+  name_empty: "Napíš meno partie."
+};
+
+var FIELD_NAMES = {
+  name: "meno", adults: "počet dospelých", kids: "počet detí", kids_in_parents_bed: "deti spiace s rodičmi",
+  arrive: "príchod", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka",
+  night: "noc", nights: "noci", slot: "miesto", slots: "miesta", from_slot: "miesto", to_slot: "miesto",
+  party_id: "partia", code: "kód"
+};
+
+function paramText(params, key) {
+  var v = params[key];
+  return typeof v === "string" && v.trim() ? v.trim() : "";
+}
+
+function partyNameFrom(params, state) {
+  var name = paramText(params, "party_name");
+  if (name) return name;
+  var party = partyById(state, paramText(params, "party_id"));
+  return party ? party.name : "";
+}
+
+function waitText(seconds) {
+  if (typeof seconds !== "number" || !isFinite(seconds) || seconds < 1) return "";
+  var s = Math.ceil(seconds);
+  return s < 60 ? s + " s" : Math.ceil(s / 60) + " min";
+}
+
+var ERROR_TEXTS = {
+  bad_code: function () {
+    return "Kód nesedí, skús ho zadať znova.";
+  },
+  forbidden: function () {
+    return "Toto môže robiť len organizátor.";
+  },
+  signup_closed: function () {
+    return "Zápis je zatvorený, miesta sa dajú len prezerať.";
+  },
+  slot_taken: function (p, state) {
+    var when = dayLocative(paramText(p, "night"));
+    var who = partyNameFrom(p, state);
+    if (p.own === true) return "Toto miesto už " + (when ? when + " " : "") + "máš.";
+    if (who) return "Toto miesto má" + (when ? " " + when : "") + " už " + who + ".";
+    return "Toto miesto" + (when ? " " + when : "") + " je už obsadené.";
+  },
+  not_present: function (p, state) {
+    var when = dayLocative(paramText(p, "night"));
+    var who = partyNameFrom(p, state);
+    return (who ? "Partia „" + who + "“" : "Tvoja partia") + (when ? " " + when : " v túto noc") +
+      " nie je na chate. Uprav príchod alebo odchod.";
+  },
+  duplicate_name: function (p) {
+    var name = paramText(p, "name");
+    return (name ? "Partia „" + name + "“" : "Partia s takým menom") + " už existuje. Vymysli iné meno.";
+  },
+  unknown_slot: function (p, state) {
+    var bed = state && state.layout ? bedOfSlot(state.layout, paramText(p, "slot")) : null;
+    return (bed ? "Miesto pri posteli „" + bed.name + "“ sa nedá použiť." : "Také miesto na chate nie je.") +
+      " Obnov stránku.";
+  },
+  unknown_party: function () {
+    return "Túto partiu sme nenašli. Vyber partiu znova.";
+  },
+  invalid: function (p) {
+    if (REASON_TEXTS.hasOwnProperty(paramText(p, "reason"))) return REASON_TEXTS[paramText(p, "reason")];
+    var field = FIELD_NAMES.hasOwnProperty(paramText(p, "field")) ? FIELD_NAMES[paramText(p, "field")] : "";
+    return field ? "Skontroluj pole „" + field + "“." : "Niečo v zadaní nesedí, skontroluj ho.";
+  },
+  rate_limited: function (p) {
+    var wait = waitText(p.retry_after);
+    return wait ? "Príliš veľa pokusov za krátky čas, skús to o " + wait + "." : "Príliš veľa pokusov za krátky čas, chvíľu počkaj.";
+  }
+};
+
+// Slovak text for a server error `{code, message, params}`. The English `message` is never used.
+// A missing error (network failure) and an unknown code both give the generic text.
+function errorText(error, state) {
+  if (!error || typeof error !== "object" || typeof error.code !== "string") return FALLBACK_ERROR;
+  if (!ERROR_TEXTS.hasOwnProperty(error.code)) return FALLBACK_ERROR;
+  var params = error.params && typeof error.params === "object" ? error.params : {};
+  return ERROR_TEXTS[error.code](params, state || null) || FALLBACK_ERROR;
+}

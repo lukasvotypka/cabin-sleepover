@@ -1,6 +1,6 @@
 """The furniture drawn on the map must not cover room names, windows or doors in config/cabin.yaml.
 
-The geometry helpers live in the page logic (`<script id="logic">` of static/index.html), so this test
+The geometry helpers live in the page logic (the `static/js/logic-*.js` files), so this test
 runs them in Node against the real layout file. Node is a project requirement (`node --test tests/js/`).
 """
 
@@ -78,11 +78,18 @@ process.stdout.write(JSON.stringify(problems));
 """
 
 
+def page_logic():
+    """The source of the logic-*.js files, in the order static/index.html loads them."""
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    files = re.findall(r'<script src="(static/js/logic-[\w-]+\.js)(?:\?[^"]*)?"></script>', html)
+    assert files, "index.html must load static/js/logic-*.js"
+    return "\n".join((ROOT / f).read_text(encoding="utf-8") for f in files)
+
+
 def _run_node(script):
     node = shutil.which("node")
     assert node, "Node is required for the page logic tests"
-    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-    logic = re.search(r'<script id="logic">([\s\S]*?)</script>', html).group(1)
+    logic = page_logic()
     layout = yaml.safe_load((ROOT / "config" / "cabin.yaml").read_text(encoding="utf-8"))
     payload = json.dumps({"logic": logic, "layout": layout})
     done = subprocess.run([node, "-e", script], input=payload, capture_output=True, text=True, check=False)
@@ -121,5 +128,6 @@ def _overlap(a, b):
 
 
 def test_nothing_hardcodes_the_old_viewbox_height():
-    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-    assert not re.search(r"\b412\b", html)
+    sources = [ROOT / "static" / "index.html", *sorted((ROOT / "static" / "js").glob("*.js"))]
+    for source in sources:
+        assert not re.search(r"\b412\b", source.read_text(encoding="utf-8")), source.name

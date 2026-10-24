@@ -1,0 +1,241 @@
+"use strict";
+
+// App part 1: constants, browser storage, page state, DOM helpers, requests, applying state.
+// Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
+
+var SVG_NS = "http://www.w3.org/2000/svg";
+var POLL_MS = 30000;
+var AGE_TICK_MS = 5000;
+var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", notice: "cabin.noticeCollapsed" };
+var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
+var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
+var LONG_PRESS_MS = 500;
+var TOAST_MS = 6000;
+// The grass around the scene: a tile with a few tufts, the same look as the code screen.
+var GRASS_TILE = 96;
+var GRASS_TUFTS = [[8, 12], [52, 4], [76, 40], [28, 56], [64, 80], [12, 84], [40, 32]];
+var COLORS = {
+  grass: "#8E9B48", tuft: "#76823A", path: "#D6BC8E",
+  leafRust: "#B5532A", leafOchre: "#D69A2E", leafRed: "#8E3424", roomEdge: "#5C4033", roomLabel: "#4A3426", window: "#9FD3F0",
+  woodDark: "#5C4033", wood: "#B98B56", woodLight: "#D4A870", plank: "#6B4426", paper: "#F4EBD0", ink: "#2E1F14",
+  selected: "#F2D58A", highlight: "#FFD54A", red: "#B4472F", redEdge: "#6E2414", amber: "#F3E3C0", amberEdge: "#C98A1C",
+  green: "#3D7A55", greenEdge: "#1F4A31", white: "#FFFFFF",
+  bedFrame: "#8A5A34", sheet: "#F4F1E8", sheetHead: "#FFFFFF", sheetFoot: "#C9A27A", mat: "#7E8FA0", matTop: "#C7D3DD",
+  cotFrame: "#B9C7CF", bunkDark: "#6B4426", bunkTop: "#F4F1E8", bunkLow: "#E6DFCC", sofaDark: "#7A3E48", sofaLight: "#B4606C",
+  stoveDark: "#9E9E9E", stoveLight: "#E3E3E3", stovePipe: "#6E6E6E", skin: "#F2C9A0", eye: "#3A2A1E",
+  tight: "#E0A33A", picked: "#3AA7E0",
+  brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C", smokeLight: "#C9C9C9", smokeDark: "#A9A9A9"
+};
+// Signpost tally chip per kind: [edge, face, text] keys of COLORS (same meaning as the status board).
+var TALLY_COLORS = { under: ["redEdge", "red", "white"], over: ["amberEdge", "amber", "ink"], ok: ["greenEdge", "green", "white"] };
+
+// --- browser storage that survives a blocked localStorage ---
+
+var memory = {};
+var storage = {
+  get: function (key) {
+    try { return window.localStorage.getItem(key); } catch (e) { return key in memory ? memory[key] : null; }
+  },
+  set: function (key, value) {
+    try { window.localStorage.setItem(key, value); } catch (e) { memory[key] = value; }
+  },
+  remove: function (key) {
+    try { window.localStorage.removeItem(key); } catch (e) { delete memory[key]; }
+  }
+};
+
+function makeClientId() {
+  var bytes = new Uint8Array(12), out = "c-", i;
+  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+  else for (i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  for (i = 0; i < bytes.length; i++) out += (bytes[i] < 16 ? "0" : "") + bytes[i].toString(16);
+  return out;
+}
+
+var clientId = storage.get(KEYS.client);
+if (!clientId) {
+  clientId = makeClientId();
+  storage.set(KEYS.client, clientId);
+}
+
+// --- page state ---
+
+var splash = { ctx: null, falling: false, raf: 0, endTimer: null, resizeFrame: 0, lastStep: -1, start: 0 };
+
+var app = {
+  state: null,
+  etag: null,
+  fetchedAt: 0,
+  night: null,
+  myParty: storage.get(KEYS.party),
+  noticeCollapsed: storage.get(KEYS.notice) !== "0",
+  askWho: false,       // open „Kto si?“ once the next state has arrived
+  introStart: 0,       // performance.now() when the intro clock started (page start, or the join)
+  introTimer: null,    // the one pending timer that reveals the map
+  introDone: false,    // true when the fall starts: from then on the loading view never comes back
+  codeOpen: false,
+  polling: false,
+  writeEpoch: 0,       // bumped when a write response is applied, so an older poll cannot overwrite it
+  pending: [],         // unconfirmed changes {night, slot, party_id} drawn on top of the state
+  walking: {},         // "night|slot" keys of beds whose figure is still on its way (drawBed leaves them empty)
+  walks: [],           // the walks in progress, one per tap: {start, items: [{key, node, from, to}]}
+  walkFrame: 0,        // id of the requested animation frame, 0 when none
+  selectedBed: null,   // id of the bed whose sheet is open
+  move: null,          // move mode: {partyId, fromSlot, all}
+  suppressClick: false, // set by a long press so that its click does not open the sheet
+  tipTimer: null,
+  toastTimer: null,
+  panel: null,
+  layoutKey: null,
+  layers: null,
+  view: null,          // the visible window of the map (zoom and pan), see the zoom functions in the logic script
+  bounds: null,        // the whole viewport in scene units: the scene plus the grass around it (fitBounds)
+  insetProbe: null,
+  refit: null,         // recomputes the bounds after the viewport or the move bar changed
+  svg: null,
+  zoomReset: null,
+  zoomCleanup: null,
+  gestureId: 0,        // bumped when a pinch or a drag starts, so pending long-press timers give up
+  gestureAt: 0,        // when a pinch or Safari gesture last did something
+  navKeyAt: 0,         // when a key that moves focus (not Enter, Space or Escape) was last pressed
+  sceneSize: null,
+  pinching: false,     // two or more fingers are down on the map
+  blockClick: false,   // a drag just ended: its click must not count as a tap
+  ageNode: null,
+  ageMax: 0
+};
+// The role from /api/join is kept for T-009 (admin). Nothing uses it yet.
+app.role = storage.get(KEYS.role);
+
+function $(id) { return document.getElementById(id); }
+
+// The scene and its hidden text summary are shown and hidden together.
+function showScene(on) {
+  $("scene").hidden = !on;
+  $("srSummary").hidden = !on;
+}
+
+function htmlEl(tag, attrs, text) {
+  var node = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function svgEl(parent, tag, attrs, text) {
+  var node = document.createElementNS(SVG_NS, tag);
+  if (attrs) Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+  if (text !== undefined) node.textContent = text;
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+function clearNode(node) {
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+// --- requests ---
+
+function request(method, path, body, etag) {
+  var headers = { "Accept": "application/json", "X-Client-Id": clientId };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (etag) headers["If-None-Match"] = etag;
+  return fetch(path, {
+    method: method,
+    headers: headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",      // the browser then hands the 304 to this code
+    credentials: "same-origin"
+  }).then(function (res) {
+    var etagOut = res.headers.get("ETag");
+    if (res.status === 304) return { status: 304, json: null, etag: etagOut };
+    return res.json().then(
+      function (json) { return { status: res.status, json: json, etag: etagOut }; },
+      function () { return { status: res.status, json: null, etag: null }; }
+    );
+  });
+}
+
+// A write for the bed actions (T-006) and the party form (T-007). It applies the `state` that
+// comes with a success and with an error (so the page rolls back to the server's truth) and
+// resolves to {ok, status, error, json}. `error` is undefined for a network failure (status 0).
+// `ops` are the pending changes of this write: they are dropped just before the answer is applied.
+function write(method, path, body, ops) {
+  function settle() {
+    if (ops) app.pending = app.pending.filter(function (op) { return ops.indexOf(op) === -1; });
+  }
+  return request(method, path, body).then(function (r) {
+    settle();
+    if (r.status === 401) showCodeScreen();
+    var ok = r.status === 200 && r.json && r.json.ok;
+    if (r.json && r.json.state) {
+      app.writeEpoch++;
+      // A write response has no ETag header, so forget the old one and let the poll below fetch the
+      // new one. The poll after that gets a 304.
+      app.etag = r.etag || null;
+      applyState(r.json.state);
+      if (ok) poll();
+    } else {
+      render();
+    }
+    if (ok) return { ok: true, status: r.status, error: undefined, json: r.json };
+    return { ok: false, status: r.status, error: r.json ? r.json.error : undefined, json: r.json };
+  }, function () {
+    settle();
+    render();
+    return { ok: false, status: 0, error: undefined, json: null };
+  });
+}
+
+function poll() {
+  if (app.codeOpen || app.polling) return Promise.resolve();
+  app.polling = true;
+  var epoch = app.writeEpoch;
+  return request("GET", "api/state", undefined, app.etag).then(function (r) {
+    if (r.status === 401) { showCodeScreen(); return; }
+    if (epoch !== app.writeEpoch) return;   // a write finished meanwhile and its state is newer
+    if (r.status === 304) {
+      app.fetchedAt = Date.now();
+      renderAge();
+    } else if (r.status === 200 && r.json && r.json.ok && r.json.state) {
+      app.etag = r.etag;
+      applyState(r.json.state);
+    }
+  }).catch(function () {
+    // Offline or a bad reply: keep what is shown and try again on the next tick.
+  }).then(function () {
+    app.polling = false;
+    if (!app.state && !app.codeOpen) {
+      $("bootText").textContent = "Nepodarilo sa načítať, skúšam znova…";
+      $("boot").classList.add("boot--error");
+      setTimeout(poll, 4000);
+    }
+  });
+}
+
+// --- applying state ---
+
+function applyState(state) {
+  app.state = state;
+  app.fetchedAt = Date.now();
+  if (app.night === null || state.event.nights.indexOf(app.night) === -1) app.night = state.event.nights[0];
+  document.title = state.event.name;
+  if (app.myParty && !partyById(state, app.myParty)) {
+    forgetMyParty();
+    app.askWho = true;
+  }
+  if (app.move && !partyById(state, app.move.partyId)) app.move = null;
+  if (!app.introDone) {
+    revealWhenReady();
+    return;
+  }
+  render();
+  openWhoIfAsked();
+  if (app.panel && app.panel.refresh) app.panel.refresh();
+}
+
+function openWhoIfAsked() {
+  if (!app.askWho || splash.falling) return;      // during the fall „Kto si?“ waits; the end of the fall asks again
+  app.askWho = false;
+  openWho();
+}

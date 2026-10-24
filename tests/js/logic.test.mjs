@@ -1,5 +1,5 @@
-// Tests of the pure page logic. They extract <script id="logic"> from static/index.html and run it
-// in node:vm, with no DOM and no browser globals.
+// Tests of the pure page logic. They load the logic-*.js files that static/index.html lists (in that order)
+// into one node:vm context, with no DOM and no browser globals.
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
@@ -8,10 +8,21 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const html = fs.readFileSync(path.join(root, "static", "index.html"), "utf8");
-const logicMatch = html.match(/<script id="logic">([\s\S]*?)<\/script>/);
-assert.ok(logicMatch, "the page must have a <script id=\"logic\"> block");
-const logicSource = logicMatch[1];
+const pageFile = fs.readFileSync(path.join(root, "static", "index.html"), "utf8");
+const scriptTags = [...pageFile.matchAll(/<script src="(static\/js\/[\w-]+\.js)(?:\?v=__ASSET_VERSION__)"><\/script>/g)].map((m) => m[1]);
+const readScripts = (prefix) => scriptTags.filter((f) => path.basename(f).startsWith(prefix)).map((f) => fs.readFileSync(path.join(root, f), "utf8")).join("\n");
+assert.ok(scriptTags.some((f) => path.basename(f).startsWith("logic-")), "the page must load at least one static/js/logic-*.js file");
+const logicSource = readScripts("logic-");
+const appSource = readScripts("app-");
+
+// The page with its script files put back inline (<script id="logic">, <script id="app">), so that the source
+// checks below can read markup, CSS and code in one string, wherever the code lives on disk. The app files are
+// indented by two spaces, the way the code was when it lived in one function, because the checks match on it.
+const indent = (text) => text.replace(/^(?=.)/gm, "  ");
+const html = pageFile
+  .replace(/<script src="static\/js\/logic-[^>]*><\/script>\n?/g, "")
+  .replace(/<script src="static\/js\/app-[^>]*><\/script>\n?/g, "")
+  .replace("</body>", () => `<script id="logic">\n${logicSource}\n</script>\n<script id="app">\n${indent(appSource)}\n</script>\n</body>`);
 
 // An empty context: any touch of document or window would throw a ReferenceError.
 const L = vm.createContext({});
@@ -2566,4 +2577,23 @@ test("roofRows is a stepped trapezoid with a 4 px overhang that sits on the top 
 test("roofRect and chimneyRect follow the outline", () => {
   assert.deepEqual(plain(L.roofRect([118, 212, 254, 124])), [114, 196, 262, 16]);
   assert.deepEqual(plain(L.chimneyRect([118, 212, 254, 124], 164)), [164, 192, 6, 10]);
+});
+
+test("page: every script file parses on its own and the page keeps no inline script", () => {
+  assert.doesNotMatch(pageFile, /<script(?![^>]*\bsrc=)[^>]*>/);
+  scriptTags.forEach((file) => {
+    const source = fs.readFileSync(path.join(root, file), "utf8");
+    assert.doesNotThrow(() => new vm.Script(source, { filename: file }), file);
+  });
+  const names = scriptTags.map((f) => path.basename(f));
+  assert.equal(names.length, new Set(names).size, "a script is listed twice");
+  assert.deepEqual(names, [...names.filter((n) => n.startsWith("logic-")), ...names.filter((n) => n.startsWith("app-"))], "logic files load before app files");
+  assert.equal(names.at(-1), "app-start.js", "app-start.js runs the first poll, so it loads last");
+  const onDisk = fs.readdirSync(path.join(root, "static", "js")).sort();
+  assert.deepEqual([...names].sort(), onDisk, "every file in static/js is loaded by the page, and the other way round");
+  scriptTags.forEach((file) => {
+    if (path.basename(file).startsWith("app-")) {
+      assert.match(fs.readFileSync(path.join(root, file), "utf8"), /^"use strict";/, file + " must start with use strict");
+    }
+  });
 });

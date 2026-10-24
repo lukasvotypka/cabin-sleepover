@@ -27,7 +27,7 @@ from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
 from pydantic import BaseModel, ConfigDict, StringConstraints
@@ -351,6 +351,42 @@ def _first_failing_field(exc: RequestValidationError) -> str | None:
     return None
 
 
+ASSET_VERSION_PLACEHOLDER = "__ASSET_VERSION__"
+
+
+class PageRenderer:
+    """Serves `static/index.html` with the placeholder in its script URLs replaced by a content hash.
+
+    The page loads its scripts as `static/js/x.js?v=<hash>`. The hash changes whenever any file in
+    `static/js/` or the page itself changes, so a browser never runs a stale script after an edit.
+    The result is cached until a file's modification time or size changes (no restart needed in development).
+    """
+
+    def __init__(self, static_dir: Path) -> None:
+        self._index = static_dir / "index.html"
+        self._scripts = static_dir / "js"
+        self._signature: tuple[Any, ...] | None = None
+        self._html = ""
+
+    def _files(self) -> list[Path]:
+        scripts = sorted(self._scripts.rglob("*.js")) if self._scripts.is_dir() else []
+        return [self._index, *scripts]
+
+    def render(self) -> str:
+        files = self._files()
+        signature = tuple((str(f), f.stat().st_mtime_ns, f.stat().st_size) for f in files)
+        if signature != self._signature:
+            digest = hashlib.sha256()
+            for f in files:
+                digest.update(f.name.encode("utf-8"))
+                digest.update(f.read_bytes())
+            version = digest.hexdigest()[:12]
+            html = self._index.read_text(encoding="utf-8")
+            self._html = html.replace(ASSET_VERSION_PLACEHOLDER, version)
+            self._signature = signature
+        return self._html
+
+
 def create_app(
     config_dir: str | Path = ROOT / "config",
     data_dir: str | Path = ROOT / "data",
@@ -411,9 +447,11 @@ def create_app(
             with_state=_auth_of(request) is not None,
         )
 
+    page = PageRenderer(static_dir)
+
     @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
-    async def index() -> FileResponse:
-        return FileResponse(index_file, media_type="text/html", headers={"Cache-Control": "no-cache"})
+    async def index() -> HTMLResponse:
+        return HTMLResponse(page.render(), headers={"Cache-Control": "no-cache"})
 
     @app.api_route("/api/health", methods=["GET", "HEAD"])
     async def health() -> dict[str, bool]:
