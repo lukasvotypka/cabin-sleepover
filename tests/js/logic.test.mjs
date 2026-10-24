@@ -367,7 +367,7 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(readScripts("app-hud"), /return storage\.get\(QUEST_KEY\) === "1";/, "folded by default");
   assert.ok(scriptTags.indexOf("static/js/app-hud.js") > -1 && scriptTags.indexOf("static/js/app-hud.js") < scriptTags.indexOf("static/js/app-start.js"));
   assert.match(pageFile, /\.hud \{[^}]*z-index: 12/);
-  assert.match(pageFile, /\.zoom-reset \{[^}]*var\(--hud-h/);
+  assert.match(pageFile, /\.zoom-reset \{[^}]*bottom: calc\(18px \+ env\(safe-area-inset-bottom, 0px\)\)/);
   assert.match(pageFile, /#toast \{[^}]*var\(--hud-h/);
   assert.ok(!/innerHTML/.test(readScripts("app-hud")), "human text goes in via textContent");
 });

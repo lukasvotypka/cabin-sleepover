@@ -63,7 +63,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg:focus:not(:focus-visible) { outline: none; }     /* a mouse press focuses the svg: no ring around the whole screen */
 #scene svg:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
 .zoom-reset {
-  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(8px + max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px))); min-width: 44px; min-height: 44px; padding: 6px 12px;
+  /* in line with the name plate of the crest (HUD): same bottom edge (crest offset 8px + plate margin 10px) and height */
+  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); min-width: 44px; min-height: 44px; padding: 6px 12px;
   background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
   font-weight: 700; cursor: pointer; touch-action: manipulation;
 }
@@ -215,7 +216,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .quest-bang { margin-left: auto; padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 10px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
 .crest {
   position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  display: flex; align-items: flex-end; max-width: calc(100% - 16px);
+  display: flex; align-items: flex-end; max-width: calc(100% - 140px);      /* leaves room for „Celá mapa“ beside it */
 }
 .crest-shield { flex: none; display: block; position: relative; z-index: 1; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, .3)); }
 .crest-plate {
