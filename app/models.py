@@ -151,6 +151,7 @@ class SceneRects(_Model):
     key: Rect
     legend: Rect
     parties: Rect
+    days: Rect
     meadow: Rect
 
 

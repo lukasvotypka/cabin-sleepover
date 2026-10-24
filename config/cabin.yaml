@@ -5,7 +5,7 @@ event:
   nights:      ["2026-10-29", "2026-10-30", "2026-10-31"]
 
 map:
-  viewbox: [380, 428]
+  viewbox: [380, 492]
   paths:   [[240, 332, 16, 96], [60, 412, 196, 12], [84, 174, 12, 176], [96, 296, 24, 12]]
   doors:   [[218, 256, 4, 20], [264, 256, 4, 20], [238, 332, 20, 4], [80, 172, 20, 6], [80, 350, 20, 4]]
   windows: [[186, 212, 24, 4], [300, 212, 24, 4]]
@@ -19,6 +19,7 @@ map:
     key:    [184, 352, 44, 44]   # key icon, admin only
     legend: [24, 264, 44, 44]    # „Kto je kto“ icon, party color legend
     parties: [176, 112, 148, 82] # table of parties and their places per night (shown when the noticeboard is collapsed)
+    days:   [16, 440, 220, 48]   # board with the day visitors per day (shown only when there are some)
     meadow: [112, 397, 124, 14]  # meadow where people of my party without a bed wait
 
 rooms:

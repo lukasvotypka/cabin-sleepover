@@ -179,8 +179,8 @@ function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) 
 }
 
 var MEADOW_HIT_H = 44;   // touch target height in scene units
-// Hit rect of the meadow button: starts at the meadow top (below the letter and key icons) and reaches down past
-// the scene bottom into the grass that taller phones show around it (fitBounds), so it is 44 units tall.
+// Hit rect of the meadow button: starts at the meadow top (below the letter and key icons) and is 44 units tall,
+// taller than the meadow itself, so no other scene board may sit within it (tests/test_map_layout.py checks this).
 function meadowHitRect(meadow) {
   return [meadow[0], meadow[1] - 1, meadow[2], MEADOW_HIT_H];
 }

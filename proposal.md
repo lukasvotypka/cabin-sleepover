@@ -422,7 +422,7 @@ Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a n
 - [ ] **Stavať fázu 2 (admin, AI)?** Predvolene nie, kým organizátor nepotvrdí po vyskúšaní fázy 1.
 - [ ] **Denné návštevy, počet „na jedlo“ (T-039):** predvolene pre deň D = dospelí + deti všetkých partií s `arrive ≤ D ≤ leave` (ráta sa deň príchodu aj deň odchodu) plus dospelí + deti denných hostí s D v `day_visits`. Deti v rodičovskej posteli sa rátajú, `places` sa ignoruje. Alternatíva: iba ľudia, čo spali predchádzajúcu noc (`arrive < D ≤ leave`), plus denní hostia.
 - [ ] **Denné návštevy, dni bez hostí (T-039):** predvolene sa v „Prehľade na poslanie“ deň bez denného hosťa nevypíše a nemá ani počet „na jedlo“.
-- [ ] **Denné návštevy, tabuľa „Cez deň“ v scéne (T-041):** predvolene pod dolným chodníkom (`map.scene.days: [16, 432, 220, 48]`, scéna sa zväčší na `viewbox: [380, 488]`), kreslí sa iba keď je aspoň jeden denný hosť, ťuknutie otvorí „Kto je kto“.
+- [ ] **Denné návštevy, tabuľa „Cez deň“ v scéne (T-041):** predvolene pod dolným chodníkom (`map.scene.days: [16, 440, 220, 48]`, scéna sa zväčší na `viewbox: [380, 492]`), kreslí sa iba keď je aspoň jeden denný hosť, ťuknutie otvorí „Kto je kto“.
 - [ ] **Denné návštevy, tabuľka partií v scéne (T-040):** predvolene v nej denní hostia nie sú (nemajú noci), sú v „Kto je kto“ a na tabuli „Cez deň“.
 - [ ] **Denné návštevy, tabuľka „Si: …“ (T-037):** predvolene zelená „Prídeš len cez deň“ namiesto „Všetko máš“.
 - [ ] **Denné návštevy, deti v rodičovskej posteli (T-036):** predvolene musí byť 0, inak `invalid` (`day_only_kids_in_bed`); formulár pri dennej návšteve pole skryje a pošle 0.

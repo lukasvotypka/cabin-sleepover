@@ -155,7 +155,7 @@ function renderSummary() {
   host.appendChild(htmlEl("h3", null, "Kto kde spí po nociach"));
   var parties = htmlEl("ul");
   var lines = partyTableSummary(app.state, app.myParty);
-  if (!lines.length) lines = ["Zatiaľ tu nikto nie je."];
+  if (!lines.length) lines = [partyTableEmptyText(app.state)];
   lines.forEach(function (line) { parties.appendChild(htmlEl("li", null, line)); });
   host.appendChild(parties);
   if (h.dayVisits.length) {
@@ -186,6 +186,7 @@ function drawBoards() {
   drawStatus(g, scene.status, state);
   drawLetter(g, scene.letter);
   drawLegend(g, scene.legend);
+  drawDays(g, scene.days, state);
   renderAge();
 }
 
@@ -217,6 +218,26 @@ function drawLegend(parent, r) {
   });
   hitRect(g, r);
   makeButton(g, "Kto je kto. Ťuknutím uvidíš všetkých a ich farby.", "legend", function () { openLegend("legend"); });
+}
+
+// The board of the day visitors on the grass, drawn only when some party comes just for the day. A small
+// sun (rects) next to the heading, then a monospace line per day. The whole rect opens „Kto je kto“.
+function drawDays(parent, r, state) {
+  var lines = daySignLines(state, DAY_SIGN_CHARS);
+  if (!lines.length) return;
+  var g = svgEl(parent, "g");
+  board(g, r, COLORS.paper, COLORS.woodDark);
+  var x = r[0] + 9, y = r[1];
+  // the sun: four rays and a core
+  rect(g, x + 3, y + 4, 1, 5, COLORS.amberEdge);
+  rect(g, x + 1, y + 6, 5, 1, COLORS.amberEdge);
+  rect(g, x + 2, y + 5, 3, 3, COLORS.highlight);
+  addText(g, x + 12, y + 11, lines[0], 8, COLORS.ink, { bold: true, maxWidth: r[2] - 30 });
+  lines.slice(1, 5).forEach(function (line, i) {
+    addText(g, x, y + 19 + i * 7.5, line, 6.5, COLORS.ink, { maxWidth: r[2] - 18 });
+  });
+  hitRect(g, r);
+  makeButton(g, daySignLabel(state), "days", function () { openLegend("days"); });
 }
 
 function drawTitle(parent, r, state) {

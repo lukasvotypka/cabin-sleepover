@@ -33,6 +33,7 @@ SCENE = {
     "key": [184, 352, 44, 44],
     "legend": [24, 264, 44, 44],
     "parties": [176, 112, 148, 82],
+    "days": [16, 440, 220, 48],
     "meadow": [112, 397, 124, 14],
 }
 
@@ -48,7 +49,7 @@ def test_cabin_yaml_matches_proposal(layout):
     assert layout.event.nights == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.arrive_days == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.leave_days == ["2026-10-30", "2026-10-31", "2026-11-01"]
-    assert layout.map.viewbox == [380, 428]
+    assert layout.map.viewbox == [380, 492]
 
 
 def test_cabin_yaml_dates_are_quoted_strings():
