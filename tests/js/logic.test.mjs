@@ -2801,3 +2801,87 @@ test("meadowButtonLabel: singular address and plurals", () => {
   assert.equal(L.meadowButtonLabel(5), "5 z vás ešte nemá posteľ. Ťuknutím otvoríš možnosti.");
   assert.equal(L.meadowButtonLabel(0), "");
 });
+
+// --- day visits (T-037) ---
+
+const FOURTH = "2026-11-01";
+const dayOnly = (over = {}) => party({ id: "p-dddddd", name: "Jakub", arrive: null, leave: null, day_visits: [FRI], ...over });
+
+test("isDayOnly: day visits and no arrive", () => {
+  assert.equal(L.isDayOnly(dayOnly()), true);
+  assert.equal(L.isDayOnly(party()), false);
+  assert.equal(L.isDayOnly(party({ day_visits: [] })), false);
+  assert.equal(L.isDayOnly(dayOnly({ arrive: undefined, leave: undefined })), true);
+  assert.equal(L.isDayOnly(dayOnly({ day_visits: [] })), false);
+  assert.equal(L.isDayOnly(null), false);
+});
+
+test("a day-only party is never present and needs nothing", () => {
+  const p = dayOnly({ adults: 2, kids: 1 });
+  const s = stateWith([p]);
+  [THU, FRI, SAT].forEach((n) => {
+    assert.equal(L.isPresent(p, n), false);
+    assert.equal(L.neededOnNight(p, n), 0);
+    assert.equal(L.missingPlaces(s, p, n), 0);
+    assert.equal(L.extraPlaces(s, p, n), 0);
+    assert.equal(L.nightTally(s, p, n).kind, "absent");
+    assert.equal(L.tallyChipText(L.nightTally(s, p, n)), "nie si tu");
+    assert.deepEqual(plain(L.waitingFigures(s, p, n)), []);
+    assert.equal(L.placesPanelInfo(s, p, n), null);
+    assert.equal(L.fewerPlacesAction(s, p, n), null);
+  });
+  assert.equal(L.isPresent(dayOnly({ arrive: undefined, leave: undefined }), THU), false);
+});
+
+test("defaultNightFor a day-only party is the first night", () => {
+  assert.equal(L.defaultNightFor(dayOnly(), [THU, FRI, SAT]), THU);
+  assert.equal(L.defaultNightFor(dayOnly({ arrive: undefined }), [THU, FRI, SAT]), THU);
+});
+
+test("myPartyStatus of a day-only party without beds is ok", () => {
+  const p = dayOnly();
+  assert.deepEqual(plain(L.myPartyStatus(stateWith([p]), p, THU)), { kind: "ok", night: null, count: 0, text: "Prídeš len cez deň" });
+});
+
+test("eventDays and dayLabel", () => {
+  assert.deepEqual(plain(L.eventDays(event)), [THU, FRI, SAT, FOURTH]);
+  assert.deepEqual(plain(L.eventDays({ arrive_days: ["x"], leave_days: [FOURTH] })), []);
+  assert.deepEqual(plain(L.eventDays(null)), []);
+  assert.equal(L.dayLabel(FRI), "Pi 30. 10.");
+  assert.equal(L.dayLabel(FOURTH), "Ne 1. 11.");
+  assert.equal(L.dayLabel(THU), "Št 29. 10.");
+  assert.equal(L.dayLabel("x"), "");
+});
+
+test("freedByStay with no stay frees every slot of the party", () => {
+  const p = dayOnly();
+  const s = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]), [SAT]: Object.assign(hold(p.id, ["left-window-1"]), { "left-double-1": "p-other" }) });
+  assert.deepEqual(plain(L.freedByStay(s, p.id, null, null)), [
+    { night: THU, slot: "left-double-1" }, { night: SAT, slot: "left-window-1" }
+  ]);
+});
+
+test("notPresentNote: day-only gets its own text", () => {
+  assert.equal(L.notPresentNote(dayOnly(), THU), "Prídeš len cez deň, posteľ nepotrebuješ.");
+  assert.equal(L.notPresentNote(party({ arrive: FRI }), THU), "Vo štvrtok nie si na chate.");
+});
+
+test("day visit reason texts and field name", () => {
+  const text = (reason) => L.errorText({ code: "invalid", message: "x", params: { reason } }, stateWith([]));
+  assert.equal(text("stay_mode_mixed"), "Vyber buď príchod a odchod, alebo dni návštevy, nie oboje.");
+  assert.equal(text("day_visits_empty"), "Vyber aspoň jeden deň, keď prídeš.");
+  assert.equal(text("stay_incomplete"), "Vyber príchod aj odchod.");
+  assert.equal(text("duplicate_day"), "Každý deň vyber len raz.");
+  assert.equal(text("day_outside_event"), "Tento deň nie je v termíne chaty.");
+  assert.equal(text("day_only_kids_in_bed"), "Keď prídeš len cez deň, deti v rodičovskej posteli nechaj na 0.");
+  assert.equal(L.errorText({ code: "invalid", params: { field: "day_visits" } }), "Skontroluj pole „dni návštevy“.");
+});
+
+test("not_present for a day-only party says it needs no bed", () => {
+  const p = dayOnly(), o = party();
+  const s = stateWith([p, o]);
+  assert.equal(L.errorText({ code: "not_present", params: { night: THU, party_id: p.id } }, s),
+    "„Jakub“ prichádza len cez deň a posteľ nepotrebuje.");
+  assert.equal(L.errorText({ code: "not_present", params: { night: THU, party_id: o.id } }, s),
+    "„Ivan a Eva“ vo štvrtok nie je na chate. Uprav príchod alebo odchod.");
+});

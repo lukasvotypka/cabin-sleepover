@@ -171,7 +171,7 @@ function partyTableSummary(state, myPartyId) {
 function freedByStay(state, partyId, arrive, leave) {
   var order = slotIds(state.layout), out = [];
   Object.keys(state.sleeping || {}).sort().forEach(function (night) {
-    if (arrive <= night && night < leave) return;
+    if (arrive && leave && arrive <= night && night < leave) return;   // null = day-only: keep nothing
     var held = state.sleeping[night];
     order.forEach(function (slot) {
       if (held[slot] === partyId) out.push({ night: night, slot: slot });

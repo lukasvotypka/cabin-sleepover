@@ -39,6 +39,25 @@ function addDays(iso, n) {
   return t.getUTCFullYear() + "-" + two(t.getUTCMonth() + 1) + "-" + two(t.getUTCDate());
 }
 
+// Every day of the event as ISO dates, from the first arrive day to the last leave day (day visits pick from these).
+function eventDays(event) {
+  var first = event && event.arrive_days && event.arrive_days[0];
+  var last = event && event.leave_days && event.leave_days[event.leave_days.length - 1];
+  if (!parseIso(first) || !parseIso(last)) return [];
+  var out = [], day = first;
+  while (day && day <= last && out.length < 366) {
+    out.push(day);
+    day = addDays(day, 1);
+  }
+  return out;
+}
+
+// "Pi 30. 10." for an ISO day ("" for a bad date).
+function dayLabel(iso) {
+  var p = parseIso(iso);
+  return p ? DAY_SHORT[p.dow] + " " + p.d + ". " + p.m + "." : "";
+}
+
 // "29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)" from the first arrive day and the last leave day.
 function eventDateText(event) {
   var first = event && event.arrive_days && parseIso(event.arrive_days[0]);
@@ -233,12 +252,19 @@ function partyById(state, id) {
 
 // The night the map shows when a party is picked: its arrival night, else the first event night.
 function defaultNightFor(party, nights) {
-  if (party && party.arrive && nights.indexOf(party.arrive) !== -1) return party.arrive;
+  if (party && !isDayOnly(party) && party.arrive && nights.indexOf(party.arrive) !== -1) return party.arrive;
   return nights[0];
 }
 
-// A party is present on night n if arrive <= n < leave (ISO dates compare as text).
+// A day-only party comes for the day (`day_visits`) and never sleeps: it has no arrive and no leave.
+function isDayOnly(party) {
+  return !!party && Array.isArray(party.day_visits) && party.day_visits.length > 0 && !party.arrive;
+}
+
+// A party is present on night n if arrive <= n < leave (ISO dates compare as text). A day-only party
+// (no arrive or leave) is never present; null must not reach the comparison, `null <= "2026-10-29"` is true.
 function isPresent(party, night) {
+  if (!party.arrive || !party.leave) return false;
   return party.arrive <= night && night < party.leave;
 }
 
@@ -349,6 +375,7 @@ function myPartyStatus(state, party, night) {
       return { kind: "extra", night: nights[i], count: n, text: "Máš o " + pluralPlaces(n) + " viac, než potrebuješ" };
     }
   }
+  if (isDayOnly(party)) return { kind: "ok", night: null, count: 0, text: "Prídeš len cez deň" };
   var lowered = placesUndoInfo(state, party, night);
   if (lowered) {
     return { kind: "fewer", night: night, count: lowered.needed, full: lowered.full, text: dayShort(night) + ": len " + lowered.needed + " z " + lowered.full };

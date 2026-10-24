@@ -311,6 +311,11 @@ function notPresentText(night) {
   return capitalize(dayLocative(night)) + " nie si na chate.";
 }
 
+// The note for the disabled assign actions: a day-only party needs no bed at all.
+function notPresentNote(party, night) {
+  return isDayOnly(party) ? "Prídeš len cez deň, posteľ nepotrebuješ." : notPresentText(night);
+}
+
 // Shown in the bed panel when the selected party already has everything it needs that night, so the
 // tap about to happen would add an extra place — usually a sign the wrong party is still selected.
 function enoughAlreadyText(partyName) {

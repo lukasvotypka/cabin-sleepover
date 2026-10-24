@@ -76,7 +76,7 @@ function openBedSheet(room, bed) {
       box.appendChild(assign);
       box.appendChild(stay);
       if (party && !present) {
-        box.appendChild(htmlEl("p", { "class": "note" }, notPresentText(night)));
+        box.appendChild(htmlEl("p", { "class": "note" }, notPresentNote(party, night)));
         box.appendChild(button("Upraviť príchod a odchod", "edit-party", function () {
           closePanel();
           openPartyForm(party, { returnKey: "bed-" + bed.id });

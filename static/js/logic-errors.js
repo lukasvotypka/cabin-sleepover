@@ -9,13 +9,19 @@ var REASON_TEXTS = {
   leave_not_after_arrive: "Odchod musí byť po príchode.",
   name_empty: "Napíš meno.",
   color_too_light: "Táto farba je príliš svetlá, postavičku by na posteli nebolo vidno. Vyber tmavšiu.",
+  stay_mode_mixed: "Vyber buď príchod a odchod, alebo dni návštevy, nie oboje.",
+  day_visits_empty: "Vyber aspoň jeden deň, keď prídeš.",
+  stay_incomplete: "Vyber príchod aj odchod.",
+  duplicate_day: "Každý deň vyber len raz.",
+  day_outside_event: "Tento deň nie je v termíne chaty.",
+  day_only_kids_in_bed: "Keď prídeš len cez deň, deti v rodičovskej posteli nechaj na 0.",
   places_out_of_range: "Počet miest nesedí. Obnov stránku a skús to znova.",
   color_too_dark: "Táto farba je príliš tmavá, postavičku by na posteli nebolo vidno. Vyber svetlejšiu."
 };
 
 var FIELD_NAMES = {
   name: "meno", adults: "počet dospelých", kids: "počet detí", kids_in_parents_bed: "deti spiace s rodičmi",
-  arrive: "príchod", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka", color: "farba",
+  arrive: "príchod", day_visits: "dni návštevy", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka", color: "farba",
   night: "noc", nights: "noci", slot: "miesto", slots: "miesta", from_slot: "miesto", to_slot: "miesto",
   party_id: "výber, kto si", code: "kód"
 };
@@ -58,6 +64,7 @@ var ERROR_TEXTS = {
   not_present: function (p, state) {
     var when = dayLocative(paramText(p, "night"));
     var who = partyNameFrom(p, state);
+    if (who && isDayOnly(partyById(state, paramText(p, "party_id")))) return "„" + who + "“ prichádza len cez deň a posteľ nepotrebuje.";
     return (who ? "„" + who + "“ " + (when ? when : "v túto noc") + " nie je" : "Nikto z vás nie je " + (when ? when : "v túto noc")) +
       " na chate. Uprav príchod alebo odchod.";
   },
