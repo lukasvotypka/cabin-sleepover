@@ -20,6 +20,7 @@ import logging
 import os
 import secrets
 import time
+import tomllib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -392,6 +393,18 @@ class PageRenderer:
         return self._html
 
 
+def read_version(pyproject: Path) -> str:
+    """Return `[project].version` from pyproject.toml, or "unknown" (with one warning) if unavailable."""
+    try:
+        version = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+        if isinstance(version, str) and version:
+            return version
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    log.warning("App version unavailable: no [project].version in %s", pyproject)
+    return "unknown"
+
+
 def create_app(
     config_dir: str | Path = ROOT / "config",
     data_dir: str | Path = ROOT / "data",
@@ -399,6 +412,7 @@ def create_app(
     env: Mapping[str, str] | None = None,
     clock: Callable[[], float] = time.time,
     monotonic: Callable[[], float] = time.monotonic,
+    pyproject: str | Path = ROOT / "pyproject.toml",
 ) -> FastAPI:
     """Build the app. Raises `ConfigError` or `StartupError` with a precise message when something is wrong.
 
@@ -453,14 +467,15 @@ def create_app(
         )
 
     page = PageRenderer(static_dir)
+    version = read_version(Path(pyproject))
 
     @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     async def index() -> HTMLResponse:
         return HTMLResponse(page.render(), headers={"Cache-Control": "no-cache"})
 
     @app.api_route("/api/health", methods=["GET", "HEAD"])
-    async def health() -> dict[str, bool]:
-        return {"ok": True}
+    async def health() -> dict[str, bool | str]:
+        return {"ok": True, "version": version}
 
     @app.post("/api/join")
     async def join(request: Request, body: JoinRequest) -> JSONResponse:

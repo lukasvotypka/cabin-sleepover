@@ -22,6 +22,7 @@ RUN useradd --system --uid 1000 --no-create-home --shell /usr/sbin/nologin cabin
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 # Only what the app needs (.dockerignore keeps .env, data/, files/, tests/, tasks/ and .git out of the build).
+COPY pyproject.toml ./pyproject.toml
 COPY app ./app
 COPY static ./static
 COPY config ./config

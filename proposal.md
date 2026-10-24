@@ -157,7 +157,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | Metóda | Cesta | Prístup | Čo robí |
 | --- | --- | --- | --- |
 | GET | `/` | verejné | `static/index.html` |
-| GET | `/api/health` | verejné | `{ok: true}` na kontrolu nasadenia |
+| GET | `/api/health` | verejné | `{ok: true, version}` na kontrolu nasadenia (verzia z `pyproject.toml`) |
 | POST | `/api/join` | verejné | `{code}` → nastaví cookie skupiny alebo admina, vráti rolu |
 | GET | `/api/state` | skupina | Celý stav, s `ETag` podľa `version` |
 | POST | `/api/assign` | skupina | `{night, slots[], party_id}`: zapíše partiu na voľné miesta, buď všetky, alebo žiadne. Partia musí byť v tú noc prítomná |

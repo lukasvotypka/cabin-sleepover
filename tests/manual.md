@@ -9,6 +9,7 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 ## 1. Deploy, server and files
 
 - [ ] **Clean server:** following only `README.md` (install Docker, clone, supply the three secrets as environment variables, create `data/` with the right owner, `docker compose up -d --build`, add Caddy), the container becomes „healthy“ and the page opens. Note anything in the README that was wrong or missing.
+- [ ] **Version after deploy:** after `docker compose up -d --build` on the server, `curl -s http://127.0.0.1:8010/api/health` returns `{"ok":true,"version":"<the version in pyproject.toml>"}` (not `unknown`), and the image builds with `pyproject.toml` present (T-035; Docker build not run by the tester).
 - [ ] **HTTPS works:** `https://<host>/` opens with a valid certificate, `http://` redirects to it, and the page works on a phone over mobile data.
 - [ ] **Final URL and sub-path:** under the real URL (and, if used, a sub-path such as `/cabin/`) the page loads and the `api/...` calls work (relative paths).
 - [ ] **Non-root, read-only container:** `docker compose exec cabin id` shows a non-root user. The app can write `data/` (the first start created `data/cabin-data.yaml` with the right owner), and it cannot write elsewhere (`docker compose exec cabin touch /app/x` fails). `ss -ltn` on the host shows port 8010 only on `127.0.0.1`, never on `0.0.0.0`.

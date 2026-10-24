@@ -4,6 +4,8 @@ import logging
 import re
 import secrets
 import shutil
+import tomllib
+from pathlib import Path
 
 import pytest
 import yaml
@@ -144,6 +146,9 @@ async def test_index_page(client):
     assert 'lang="sk"' in resp.text
 
 
+PROJECT_VERSION = tomllib.loads((Path(__file__).resolve().parent.parent / "pyproject.toml").read_text())["project"]["version"]
+
+
 @pytest.mark.parametrize("path", ["/", "/api/health"])
 async def test_head_is_answered(client, path):
     assert (await client.head(path)).status_code == 200
@@ -152,7 +157,14 @@ async def test_head_is_answered(client, path):
 async def test_health_needs_no_cookie(client):
     resp = await client.get("/api/health")
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True}
+    assert resp.json() == {"ok": True, "version": PROJECT_VERSION}
+
+
+async def test_health_version_unknown_without_pyproject(make_app, make_client, tmp_path, caplog):
+    async with make_client(make_app(pyproject=tmp_path / "missing.toml")) as c:
+        resp = await c.get("/api/health")
+    assert resp.json() == {"ok": True, "version": "unknown"}
+    assert sum("App version unavailable" in r.message for r in caplog.records) == 1
 
 
 SCRIPT_URL = re.compile(r'<script src="(static/js/[\w-]+\.js)\?v=([0-9a-f]{12})"></script>')

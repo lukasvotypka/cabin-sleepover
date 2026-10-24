@@ -124,6 +124,7 @@ What you get: the image is built from the official `python:3.12-slim` with the l
    docker compose up -d --build
    docker compose ps                 # should say "healthy" after a few seconds
    docker compose logs -f            # the app log, also the reason if it refuses to start
+   curl -s http://127.0.0.1:8010/api/health   # {"ok":true,"version":"..."}: must show the version you just released
    ```
 
    The container restarts after a crash and after a reboot (`restart: unless-stopped`). It does not help when the config or the data file is broken: the app refuses to start with an English message in `docker compose logs`, and Docker keeps retrying until you fix the file (see "Fix the data by hand").
