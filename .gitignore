@@ -1,5 +1,6 @@
 data/
 .env
+DEPLOY_PROD.md
 .venv/
 __pycache__/
 *.pyc
