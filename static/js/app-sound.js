@@ -1,7 +1,7 @@
 "use strict";
 
 // App part 11b: the scene sounds (organizer request, 24. 10. 2026). The bird chirps once at a random moment of
-// each flight, and a tap on the tree rustles its leaves in a gust of wind. Synthesized with Web Audio, so there
+// each flight, and a tap on the tree rustles its dry leaves. Synthesized with Web Audio, so there
 // are no sound files. Browsers allow sound only after the first touch, click or key, so the audio starts then;
 // before that the bird is silent. With `prefers-reduced-motion` the bird is hidden and never chirps.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
@@ -85,9 +85,9 @@ function playRustle() {
   var ctx = liveSound();
   if (!ctx) return;
   var t0 = ctx.currentTime + .02;
-  playNoise(ctx, t0, RUSTLE_GUST.dur, RUSTLE_GUST.freq, .6, RUSTLE_GUST.gain, RUSTLE_GUST.dur * .35);
+  playNoise(ctx, t0, RUSTLE_HISS.dur, RUSTLE_HISS.freq, .7, RUSTLE_HISS.gain, .15);
   rustleBursts(Math.random).forEach(function (b) {
-    playNoise(ctx, t0 + b.at, b.dur, b.freq, .9, b.gain, .02);
+    playNoise(ctx, t0 + b.at, b.dur, b.freq, 2.5, b.gain, .003);
   });
 }
 

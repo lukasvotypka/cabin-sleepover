@@ -3377,8 +3377,9 @@ test("sound: the bird chirps while it is over the map, and the chirp and rustle 
     notes.forEach((n) => assert.ok(n.f0 > 1000 && n.f1 > 1000 && n.dur > 0 && n.gain > 0 && n.gain <= 1));
   }
   const bursts = plain(L.rustleBursts(seq([0.2, 0.7, 0.4, 0.9])));
-  assert.ok(bursts.length >= 4 && bursts.length <= 6);
-  bursts.forEach((b) => assert.ok(b.at + b.dur < L.RUSTLE_GUST.dur && b.gain > 0 && b.gain <= 1));
+  assert.ok(bursts.length >= 28 && bursts.length < 40, "many tiny crackles");
+  bursts.forEach((b) => assert.ok(b.dur < 0.05 && b.at + b.dur < L.RUSTLE_HISS.dur && b.gain >= 0 && b.gain <= 1 && b.freq > 2000));
+  bursts.slice(1).forEach((b, i) => assert.ok(b.at >= bursts[i].at, "in time order"));
 });
 
 test("sound: the bird chirps per flight and a tap on the tree rustles it", () => {

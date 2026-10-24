@@ -28,15 +28,17 @@ function chirpNotes(rand) {
   return notes;
 }
 
-// The rustle of the tree when it is tapped: a soft gust of wind under a few bursts of leaves. `at` and `dur`
-// in seconds, `freq` is the centre of the band-pass filter in Hz, `gain` 0 to 1.
-var RUSTLE_GUST = { dur: 1.6, freq: 500, gain: .7 };
+// The rustle of the tree when it is tapped: dry leaves rubbing against each other, a soft hiss under many tiny
+// crackles that swell and die away. `at` and `dur` in seconds, `freq` is the centre of the band-pass filter in Hz,
+// `gain` 0 to 1.
+var RUSTLE_HISS = { dur: 1.1, freq: 5000, gain: .25 };
+var RUSTLE_SPAN_S = .9;
 function rustleBursts(rand) {
-  var count = 4 + Math.floor(rand() * 3), bursts = [], at = .02, i;
+  var count = 28 + Math.floor(rand() * 12), bursts = [], i;
   for (i = 0; i < count; i++) {
-    var dur = .12 + rand() * .22;
-    bursts.push({ at: at, dur: dur, freq: 2500 + rand() * 3000, gain: (.5 + rand() * .5) * (1 - i / (count + 1)) });
-    at += .08 + rand() * .16;
+    var at = .02 + Math.pow(rand(), 1.3) * RUSTLE_SPAN_S;      // denser at the start, thinning out
+    var swell = Math.sin(Math.PI * Math.min(1, at / RUSTLE_SPAN_S + .1));
+    bursts.push({ at: at, dur: .012 + rand() * .035, freq: 2500 + rand() * 5500, gain: (.35 + rand() * .65) * swell });
   }
-  return bursts;
+  return bursts.sort(function (a, b) { return a.at - b.at; });
 }
