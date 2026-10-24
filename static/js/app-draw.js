@@ -272,55 +272,104 @@ function drawNotice(parent, r) {
   makeButton(g, "Návod. Ťuknutím ho otvoríš.", "notice", openNotice);
 }
 
-// The table of all parties under the signposts: a row per party
-// (colour square and name), a column per night with placed/needed places. The whole table is one button
-// that opens „Kto je kto“. The numbers are the same nightTally as on the signpost chips.
-function drawPartyTable(parent, r, state) {
-  var rows = partyTableRows(state, app.myParty), nights = state.event.nights;
-  var lay = partyTableLayout(r, rows.length, nights.length);
-  var g = svgEl(parent, "g");
-  board(g, r, COLORS.paper, COLORS.woodDark);
-  var top = r[1] + lay.pad, innerX = r[0] + lay.pad, innerW = r[2] - 2 * lay.pad;
+// A pixel crescent moon (6x8 units) and a pixel sun (8x8 units) from rects, top left at (x, y).
+function drawMoon(g, x, y) {
+  rect(g, x + 2, y, 4, 1, COLORS.moonDark);
+  rect(g, x + 1, y + 1, 3, 1, COLORS.moon);
+  rect(g, x, y + 2, 3, 4, COLORS.moon);
+  rect(g, x + 1, y + 6, 3, 1, COLORS.moon);
+  rect(g, x + 2, y + 7, 4, 1, COLORS.moonDark);
+  rect(g, x + 4, y + 1, 2, 1, COLORS.moonDark);
+}
 
-  // header row: "Kto" and the night labels; the selected night gets the yellow header
-  nights.forEach(function (night, i) {
-    var info = nightInfo(night) || { label: night };
-    if (night === app.night) rect(g, lay.colX[i], top, lay.colW, lay.head, COLORS.selected);
-    addText(g, lay.colX[i] + lay.colW / 2, top + 7, info.label, 6, COLORS.ink,
+function drawSun(g, x, y) {
+  rect(g, x + 3, y, 1, 8, COLORS.amberEdge);
+  rect(g, x, y + 3, 8, 1, COLORS.amberEdge);
+  rect(g, x + 2, y + 2, 4, 4, COLORS.highlight);
+  [[1, 1], [6, 1], [1, 6], [6, 6]].forEach(function (p) { rect(g, x + p[0], y + p[1], 1, 1, COLORS.amberEdge); });
+}
+
+// The paper table under the signposts, as tall as its rows. Top part „Noc“: a row per overnight party (colour
+// square and name), a column per night with placed/needed places. Bottom part „Cez deň“: a row per day-only
+// party and a column per event day with the number of people, then „spolu na jedlo“. The whole table is one button
+// that opens „Kto je kto“. The night numbers are the same nightTally as on the signpost chips.
+function drawPartyTable(parent, r, state) {
+  var rows = partyTableRows(state, app.myParty), dayRows = dayTableRows(state, app.myParty);
+  var nights = state.event.nights, days = eventDays(state.event);
+  var lay = partyTableLayout(r, rows.length, dayRows.length, nights.length, days.length);
+  var g = svgEl(parent, "g");
+  board(g, [r[0], r[1], r[2], lay.height], COLORS.paper, COLORS.woodDark);
+  var innerX = r[0] + lay.pad, innerW = r[2] - 2 * lay.pad, size = lay.size, hh = lay.head;
+  var night = lay.night, day = lay.day;
+  function base(y) { return y + lay.rowH / 2 + size * 0.35; }
+  function nameCell(y, row, w) {
+    if (row.mine) rect(g, innerX, y, innerW, lay.rowH, COLORS.selected);
+    rect(g, lay.nameX + 2, y + (lay.rowH - 5) / 2, 5, 5, row.color);
+    addText(g, lay.nameX + 10, base(y), row.label, size, COLORS.ink, { bold: row.mine, maxWidth: w - 10 });
+  }
+  function moreLine(y, count) {
+    addText(g, lay.nameX + 3, base(y), moreText(count), size, COLORS.roomLabel, { maxWidth: innerW - 6 });
+  }
+
+  // night part: moon, „Noc“, a header per night (the selected night is yellow)
+  rect(g, innerX, night.headY, innerW, hh, COLORS.moonBand);
+  drawMoon(g, innerX + 2, night.headY + 1);
+  addText(g, innerX + 13, night.headY + 7.5, "Noc", 6.5, COLORS.nightInk, { bold: true });
+  nights.forEach(function (n, i) {
+    var info = nightInfo(n) || { label: n };
+    if (n === app.night) rect(g, night.colX[i], night.headY, lay.colW, hh, COLORS.selected);
+    addText(g, night.colX[i] + lay.colW / 2, night.headY + 7.5, info.label, 6, COLORS.ink,
       { anchor: "middle", bold: true, maxWidth: lay.colW - 2 });
   });
-  addText(g, lay.nameX + 1, top + 7, "Kto", 6, COLORS.ink, { bold: true, maxWidth: lay.nameW - 2 });
-  rect(g, innerX, top + lay.head - 1, innerW, 1, COLORS.woodDark);
-
-  var y0 = top + lay.head;
-  if (!rows.length) {
-    addText(g, lay.nameX + 1, y0 + lay.rowH / 2 + lay.size * 0.35, "Zatiaľ tu nikto nie je.", lay.size, COLORS.ink,
-      { maxWidth: innerW - 2 });
-  }
-  rows.slice(0, lay.rows).forEach(function (row, i) {
-    var y = y0 + i * lay.rowH, base = y + lay.rowH / 2 + lay.size * 0.35;
-    if (row.mine) rect(g, innerX, y, innerW, lay.rowH, COLORS.selected);
-    rect(g, lay.nameX + 1, y + (lay.rowH - 5) / 2, 5, 5, row.color);
-    addText(g, lay.nameX + 8, base, row.label, lay.size, COLORS.ink, { bold: row.mine, maxWidth: lay.nameW - 8 });
+  rows.slice(0, night.rows).forEach(function (row, i) {
+    var y = night.y0 + i * lay.rowH;
+    nameCell(y, row, night.nameW);
     row.cells.forEach(function (cell, j) {
-      var cx = lay.colX[j] + lay.colW / 2, tone = TALLY_COLORS[cell.kind];
+      var cx = night.colX[j] + lay.colW / 2, tone = TALLY_COLORS[cell.kind];
       if (cell.kind === "under" || cell.kind === "over") {
         var cw = lay.colW - 4, ch = lay.rowH - 1;
         rect(g, cx - cw / 2, y + 0.5, cw, ch, COLORS[tone[0]]);
         rect(g, cx - cw / 2 + 1, y + 1.5, cw - 2, ch - 2, COLORS[tone[1]]);
-        addText(g, cx, base, cell.text, lay.size, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: cw - 4 });
+        addText(g, cx, base(y), cell.text, size, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: cw - 4 });
       } else {
-        addText(g, cx, base, cell.text, lay.size, COLORS.ink, { anchor: "middle", maxWidth: lay.colW - 4 });
+        addText(g, cx, base(y), cell.text, size, COLORS.ink, { anchor: "middle", maxWidth: lay.colW - 4 });
       }
     });
   });
-  if (lay.more) {
-    var my = y0 + lay.rows * lay.rowH;
-    addText(g, lay.nameX + 1, my + lay.rowH / 2 + lay.size * 0.35, moreText(lay.more), lay.size, COLORS.roomLabel,
-      { maxWidth: lay.nameW });
-  }
-  hitRect(g, r);
-  makeButton(g, "Kto kde spí po nociach. Ťuknutím otvoríš „Kto je kto“.", "parties", function () { openLegend("parties"); });
+  if (night.more) moreLine(night.y0 + night.rows * lay.rowH, night.more);
+
+  // divider, then the day part: sun, „Cez deň“, a header per event day
+  rect(g, innerX, lay.dividerY, innerW, 1, COLORS.woodDark);
+  rect(g, innerX, day.headY, innerW, hh, COLORS.dayBand);
+  drawSun(g, innerX + 2, day.headY + 1);
+  addText(g, innerX + 13, day.headY + 7.5, "Cez deň", 6.5, COLORS.dayInk, { bold: true });
+  days.forEach(function (d, i) {
+    addText(g, day.colX[i] + lay.colW / 2, day.headY + 7.5, dayColumnLabel(d), 6, COLORS.ink,
+      { anchor: "middle", bold: true, maxWidth: lay.colW - 2 });
+  });
+  dayRows.slice(0, day.rows).forEach(function (row, i) {
+    var y = day.y0 + i * lay.rowH;
+    nameCell(y, row, day.nameW);
+    row.cells.forEach(function (cell, j) {
+      if (!cell.text) return;
+      var cx = day.colX[j] + lay.colW / 2;
+      rect(g, cx - 6, y + 1, 12, lay.rowH - 2, COLORS.dayBand);
+      addText(g, cx, base(y), cell.text, size, COLORS.dayInk, { anchor: "middle", bold: true, maxWidth: 10 });
+    });
+  });
+  if (day.more) moreLine(day.y0 + day.rows * lay.rowH, day.more);
+
+  // food row
+  rect(g, innerX, lay.ruleY, innerW, 1, COLORS.woodDark);
+  addText(g, lay.nameX + 3, base(lay.foodY), "spolu na jedlo", size, COLORS.ink, { bold: true, maxWidth: day.nameW - 3 });
+  foodRow(state).forEach(function (n, i) {
+    addText(g, day.colX[i] + lay.colW / 2, base(lay.foodY), String(n), size, COLORS.ink,
+      { anchor: "middle", bold: true, maxWidth: lay.colW - 4 });
+  });
+
+  hitRect(g, [r[0], r[1], r[2], lay.height]);
+  makeButton(g, "Kto kde spí po nociach, kto príde cez deň a koľko vás je na jedlo. Ťuknutím otvoríš „Kto je kto“.",
+    "parties", function () { openLegend("parties"); });
 }
 
 function drawStatus(parent, r, state) {

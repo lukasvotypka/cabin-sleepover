@@ -24,6 +24,7 @@ var COLORS = {
   cotFrame: "#B9C7CF", bunkDark: "#6B4426", bunkTop: "#F4F1E8", bunkLow: "#E6DFCC", sofaDark: "#7A3E48", sofaLight: "#B4606C",
   stoveDark: "#9E9E9E", stoveLight: "#E3E3E3", stovePipe: "#6E6E6E", skin: "#F2C9A0", eye: "#3A2A1E",
   tight: "#E0A33A", picked: "#3AA7E0",
+  moon: "#7A8FB8", moonDark: "#3E4F7A", moonBand: "#D9DFEE", nightInk: "#2F3B5C", dayBand: "#F7E7B4", dayInk: "#7A4A0C",
   brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C", smokeLight: "#C9C9C9", smokeDark: "#A9A9A9"
 };
 // Signpost tally chip per kind: [edge, face, text] keys of COLORS (same meaning as the status board).

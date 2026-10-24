@@ -967,30 +967,91 @@ test("partyTableRows: every cell equals the nightTally of that party and night",
   }
 });
 
-test("partyTableLayout: row height capped at 10, overflow row, everything inside the rect", () => {
-  const r = scene.parties;
-  const lay = (n) => plain(L.partyTableLayout(r, n, 3));
-  assert.equal(lay(0).rowH, 10);
-  assert.equal(lay(1).rowH, 10);
-  assert.equal(lay(1).size, 7);
-  assert.equal(lay(5).rowH, 10);
-  assert.equal(lay(10).rowH, 6.7);
-  assert.ok(lay(10).size >= 5 && lay(10).size <= 7);
-  assert.deepEqual([lay(0).rows, lay(0).more, lay(5).rows, lay(5).more, lay(10).rows, lay(10).more], [0, 0, 5, 0, 10, 0]);
-  assert.deepEqual([lay(11).rows, lay(11).more, lay(12).rows, lay(12).more], [9, 2, 9, 3]);
-  assert.equal(lay(5).nameW, 58);
-  for (const n of [0, 1, 5, 10, 12]) {
-    const l = lay(n);
-    const lines = l.rows + (l.more ? 1 : 0);
-    assert.ok(l.pad + l.head + lines * l.rowH <= r[3] - l.pad + 1e-9, `${n} parties: rows end inside the rect`);
-    assert.ok(l.nameX >= r[0] + l.pad);
-    assert.ok(l.nameX + l.nameW <= l.colX[0] + 1e-9, "the name column ends before the first night column");
-    l.colX.forEach((x, i) => {
-      assert.ok(x >= l.nameX + l.nameW - 1e-9);
-      if (i) assert.ok(x >= l.colX[i - 1] + l.colW - 1e-9, "night columns do not overlap");
+// The real `map.scene.parties` of config/cabin.yaml (the `scene` fixture above is older).
+const REAL_PARTIES_RECT = [176, 112, 196, 136];
+const tableLay = (n, d, r = REAL_PARTIES_RECT) => plain(L.partyTableLayout(r, n, d, 3, 4));
+
+function assertTableInside(l, r, label) {
+  assert.ok(l.height <= r[3] + 1e-9, `${label}: height ${l.height} within the rect`);
+  assert.ok(l.foodY + l.rowH + l.pad - r[1] <= r[3] + 1e-9, `${label}: food row inside`);
+  for (const part of [l.night, l.day]) {
+    assert.ok(part.nameW > 0);
+    assert.equal(part.colX[part.colX.length - 1] + l.colW, r[0] + r[2] - l.pad, `${label}: last column at the right edge`);
+    part.colX.forEach((x, i) => {
+      assert.ok(x >= l.nameX + part.nameW - 1e-9, `${label}: columns start after the names`);
+      if (i) assert.ok(x >= part.colX[i - 1] + l.colW - 1e-9, `${label}: columns do not overlap`);
     });
-    assert.equal(l.colX[2] + l.colW, r[0] + r[2] - l.pad);
   }
+  assert.ok(l.night.y0 + l.night.lines * l.rowH <= l.dividerY + 1e-9);
+  assert.ok(l.dividerY < l.day.headY && l.day.y0 + l.day.lines * l.rowH <= l.ruleY + 1e-9 && l.ruleY < l.foodY);
+}
+
+test("partyTableLayout: 8 overnight and 2 day-only parties fit with no +N", () => {
+  const l = tableLay(8, 2);
+  assert.deepEqual([l.night.rows, l.night.more, l.day.rows, l.day.more], [8, 0, 2, 0]);
+  assert.equal(l.rowH, 8.5);
+  assertTableInside(l, REAL_PARTIES_RECT, "8+2");
+});
+
+test("partyTableLayout: nobody gives header, divider, day header and the food row only", () => {
+  const l = tableLay(0, 0);
+  assert.deepEqual([l.night.rows, l.night.more, l.night.lines, l.day.rows, l.day.more, l.day.lines], [0, 0, 0, 0, 0, 0]);
+  assert.equal(l.night.y0, l.dividerY - 2);
+  assert.equal(l.foodY, l.day.y0 + 3);
+  assert.ok(l.height < 50);
+  assertTableInside(l, REAL_PARTIES_RECT, "0+0");
+  const noDay = tableLay(8, 0);
+  assert.deepEqual([noDay.night.rows, noDay.night.more, noDay.day.lines], [8, 0, 0]);
+});
+
+test("partyTableLayout: the height grows with the rows and never passes the rect", () => {
+  const h = (n, d) => tableLay(n, d).height;
+  assert.equal(h(1, 0) - h(0, 0), 8.5);
+  assert.equal(h(0, 1) - h(0, 0), 8.5);
+  assert.equal(h(5, 2) - h(4, 2), 8.5);
+  assert.ok(h(8, 2) > h(2, 2) && h(8, 2) > h(8, 0));
+  for (const [n, d] of [[0, 0], [3, 0], [8, 2], [11, 0], [0, 11], [15, 4], [30, 30], [9, 3]]) {
+    assertTableInside(tableLay(n, d), REAL_PARTIES_RECT, `${n}+${d}`);
+  }
+});
+
+test("partyTableLayout: 15 overnight and 4 day-only show +N in both parts and stay inside the rect", () => {
+  const l = tableLay(15, 4);
+  assert.deepEqual([l.night.rows, l.night.more, l.night.lines], [8, 7, 9]);
+  assert.deepEqual([l.day.rows, l.day.more, l.day.lines], [1, 3, 2]);
+  assertTableInside(l, REAL_PARTIES_RECT, "15+4");
+  assert.ok(Math.abs(l.height - REAL_PARTIES_RECT[3]) < 1e-9, "a full table is as tall as the rect");
+});
+
+test("partyTableLayout: the day part keeps min(dayRows, 2) lines, the night part gets the rest", () => {
+  const one = tableLay(15, 1);
+  assert.deepEqual([one.day.rows, one.day.more, one.night.rows, one.night.more], [1, 0, 9, 6]);
+  const many = tableLay(3, 12);
+  assert.deepEqual([many.night.rows, many.night.more, many.day.rows, many.day.more], [3, 0, 7, 5]);
+  const none = tableLay(15, 0);
+  assert.deepEqual([none.night.rows, none.night.more, none.day.lines], [10, 5, 0]);
+  const exact = tableLay(9, 2);
+  assert.deepEqual([exact.night.more, exact.day.more], [0, 0]);
+  const over = tableLay(10, 2);
+  assert.deepEqual([over.night.rows, over.night.more, over.day.more], [8, 2, 0]);
+});
+
+test("partyTableLayout: name widths and night columns are the rightmost of the day columns", () => {
+  const l = tableLay(2, 1);
+  assert.equal(l.night.nameW, 106);
+  assert.equal(l.day.nameW, 78);
+  assert.deepEqual(l.night.colX, l.day.colX.slice(1));
+  assert.equal(l.nameX, 179);
+});
+
+test("dayColumnLabel: weekday and day of the month, empty for a bad date", () => {
+  assert.equal(L.dayColumnLabel(THU), "Št 29");
+  assert.equal(L.dayColumnLabel(FRI), "Pi 30");
+  assert.equal(L.dayColumnLabel(SAT), "So 31");
+  assert.equal(L.dayColumnLabel(FOURTH), "Ne 1");
+  assert.equal(L.dayColumnLabel("x"), "");
+  assert.equal(L.dayColumnLabel("2026-02-30"), "");
+  assert.equal(L.dayColumnLabel(undefined), "");
 });
 
 test("moreText: 1, 2-4 and 5+ forms", () => {
@@ -3058,10 +3119,10 @@ test("partyTableRows and partyTableSummary leave out day-only parties", () => {
 test("the table's „+N ďalšie“ count does not count day-only parties", () => {
   const overnight = Array.from({ length: 11 }, (_, i) => party({ id: "p-o" + String(i).padStart(5, "0"), name: "Party " + i }));
   const visitors = [1, 2, 3].map((i) => dayOnly({ id: "p-v" + String(i).padStart(5, "0"), name: "Visit " + i }));
-  const rect = [0, 0, 190, 100];
+  const rect = [0, 0, 196, 136];
   const count = (parties) => L.partyTableRows(stateWith(parties), null).length;
   assert.equal(count([...overnight, ...visitors]), 11);
-  const lay = (parties) => L.partyTableLayout(rect, count(parties), 3);
+  const lay = (parties) => L.partyTableLayout(rect, count(parties), 0, 3, 4).night;
   assert.deepEqual([lay([...overnight, ...visitors]).rows, lay([...overnight, ...visitors]).more],
     [lay(overnight).rows, lay(overnight).more]);
 });
@@ -3071,4 +3132,44 @@ test("the screen-reader summary lists day-only parties once, with their days, no
   const hidden = L.hiddenSummary(s, THU);
   assert.ok(hidden.dayVisits.some((line) => line.includes("Jakub")));
   assert.doesNotMatch(L.partyTableSummary(s, null).join("\n"), /Jakub/);
+});
+
+test("dayTableRows: no day-only party gives no rows", () => {
+  assert.deepEqual(plain(L.dayTableRows(stateWith([party()]), null)), []);
+  assert.deepEqual(plain(L.dayTableRows(realState([], {}), null)), []);
+});
+
+test("dayTableRows: one row per day-only party in state order, a cell per event day, mine flag", () => {
+  const s = visitState();
+  const rows = plain(L.dayTableRows(s, "p-eeeeee"));
+  assert.deepEqual(rows.map((r) => r.id), ["p-dddddd", "p-eeeeee", "p-ffffff"]);
+  assert.deepEqual(rows.map((r) => r.mine), [false, true, false]);
+  assert.deepEqual(rows[0].cells.map((c) => c.day), [THU, FRI, SAT, SUN]);
+  assert.deepEqual(rows[0].cells.map((c) => c.text), ["", "1", "", "1"]);
+  assert.deepEqual(rows[1].cells.map((c) => c.text), ["", "", "2", ""]);
+  assert.deepEqual(rows[2].cells.map((c) => c.text), ["", "", "4", ""]);
+  assert.equal(rows[1].color, "#C04388");
+  assert.equal(rows[1].label, "Katka a Peťo");
+  assert.ok(plain(L.dayTableRows(s, null)).every((r) => r.mine === false));
+});
+
+test("foodRow: foodCount of every event day, zero included", () => {
+  const s = visitState();
+  const row = L.foodRow(s);
+  assert.deepEqual(plain(row), [THU, FRI, SAT, SUN].map((d) => L.foodCount(s, d)));
+  assert.equal(row.length, 4);
+  assert.deepEqual(plain(L.foodRow(realState([], {}))), [0, 0, 0, 0]);
+  assert.deepEqual(plain(L.foodRow({ event: null, parties: [] })), []);
+});
+
+test("drawPartyTable: one button over the drawn board, moon and sun from rects, no emoji", () => {
+  const body = html.slice(html.indexOf("function drawMoon("), html.indexOf("function drawStatus("));
+  assert.match(body, /partyTableLayout\(r, rows\.length, dayRows\.length, nights\.length, days\.length\)/);
+  assert.match(body, /hitRect\(g, \[r\[0\], r\[1\], r\[2\], lay\.height\]\)/);
+  assert.match(body, /Kto kde spí po nociach, kto príde cez deň a koľko vás je na jedlo\. Ťuknutím otvoríš „Kto je kto“\./);
+  assert.match(body, /openLegend\("parties"\)/);
+  assert.match(body, /"Noc"/);
+  assert.match(body, /"Cez deň"/);
+  assert.match(body, /"spolu na jedlo"/);
+  assert.doesNotMatch(body, /innerHTML|☀|🌙|☾/);
 });

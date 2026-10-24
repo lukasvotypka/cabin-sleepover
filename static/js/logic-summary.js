@@ -125,22 +125,61 @@ function partyTableRows(state, myPartyId) {
   });
 }
 
-// Geometry of the table inside `rect` for `count` parties, in scene units:
-// {pad, head, rowH, size, rows, more, nameX, nameW, colX: [..], colW}. `rows` is how many party rows to
-// draw and `more` how many parties are left out; when they do not all fit, the last row line is the "+N" row.
-function partyTableLayout(rect, count, nightCount) {
-  var pad = 3, head = 9, colW = 28;
-  var avail = rect[3] - 2 * pad - head;
-  var maxRows = Math.floor(avail / 6.5);
-  var rows = count > maxRows ? maxRows - 1 : count;
-  var lines = count > maxRows ? maxRows : count;
-  var rowH = Math.min(10, avail / Math.max(1, lines));
-  var nameW = rect[2] - 2 * pad - nightCount * colW;
-  var colX = [];
-  for (var i = 0; i < nightCount; i++) colX.push(rect[0] + rect[2] - pad - (nightCount - i) * colW);
+// "Št 29", "Pi 30", "Ne 1": the column header of a day ("" for a bad date).
+function dayColumnLabel(iso) {
+  var p = parseIso(iso);
+  return p ? DAY_SHORT[p.dow] + " " + p.d : "";
+}
+
+// One row per day-only party, in `state.parties` order: {id, name, label, color, mine, cells}, with one cell
+// per event day; the cell text is the number of people on a day the party visits, else "".
+function dayTableRows(state, myPartyId) {
+  var days = eventDays(state && state.event);
+  return ((state && state.parties) || []).filter(isDayOnly).map(function (p) {
+    return {
+      id: p.id, name: p.name, label: ellipsize(p.name, 14), color: p.color, mine: p.id === myPartyId,
+      cells: days.map(function (day) {
+        return { day: day, text: p.day_visits.indexOf(day) !== -1 ? String(p.adults + p.kids) : "" };
+      })
+    };
+  });
+}
+
+// The „spolu na jedlo“ numbers: one foodCount per event day, 0 included (as the number 0).
+function foodRow(state) {
+  return eventDays(state && state.event).map(function (day) { return foodCount(state, day); });
+}
+
+// Geometry of the two-part table (moon part, divider, sun part, food row) for `rect` = [x, y, w, h], in
+// scene units. The row height is fixed, so the table is only as tall as its rows: `height` <= rect[3].
+// A part that does not fit draws `lines - 1` rows plus a "+N" line. The day part keeps at least
+// min(dayRows, 2) lines and the night part gets the rest. Night columns are the rightmost ones.
+// Returns {pad, head, rowH, size, colW, height, nameX, night, day, dividerY, ruleY, foodY, ...}, where
+// `night` and `day` are {headY, y0, rows, more, lines, nameW, colX: [..]}.
+function partyTableLayout(rect, nightRows, dayRows, nightCount, dayCount) {
+  var pad = 3, head = 10, rowH = 8.5, colW = 28, divider = 5, ruleGap = 3;
+  var fixed = 2 * pad + 2 * head + divider + ruleGap + rowH;
+  var capacity = Math.max(0, Math.floor((rect[3] - fixed) / rowH));
+  var nightAlloc = Math.min(nightRows, Math.max(0, capacity - Math.min(dayRows, 2)));
+  var dayAlloc = Math.min(dayRows, Math.max(0, capacity - nightAlloc));
+  function part(count, alloc, cols, headY) {
+    var fits = count <= alloc, rows = fits ? count : Math.max(0, alloc - 1);
+    var colX = [];
+    for (var i = 0; i < cols; i++) colX.push(rect[0] + rect[2] - pad - (cols - i) * colW);
+    return {
+      headY: headY, y0: headY + head, rows: rows, more: count - rows, lines: rows + (fits ? 0 : 1),
+      nameW: rect[2] - 2 * pad - cols * colW, colX: colX
+    };
+  }
+  var night = part(nightRows, nightAlloc, nightCount, rect[1] + pad);
+  var dividerY = night.y0 + night.lines * rowH + 2;
+  var day = part(dayRows, dayAlloc, dayCount, dividerY + divider - 2);
+  var ruleY = day.y0 + day.lines * rowH + 1;
+  var foodY = day.y0 + day.lines * rowH + ruleGap;
   return {
-    pad: pad, head: head, rowH: rowH, size: Math.max(5, Math.min(7, rowH - 1.5)),
-    rows: rows, more: count - rows, nameX: rect[0] + pad, nameW: nameW, colX: colX, colW: colW
+    pad: pad, head: head, rowH: rowH, size: 6.5, colW: colW, nameX: rect[0] + pad,
+    night: night, day: day, dividerY: dividerY, ruleY: ruleY, foodY: foodY,
+    height: foodY + rowH + pad - rect[1]
   };
 }
 
