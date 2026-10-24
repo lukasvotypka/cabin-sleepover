@@ -136,6 +136,9 @@ class Event(_Model):
         return self
 
 
+CHIMNEY_WIDTH = 6  # px, same as in the page (CHIMNEY_W in static/index.html)
+
+
 class SceneRects(_Model):
     title: Rect
     nights: Rect
@@ -181,10 +184,26 @@ class Room(_Model):
     beds: list[Bed] = Field(min_length=1)
 
 
+class RoofColors(_Model):
+    face: HexColor
+    dark: HexColor
+    ridge: HexColor
+
+
+class House(_Model):
+    """A group of rooms that share one roof (drawn by the page above the union of the room rects)."""
+
+    id: Ident
+    rooms: list[Ident] = Field(min_length=1)
+    roof: RoofColors
+    chimney: Coord  # x of the left edge of the chimney, must lie within the width of the house
+
+
 class Layout(_Model):
     event: Event
     map: MapLayout
     rooms: list[Room] = Field(min_length=1)
+    houses: list[House] = Field(min_length=1)
 
     @model_validator(mode="after")
     def _check_unique_ids(self) -> "Layout":
@@ -197,6 +216,29 @@ class Layout(_Model):
             dupes = _duplicates(ids)
             if dupes:
                 raise ValueError(f"duplicate {what} ID: {', '.join(dupes)}")
+        return self
+
+    @model_validator(mode="after")
+    def _check_houses(self) -> "Layout":
+        dupes = _duplicates([h.id for h in self.houses])
+        if dupes:
+            raise ValueError(f"duplicate house ID: {', '.join(dupes)}")
+        rooms = {r.id: r for r in self.rooms}
+        owner: dict[str, str] = {}
+        for house in self.houses:
+            for room_id in house.rooms:
+                if room_id not in rooms:
+                    raise ValueError(f"house “{house.id}” has unknown room “{room_id}”")
+                if room_id in owner:
+                    raise ValueError(f"room “{room_id}” is in two houses: “{owner[room_id]}” and “{house.id}”")
+                owner[room_id] = house.id
+            left = min(rooms[r].rect[0] for r in house.rooms)
+            right = max(rooms[r].rect[0] + rooms[r].rect[2] for r in house.rooms)
+            if not left <= house.chimney <= right - CHIMNEY_WIDTH:
+                raise ValueError(f"house “{house.id}”: the chimney at x {house.chimney} is outside the house ({left}–{right})")
+        missing = [r.id for r in self.rooms if r.id not in owner]
+        if missing:
+            raise ValueError(f"room not in any house: {', '.join(missing)}")
         return self
 
     # The cached properties below assume the layout is read-only after loading.

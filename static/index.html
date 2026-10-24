@@ -168,6 +168,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .free { animation: none; }
 }
 
+/* --- roofs and chimneys (T-029): the smoke of the three chimneys. Each puff starts at the top of its chimney, rises
+   about 24 px, drifts sideways by --dx and fades out; three puffs per chimney on staggered delays, one loop of 8.7 s.
+   Hidden until its delay has passed. Covered by the global reduced-motion rule below (the puffs stay invisible). */
+#scene svg .roofs { pointer-events: none; }
+#scene svg .smokepuff { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: smokeRise 8.7s linear infinite; }
+@keyframes smokeRise {
+  0% { opacity: 0; transform: translate(0px, 0px); }
+  10% { opacity: .85; }
+  55% { opacity: .55; }
+  100% { opacity: 0; transform: translate(var(--dx, 3px), -24px); }
+}
+
 /* --- nature decor: a small tree beside the house that sheds a leaf every few seconds, and a bird that
    occasionally crosses the whole screen. Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
    colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
@@ -727,6 +739,39 @@ function furnitureBounds(bed) {
   var x2 = Math.max.apply(null, parts.map(function (p) { return p[0] + p[2]; }));
   var y2 = Math.max.apply(null, parts.map(function (p) { return p[1] + p[3]; }));
   return [x1, y1, x2 - x1, y2 - y1];
+}
+
+// The outline of a house: the union rect of its rooms, [x, y, w, h]. `house.rooms` are room ids and
+// `rooms` is the layout's room list. Returns null for a house without any known room.
+function houseOutline(house, rooms) {
+  var parts = rooms.filter(function (r) { return house.rooms.indexOf(r.id) >= 0; }).map(function (r) { return r.rect; });
+  if (!parts.length) return null;
+  var x1 = Math.min.apply(null, parts.map(function (p) { return p[0]; }));
+  var y1 = Math.min.apply(null, parts.map(function (p) { return p[1]; }));
+  var x2 = Math.max.apply(null, parts.map(function (p) { return p[0] + p[2]; }));
+  var y2 = Math.max.apply(null, parts.map(function (p) { return p[1] + p[3]; }));
+  return [x1, y1, x2 - x1, y2 - y1];
+}
+
+// The roof of a house outline as a stepped trapezoid that sits directly on its top edge (T-029): ROOF_ROWS rows
+// of ROOF_ROW_H px, from the bottom row (the house width plus ROOF_OVERHANG px on each side) up to the top row
+// (ROOF_TOP_INSET px narrower on each side). Returns the rows bottom first as {x, y, w, i}; the last one is the
+// ridge. `chimneyRect` is the 6x10 chimney standing on that roof, near x `chimneyX`, and it reaches 4 px above it.
+var ROOF_ROWS = 8, ROOF_ROW_H = 2, ROOF_OVERHANG = 4, ROOF_TOP_INSET = 16;
+var CHIMNEY_W = 6, CHIMNEY_H = 10, CHIMNEY_RISE = 4;
+function roofRows(outline) {
+  var rows = [], x0 = outline[0] - ROOF_OVERHANG, width = outline[2] + 2 * ROOF_OVERHANG, i;
+  for (i = 0; i < ROOF_ROWS; i++) {
+    var inset = Math.round(i * ROOF_TOP_INSET / (ROOF_ROWS - 1) / ROOF_ROW_H) * ROOF_ROW_H;
+    rows.push({ x: x0 + inset, y: outline[1] - ROOF_ROW_H * (i + 1), w: width - 2 * inset, i: i });
+  }
+  return rows;
+}
+function roofRect(outline) {
+  return [outline[0] - ROOF_OVERHANG, outline[1] - ROOF_ROWS * ROOF_ROW_H, outline[2] + 2 * ROOF_OVERHANG, ROOF_ROWS * ROOF_ROW_H];
+}
+function chimneyRect(outline, chimneyX) {
+  return [chimneyX, outline[1] - ROOF_ROWS * ROOF_ROW_H - CHIMNEY_RISE, CHIMNEY_W, CHIMNEY_H];
 }
 
 // The band of a room that its name occupies (text baseline at 16 units below the top of the room,
@@ -1833,7 +1878,8 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     bedFrame: "#8A5A34", sheet: "#F4F1E8", sheetHead: "#FFFFFF", sheetFoot: "#C9A27A", mat: "#7E8FA0", matTop: "#C7D3DD",
     cotFrame: "#B9C7CF", bunkDark: "#6B4426", bunkTop: "#F4F1E8", bunkLow: "#E6DFCC", sofaDark: "#7A3E48", sofaLight: "#B4606C",
     stoveDark: "#9E9E9E", stoveLight: "#E3E3E3", stovePipe: "#6E6E6E", skin: "#F2C9A0", eye: "#3A2A1E",
-    tight: "#E0A33A", picked: "#3AA7E0"
+    tight: "#E0A33A", picked: "#3AA7E0",
+    brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C", smokeLight: "#C9C9C9", smokeDark: "#A9A9A9"
   };
   // Signpost tally chip per kind: [edge, face, text] keys of COLORS (same meaning as the status board).
   var TALLY_COLORS = { under: ["redEdge", "red", "white"], over: ["amberEdge", "amber", "ink"], ok: ["greenEdge", "green", "white"] };
@@ -2296,7 +2342,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
 
   function ensureScene() {
     var layout = app.state.layout;
-    var key = JSON.stringify([layout.map, layout.rooms]);
+    var key = JSON.stringify([layout.map, layout.rooms, layout.houses]);
     showScene(true);     // visible first: text is measured while drawing
     if (app.layoutKey === key) return;
     app.layoutKey = key;
@@ -2605,6 +2651,50 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
     });
   }
 
+  // Roofs and chimneys (T-029, organizer request 24. 10. 2026): purely cosmetic and derived from `layout.houses`
+  // and the room rects, so they follow the layout. `houseOutline` and `roofRows` are in the logic script. The roof
+  // is drawn over the top wall of its house (the rooms start right below it); everything is aria-hidden and ignores taps.
+  function drawRoof(g, outline, roof) {
+    var rows = roofRows(outline), top = rows[rows.length - 1];
+    rows.forEach(function (row) {
+      var face = row.i % 2 === 0 ? roof.face : roof.dark, joint = row.i % 2 === 0 ? roof.dark : roof.face, jx;
+      rect(g, row.x, row.y, row.w, ROOF_ROW_H, face);
+      for (jx = row.x + 4 + (row.i % 2) * 4; jx < row.x + row.w - 2; jx += 8) rect(g, jx, row.y, 1, ROOF_ROW_H, joint);
+      rect(g, row.x, row.y, 2, ROOF_ROW_H, roof.dark);                          // darker side edges
+      rect(g, row.x + row.w - 2, row.y, 2, ROOF_ROW_H, roof.dark);
+    });
+    rect(g, top.x, top.y, top.w, ROOF_ROW_H, roof.ridge);                       // ridge cap
+  }
+
+  // Brick chimney with a lighter cap, and three grey puffs that rise, drift and fade (see `.smokepuff`). `n` is
+  // the number of the chimney: it shifts the delays so that the chimneys do not puff in sync.
+  var SMOKE_PUFFS = [
+    { dx: 3, size: 3, light: true, delay: 0 },
+    { dx: 5, size: 2, light: false, delay: 2.9 },
+    { dx: 2, size: 3, light: false, delay: 5.8 }
+  ];
+  function drawChimney(g, outline, chimneyX, n) {
+    var c = chimneyRect(outline, chimneyX);
+    rect(g, c[0], c[1] + 2, c[2], c[3] - 2, COLORS.brick);
+    rect(g, c[0], c[1] + 6, c[2], 1, COLORS.brickMortar);
+    rect(g, c[0] - 1, c[1], c[2] + 2, 2, COLORS.brickLight);
+    SMOKE_PUFFS.forEach(function (p) {
+      var delay = (p.delay + n * 2.3).toFixed(1);
+      rect(g, c[0] + 2, c[1] - p.size - 1, p.size, p.size, p.light ? COLORS.smokeLight : COLORS.smokeDark,
+        { "class": "smokepuff", style: "--dx:" + p.dx + "px;animation-delay:" + delay + "s;" });
+    });
+  }
+
+  function drawHouses(g, layout) {
+    var group = svgEl(g, "g", { "aria-hidden": "true", "class": "roofs" });
+    (layout.houses || []).forEach(function (house, n) {
+      var outline = houseOutline(house, layout.rooms);
+      if (!outline) return;
+      drawRoof(group, outline, house.roof);
+      drawChimney(group, outline, house.chimney, n);
+    });
+  }
+
   function drawBase(g, layout) {
     var W = layout.map.viewbox[0], H = layout.map.viewbox[1], i;
     rect(g, 0, 0, W, H, COLORS.grass);
@@ -2620,6 +2710,7 @@ function splashFall(elapsedMs, delayMs, fallPx, size) {
       rect(g, d[0], d[1], d[2], d[3], doorFloorColor(layout, d) || COLORS.path);
     });
     layout.map.windows.forEach(function (w) { rect(g, w[0], w[1], w[2], w[3], COLORS.window); });
+    drawHouses(g, layout);
     drawTree(g);
   }
 

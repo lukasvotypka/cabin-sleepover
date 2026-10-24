@@ -27,13 +27,13 @@ SCENE = {
     "title": [176, 10, 196, 30],
     "nights": [176, 46, 196, 58],
     "notice": [176, 112, 196, 82],
-    "status": [278, 322, 94, 88],
+    "status": [278, 338, 94, 88],
     "locked": [16, 190, 62, 56],
-    "letter": [128, 336, 44, 44],
-    "key": [184, 336, 44, 44],
+    "letter": [128, 352, 44, 44],
+    "key": [184, 352, 44, 44],
     "legend": [24, 264, 44, 44],
     "parties": [176, 112, 148, 82],
-    "meadow": [112, 381, 124, 14],
+    "meadow": [112, 397, 124, 14],
 }
 
 
@@ -48,7 +48,7 @@ def test_cabin_yaml_matches_proposal(layout):
     assert layout.event.nights == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.arrive_days == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.leave_days == ["2026-10-30", "2026-10-31", "2026-11-01"]
-    assert layout.map.viewbox == [380, 412]
+    assert layout.map.viewbox == [380, 428]
 
 
 def test_cabin_yaml_dates_are_quoted_strings():
@@ -104,7 +104,7 @@ def test_app_config_rejects_unknown_and_bad_values(tmp_path):
 
 def test_layout_dump_is_json_ready(layout):
     dumped = layout.model_dump(mode="json")
-    assert dumped["map"]["scene"]["key"] == [184, 336, 44, 44]
+    assert dumped["map"]["scene"]["key"] == [184, 352, 44, 44]
     assert dumped["rooms"][0]["beds"][0]["kind"] == "bed2"
 
 
@@ -125,6 +125,51 @@ def test_scene_rect_must_have_four_ints(layout_data):
         parse_layout(layout_data)
     layout_data["map"]["scene"]["title"] = [1, 2, 3, "x"]
     with pytest.raises(ConfigError, match="map.scene.title"):
+        parse_layout(layout_data)
+
+
+def test_cabin_yaml_houses_group_every_room_once(layout):
+    assert [h.id for h in layout.houses] == ["konica", "main", "kitchen"]
+    assert [h.rooms for h in layout.houses] == [["konica-upper", "konica-lower"], ["left", "hallway", "right"], ["kitchen"]]
+    assert sorted(r for h in layout.houses for r in h.rooms) == sorted(r.id for r in layout.rooms)
+
+
+def test_house_with_unknown_room(layout_data):
+    layout_data["houses"][2]["rooms"] = ["kitchen", "attic"]
+    with pytest.raises(ConfigError, match="unknown room .attic."):
+        parse_layout(layout_data)
+
+
+def test_room_in_two_houses(layout_data):
+    layout_data["houses"][2]["rooms"] = ["kitchen", "left"]
+    with pytest.raises(ConfigError, match="room .left. is in two houses"):
+        parse_layout(layout_data)
+
+
+def test_room_in_no_house(layout_data):
+    layout_data["houses"][0]["rooms"] = ["konica-upper"]
+    with pytest.raises(ConfigError, match="room not in any house: konica-lower"):
+        parse_layout(layout_data)
+
+
+def test_chimney_must_stand_on_the_house(layout_data):
+    layout_data["houses"][2]["chimney"] = 200
+    with pytest.raises(ConfigError, match="chimney at x 200 is outside the house"):
+        parse_layout(layout_data)
+
+
+def test_duplicate_house_id(layout_data):
+    layout_data["houses"][1]["id"] = "konica"
+    with pytest.raises(ConfigError, match="duplicate house ID: konica"):
+        parse_layout(layout_data)
+
+
+def test_houses_are_required_and_roof_colors_checked(layout_data):
+    layout_data["houses"][0]["roof"]["face"] = "red"
+    with pytest.raises(ConfigError, match=r"houses\[0\]\.roof\.face"):
+        parse_layout(layout_data)
+    del layout_data["houses"]
+    with pytest.raises(ConfigError, match="houses"):
         parse_layout(layout_data)
 
 

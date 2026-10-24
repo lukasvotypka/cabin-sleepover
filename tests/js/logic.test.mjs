@@ -2532,3 +2532,38 @@ test("the stove pipe sticks out sideways, not up into the room name", () => {
   assert.deepEqual(plain(L.furnitureBounds(stove)), [22, 352, 62, 28]);
   assert.deepEqual(plain(L.furnitureBounds(bedById("konica-lower-mats"))), [24, 132, 124, 26]);
 });
+
+// --- roofs (T-029) ---
+
+const houseOf = (ids) => ({ id: "h", rooms: ids });
+
+test("houseOutline is the union rect of the rooms of a house", () => {
+  assert.deepEqual(plain(L.houseOutline(houseOf(["konica-upper", "konica-lower"]), rooms)), [10, 26, 152, 150]);
+  assert.deepEqual(plain(L.houseOutline(houseOf(["left", "hallway", "right"]), rooms)), [118, 196, 254, 124]);
+  assert.deepEqual(plain(L.houseOutline(houseOf(["kitchen"]), rooms)), [10, 334, 100, 62]);
+});
+
+test("houseOutline ignores unknown rooms and gives null for a house without rooms", () => {
+  assert.deepEqual(plain(L.houseOutline(houseOf(["kitchen", "attic"]), rooms)), [10, 334, 100, 62]);
+  assert.equal(L.houseOutline(houseOf(["attic"]), rooms), null);
+  assert.equal(L.houseOutline(houseOf([]), rooms), null);
+});
+
+test("roofRows is a stepped trapezoid with a 4 px overhang that sits on the top edge", () => {
+  const rows = plain(L.roofRows([10, 26, 152, 150]));
+  assert.equal(rows.length, 8);
+  assert.deepEqual(rows[0], { x: 6, y: 24, w: 160, i: 0 });          // the bottom row: house width + 4 px on each side
+  assert.equal(rows[0].y + 2, 26);                                    // directly on the top edge
+  assert.deepEqual(rows[7], { x: 22, y: 10, w: 128, i: 7 });         // the top row (ridge): 16 px narrower per side
+  rows.forEach((row, k) => {
+    assert.equal(row.y, 26 - 2 * (k + 1));
+    assert.equal(row.x % 2, 0, "rows step in whole 2 px");
+    assert.equal(row.x + row.w, 166 - (row.x - 6), "each row is symmetric");
+    if (k) assert.ok(row.x >= rows[k - 1].x && row.w <= rows[k - 1].w, "each row is not wider than the one below");
+  });
+});
+
+test("roofRect and chimneyRect follow the outline", () => {
+  assert.deepEqual(plain(L.roofRect([118, 212, 254, 124])), [114, 196, 262, 16]);
+  assert.deepEqual(plain(L.chimneyRect([118, 212, 254, 124], 164)), [164, 192, 6, 10]);
+});
