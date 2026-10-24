@@ -28,17 +28,21 @@ function chirpNotes(rand) {
   return notes;
 }
 
-// The rustle of the tree when it is tapped: dry leaves rubbing against each other, a soft hiss under many tiny
-// crackles that swell and die away. `at` and `dur` in seconds, `freq` is the centre of the band-pass filter in Hz,
-// `gain` 0 to 1.
-var RUSTLE_HISS = { dur: 1.1, freq: 5000, gain: .25 };
-var RUSTLE_SPAN_S = .9;
+// The rustle of the tree when it is tapped: dry leaves scrunching against each other. Five to eight scrunches,
+// each a cluster of sharp tiny crackles, over a barely audible hiss. `at` and `dur` in seconds, `freq` is the
+// centre of the band-pass filter in Hz, `gain` 0 to 1.
+var RUSTLE_HISS = { dur: 1.3, freq: 6000, gain: .06 };
+var RUSTLE_SPAN_S = 1.1;
 function rustleBursts(rand) {
-  var count = 28 + Math.floor(rand() * 12), bursts = [], i;
-  for (i = 0; i < count; i++) {
-    var at = .02 + Math.pow(rand(), 1.3) * RUSTLE_SPAN_S;      // denser at the start, thinning out
-    var swell = Math.sin(Math.PI * Math.min(1, at / RUSTLE_SPAN_S + .1));
-    bursts.push({ at: at, dur: .012 + rand() * .035, freq: 2500 + rand() * 5500, gain: (.35 + rand() * .65) * swell });
+  var scrunches = 5 + Math.floor(rand() * 4), bursts = [], s, k;
+  for (s = 0; s < scrunches; s++) {
+    var start = .02 + (s / scrunches) * RUSTLE_SPAN_S * .85 + rand() * .06;
+    var loud = 1 - s / (scrunches + 2);                             // the first scrunches are the loudest
+    var grains = 4 + Math.floor(rand() * 6), at = start;
+    for (k = 0; k < grains; k++) {
+      bursts.push({ at: at, dur: .004 + rand() * .016, freq: 1800 + rand() * 6000, gain: (.55 + rand() * .45) * loud });
+      at += .006 + rand() * .03;
+    }
   }
   return bursts.sort(function (a, b) { return a.at - b.at; });
 }

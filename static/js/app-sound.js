@@ -7,6 +7,7 @@
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 var SOUND_VOLUME = .12;
+var RUSTLE_BOOST = 3;      // the crackles are so short that they need more gain than the chirp to be heard
 
 function soundContext() {
   if (app.audio) return app.audio;
@@ -87,7 +88,7 @@ function playRustle() {
   var t0 = ctx.currentTime + .02;
   playNoise(ctx, t0, RUSTLE_HISS.dur, RUSTLE_HISS.freq, .7, RUSTLE_HISS.gain, .15);
   rustleBursts(Math.random).forEach(function (b) {
-    playNoise(ctx, t0 + b.at, b.dur, b.freq, 2.5, b.gain, .003);
+    playNoise(ctx, t0 + b.at, b.dur, b.freq, 1.5, b.gain * RUSTLE_BOOST, .001);
   });
 }
 
