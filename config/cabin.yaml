@@ -51,7 +51,7 @@ rooms:
       - { id: left-cot-2, name: "Rozkladacie lehátko 2", kind: cot, rect: [158, 344, 20, 36],
           slots: [left-cot-2] }
   - id: hallway
-    name: "Chodbička"
+    name: "Chodba"
     rect: [216, 268, 54, 124]
     floor: "#DCC59B"
     beds:

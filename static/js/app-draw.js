@@ -140,7 +140,7 @@ function drawBase(g, layout) {
     var r = room.rect;
     rect(g, r[0], r[1], r[2], r[3], COLORS.roomEdge);
     rect(g, r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8, room.floor);
-    addText(g, r[0] + 7, r[1] + 16, room.name, 11, COLORS.roomLabel, { maxWidth: r[2] - 14 });
+    addText(g, r[0] + 7, r[1] + 16, room.name, 11, COLORS.roomLabel, { maxWidth: r[2] - 14, minSize: 9 });
   });
   layout.map.doors.forEach(function (d) {
     rect(g, d[0], d[1], d[2], d[3], doorFloorColor(layout, d) || COLORS.path);

@@ -51,14 +51,27 @@ function setText(node, str, maxWidth) {
   } catch (e) { /* not measurable (hidden): keep the natural width */ }
 }
 
+// `opts.minSize`: a label wider than `opts.maxWidth` first gets a smaller font, down to `minSize`, so its letters
+// keep their shape; only if it still does not fit is it squeezed.
 function addText(parent, x, y, str, size, fill, opts) {
   opts = opts || {};
   var node = svgEl(parent, "text", {
     x: x, y: y, "font-size": size, fill: fill,
     "text-anchor": opts.anchor || "start", "font-weight": opts.bold ? "700" : "400"
   });
+  if (opts.minSize && opts.maxWidth) shrinkText(node, str, size, opts.minSize, opts.maxWidth);
   setText(node, str, opts.maxWidth);
   return node;
+}
+
+function shrinkText(node, str, size, minSize, maxWidth) {
+  node.textContent = str;
+  try {
+    while (size > minSize && node.getComputedTextLength() > maxWidth) {
+      size -= 0.5;
+      node.setAttribute("font-size", String(size));
+    }
+  } catch (e) { /* not measurable (hidden): keep the size */ }
 }
 
 // A scene element that can be tapped: role, focus, label and Enter/Space like a click.
