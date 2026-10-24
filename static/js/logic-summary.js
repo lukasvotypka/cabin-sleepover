@@ -252,28 +252,6 @@ function dayVisitRows(state) {
   return rows;
 }
 
-// The lines of the day-visitors board: [] without day-only parties, else the heading and one line per day,
-// "<label>  <name> (<people>), …", each cut to `maxChars`.
-function daySignLines(state, maxChars) {
-  var rows = dayVisitRows(state);
-  if (!rows.length) return [];
-  return ["Cez deň"].concat(rows.map(function (row) {
-    return ellipsize(row.label + "  " + row.parties.map(function (p) { return p.name + " (" + p.people + ")"; }).join(", "), maxChars);
-  }));
-}
-
-// Screen-reader label of the day-visitors board, "" without day-only parties.
-function daySignLabel(state) {
-  var rows = dayVisitRows(state);
-  if (!rows.length) return "";
-  return "Cez deň prídu: " + rows.map(function (row) {
-    var p = parseIso(row.day);
-    return DAY_NAMES[p.dow] + " " + p.d + ". " + p.m + ". " + row.parties.map(function (party) {
-      return party.name + ", " + peopleCountText(party.people);
-    }).join("; ");
-  }).join("; ");
-}
-
 // The text of the empty „Kto kde spí po nociach“ list: day-only parties are people, but they sleep nowhere.
 function partyTableEmptyText(state) {
   return ((state && state.parties) || []).length ? "Zatiaľ tu nikto nespí." : "Zatiaľ tu nikto nie je.";

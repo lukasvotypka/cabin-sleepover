@@ -26,15 +26,14 @@ from tests.conftest import APP_YAML, CABIN_YAML
 SCENE = {
     "title": [176, 10, 196, 30],
     "nights": [176, 46, 196, 58],
-    "notice": [328, 112, 44, 44],
-    "status": [278, 338, 94, 88],
+    "notice": [24, 316, 44, 44],
+    "status": [278, 394, 94, 88],
     "locked": [16, 190, 62, 56],
-    "letter": [128, 352, 44, 44],
-    "key": [184, 352, 44, 44],
+    "letter": [128, 408, 44, 44],
+    "key": [184, 408, 44, 44],
     "legend": [24, 264, 44, 44],
-    "parties": [176, 112, 148, 82],
-    "days": [16, 440, 220, 48],
-    "meadow": [112, 397, 124, 14],
+    "parties": [176, 112, 196, 136],
+    "meadow": [112, 453, 124, 14],
 }
 
 
@@ -49,7 +48,7 @@ def test_cabin_yaml_matches_proposal(layout):
     assert layout.event.nights == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.arrive_days == ["2026-10-29", "2026-10-30", "2026-10-31"]
     assert layout.event.leave_days == ["2026-10-30", "2026-10-31", "2026-11-01"]
-    assert layout.map.viewbox == [380, 492]
+    assert layout.map.viewbox == [380, 496]
 
 
 def test_cabin_yaml_dates_are_quoted_strings():
@@ -105,7 +104,7 @@ def test_app_config_rejects_unknown_and_bad_values(tmp_path):
 
 def test_layout_dump_is_json_ready(layout):
     dumped = layout.model_dump(mode="json")
-    assert dumped["map"]["scene"]["key"] == [184, 352, 44, 44]
+    assert dumped["map"]["scene"]["key"] == [184, 408, 44, 44]
     assert dumped["rooms"][0]["beds"][0]["kind"] == "bed2"
 
 

@@ -2971,37 +2971,6 @@ test("dayVisitRows: non-consecutive days, two visitors on one day, none without 
   assert.deepEqual(plain(L.dayVisitRows(summaryState())), []);
 });
 
-test("daySignLines: nothing without day-only parties, else the heading and a line per day", () => {
-  assert.deepEqual(plain(L.daySignLines(summaryState(), 46)), []);
-  const one = realState([dayOnly({ name: "Jakub", adults: 1, kids: 0, day_visits: [FRI] })], {});
-  assert.deepEqual(plain(L.daySignLines(one, 46)), ["Cez deň", "Pi 30. 10.  Jakub (1)"]);
-  assert.deepEqual(plain(L.daySignLines(visitState(), 46)), [
-    "Cez deň",
-    "Pi 30. 10.  Jakub (1)",
-    "So 31. 10.  Katka a Peťo (2), Zuzka (4)",
-    "Ne 1. 11.  Jakub (1)",
-  ]);
-});
-
-test("daySignLines: long lines are ellipsized to maxChars", () => {
-  const long = realState([dayOnly({ name: "Veľmi dlhé meno skupiny návštevníkov", adults: 2, kids: 0, day_visits: [FRI] })], {});
-  const lines = L.daySignLines(long, 20);
-  assert.equal(lines[1].length, 20);
-  assert.ok(lines[1].endsWith("…"));
-  assert.ok(lines[1].startsWith("Pi 30. 10.  Veľmi"));
-});
-
-test("daySignLabel: the days with names and people, plurals, empty without visitors", () => {
-  assert.equal(L.daySignLabel(summaryState()), "");
-  const s = realState([
-    dayOnly({ id: "p-jjjjjj", name: "Jakub", adults: 1, kids: 0, day_visits: [FRI] }),
-    dayOnly({ id: "p-kkkkkk", name: "Katka a Peťo", adults: 2, kids: 0, day_visits: [SAT] }),
-    dayOnly({ id: "p-llllll", name: "Lenka", adults: 3, kids: 2, day_visits: [SAT] }),
-  ], {});
-  assert.equal(L.daySignLabel(s),
-    "Cez deň prídu: piatok 30. 10. Jakub, 1 človek; sobota 31. 10. Katka a Peťo, 2 ľudia; Lenka, 5 ľudí");
-});
-
 test("partyTableEmptyText: neutral when only day-only parties exist", () => {
   assert.equal(L.partyTableEmptyText(realState([], {})), "Zatiaľ tu nikto nie je.");
   const s = realState([dayOnly({ day_visits: [FRI] })], {});

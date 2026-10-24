@@ -9,7 +9,6 @@ var AGE_TICK_MS = 5000;
 var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role" };
 var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
-var DAY_SIGN_CHARS = 46;  // most characters of a line on the day-visitors board
 var LONG_PRESS_MS = 500;
 var TOAST_MS = 6000;
 // The grass around the scene: a tile with a few tufts, the same look as the code screen.

@@ -5,22 +5,21 @@ event:
   nights:      ["2026-10-29", "2026-10-30", "2026-10-31"]
 
 map:
-  viewbox: [380, 492]
-  paths:   [[240, 332, 16, 96], [60, 412, 196, 12], [84, 174, 12, 176], [96, 296, 24, 12]]
-  doors:   [[218, 256, 4, 20], [264, 256, 4, 20], [238, 332, 20, 4], [80, 172, 20, 6], [80, 350, 20, 4]]
-  windows: [[186, 212, 24, 4], [300, 212, 24, 4]]
+  viewbox: [380, 496]
+  paths:   [[240, 388, 16, 96], [60, 468, 196, 12], [84, 174, 12, 232], [96, 352, 24, 12]]
+  doors:   [[218, 312, 4, 20], [264, 312, 4, 20], [238, 388, 20, 4], [80, 172, 20, 6], [80, 406, 20, 4]]
+  windows: [[186, 268, 24, 4], [300, 268, 24, 4]]
   scene:                       # info elements on the grass, rect = [x, y, width, height]
     title:  [176, 10, 196, 30]   # event name
     nights: [176, 46, 196, 58]   # three night signposts
-    notice: [328, 112, 44, 44]   # „?“ icon that opens the how-to window
-    status: [278, 338, 94, 88]   # „Si: …“, last update, warning (two rows of 44)
+    notice: [24, 316, 44, 44]    # „?“ icon that opens the how-to window
+    status: [278, 394, 94, 88]   # „Si: …“, last update, warning (two rows of 44)
     locked: [16, 190, 62, 56]    # „Zápis je zatvorený“ sign
-    letter: [128, 352, 44, 44]   # letter icon, summary to send
-    key:    [184, 352, 44, 44]   # key icon, admin only
+    letter: [128, 408, 44, 44]   # letter icon, summary to send
+    key:    [184, 408, 44, 44]   # key icon, admin only
     legend: [24, 264, 44, 44]    # „Kto je kto“ icon, party color legend
-    parties: [176, 112, 148, 82] # table of parties and their places per night
-    days:   [16, 440, 220, 48]   # board with the day visitors per day (shown only when there are some)
-    meadow: [112, 397, 124, 14]  # meadow where people of my party without a bed wait
+    parties: [176, 112, 196, 136] # table of parties and their places per night
+    meadow: [112, 453, 124, 14]  # meadow where people of my party without a bed wait
 
 rooms:
   - id: konica-upper
@@ -41,41 +40,41 @@ rooms:
           slots: [konica-lower-mat-1, konica-lower-mat-2, konica-lower-mat-3] }
   - id: left
     name: "Izba vľavo"
-    rect: [118, 212, 102, 124]
+    rect: [118, 268, 102, 124]
     floor: "#E8D2A6"
     beds:
-      - { id: left-double, name: "Manželská posteľ", kind: bed2, rect: [128, 236, 44, 30],
+      - { id: left-double, name: "Manželská posteľ", kind: bed2, rect: [128, 292, 44, 30],
           slots: [left-double-1, left-double-2] }
-      - { id: left-window, name: "Posteľ pod oknom", kind: bed1, rect: [186, 236, 24, 34],
+      - { id: left-window, name: "Posteľ pod oknom", kind: bed1, rect: [186, 292, 24, 34],
           slots: [left-window-1] }
-      - { id: left-cot-1, name: "Rozkladacie lehátko 1", kind: cot, rect: [130, 288, 20, 36],
+      - { id: left-cot-1, name: "Rozkladacie lehátko 1", kind: cot, rect: [130, 344, 20, 36],
           slots: [left-cot-1] }
-      - { id: left-cot-2, name: "Rozkladacie lehátko 2", kind: cot, rect: [158, 288, 20, 36],
+      - { id: left-cot-2, name: "Rozkladacie lehátko 2", kind: cot, rect: [158, 344, 20, 36],
           slots: [left-cot-2] }
   - id: hallway
     name: "Chodbička"
-    rect: [216, 212, 54, 124]
+    rect: [216, 268, 54, 124]
     floor: "#DCC59B"
     beds:
-      - { id: hallway-sofa, name: "Rozkladací gauč", kind: sofa, rect: [226, 242, 32, 58],
+      - { id: hallway-sofa, name: "Rozkladací gauč", kind: sofa, rect: [226, 298, 32, 58],
           slots: [hallway-sofa-1, hallway-sofa-2], tight: [hallway-sofa-2] }
   - id: right
     name: "Izba vpravo"
-    rect: [266, 212, 106, 124]
+    rect: [266, 268, 106, 124]
     floor: "#E8D2A6"
     beds:
-      - { id: right-bunk-1, name: "Poschodová posteľ 1", kind: bunk, rect: [276, 236, 24, 42],
+      - { id: right-bunk-1, name: "Poschodová posteľ 1", kind: bunk, rect: [276, 292, 24, 42],
           slots: [right-bunk1-top, right-bunk1-bottom] }
-      - { id: right-bunk-2, name: "Poschodová posteľ 2", kind: bunk, rect: [308, 236, 24, 42],
+      - { id: right-bunk-2, name: "Poschodová posteľ 2", kind: bunk, rect: [308, 292, 24, 42],
           slots: [right-bunk2-top, right-bunk2-bottom] }
-      - { id: right-sofa, name: "Gauč (polonúdzový)", kind: sofa1, rect: [336, 288, 28, 36],
+      - { id: right-sofa, name: "Gauč (polonúdzový)", kind: sofa1, rect: [336, 344, 28, 36],
           slots: [right-sofa-1] }
   - id: kitchen
     name: "Letná kuchynka"
-    rect: [10, 350, 100, 62]
+    rect: [10, 406, 100, 62]
     floor: "#CFD8DC"
     beds:
-      - { id: kitchen-stove, name: "Na peci", kind: stove, rect: [22, 368, 56, 28],
+      - { id: kitchen-stove, name: "Na peci", kind: stove, rect: [22, 424, 56, 28],
           slots: [kitchen-stove-1, kitchen-stove-2], tight: [kitchen-stove-2] }
 
 # Roofs: each house groups rooms. The page draws a roof (16 px high trapezoid) above the top edge of the union
