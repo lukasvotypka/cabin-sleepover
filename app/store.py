@@ -103,6 +103,16 @@ def _data_problems(state: State, layout: Layout) -> list[str]:
             problems.append(
                 f"parties[{i}].name: duplicate party name “{party.name}” (same as party {exc.params['party_id']}, ignoring case)"
             )
+    for i, party in enumerate(state.parties):
+        full = party.adults + party.kids - party.kids_in_parents_bed
+        for night, count in party.places.items():
+            where = f"parties[{i}].places.{night}"
+            if night not in layout.event.nights:
+                problems.append(f"{where}: night is not in event.nights of cabin.yaml")
+            elif not party.arrive <= night < party.leave:
+                problems.append(f"{where}: night is outside the stay of the party")
+            elif count > full:
+                problems.append(f"{where}: {count} is more than the {full} places the party needs")
     nights, slots = set(layout.event.nights), set(layout.slot_ids)
     for night, by_slot in state.sleeping.items():
         if night not in nights:

@@ -320,6 +320,8 @@ class PartyUpdate(PartyInput):
 class Party(PartyInput):
     id: PartyId
     color: HexColor
+    # night → needed places on that night when fewer than the full count (not part of the form input)
+    places: dict[NightRef, Annotated[int, Field(strict=True, ge=1)]] = {}
     created_at: IsoDateTime
     updated_at: IsoDateTime
 
@@ -371,6 +373,12 @@ class MoveRequest(_Model):
     from_slot: SlotRef
     to_slot: SlotRef
     nights: NightList
+
+
+class PlacesRequest(_Model):
+    party_id: PartyRef
+    night: NightRef
+    places: int = Field(strict=True)
 
 
 class SignupRequest(_Model):

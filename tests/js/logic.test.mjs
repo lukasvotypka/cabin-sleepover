@@ -2272,11 +2272,11 @@ test("meadowLabel: Slovak forms for 0, 1, 2-4 and 5 or more", () => {
   assert.equal(L.meadowLabel(11), "Na lúke čaká 11 ľudí z vás bez postele");
 });
 
-test("page: the meadow is drawn from the config rect, as a non-interactive image group", () => {
+test("page: the meadow is drawn from the config rect, as one button", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(app, /drawMeadow\(g, view\);/);
   assert.match(app, /scene\.meadow/);
-  assert.match(app, /role: "img", "aria-label": meadowLabel\(waiting\.length\), "pointer-events": "none"/);
+  assert.match(app, /makeButton\(g, meadowButtonLabel\(waiting\.length\), "meadow"/);
 });
 
 // --- the walk from the meadow to the bed (T-017) ---
@@ -2440,7 +2440,7 @@ const FORMAL_WORDS = new Set([
   "chcete", "môžete", "viete", "budete",
 ]);
 // Slovak words ending in "-te" that are not plural imperatives or verbs: locative of chata, sobota, cesta and miesto.
-const TE_ALLOWED = new Set(["chate", "sobote", "ceste", "mieste"]);
+const TE_ALLOWED = new Set(["chate", "sobote", "ceste", "mieste", "ešte"]);
 
 const formalForms = (text) =>
   (String(text).toLowerCase().match(/[\p{L}]+/gu) || []).filter((w) => FORMAL_WORDS.has(w) || (/te$/.test(w) && !TE_ALLOWED.has(w)));
@@ -2646,4 +2646,158 @@ test("page: every script file parses on its own and the page keeps no inline scr
       assert.match(fs.readFileSync(path.join(root, file), "utf8"), /^"use strict";/, file + " must start with use strict");
     }
   });
+});
+
+// --- per-night places override (T-033) ---
+
+test("neededOnNight: full count, override, override above full, absent night", () => {
+  const p = party({ adults: 3, arrive: THU, leave: SAT });
+  assert.equal(L.neededOnNight(p, THU), 3);
+  assert.equal(L.neededOnNight(party({ adults: 3, places: { [THU]: 1 } }), THU), 1);
+  assert.equal(L.neededOnNight(party({ adults: 3, places: { [THU]: 1 } }), FRI), 3);
+  assert.equal(L.neededOnNight(party({ adults: 3, places: { [THU]: 9 } }), THU), 3);
+  assert.equal(L.neededOnNight(p, SAT), 0);
+  assert.equal(L.neededOnNight(party({ adults: 3, arrive: FRI, places: { [THU]: 1 } }), THU), 0);
+});
+
+test("an override flows into the tally, missing places, status and legend", () => {
+  const p = party({ adults: 3, places: { [THU]: 1 } });
+  const st = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]) });
+  const t = L.nightTally(st, p, THU);
+  assert.equal(t.needed, 1);
+  assert.equal(t.kind, "ok");
+  assert.equal(L.tallyChipText(t), "máš 1/1");
+  assert.equal(L.missingPlaces(st, p, THU), 0);
+  assert.equal(L.myPartyStatus(st, p).night, FRI);
+  const [row] = L.partyTableRows(st, p.id);
+  assert.equal(L.legendNightParts(row)[0], "Št → Pi 1/1");
+});
+
+test("waitingFigures with an override shows only the missing places, in order", () => {
+  const p = party({ adults: 2, kids: 2, places: { [THU]: 3 } });
+  const none = stateWith([p]);
+  assert.deepEqual(plain(L.waitingFigures(none, p, THU)), [{ kind: "adult" }, { kind: "adult" }, { kind: "kid" }]);
+  const one = stateWith([p], { [THU]: hold(p.id, ["left-window-1"]) });
+  assert.deepEqual(plain(L.waitingFigures(one, p, THU)), [{ kind: "adult" }, { kind: "kid" }]);
+});
+
+test("summaryText counts the override in the warnings", () => {
+  const p = party({ adults: 3, arrive: THU, leave: FRI, places: { [THU]: 2 } });
+  const text = L.summaryText(realState([p], { [THU]: { "left-window-1": p.id } }), "https://cabin.example/");
+  assert.match(text, /vo štvrtok chýba 1 miesto/);
+  const done = L.summaryText(realState([p], { [THU]: { "left-window-1": p.id, "left-double-1": p.id } }), "https://cabin.example/");
+  assert.doesNotMatch(done, /Chýbajú/);
+});
+
+test("fewerPlacesAction: label for every day locative", () => {
+  const days = [
+    ["2026-11-02", "V pondelok nás viac nebude"], ["2026-11-03", "V utorok nás viac nebude"],
+    ["2026-11-04", "V stredu nás viac nebude"], [THU, "Vo štvrtok nás viac nebude"],
+    [FRI, "V piatok nás viac nebude"], [SAT, "V sobotu nás viac nebude"], ["2026-11-01", "V nedeľu nás viac nebude"],
+  ];
+  for (const [night, text] of days) {
+    const p = party({ adults: 3, arrive: night, leave: "2026-11-09" });
+    const st = stateWith([p], { [night]: hold(p.id, ["left-double-1"]) });
+    assert.deepEqual(plain(L.fewerPlacesAction(st, p, night)), { night, places: 1, text });
+  }
+});
+
+test("fewerPlacesAction: null when nothing placed, all placed, absent, or no party", () => {
+  const p = party({ adults: 2 });
+  assert.equal(L.fewerPlacesAction(stateWith([p]), p, THU), null);
+  const full = stateWith([p], { [THU]: hold(p.id, ["left-double-1", "left-double-2"]) });
+  assert.equal(L.fewerPlacesAction(full, p, THU), null);
+  assert.equal(L.fewerPlacesAction(full, p, "2026-11-01"), null);
+  assert.equal(L.fewerPlacesAction(full, null, THU), null);
+});
+
+test("placesPanelInfo: texts with some places, with none, and the null cases", () => {
+  const p = party({ adults: 3 });
+  const one = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]) });
+  const a = plain(L.placesPanelInfo(one, p, THU));
+  assert.equal(a.title, "Štvrtok");
+  assert.deepEqual(a.lines, [
+    "Vo štvrtok máš 1 miesto, chýbajú ti ešte 2.",
+    "Ak vo štvrtok nebudú všetci, ťukni nižšie. Ostatné noci sa nemenia.",
+  ]);
+  assert.equal(a.primary.kind, "fewer");
+  assert.equal(a.primary.label, "Vo štvrtok nás viac nebude");
+  assert.deepEqual(a.primary.action, { night: THU, places: 1, text: "Vo štvrtok nás viac nebude" });
+  assert.equal(a.secondary.label, "Ešte hľadám posteľ");
+  const b = plain(L.placesPanelInfo(stateWith([p]), p, THU));
+  assert.deepEqual(b.lines, [
+    "Vo štvrtok ešte nemáš žiadne miesto, chýbajú ti 3.",
+    "Ak vo štvrtok nepríde nikto, uprav si príchod.",
+  ]);
+  assert.equal(b.primary.kind, "edit");
+  assert.equal(b.primary.label, "Upraviť príchod a odchod");
+  const c = plain(L.placesPanelInfo(stateWith([party({ adults: 1 })]), party({ adults: 1 }), THU));
+  assert.equal(c.lines[0], "Vo štvrtok ešte nemáš žiadne miesto, chýba ti 1.");
+  assert.equal(L.placesPanelInfo(stateWith([p]), p, "2026-11-01"), null);
+  const four = party({ adults: 5 });
+  const d = plain(L.placesPanelInfo(stateWith([four], { [THU]: hold(four.id, ["left-double-1", "left-double-2", "left-window-1"]) }), four, THU));
+  assert.equal(d.lines[0], "Vo štvrtok máš 3 miesta, chýbajú ti ešte 2.");
+});
+
+test("statusBoardLines: missing (1, 2, 5) and fewer", () => {
+  const mk = (adults, arrive, leave) => party({ adults, arrive, leave });
+  const lines = (p, s) => plain(L.statusBoardLines(L.myPartyStatus(s, p, THU)));
+  const one = mk(1, THU, FRI), two = mk(2, THU, FRI), five = mk(5, THU, FRI);
+  assert.deepEqual(lines(one, stateWith([one])), ["Št: chýba 1", "Ťukni sem ›"]);
+  assert.deepEqual(lines(two, stateWith([two])), ["Št: chýbajú 2", "Ťukni sem ›"]);
+  assert.deepEqual(lines(five, stateWith([five])), ["Št: chýba 5", "Ťukni sem ›"]);
+  const p = party({ adults: 3, places: { [THU]: 1 } });
+  const s = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]), [FRI]: hold(p.id, PAIR.concat(["left-window-1"])), [SAT]: hold(p.id, PAIR.concat(["left-window-1"])) });
+  assert.deepEqual(plain(L.statusBoardLines(L.myPartyStatus(s, p, THU))), ["Št: len 1 z 3 ›"]);
+  assert.deepEqual(plain(L.statusBoardLines({ kind: "ok" })), []);
+});
+
+test("myPartyStatus: fewer applies only to the selected night, after missing and extra", () => {
+  const p = party({ adults: 3, places: { [THU]: 1 } });
+  const rest = { [FRI]: hold(p.id, ["left-double-1", "left-double-2", "left-window-1"]), [SAT]: hold(p.id, ["left-double-1", "left-double-2", "left-window-1"]) };
+  const s = stateWith([p], Object.assign({ [THU]: hold(p.id, ["left-double-1"]) }, rest));
+  const st = plain(L.myPartyStatus(s, p, THU));
+  assert.equal(st.kind, "fewer");
+  assert.equal(st.text, "Št: len 1 z 3");
+  assert.equal(L.myPartyStatus(s, p, FRI).kind, "ok");
+  assert.equal(L.myPartyStatus(s, p, undefined).kind, "ok");
+  // missing wins over fewer
+  const m = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]), [FRI]: hold(p.id, ["left-double-1"]) });
+  assert.equal(L.myPartyStatus(m, p, THU).kind, "missing");
+  // extra wins over fewer
+  const e = stateWith([p], Object.assign({}, rest, { [THU]: hold(p.id, ["left-double-1", "left-double-2"]) }));
+  assert.equal(L.myPartyStatus(e, p, THU).kind, "extra");
+});
+
+test("placesUndoInfo: texts per weekday and plural, null without override", () => {
+  const info = (night, n, full) => {
+    const p = party({ adults: full, arrive: night, leave: L.addDays(night, 1), places: { [night]: n } });
+    return plain(L.placesUndoInfo(stateWith([p]), p, night));
+  };
+  const a = info(THU, 1, 3);
+  assert.equal(a.title, "Štvrtok");
+  assert.equal(a.line, "Vo štvrtok potrebuješ len 1 miesto z 3.");
+  assert.equal(a.primary.label, "Vo štvrtok prídeme všetci");
+  assert.deepEqual(a.primary.action, { night: THU, places: 3 });
+  assert.equal(a.secondary.label, "Nechať tak");
+  assert.equal(info(FRI, 2, 6).line, "V piatok potrebuješ len 2 miesta z 6.");
+  assert.equal(info(FRI, 2, 6).primary.label, "V piatok prídeme všetci");
+  assert.equal(info(SAT, 5, 7).line, "V sobotu potrebuješ len 5 miest z 7.");
+  assert.equal(info(SAT, 5, 7).title, "Sobota");
+  const p = party({ adults: 3 });
+  assert.equal(L.placesUndoInfo(stateWith([p]), p, THU), null);
+  assert.equal(L.placesUndoInfo(stateWith([p]), null, THU), null);
+});
+
+test("meadowHitRect: 44 units tall from the meadow top, as wide as the meadow", () => {
+  const m = realLayout.map.scene.meadow;
+  assert.deepEqual(plain(L.meadowHitRect(m)), [m[0], m[1] - 1, m[2], 44]);
+  assert.deepEqual(plain(L.meadowHitRect([112, 397, 124, 14])), [112, 396, 124, 44]);   // real config: starts below the icons (end at 396)
+});
+
+test("meadowButtonLabel: singular address and plurals", () => {
+  assert.equal(L.meadowButtonLabel(1), "1 z vás ešte nemá posteľ. Ťuknutím otvoríš možnosti.");
+  assert.equal(L.meadowButtonLabel(2), "2 z vás ešte nemajú posteľ. Ťuknutím otvoríš možnosti.");
+  assert.equal(L.meadowButtonLabel(5), "5 z vás ešte nemá posteľ. Ťuknutím otvoríš možnosti.");
+  assert.equal(L.meadowButtonLabel(0), "");
 });
