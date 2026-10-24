@@ -680,10 +680,10 @@ test("a finger may move up to the slop during a long press", () => {
 
 test("form defaults and values of an existing party", () => {
   assert.deepEqual(plain(L.defaultPartyForm(event)),
-    { name: "", adults: 2, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "", note: "", color: "" });
+    { name: "", adults: 2, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "", note: "", color: "", day_only: false, day_visits: [] });
   const p = party({ kids: 1, arrival_time: "po 18:00", note: "pes", color: "#2F7D6D" });
   assert.deepEqual(plain(L.partyToForm(p)),
-    { name: "Ivan a Eva", adults: 2, kids: 1, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "po 18:00", note: "pes", color: "#2F7D6D" });
+    { name: "Ivan a Eva", adults: 2, kids: 1, kids_in_parents_bed: 0, arrive: THU, leave: "2026-11-01", arrival_time: "po 18:00", note: "pes", color: "#2F7D6D", day_only: false, day_visits: [] });
 });
 
 test("party payload trims text and reads counts", () => {
@@ -2884,4 +2884,43 @@ test("not_present for a day-only party says it needs no bed", () => {
     "„Jakub“ prichádza len cez deň a posteľ nepotrebuje.");
   assert.equal(L.errorText({ code: "not_present", params: { night: THU, party_id: o.id } }, s),
     "„Ivan a Eva“ vo štvrtok nie je na chate. Uprav príchod alebo odchod.");
+});
+
+// --- party form: day-only mode ---
+
+test("partyToForm of a day-only party: toggle on, its days, default stay days", () => {
+  const f = plain(L.partyToForm(dayOnly({ day_visits: [FRI, "2026-11-01"], arrival_time: "obed" }), event));
+  assert.equal(f.day_only, true);
+  assert.deepEqual(f.day_visits, [FRI, "2026-11-01"]);
+  assert.equal(f.arrive, THU);
+  assert.equal(f.leave, "2026-11-01");
+  assert.equal(f.arrival_time, "obed");
+  assert.equal(plain(L.partyToForm(party(), event)).day_only, false);
+});
+
+test("partyPayload in day mode: sorted unique days, no arrive and leave, no kids in bed", () => {
+  const raw = { ...L.defaultPartyForm(event), name: " Jakub ", kids: "1", kids_in_parents_bed: "1", day_only: true, day_visits: ["2026-11-01", FRI, "2026-11-01"] };
+  const p = plain(L.partyPayload(raw));
+  assert.deepEqual(p, { name: "Jakub", adults: 2, kids: 1, kids_in_parents_bed: 0, arrival_time: "", note: "", day_visits: [FRI, "2026-11-01"] });
+  assert.equal("arrive" in p, false);
+  assert.equal("leave" in p, false);
+  assert.equal(L.checkPartyPayload(L.partyPayload(raw), event), null);
+});
+
+test("partyPayload in stay mode has no day_visits key", () => {
+  const p = L.partyPayload({ ...L.defaultPartyForm(event), name: "Ivan", day_visits: [FRI] });
+  assert.equal("day_visits" in p, false);
+  assert.equal(p.arrive, THU);
+  assert.equal(p.leave, "2026-11-01");
+});
+
+test("checkPartyPayload in day mode: empty, outside the event, ignores arrive and leave", () => {
+  const base = { ...L.defaultPartyForm(event), name: "Jakub", day_only: true };
+  const check = (days) => plain(L.checkPartyPayload(L.partyPayload({ ...base, day_visits: days }), event));
+  assert.deepEqual(check([]), { code: "invalid", params: { field: "day_visits", reason: "day_visits_empty" } });
+  assert.deepEqual(check([FRI, "2026-11-02"]), { code: "invalid", params: { field: "day_visits", reason: "day_outside_event" } });
+  assert.equal(check([FRI, "2026-11-01"]), null);                       // Fri + Sun, not consecutive
+  assert.equal(check(["2026-11-01"]), null);                            // the Sunday has no night, still an event day
+  assert.equal(L.errorText(check([])), "Vyber aspoň jeden deň, keď prídeš.");
+  assert.equal(L.errorField(err("invalid", { field: "day_visits" })), "day_visits");
 });

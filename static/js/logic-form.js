@@ -9,15 +9,24 @@ function defaultPartyForm(event) {
   return {
     name: "", adults: 2, kids: 0, kids_in_parents_bed: 0,
     arrive: event.arrive_days[0], leave: event.leave_days[event.leave_days.length - 1], arrival_time: "", note: "",
-    color: ""
+    color: "", day_only: false, day_visits: []
   };
 }
 
-function partyToForm(party) {
+// `event` is needed for a day-only party: its arrive and leave become the default first and last event days,
+// so turning „Prídem len na návštevu“ off in the form has values to show.
+function partyToForm(party, event) {
+  var dayOnly = isDayOnly(party);
+  var arrive = party.arrive, leave = party.leave;
+  if (dayOnly) {
+    var d = event ? defaultPartyForm(event) : { arrive: "", leave: "" };
+    arrive = d.arrive;
+    leave = d.leave;
+  }
   return {
     name: party.name, adults: party.adults, kids: party.kids, kids_in_parents_bed: party.kids_in_parents_bed,
-    arrive: party.arrive, leave: party.leave, arrival_time: party.arrival_time || "", note: party.note || "",
-    color: party.color
+    arrive: arrive, leave: leave, arrival_time: party.arrival_time || "", note: party.note || "",
+    color: party.color, day_only: dayOnly, day_visits: dayOnly ? party.day_visits.slice() : []
   };
 }
 
@@ -36,6 +45,14 @@ function partyPayload(raw) {
     name: text(raw.name), adults: count(raw.adults), kids: count(raw.kids), kids_in_parents_bed: count(raw.kids_in_parents_bed),
     arrive: text(raw.arrive), leave: text(raw.leave), arrival_time: text(raw.arrival_time), note: text(raw.note)
   };
+  if (raw.day_only) {
+    // A day-only party has day_visits instead of arrive and leave, and no child sleeps in a bed.
+    var picked = Array.isArray(raw.day_visits) ? raw.day_visits.map(text).filter(function (d) { return d !== ""; }) : [];
+    payload.day_visits = picked.filter(function (d, i) { return picked.indexOf(d) === i; }).sort();
+    payload.kids_in_parents_bed = 0;
+    delete payload.arrive;
+    delete payload.leave;
+  }
   // No color key at all means „Vyberie sa sama“ (create) or „keep the color“ (edit).
   if (text(raw.color) !== "") payload.color = text(raw.color);
   return payload;
@@ -77,9 +94,15 @@ function checkPartyPayload(p, event, currentColor) {
   if (!isCount(p.adults)) return bad("adults");
   if (!isCount(p.kids)) return bad("kids");
   if (!isCount(p.kids_in_parents_bed) || p.kids_in_parents_bed > p.kids) return bad("kids_in_parents_bed");
-  if (event.arrive_days.indexOf(p.arrive) === -1) return bad("arrive");
-  if (event.leave_days.indexOf(p.leave) === -1) return bad("leave");
-  if (!(p.arrive < p.leave)) return bad("leave", "leave_not_after_arrive");
+  if (p.day_visits !== undefined) {
+    if (!p.day_visits.length) return bad("day_visits", "day_visits_empty");
+    var eventDayList = eventDays(event);
+    if (p.day_visits.some(function (d) { return eventDayList.indexOf(d) === -1; })) return bad("day_visits", "day_outside_event");
+  } else {
+    if (event.arrive_days.indexOf(p.arrive) === -1) return bad("arrive");
+    if (event.leave_days.indexOf(p.leave) === -1) return bad("leave");
+    if (!(p.arrive < p.leave)) return bad("leave", "leave_not_after_arrive");
+  }
   if (p.arrival_time.length > PARTY_LIMITS.arrival_time) return bad("arrival_time");
   if (p.note.length > PARTY_LIMITS.note) return bad("note");
   if (p.color !== undefined && !(currentColor && String(currentColor).toUpperCase() === p.color.toUpperCase())) {
@@ -90,7 +113,7 @@ function checkPartyPayload(p, event, currentColor) {
   return null;
 }
 
-var FORM_FIELDS = ["name", "adults", "kids", "kids_in_parents_bed", "arrive", "leave", "arrival_time", "note", "color"];
+var FORM_FIELDS = ["name", "adults", "kids", "kids_in_parents_bed", "arrive", "leave", "day_visits", "arrival_time", "note", "color"];
 
 // The form field a server error is about (`params.field`), or "" when it is not one of the form fields.
 function errorField(error) {

@@ -7,7 +7,7 @@
 
 var FORM_LABELS = {
   name: "Meno", adults: "Dospelí", kids: "Deti", kids_in_parents_bed: "Deti spiace s rodičmi",
-  arrive: "Príchod", leave: "Odchod", arrival_time: "Čas príchodu", note: "Poznámka", color: "Farba"
+  arrive: "Príchod", leave: "Odchod", day_visits: "Ktoré dni prídeš?", arrival_time: "Čas príchodu", note: "Poznámka", color: "Farba"
 };
 
 // The party form for a new party (`party` is null) or to edit one. `opts.returnKey` is the scene element
@@ -16,7 +16,7 @@ function openPartyForm(party, opts) {
   var event = app.state.event, editing = !!party;
   var fields = {}, errors = {};
   openPanel(editing ? "Upraviť „" + party.name + "“" : "Pridať sa", function (body, panel) {
-    var values = editing ? partyToForm(party) : defaultPartyForm(event);
+    var values = editing ? partyToForm(party, event) : defaultPartyForm(event);
     var form = htmlEl("form", { "class": "pform", novalidate: "" });
     var formError = htmlEl("p", { "class": "form-error", role: "alert", hidden: "" });
 
@@ -118,6 +118,56 @@ function openPartyForm(party, opts) {
       return wrap;
     }
 
+    // „Prídem len na návštevu“: a pressed toggle swaps the stay fields for one button per event day.
+    var dayOnly = values.day_only;
+    var dayToggle = htmlEl("button", { "class": "toggle", type: "button", "aria-pressed": String(dayOnly), id: "pf-day-only" });
+    var toggleBox = htmlEl("span", { "class": "box", "aria-hidden": "true" });
+    var toggleText = htmlEl("span", null);
+    toggleText.appendChild(htmlEl("b", null, "Prídem len na návštevu"));
+    toggleText.appendChild(htmlEl("br"));
+    toggleText.appendChild(htmlEl("small", null, "Nebudem nocovať, nepotrebujem miesto na spanie."));
+    dayToggle.appendChild(toggleBox);
+    dayToggle.appendChild(toggleText);
+
+    // `group.value` is the sorted list of the pressed days, read like an input's value.
+    function dayField() {
+      var wrap = htmlEl("div", { "class": "field" });
+      var group = htmlEl("div", { "class": "daygrid", role: "group", "aria-labelledby": "pf-day_visits-label", tabindex: "-1", id: "pf-day_visits" });
+      var picked = values.day_visits.slice();
+      var buttons = [];
+      function mark() {
+        group.value = picked.slice().sort();
+        buttons.forEach(function (b) {
+          var on = picked.indexOf(b.getAttribute("data-day")) !== -1;
+          b.setAttribute("aria-pressed", String(on));
+          b.firstChild.textContent = on ? "✓" : "";
+        });
+      }
+      eventDays(event).forEach(function (day) {
+        var b = htmlEl("button", { "class": "btn secondary", type: "button", "data-day": day });
+        b.appendChild(htmlEl("span", { "class": "box", "aria-hidden": "true" }));
+        b.appendChild(document.createTextNode(dayLabel(day)));
+        b.addEventListener("click", function () {
+          var i = picked.indexOf(day);
+          if (i === -1) picked.push(day); else picked.splice(i, 1);
+          mark();
+          group.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        buttons.push(b);
+        group.appendChild(b);
+      });
+      var err = htmlEl("p", { "class": "field-error", id: "pf-day_visits-err", hidden: "" });
+      group.setAttribute("aria-describedby", "pf-day_visits-err pf-day_visits-hint");
+      wrap.appendChild(htmlEl("span", { "class": "label", id: "pf-day_visits-label" }, FORM_LABELS.day_visits));
+      wrap.appendChild(group);
+      wrap.appendChild(htmlEl("p", { "class": "hint", id: "pf-day_visits-hint" }, "Môžeš vybrať aj dni, ktoré nejdú po sebe."));
+      wrap.appendChild(err);
+      fields.day_visits = group;
+      errors.day_visits = err;
+      mark();
+      return wrap;
+    }
+
     var note = htmlEl("textarea", { maxlength: String(PARTY_LIMITS.note), rows: "3" });
     note.value = values.note;
 
@@ -126,14 +176,33 @@ function openPartyForm(party, opts) {
     var pair = htmlEl("div", { "class": "pair" });
     pair.appendChild(field("adults", countInput("adults")));
     pair.appendChild(field("kids", countInput("kids")));
+    form.appendChild(dayToggle);
     form.appendChild(pair);
-    form.appendChild(field("kids_in_parents_bed", countInput("kids_in_parents_bed"), {
+    var inBed = field("kids_in_parents_bed", countInput("kids_in_parents_bed"), {
       hint: "Takéto dieťa nepotrebuje vlastné miesto."
-    }));
+    });
+    form.appendChild(inBed);
     var days = htmlEl("div", { "class": "pair" });
     days.appendChild(field("arrive", daySelect("arrive", event.arrive_days)));
     days.appendChild(field("leave", daySelect("leave", event.leave_days)));
     form.appendChild(days);
+    var dayGrid = dayField();
+    form.appendChild(dayGrid);
+    // The hidden fields keep their values, so toggling back and forth loses nothing.
+    function applyMode() {
+      toggleBox.textContent = dayOnly ? "✓" : "";
+      dayToggle.setAttribute("aria-pressed", String(dayOnly));
+      inBed.hidden = dayOnly;
+      days.hidden = dayOnly;
+      dayGrid.hidden = !dayOnly;
+    }
+    dayToggle.addEventListener("click", function () {
+      dayOnly = !dayOnly;
+      applyMode();
+      clearErrors();
+      form.dispatchEvent(new Event("change"));
+    });
+    applyMode();
     form.appendChild(field("arrival_time", textInput("arrival_time", PARTY_LIMITS.arrival_time), { optional: true }));
     form.appendChild(field("note", note, { optional: true }));
     form.appendChild(colorField());
@@ -156,6 +225,7 @@ function openPartyForm(party, opts) {
         // A number field with unreadable text reports an empty value: keep it as an error, not a 0.
         raw[name] = input.validity && input.validity.badInput ? "?" : input.value;
       });
+      raw.day_only = dayOnly;
       return partyPayload(raw);
     }
 
@@ -257,7 +327,7 @@ function openPartyForm(party, opts) {
       var problem = checkPartyPayload(payload, event, editing ? party.color : "");
       if (problem) { hideConfirm(); showError(problem); return; }
       if (editing && !save.getAttribute("data-confirm")) {
-        var freed = freedByStay(app.state, party.id, payload.arrive, payload.leave);
+        var freed = freedByStay(app.state, party.id, payload.day_visits ? null : payload.arrive, payload.day_visits ? null : payload.leave);
         if (freed.length) { askToFree(freed); return; }
       }
       send(payload);
