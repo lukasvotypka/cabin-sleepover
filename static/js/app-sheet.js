@@ -169,6 +169,7 @@ function openWho(opts) {
         if (party.id === app.myParty) row.appendChild(htmlEl("span", { "class": "mark", "aria-hidden": "true" }, "✓"));
         row.addEventListener("click", function () {
           setMyParty(party.id);
+          app.night = defaultNightFor(party, app.state.event.nights);
           closePanel();
           render();
         });

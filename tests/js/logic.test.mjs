@@ -122,6 +122,16 @@ test("a party arriving on Friday is not present on the Thursday night", () => {
   assert.equal(L.isPresent(p, SAT), true);
 });
 
+test("default night is the arrival night, or the first night as a fallback", () => {
+  const nights = event.nights;
+  assert.equal(L.defaultNightFor(party({ arrive: THU }), nights), THU);
+  assert.equal(L.defaultNightFor(party({ arrive: FRI }), nights), FRI);
+  assert.equal(L.defaultNightFor(party({ arrive: "2026-11-01" }), nights), THU);
+  assert.equal(L.defaultNightFor({ id: "p-x" }, nights), THU);
+  assert.equal(L.defaultNightFor(null, nights), THU);
+  assert.equal(L.defaultNightFor(undefined, nights), THU);
+});
+
 test("the leave day is not a night of the stay", () => {
   const p = party({ arrive: THU, leave: SAT });
   assert.equal(L.isPresent(p, FRI), true);

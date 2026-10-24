@@ -225,6 +225,12 @@ function partyById(state, id) {
   return null;
 }
 
+// The night the map shows when a party is picked: its arrival night, else the first event night.
+function defaultNightFor(party, nights) {
+  if (party && party.arrive && nights.indexOf(party.arrive) !== -1) return party.arrive;
+  return nights[0];
+}
+
 // A party is present on night n if arrive <= n < leave (ISO dates compare as text).
 function isPresent(party, night) {
   return party.arrive <= night && night < party.leave;

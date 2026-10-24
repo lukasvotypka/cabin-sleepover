@@ -67,6 +67,7 @@ var app = {
   etag: null,
   fetchedAt: 0,
   night: null,
+  nightSynced: false,  // set by the first applyState: only that one may take the night from the remembered party
   myParty: storage.get(KEYS.party),
   noticeCollapsed: storage.get(KEYS.notice) !== "0",
   askWho: false,       // open „Kto si?“ once the next state has arrived
@@ -218,6 +219,11 @@ function poll() {
 function applyState(state) {
   app.state = state;
   app.fetchedAt = Date.now();
+  if (!app.nightSynced) {
+    app.nightSynced = true;
+    var remembered = app.myParty ? partyById(state, app.myParty) : null;
+    if (remembered) app.night = defaultNightFor(remembered, state.event.nights);
+  }
   if (app.night === null || state.event.nights.indexOf(app.night) === -1) app.night = state.event.nights[0];
   document.title = state.event.name;
   if (app.myParty && !partyById(state, app.myParty)) {

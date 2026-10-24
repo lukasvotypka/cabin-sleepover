@@ -226,6 +226,7 @@ function openPartyForm(party, opts) {
           var created = res.json && res.json.party;
           if (!editing && created) {
             setMyParty(created.id);
+            app.night = defaultNightFor(created, app.state.event.nights);
             render();
           }
           var freed = (res.json && res.json.freed) || [];
