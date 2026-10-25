@@ -224,7 +224,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .crest-age { display: flex; align-items: center; gap: 3px; min-height: 14px; font-size: 10px; color: #E8D2A6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .online-chip { flex: none; display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; box-sizing: border-box; border: 2px solid rgba(0, 0, 0, .35); }
 .online-chip.mine { border-color: #F2D58A; }   /* my places have the same yellow frame on the map */
-.online-more { flex: none; font-weight: 700; }
+.online-label, .online-more { flex: none; }
+.online-more { font-weight: 700; }
 .crest:active, .quest-row:active { transform: translate(2px, 2px); }
 @media (prefers-reduced-motion: reduce) {
   .quest-badge, .quest-bang { animation: none; }

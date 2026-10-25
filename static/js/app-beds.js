@@ -191,8 +191,9 @@ function renderAge() {
     if (age) {
       app.ageNode.textContent = age;
     } else if (!online.chips.length) {
-      app.ageNode.textContent = "online: nikto";
+      app.ageNode.textContent = online.label;
     } else {
+      app.ageNode.appendChild(htmlEl("span", { "class": "online-label", "aria-hidden": "true" }, "online:"));
       online.chips.forEach(function (c) {
         var chip = htmlEl("span", { "class": "online-chip" + (c.mine ? " mine" : ""), "aria-hidden": "true" });
         chip.style.background = c.color;

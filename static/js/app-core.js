@@ -6,7 +6,7 @@
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
 var AGE_TICK_MS = 1000;
-var CREST_CHIPS_MAX = 7;   // online chips under „Si: …“; the rest is „+N“
+var CREST_CHIPS_MAX = 6;   // online chips under „Si: …“ (what fits at 380 px after „online:“); the rest is „+N“
 // A request that hangs (a phone that slept or lost the network mid-request) is given up after this,
 // so the next poll can run. Without it a hung poll blocked all later ones and the page stayed stale.
 var POLL_TIMEOUT_MS = 10000;

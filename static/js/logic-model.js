@@ -539,7 +539,8 @@ function seenText(lastSeenIso, serverNowMs, isOnline) {
 
 // The online parties under „Si: …“ in the bottom HUD, mine included, in `state.parties` order.
 // My party counts even before the server lists it: this page is polling, so it is online.
-// {chips: [{id, color, ch, ink, mine}] (at most `max`), more: how many did not fit, label: for screen readers}.
+// {chips: [{id, color, ch, ink, mine}] (at most `max`), more: how many did not fit, label: the text when there
+// are no chips („online: len ty“, „online: nikto“) and for screen readers}.
 function onlineChips(state, myPartyId, max) {
   var presence = state && state.presence;
   var ids = {};
@@ -549,6 +550,9 @@ function onlineChips(state, myPartyId, max) {
   var chips = parties.slice(0, max).map(function (p) {
     return { id: p.id, color: p.color, ch: shirtChar(p.name), ink: shirtInk(p.color), mine: p.id === myPartyId };
   });
+  var alone = parties.length === 1 && parties[0].id === myPartyId;
+  // Alone, my chip would only repeat the crest next to it: say it in words instead.
+  if (alone) return { chips: [], more: 0, label: "online: len ty" };
   var label = parties.length ? "online: " + parties.map(function (p) { return p.name; }).join(", ") : "online: nikto";
   return { chips: chips, more: parties.length - chips.length, label: label };
 }

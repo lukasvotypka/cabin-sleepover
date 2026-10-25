@@ -242,7 +242,11 @@ test("onlineChips lists online parties with their shirt letter, mine included", 
   const few = L.onlineChips(state, "b", 2);
   assert.deepEqual([few.chips.length, few.more], [2, 1]);
   assert.equal(L.onlineChips({ parties: state.parties, presence: { online: [] } }, null, 8).label, "online: nikto");
-  assert.equal(L.onlineChips({ parties: state.parties }, "a", 8).chips.length, 1);   // no presence yet: just me
+  // alone (also before the server lists me): no chip that repeats the crest, words instead
+  const alone = L.onlineChips({ parties: state.parties }, "a", 8);
+  assert.deepEqual([alone.chips.length, alone.label], [0, "online: len ty"]);
+  assert.equal(L.onlineChips({ parties: state.parties, presence: { online: ["a"] } }, "a", 8).label, "online: len ty");
+  assert.equal(L.onlineChips({ parties: state.parties, presence: { online: ["a"] } }, null, 8).chips.length, 1);   // no party chosen
 });
 
 test("crestAgeText shows the age only on a problem", () => {
