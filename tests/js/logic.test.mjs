@@ -3514,3 +3514,14 @@ test("updateSign: any difference is newer, a pending save asks to wait", () => {
   assert.deepEqual({ ...L.updateSign("abc", "abd", 2) }, { text: "Ukladám, chvíľu počkaj", canReload: false });
   assert.equal(L.updateSign("abc", "abc", 2), null);
 });
+
+// --- version line in „Kto si?“ (T-056) ---
+
+test("versionLine: both values, one missing, placeholders", () => {
+  assert.equal(L.versionLine("1.11.0", "3f9a2c1b7d0e"), "verzia 1.11.0 · 3f9a2c1b7d0e");
+  assert.equal(L.versionLine("1.11.0", ""), "verzia 1.11.0");
+  assert.equal(L.versionLine("", "3f9a2c1b7d0e"), "3f9a2c1b7d0e");
+  assert.equal(L.versionLine("__APP_VERSION__", "__ASSET_VERSION__"), "");
+  assert.equal(L.versionLine("1.11.0", "__ASSET_VERSION__"), "verzia 1.11.0");
+  assert.equal(L.versionLine(undefined, null), "");
+});

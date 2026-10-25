@@ -415,6 +415,7 @@ def _first_failing_field(exc: RequestValidationError) -> str | None:
 
 
 ASSET_VERSION_PLACEHOLDER = "__ASSET_VERSION__"
+APP_VERSION_PLACEHOLDER = "__APP_VERSION__"
 
 
 class PageRenderer:
@@ -425,7 +426,8 @@ class PageRenderer:
     The result is cached until a file's modification time or size changes (no restart needed in development).
     """
 
-    def __init__(self, static_dir: Path) -> None:
+    def __init__(self, static_dir: Path, release: str = "") -> None:
+        self._release = release
         self._index = static_dir / "index.html"
         self._scripts = static_dir / "js"
         self._signature: tuple[Any, ...] | None = None
@@ -451,7 +453,8 @@ class PageRenderer:
                 digest.update(f.read_bytes())
             version = self._version = digest.hexdigest()[:12]
             html = self._index.read_text(encoding="utf-8")
-            self._html = html.replace(ASSET_VERSION_PLACEHOLDER, version)
+            html = html.replace(ASSET_VERSION_PLACEHOLDER, version)
+            self._html = html.replace(APP_VERSION_PLACEHOLDER, self._release)
             self._signature = signature
         return self._html
 
@@ -583,9 +586,9 @@ def create_app(
             with_state=_auth_of(request) is not None,
         )
 
-    page = PageRenderer(static_dir)
-    rt.asset_version = page.version
     version = read_version(Path(pyproject))
+    page = PageRenderer(static_dir, version)
+    rt.asset_version = page.version
 
     @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     async def index() -> HTMLResponse:

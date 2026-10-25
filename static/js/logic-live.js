@@ -59,3 +59,12 @@ function updateSign(shownVersion, serverVersion, pendingWrites) {
   if (pendingWrites > 0) return { text: "Ukladám, chvíľu počkaj", canReload: false };
   return { text: "Nová verzia – ťukni pre obnovenie", canReload: true };
 }
+
+// The small line at the bottom of „Kto si?“ (T-056): release version and page code hash. A missing value or a raw
+// placeholder is left out; returns "" when nothing is left.
+function versionLine(release, hash) {
+  var parts = [];
+  if (release && !/^__\w+__$/.test(release)) parts.push("verzia " + release);
+  if (hash && !/^__\w+__$/.test(hash)) parts.push(hash);
+  return parts.join(" · ");
+}

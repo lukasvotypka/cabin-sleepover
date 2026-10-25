@@ -102,3 +102,11 @@ def test_initial_sse_frame_has_asset_version(server):  # noqa: F811
         assert event == "state" and data["asset_version"] == meta
     finally:
         sse.close()
+
+
+async def test_page_carries_the_release_version(client):
+    resp = await client.get("/")
+    match = re.search(r'<meta name="app-version" content="([^"]+)">', resp.text)
+    assert match
+    assert match.group(1) == (await client.get("/api/health")).json()["version"]
+    assert "__APP_VERSION__" not in resp.text and "__ASSET_VERSION__" not in resp.text

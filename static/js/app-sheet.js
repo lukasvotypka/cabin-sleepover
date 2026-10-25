@@ -121,6 +121,11 @@ function openBedSheet(room, bed) {
   });
 }
 
+function metaContent(name) {
+  var el = document.querySelector('meta[name="' + name + '"]');
+  return el ? el.getAttribute("content") : "";
+}
+
 function openWho(opts) {
   openPanel("Kto si?", function (body, panel) {
     // My own party first: editing it is the most common reason to open this panel once it is chosen.
@@ -131,6 +136,8 @@ function openWho(opts) {
     body.appendChild(list);
     var actions = htmlEl("div", { "class": "actions" });
     body.appendChild(actions);
+    var vtext = versionLine(metaContent("app-version"), shownAssetVersion);
+    if (vtext) body.appendChild(htmlEl("p", { "class": "version-line" }, vtext));
     var add = htmlEl("button", { "class": "btn", type: "button", "data-key": "add-party" }, "Pridať sa");
     add.addEventListener("click", function () {
       closePanel();
