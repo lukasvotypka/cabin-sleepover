@@ -17,6 +17,7 @@ import httpx
 import pytest
 
 from app.events import MAX_PER_CLIENT
+from app.seen import STREAM_GRACE
 from tests.api_helpers import A1, FRI, THU, mk_party
 from tests.conftest import ROOT, TEST_ENV
 from tests.test_seen import add_party
@@ -77,19 +78,43 @@ async def test_presence_on_connect_and_disconnect(group_client, app, make_party,
     assert data["online"] == [party.id]
     assert rt.hub.online_parties() == {party.id}
     clock.advance(10)
-    await gen.aclose()  # the last stream of the party closed: last seen is now, online ends at once
+    await gen.aclose()  # the last stream of the party closed: last seen is now, online ends after the grace
     assert rt.seen.seen[party.id] == clock.now
     assert rt.hub.online_parties() == set()
+    assert conn.released
+    clock.advance(STREAM_GRACE)
+    assert rt.seen.presence(rt.known_ids)["online"] == [party.id]
+    clock.advance(0.5)
+    rt.refresh_presence()  # what the timer scheduled at the close does
     event, data = await next_frame(wgen)
     assert event == "presence"
     assert data["online"] == []
-    assert conn.released
+    await wgen.aclose()
+
+
+async def test_reconnect_within_the_grace_shows_no_gap(group_client, app, make_party, clock):
+    # iOS: switching tabs closes the stream at once (the page is frozen right after); coming back within the
+    # grace opens a new one, and the others never see the party leave.
+    rt = app.state.runtime
+    party = make_party()
+    await add_party(app, party)
+    _watcher, wgen = await open_stream(rt, client="watcher")
+    _conn, gen = await open_stream(rt, party.id, client="phone")
+    assert (await next_frame(wgen))[1]["online"] == [party.id]
+    await gen.aclose()
+    clock.advance(5)
+    _conn2, gen2 = await open_stream(rt, party.id, client="phone")
+    clock.advance(10)
+    rt.refresh_presence()
+    assert rt.seen.presence(rt.known_ids)["online"] == [party.id]
+    assert rt.last_online == {party.id}  # no presence frame without the party was ever due
+    await gen2.aclose()
     await wgen.aclose()
 
 
 async def test_requests_of_a_streaming_party_do_not_keep_it_online(group_client, app, make_party, clock):
     # The page boots with GET /api/state and writes with plain requests; closing its stream must still end
-    # its online status at once (bug found in T-053 testing: it stayed online for the 75 s window).
+    # its online status after the short grace (bug found in T-053 testing: it stayed for the 75 s window).
     rt = app.state.runtime
     party = make_party()
     await add_party(app, party)
@@ -100,7 +125,9 @@ async def test_requests_of_a_streaming_party_do_not_keep_it_online(group_client,
     await group_client.get("/api/state", headers={"X-Party-Id": party.id})  # a request while streaming
     clock.advance(5)
     await gen.aclose()
+    clock.advance(STREAM_GRACE + 0.5)
     assert party.id not in rt.seen.presence(rt.known_ids)["online"]
+    rt.refresh_presence()
     while True:  # the watcher hears the party leave
         event, data = await next_frame(wgen)
         if event == "presence" and party.id not in data["online"]:

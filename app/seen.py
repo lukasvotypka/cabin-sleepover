@@ -27,6 +27,10 @@ log = logging.getLogger("chrapa.seen")
 
 ONLINE_WINDOW = 75  # seconds: a party that polled within this long is online (or has an open stream)
 PERSIST_INTERVAL = 60  # seconds between file writes for one party
+# A party stays online this long after its last stream closed (organizer's decision of 25. 10. 2026). The grace
+# is on the server because iOS Safari freezes a hidden page at once, so a timer on the page never runs:
+# the page closes its stream as soon as it is hidden, and a quick return within the grace shows no gap.
+STREAM_GRACE = 10
 
 
 def creation_times(audit_path: Path) -> dict[str, float]:
@@ -71,6 +75,7 @@ class SeenTracker:
         # When a plain request (not an event stream) last named the party: the polling fallback for "online".
         # Stream activity only moves `seen`, so a closed tab goes offline at once instead of after the window.
         self.polled: dict[str, float] = {}
+        self.stream_closed: dict[str, float] = {}  # when the party's last stream closed (see STREAM_GRACE)
         self.written: dict[str, float] = {}  # when each party's time was last put into the file
         # Sync dependencies and endpoints run in FastAPI's thread pool, so the dicts need a lock.
         # The lock is a threading.Lock on purpose: the live stream code (event loop) and the sync
@@ -145,11 +150,12 @@ class SeenTracker:
             if now - self.written.get(party_id, float("-inf")) >= PERSIST_INTERVAL:
                 self._persist(known_ids, party_id, now)
 
-    def forget_polled(self, party_id: str) -> None:
-        """The party's last stream closed: its plain requests (boot load, writes) were made by the page that
+    def last_stream_closed(self, party_id: str) -> None:
+        """The party's last stream closed: it stays online for STREAM_GRACE only. Its plain requests (boot load, writes) were made by the page that
         had the stream, so they must not keep it online for the polling window after the tab is gone."""
         with self._lock:
             self.polled.pop(party_id, None)
+            self.stream_closed[party_id] = self.clock()
 
     def _persist(self, known_ids: Collection[str], party_id: str, now: float) -> None:
         data = {pid: to_iso(t) for pid, t in self.seen.items() if pid in known_ids}
@@ -166,10 +172,19 @@ class SeenTracker:
             now = self.clock()
             seen = {pid: t for pid, t in self.seen.items() if pid in known_ids}
             polled = dict(self.polled)
+            closed = dict(self.stream_closed)
+
+        def online(pid: str) -> bool:
+            return (
+                pid in connected
+                or now - closed.get(pid, float("-inf")) <= STREAM_GRACE
+                or now - polled.get(pid, float("-inf")) <= ONLINE_WINDOW
+            )
+
         return {
             "server_time": to_iso(now),
             "last_seen": {pid: to_iso(t) for pid, t in seen.items()},
-            "online": [pid for pid, t in seen.items() if pid in connected or now - polled.get(pid, float("-inf")) <= ONLINE_WINDOW],
+            "online": [pid for pid in seen if online(pid)],
         }
 
 

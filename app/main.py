@@ -57,7 +57,7 @@ from app.models import (
     load_layout,
 )
 from app.ratelimit import CODE_ATTEMPTS_PER_MINUTE, SlidingWindowLimiter
-from app.seen import SeenTracker
+from app.seen import STREAM_GRACE, SeenTracker
 from app.store import Store, now_iso
 from app.validate import (
     ERROR_STATUS,
@@ -506,10 +506,13 @@ def create_app(
         try:
             for party_id in online ^ rt.connected:  # connect and disconnect both count as "seen now"
                 seen.record(party_id, rt.known_ids, polled=False)
-            for party_id in rt.connected - online:  # its last stream closed: offline now, not after the window
-                seen.forget_polled(party_id)
+            closed = rt.connected - online
+            for party_id in closed:  # its last stream closed: offline after the short grace, not the poll window
+                seen.last_stream_closed(party_id)
             rt.connected = set(online)
             rt.refresh_presence()
+            if closed and rt.loop is not None:  # tell everyone when the grace is over (unless it reconnected)
+                rt.loop.call_later(STREAM_GRACE + 0.5, rt.refresh_presence)
         except Exception:  # must not raise: it would replace the stream's normal end (see events.py)
             log.exception("presence update failed")
 

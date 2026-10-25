@@ -15,13 +15,12 @@ document.addEventListener("keydown", function (e) {
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape" && e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") app.navKeyAt = Date.now();
 }, true);
-var hiddenTimer = null;
+// No stream in a hidden tab. It is closed at once: iOS Safari freezes a hidden page right away, so a delayed
+// close would never run and the stream would hang open. The server keeps the party online for a 10 s grace
+// (STREAM_GRACE in app/seen.py), so a quick return shows no gap to the others.
 document.addEventListener("visibilitychange", function () {
-  clearTimeout(hiddenTimer);
-  hiddenTimer = null;
   if (document.visibilityState !== "visible") {
-    // No stream in a hidden tab, but only after a short grace period.
-    if (live.active) hiddenTimer = setTimeout(function () { if (document.visibilityState !== "visible") liveStop(); }, LIVE_HIDDEN_GRACE_MS);
+    if (live.active) liveStop();
     return;
   }
   if (app.state && !live.fallback && live.supported) { liveEnsure(); return; }   // the new stream brings fresh state
@@ -32,6 +31,11 @@ document.addEventListener("visibilitychange", function () {
     return;
   }
   poll();
+});
+// Closing the tab or leaving the page (also into the back-forward cache): close the stream explicitly.
+window.addEventListener("pagehide", function () { if (live.active) liveStop(); });
+window.addEventListener("pageshow", function (e) {   // back from the back-forward cache: open it again
+  if (e.persisted && document.visibilityState === "visible" && app.state && !live.fallback && live.supported) liveEnsure();
 });
 window.addEventListener("online", function () {
   if (live.supported && !live.fallback && app.state && (!live.es || live.es.readyState === 2)) {   // reopen a closed stream at once

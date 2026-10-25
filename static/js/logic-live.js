@@ -7,9 +7,6 @@
 var LIVE_STALE_MS = 45000;        // no event for longer than this is a problem (pings come every 20 s)
 var LIVE_NO_STATE_MS = 60000;     // no `state` event this long after opening: fall back to polling
 var LIVE_RETRY_MS = 180000;       // in fallback the stream is tried again this often
-// A hidden tab keeps its stream this long before closing it (organizer's decision of 25. 10. 2026): a browser
-// covered by another one or a quick switch to another app does not drop the party from „online“ at once.
-var LIVE_HIDDEN_GRACE_MS = 10000;
 var LIVE_RECONNECT_BASE_MS = 3000;
 var LIVE_RECONNECT_MAX_MS = 30000;
 
