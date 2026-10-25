@@ -138,6 +138,30 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-bottom: 4px solid #5C4033; transform: translate(-50%, -50%); opacity: 0; transition: opacity .15s ease-out;
 }
 .sheet.center.open { transform: translate(-50%, -50%); opacity: 1; }
+/* „Rýchly prehľad“ (T-062): one page in the panel colors, two columns from 900 px */
+.sheet.quick { max-width: 560px; }
+.qk-grid { display: grid; gap: 10px; margin-bottom: 12px; }
+.qk-card { padding: 10px 12px; background: var(--bg); border: 2px solid var(--line); }
+.qk-card h3 { margin: 0 0 6px; font: 700 19px/1.15 var(--font-head); color: var(--forest); }
+.qk-card p, .sheet .qk-card p { margin: 0 0 6px; color: var(--ink); }
+.qk-card ul { margin: 0; padding-left: 20px; }
+.qk-warn { background: var(--warn-soft); border-color: var(--warn); }
+.qk-warn h3 { color: var(--warn); }
+.qk-prog { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.qk-prog i { flex: 1; height: 8px; background: var(--surface); border: 2px solid var(--line); }
+.qk-prog b { display: block; height: 100%; background: var(--ok); }
+.qk-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+.qk-check { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+.qk-check input { width: 22px; height: 22px; flex: none; accent-color: var(--ok); }
+.qk-check.done span { color: var(--ok); text-decoration: line-through; }
+.qk-table { border-collapse: collapse; font-size: 15px; }
+.qk-table td { padding: 2px 8px 2px 0; vertical-align: top; }
+.qk-copy { width: 100%; }
+.sheet.quick .summary-text { margin-top: 8px; width: 100%; }
+@media (min-width: 900px) {
+  .sheet.quick { max-width: 900px; }
+  .qk-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+}
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .sheet h2 { margin: 0; font-size: 26px; }
 .close { min-width: 44px; min-height: 44px; background: transparent; border: 3px solid var(--line); border-radius: 0; cursor: pointer; }
@@ -594,6 +618,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-summary.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-adventure.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-slides.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-quick.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-sound.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-live.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-start.js?v=__ASSET_VERSION__"></script>
