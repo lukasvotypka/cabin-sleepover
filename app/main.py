@@ -423,6 +423,8 @@ class PageRenderer:
 
     The page loads its scripts as `static/js/x.js?v=<hash>`. The hash changes whenever any file in
     `static/js/` or the page itself changes, so a browser never runs a stale script after an edit.
+    The release version is mixed in too, so every release shows the "new version" sign (and the page
+    then shows the new version number), even one that changed no page file.
     The result is cached until a file's modification time or size changes (no restart needed in development).
     """
 
@@ -447,7 +449,7 @@ class PageRenderer:
         files = self._files()
         signature = tuple((str(f), f.stat().st_mtime_ns, f.stat().st_size) for f in files)
         if signature != self._signature:
-            digest = hashlib.sha256()
+            digest = hashlib.sha256(self._release.encode("utf-8"))
             for f in files:
                 digest.update(f.name.encode("utf-8"))
                 digest.update(f.read_bytes())

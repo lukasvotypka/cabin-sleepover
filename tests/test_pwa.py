@@ -110,3 +110,12 @@ async def test_page_carries_the_release_version(client):
     assert match
     assert match.group(1) == (await client.get("/api/health")).json()["version"]
     assert "__APP_VERSION__" not in resp.text and "__ASSET_VERSION__" not in resp.text
+
+
+def test_asset_version_changes_with_the_release():
+    from app.main import PageRenderer
+
+    old, new, same = PageRenderer(STATIC, "1.0.0"), PageRenderer(STATIC, "1.0.1"), PageRenderer(STATIC, "1.0.0")
+    assert old.version() != new.version()
+    assert old.version() == same.version()
+    assert page_meta(new.render()) == new.version()
