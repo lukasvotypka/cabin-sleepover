@@ -2507,7 +2507,7 @@ test("page: the intro constants are used by name, with no magic numbers in the i
 
 test("page: the code screen stops the fall and the join replays the splash once", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
-  const code = app.match(/function showCodeScreen\(\) \{[\s\S]*?\n  \}\n/)[0];
+  const code = app.match(/function showCodeScreen\(voluntary\) \{[\s\S]*?\n  \}\n/)[0];
   assert.match(code, /clearTimeout\(app\.introTimer\)/);
   assert.match(code, /hideBoot\(\);/);
   const hide = app.match(/function hideBoot\(\) \{[\s\S]*?\n  \}\n/)[0];
@@ -3518,7 +3518,7 @@ test("intro zoom: the app wires it to the splash, stops on input and skips reduc
 
 test("intro zoom: the code screen (a 401) ends the intro, so the map is never stuck at 2x", () => {
   // The fall's end timer is cancelled by hideBoot(), so finishSplash() never runs after a 401 during the fall.
-  const showCodeSource = appSource.match(/function showCodeScreen\(\) \{[\s\S]*?\n\}\n/)[0];
+  const showCodeSource = appSource.match(/function showCodeScreen\(voluntary\) \{[\s\S]*?\n\}\n/)[0];
   assert.match(showCodeSource, /hideBoot\(\);\n  stopIntroZoom\(\);/);
 });
 
@@ -3942,4 +3942,26 @@ test("errorText: food note reasons have their own Slovak text", () => {
   assert.match(tooLong, /dlhý/);
   assert.match(ctrl, /znaky/);
   assert.notEqual(tooLong, ctrl);
+});
+
+// --- admin role (T-074) ---
+
+test("isAdmin is true only for the admin role", () => {
+  assert.equal(L.isAdmin("admin"), true);
+  assert.equal(L.isAdmin("group"), false);
+  assert.equal(L.isAdmin(null), false);
+  assert.equal(L.isAdmin(undefined), false);
+});
+
+test("roleAfterResponse drops to group on 403 forbidden only", () => {
+  assert.equal(L.roleAfterResponse("admin", 403, { code: "forbidden" }), "group");
+  assert.equal(L.roleAfterResponse("admin", 403, { code: "signup_closed" }), "admin");
+  assert.equal(L.roleAfterResponse("admin", 409, { code: "slot_taken" }), "admin");
+  assert.equal(L.roleAfterResponse("admin", 200, null), "admin");
+  assert.equal(L.roleAfterResponse("group", 403, { code: "forbidden" }), "group");
+});
+
+test("forbidden and signup_closed have Slovak texts", () => {
+  assert.equal(L.errorText({ code: "forbidden" }, null), "Na toto treba admin kód.");
+  assert.notEqual(L.errorText({ code: "signup_closed" }, null), L.errorText({ code: "nope" }, null));
 });

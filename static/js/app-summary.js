@@ -54,9 +54,11 @@ function openSummary() {
 
 // --- code screen ---
 
-function showCodeScreen() {
+function showCodeScreen(voluntary) {
   if (app.codeOpen) return;
   app.codeOpen = true;
+  app.codeVoluntary = voluntary === true;
+  $("codeBack").hidden = !app.codeVoluntary;
   liveStop();
   cancelWalks();
   closePanel();
@@ -73,6 +75,13 @@ function showCodeScreen() {
   $("codeScreen").hidden = false;
   $("codeInput").focus();
 }
+
+// „Späť“ on a code screen that the visitor opened himself: back to the map.
+$("codeBack").addEventListener("click", function () {
+  hideCodeScreen();
+  showScene(app.introDone);
+  liveOpen();
+});
 
 function hideCodeScreen() {
   app.codeOpen = false;
@@ -93,12 +102,9 @@ $("codeForm").addEventListener("submit", function (e) {
   errorNode.textContent = "";
   request("POST", "api/join", { code: code }).then(function (r) {
     if (r.status === 200 && r.json && r.json.ok) {
-      if (r.json.role) {
-        app.role = r.json.role;
-        storage.set(KEYS.role, r.json.role);
-      }
+      if (r.json.role) setRole(r.json.role);
       input.value = "";
-      app.askWho = !app.myParty;
+      app.askWho = !app.myParty || app.codeVoluntary;
       app.etag = null;
       hideCodeScreen();
       // Before the first reveal (no state yet, or one that was only stored) the splash shows again

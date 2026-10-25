@@ -146,6 +146,8 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 - [ ] **HUD, screen reader (T-045):** VoiceOver/TalkBack reads „Si: <meno>. Ťuknutím vyberieš, kto si.“ (or „Zatiaľ nevieme, kto si. …“) and the status sign with its full sentence (e.g. „Vo štvrtok ti chýbajú 2 miesta. Ťuknutím otvoríš možnosti.“); „Všetko máš“ is read as plain text, not as a button.
 - [ ] **HUD and toast (T-045):** zoom in on the map so „Celá mapa“ shows, then trigger a toast (e.g. save a status or tap a place). The toast sits above the HUD, but it covers the „Celá mapa“ button while it shows (both above the HUD). Check on a real phone that the button is still usable, or decide to move the toast higher.
 
+- [ ] **Admin code on a phone with the group cookie (T-074):** on an iPhone Safari and an Android Chrome that already joined with the group code: open „Kto si?“ and tap „Mám admin kód“ (44 px tall, underlined). The code screen shows with „Späť“; „Späť“ returns to the map. A wrong code shows „Kód nesedí, skús ho zadať znova.“. The admin code makes the panel show „Si organizátor“ instead of the link (after the join the panel reopens). A group code there keeps the link. After the 12 h admin cookie expires, the next admin action shows „Na toto treba admin kód.“ and the panel goes back to the link. VoiceOver and TalkBack read the link and „Späť“.
+
 ## Decisions to confirm with the organizer
 
 These are not defects, they are the developer's own choices that need a human opinion.

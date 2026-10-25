@@ -46,12 +46,24 @@ function waitText(seconds) {
   return s < 60 ? s + " s" : Math.ceil(s / 60) + " min";
 }
 
+// The only place the page decides that it is the organizer.
+function isAdmin(role) {
+  return role === "admin";
+}
+
+// The role to keep after a response: a 403 `forbidden` means the 12 h admin cookie is gone, so the
+// role falls back to `group`. Any other answer leaves the role as it is.
+function roleAfterResponse(role, status, error) {
+  if (status === 403 && error && error.code === "forbidden") return "group";
+  return role;
+}
+
 var ERROR_TEXTS = {
   bad_code: function () {
     return "Kód nesedí, skús ho zadať znova.";
   },
   forbidden: function () {
-    return "Toto môže robiť len organizátor.";
+    return "Na toto treba admin kód.";
   },
   signup_closed: function () {
     return "Zápis je zatvorený, miesta sa dajú len prezerať.";

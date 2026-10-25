@@ -83,6 +83,7 @@ var app = {
   introTimer: null,    // the one pending timer that reveals the map
   introDone: false,    // true when the fall starts: from then on the loading view never comes back
   codeOpen: false,
+  codeVoluntary: false, // the code screen was opened by the „Mám admin kód“ link, so „Späť“ shows
   polling: false,
   pollAbort: null,     // AbortController of the poll in flight
   pollAgain: false,    // poll once more as soon as the current poll has finished
@@ -122,8 +123,20 @@ var app = {
   ageNode: null,       // the line under „Si: …“ in the bottom HUD: online chips, or the data age on a problem
   ageKey: null         // what `ageNode` shows now, so the 1 s tick rebuilds it only on a change
 };
-// The role from /api/join is kept for T-009 (admin). Nothing uses it yet.
+// The role from /api/join: "group" or "admin" (decide with isAdmin()).
 app.role = storage.get(KEYS.role);
+
+// Called when the admin cookie turned out to be gone (a 403 forbidden). Later tasks hide admin UI here.
+function onAdminLost() {
+  if (typeof renderAdminUi === "function") renderAdminUi();
+}
+
+function setRole(role) {
+  var was = isAdmin(app.role);
+  app.role = role;
+  storage.set(KEYS.role, role);
+  if (was && !isAdmin(role)) onAdminLost();
+}
 
 function $(id) { return document.getElementById(id); }
 
@@ -180,7 +193,11 @@ function request(method, path, body, etag, timeoutMs) {
     var etagOut = res.headers.get("ETag");
     if (res.status === 304) return { status: 304, json: null, etag: etagOut };
     return res.json().then(
-      function (json) { return { status: res.status, json: json, etag: etagOut }; },
+      function (json) {
+        var role = roleAfterResponse(app.role, res.status, json ? json.error : null);
+        if (role !== app.role) setRole(role);
+        return { status: res.status, json: json, etag: etagOut };
+      },
       function () { return { status: res.status, json: null, etag: null }; }
     );
   }, function (err) {

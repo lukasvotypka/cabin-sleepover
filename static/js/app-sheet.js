@@ -141,6 +141,8 @@ function openWho(opts) {
     body.appendChild(list);
     var actions = htmlEl("div", { "class": "actions" });
     body.appendChild(actions);
+    var adminLine = htmlEl("p", { "class": "admin-line" });
+    body.appendChild(adminLine);
     var vtext = versionLine(metaContent("app-version"), shownAssetVersion);
     if (vtext) body.appendChild(htmlEl("p", { "class": "version-line" }, vtext));
     var add = htmlEl("button", { "class": "btn", type: "button", "data-key": "add-party" }, "Pridať sa");
@@ -157,6 +159,20 @@ function openWho(opts) {
     });
     me.appendChild(edit);
     actions.appendChild(add);
+    function fillAdminLine() {
+      clearNode(adminLine);
+      if (isAdmin(app.role)) {
+        adminLine.textContent = "Si organizátor";
+        return;
+      }
+      var link = htmlEl("button", { "class": "link-btn", type: "button", "data-key": "admin-code" }, "Mám admin kód");
+      link.addEventListener("click", function () {
+        closePanel();
+        showCodeScreen(true);
+      });
+      adminLine.appendChild(link);
+    }
+    fillAdminLine();
     panel.ageTicks = true;   // refreshed on a 304 too, so the „pred …“ texts stay current
     panel.refresh = function () {
       // A new state rebuilds the rows, so focus returns to the same party (or to the first button).
