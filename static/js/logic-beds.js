@@ -300,6 +300,62 @@ function assignLabel(count, partyName) {
   return count > 0 ? base + " (" + pluralPlaces(count) + ")" : base;
 }
 
+var DAY_ACCUSATIVE = ["nedeľu", "pondelok", "utorok", "stredu", "štvrtok", "piatok", "sobotu"];
+
+// "nedeľu", "štvrtok", "sobotu" for the day a night starts on ("" for a bad date).
+function dayAccusative(iso) {
+  var p = parseIso(iso);
+  return p ? DAY_ACCUSATIVE[p.dow] : "";
+}
+
+// "1 noc", "2 noci", "5 nocí"
+function nightsCount(n) {
+  return n + " " + (n === 1 ? "noc" : n >= 2 && n <= 4 ? "noci" : "nocí");
+}
+
+// "št – ne · 3 noci": the first night's day, the day after the last night, and the count.
+function stayNightsText(nights) {
+  if (!nights.length) return "";
+  var a = parseIso(nights[0]), b = parseIso(addDays(nights[nights.length - 1], 1));
+  if (!a || !b) return nightsCount(nights.length);
+  return DAY_SHORT[a.dow].toLowerCase() + " – " + DAY_SHORT[b.dow].toLowerCase() + " · " + nightsCount(nights.length);
+}
+
+// "V piatok je tu plno, zapíšeme ťa na št a so." for the party nights the bed cannot take.
+function stayFullNote(full, booked) {
+  if (!full.length) return "";
+  var days = full.map(function (n) { return dayLocative(n); });
+  var short = booked.map(function (n) { return DAY_SHORT[parseIso(n).dow].toLowerCase(); });
+  var head = capitalize(joinList(days)) + " je tu plno";
+  return booked.length ? head + ", zapíšeme ťa na " + joinList(short) + "." : head + ".";
+}
+
+// The texts of the bed panel's two assign buttons. The main one books the whole stay (`stayNights`),
+// the second only the selected night. With a one-night stay there is a single button.
+// `take` is the slots one tap takes (`slotsToTake`). Returns {single, main, sub, only, note}.
+function bedActionTexts(state, party, bed, night, take) {
+  var places = take.length;
+  var count = places > 0 ? " (" + pluralPlaces(places) + ")" : "";
+  var name = party ? "„" + party.name + "“" : "nás";
+  var present = party ? state.event.nights.filter(function (n) { return isPresent(party, n); }) : [];
+  if (!party || present.length <= 1) {
+    return { single: true, main: party ? "Zapísať sem " + name + count : assignLabel(places), sub: "", only: "", note: "" };
+  }
+  var booked = stayNights(state, party, take);
+  var full = present.filter(function (n) {
+    var held = (state.sleeping && state.sleeping[n]) || {};
+    var mine = bed.slots.some(function (slot) { return held[slot] === party.id; });
+    return booked.indexOf(n) === -1 && !mine;
+  });
+  return {
+    single: false,
+    main: "Zapísať " + name + " na celý pobyt" + count,
+    sub: stayNightsText(booked),
+    only: "Len na " + dayAccusative(night),
+    note: stayFullNote(full, booked)
+  };
+}
+
 // "A", "A a B", "A, B a C"
 function joinList(items) {
   if (items.length <= 1) return items.join("");

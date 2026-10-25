@@ -69,12 +69,16 @@ function openBedSheet(room, bed) {
       var present = party ? isPresent(party, night) : true;
       var take = party && present ? slotsToTake(st, party, bed, night) : [];
       var blocked = !!party && take.length === 0;
-      var assign = button(assignLabel(take.length, party ? party.name : null), "assign", function () { assignHere(bed, false); });
-      var stay = button("Na všetky naše noci", "stay", function () { assignHere(bed, true); }, true);
+      var t = bedActionTexts(st, party, bed, night, take);
+      var assign = button(t.main, "assign", function () { assignHere(bed, !t.single); });
+      if (t.sub) assign.appendChild(htmlEl("small", { "class": "sub-line" }, t.sub));
+      if (t.sub) assign.setAttribute("aria-label", t.main + ", " + t.sub);
       assign.disabled = blocked;
-      stay.disabled = blocked;
       box.appendChild(assign);
-      box.appendChild(stay);
+      var only = t.single ? null : button(t.only, "stay", function () { assignHere(bed, false); }, true);
+      if (only) only.disabled = blocked;
+      if (only) box.appendChild(only);
+      if (only && t.note && !blocked && present) box.appendChild(htmlEl("p", { "class": "note" }, t.note));
       if (party && !present) {
         box.appendChild(htmlEl("p", { "class": "note" }, notPresentNote(party, night)));
         box.appendChild(button("Upraviť príchod a odchod", "edit-party", function () {
