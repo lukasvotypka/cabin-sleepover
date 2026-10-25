@@ -12,7 +12,7 @@ Postav malú webovú aplikáciu na rozdelenie spania na chate. Kamaráti si na p
 
 **Ľudia** komunikujú cez WhatsApp skupinu a aplikáciu otvoria z odkazu na mobile. Nemajú účty a nechcú sa registrovať. Väčšina sa zapíše ťuknutím na mapu, niektorí to nechajú na organizátora.
 
-**Prečo takto:** vlastný jednoduchý backend v Pythone (FastAPI) na organizátorovom serveri. Dáta sú v čitateľných YAML súboroch na disku, takže ich organizátor vie v núdzi opraviť v editore a zálohovať obyčajným kopírovaním. Žiadna databáza ani externé služby, okrem voliteľného Claude API vo fáze 2.
+**Prečo takto:** vlastný jednoduchý backend v Pythone (FastAPI) na organizátorovom serveri. Dáta sú v čitateľných YAML súboroch na disku, takže ich organizátor vie v núdzi opraviť v editore a zálohovať obyčajným kopírovaním. Žiadna databáza ani externé služby, okrem voliteľného Claude API vo fáze 2 a služby Twilio Verify na overenie telefónu cez SMS (rozhodnutie organizátora z 25. 10. 2026, sekcia Prihlásenie telefónom).
 
 **Pravidlá pre stavbu:**
 
@@ -182,6 +182,13 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | POST | `/api/clear` | skupina | `{night, slot}`: uvoľní miesto |
 | POST | `/api/move` | skupina | `{party_id, from_slot, to_slot, nights[]}`: presun buď celý, alebo nič |
 | POST | `/api/parties` | skupina | Vytvorí partiu |
+| GET | `/api/session` | skupina | `{verified: [party_id…], sms_enabled}`: partie, ktoré má toto zariadenie overené telefónom (sekcia Prihlásenie telefónom) |
+| POST | `/api/parties/{id}/login/start` | skupina | `{phone}`: keď sa číslo zhoduje s číslom partie, pošle SMS s kódom |
+| POST | `/api/parties/{id}/login/verify` | skupina | `{phone, code}`: overí kód a pridá partiu do cookie partií |
+| POST | `/api/parties/{id}/phone/start` | skupina + partia | `{phone}`: pošle SMS s kódom na nové číslo partie |
+| POST | `/api/parties/{id}/phone/verify` | skupina + partia | `{phone, code}`: po správnom kóde uloží číslo k partii a pridá partiu do cookie partií |
+| DELETE | `/api/parties/{id}/phone` | skupina + partia | Odstráni číslo partie, partia už nie je chránená |
+| POST | `/api/logout` | skupina | `{party_id}`: odoberie partiu z cookie partií tohto zariadenia |
 | POST | `/api/briefing` | skupina | `{party_id, step}`: zapíše, že partia otvorila zastávku „Pred cestou“ (sekcia Pred cestou). Ide aj pri zamknutom zápise |
 | POST | `/api/food` | skupina | `{party_id, text}`: nastaví alebo zmaže text partie „Čo kto donesie“ (sekcia Pred cestou). Ide aj pri zamknutom zápise |
 | POST | `/api/places` | skupina | `{party_id, night, places}`: nastaví počet potrebných miest partie v tú noc (pole `places`). Plný počet pole pre tú noc zmaže |
@@ -216,7 +223,7 @@ Každá zápisová akcia pod zámkom načíta aktuálny stav, overí podmienky f
 
 ### Chybové kódy
 
-`bad_code` (401), `forbidden` (403), `signup_closed` (403), `slot_taken` (409), `not_present` (409), `duplicate_name` (409), `unknown_slot` (404), `unknown_party` (404), `invalid` (422), `rate_limited` (429). Každá chyba má anglickú `message` pre vývojára a podľa potreby `params`. Slovenský text pre používateľa vytvára stránka podľa `code`.
+`bad_code` (401), `forbidden` (403), `signup_closed` (403), `login_required` (403), `phone_mismatch` (403), `bad_sms_code` (401), `sms_unavailable` (503), `slot_taken` (409), `not_present` (409), `duplicate_name` (409), `unknown_slot` (404), `unknown_party` (404), `invalid` (422), `rate_limited` (429). Každá chyba má anglickú `message` pre vývojára a podľa potreby `params`. Slovenský text pre používateľa vytvára stránka podľa `code`.
 
 ## Stránka: jedna scéna a interakcie
 
@@ -429,6 +436,44 @@ Rozhodnutie organizátora z 25. 10. 2026 (porovnanie s inštrukciami z minulého
 - Partia *má prejdené*, keď má všetkých päť zastávok, alebo otvorila rýchly prehľad (`list`).
 - Vidia to všetci (rovnako ako „naposledy videná“): v „Kto je kto“ má každá partia riadok „Pred cestou: ✓ prejdené“, „2 z 5“ alebo „ešte nie“, na tabuli v scéne je počet partií s prejdeným a „Prehľad na poslanie“ končí riadkom „Pred cestou ešte neprešli: …“, keď také partie sú.
 
+## Prihlásenie telefónom (SMS)
+
+Rozhodnutie organizátora z 25. 10. 2026. Partia si môže pridať telefónne číslo. Keď ho má, vybrať si ju v „Kto si?“ a meniť ju môže iba zariadenie, ktoré číslo overilo kódom z SMS. Partie bez čísla fungujú ako doteraz. Je to súčasť fázy 1 (nie admin nástroj).
+
+### Čo je chránené
+
+- Partia s číslom je *chránená*. Zápisy, ktoré sa jej týkajú, vyžadujú, aby toto zariadenie malo partiu v cookie partií, inak `403 login_required` s `params.party_id` a `params.party_name`: úprava partie (`PUT /api/parties/{id}`), `assign` a `assign-stay` s jej `party_id`, `clear` miesta, ktoré je jej, `move` s jej `party_id`, `places`, `food`, `briefing` a správa čísla. Admin cookie obchádza ochranu.
+- Pozeranie mapy, tabuľky a „Kto je kto“ ostáva otvorené pre každého s kódom skupiny.
+- Pravidlo je čistá funkcia vo `validate.py` (`check_party_access`), volaná pod zámkom pri každom zápise.
+
+### Telefónne číslo
+
+- Ukladá sa v `cabin-data.yaml` pri partii ako `phone` v tvare E.164 (`"+421905123456"`, v úvodzovkách). Vstup môže mať medzery, pomlčky, `00` alebo domácu `0` na začiatku; domáca `0` znamená predvolene Slovensko (`+421`). Normalizácia je čistá funkcia na serveri; neplatné číslo vráti `invalid` s `params.field = "phone"`.
+- Číslo **nikdy** nejde do `/api/state`, do SSE, do auditu ani do logov v plnom tvare. `state` má pri partii iba `phone_hint` (posledné 3 číslice, napr. `"456"`), keď je partia chránená. Audit zapíše iba `phone_hint`.
+- Číslo sa nepridáva cez formulár partie (`POST`/`PUT /api/parties`), ale cez `phone/start` a `phone/verify`. Uloží sa až po správnom kóde z SMS, takže preklep nikoho nezamkne a cudzie číslo sa nedá pridať bez toho telefónu. Pri novej partii sa pridanie čísla ponúkne hneď po vytvorení (zariadenie, ktoré partiu vytvorilo, ju môže meniť, kým číslo nemá).
+- Zmena čísla je opäť `phone/start` + `phone/verify` z overeného zariadenia. Odstránenie čísla (`DELETE /api/parties/{id}/phone`) robí overené zariadenie alebo admin. Keď niekto stratí telefón, organizátor číslo odstráni admin cookie alebo v `cabin-data.yaml` pri zastavenej službe.
+
+### Overenie cez SMS (Twilio Verify)
+
+- Kód generuje, posiela a overuje Twilio Verify (kanál `sms`, `Locale=sk`, platnosť podľa služby, predvolene 10 min). Server volá REST API cez `httpx` (bez SDK), v module `app/sms.py` so zameniteľným klientom. Testy používajú falošného klienta, nikdy skutočné API.
+- Premenné prostredia `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`. Keď chýbajú, `sms_enabled` je `false`: pridanie čísla je skryté a endpointy SMS vracajú `503 sms_unavailable`. Chránené partie ostávajú chránené (admin môže číslo odstrániť). Pre skúšobný server a vývoj `SMS_FAKE=1` zapne falošného klienta, ktorý kód (vždy rovnaký `SMS_FAKE_CODE`, predvolene `123456`) iba zapíše do logu servera; na produkcii sa nepoužíva.
+- `login/start`: číslo sa normalizuje a porovná s číslom partie (`secrets.compare_digest`). Pri nezhode `403 phone_mismatch` a SMS sa nepošle. `login/verify` a `phone/verify`: zlý alebo prepadnutý kód vráti `401 bad_sms_code`. Pri chybe Twilia `503 sms_unavailable` (podrobnosti iba v logu).
+- **Limity SMS** (v pamäti, `config/app.yaml`): najviac 1 SMS za 60 s a 5 za hodinu na partiu, 10 za hodinu na IP adresu, 5 pokusov o kód za 10 min na partiu. Pri prekročení `rate_limited` s `params.retry_after` (sekundy). Overovanie kódu sa nepočíta do limitu 30 zápisov.
+
+### Cookie partií
+
+- Po správnom kóde server nastaví cookie `party_auth` (podpísaná `SECRET_KEY`, `HttpOnly`, `Secure`, `SameSite=Lax`, 30 dní) so zoznamom overených `party_id` a časom overenia pre každú. Jedno zariadenie môže mať overených viac partií.
+- Overenie partie v cookie platí, iba kým sa nezmení jej číslo: server ukladá pri partii `phone_set_at` a overenie staršie ako `phone_set_at` neplatí.
+- `GET /api/session` vráti `verified` (iba partie, ktoré stále existujú a sú chránené alebo boli overené) a `sms_enabled`. SSE stav je rovnaký pre všetkých, preto overené partie nie sú v `state`.
+
+### Stránka
+
+- **„Kto si?“:** pri chránenej partii je malý zámok. Ťuknutie na chránenú partiu, ktorú zariadenie nemá overenú, otvorí panel „Prihlás sa“: „Zadaj svoje telefónne číslo (končí na …456)“, tlačidlo „Poslať kód“, potom pole na 6-miestny kód (`inputmode="numeric"`, `autocomplete="one-time-code"`) a „Overiť“. Po úspechu sa partia vyberie ako *moja partia*. Odkaz „Poslať znova“ po 60 s.
+- Keď je v `localStorage` vybraná chránená partia bez overenia (napr. číslo pribudlo neskôr alebo vypršala cookie), stránka po načítaní otvorí „Kto si?“ s panelom prihlásenia a „Si: …“ ukáže prázdny stav.
+- **Formulár partie:** sekcia „Telefón“: bez čísla „Pridať telefón (na prihlásenie)“, s číslom „Telefón končí na …456“ a tlačidlá „Zmeniť“ a „Odstrániť“. Zobrazí sa iba pri `sms_enabled`.
+- Akcie nad cudzou chránenou partiou (napr. ťuknutie na jej posteľ) stránka vopred neponúka; keď server vráti `login_required`, ukáže „Ivan a Eva si chránia zápis telefónom. Zmeniť ho môžu iba oni.“
+- Slovenské hlášky pre nové kódy sú v `static/js/logic-errors.js`. Čistá logika (normalizácia čísla na zobrazenie, stav panela prihlásenia, odpočet „Poslať znova“) je v `logic-*.js` a testovaná v Node.
+
 ## Fáza 2: zápis vlastnými slovami cez Claude API
 
 Voliteľné rozšírenie, stavia sa až keď fáza 1 funguje. Nad mapou pribudne pole „Napíš, kedy prídeš a kde chceš spať“. Kamarát napíše vetu, ako by ju písal do WhatsAppu, a na mape uvidí návrh, ktorý potvrdí jedným ťuknutím.
@@ -463,8 +508,8 @@ Pri `ask` (chýba deň príchodu, nejasný počet ľudí) sa návrh neukáže, l
 
 Úroveň zodpovedá súkromnej akcii pre kamarátov. Cieľ je, aby náhodný človek s odkazom nemohol nič meniť a aby sa každá zmena dala dohľadať a vrátiť.
 
-- **Bez prihlasovania.** Kód skupiny ide do WhatsAppu, admin kód má iba organizátor. Ktokoľvek s kódom skupiny môže technicky presunúť kohokoľvek, preto stránka pri cudzom mieste žiada potvrdenie a všetko ide do `audit.yaml`.
-- **Tajomstvá** iba v premenných prostredia (`GROUP_CODE`, `ADMIN_CODE`, `SECRET_KEY`, voliteľne `ANTHROPIC_API_KEY`), načítané z `.env` mimo gitu. V repozitári je `.env.example`.
+- **Bez účtov.** Kód skupiny ide do WhatsAppu, admin kód má iba organizátor. Ktokoľvek s kódom skupiny môže technicky presunúť kohokoľvek, preto stránka pri cudzom mieste žiada potvrdenie a všetko ide do `audit.yaml`. Výnimka (rozhodnutie organizátora z 25. 10. 2026): partiu s telefónnym číslom mení iba zariadenie overené cez SMS (sekcia Prihlásenie telefónom).
+- **Tajomstvá** iba v premenných prostredia (`GROUP_CODE`, `ADMIN_CODE`, `SECRET_KEY`, voliteľne `ANTHROPIC_API_KEY` a `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`), načítané z `.env` mimo gitu. V repozitári je `.env.example`.
 - **Limity zápisu:** najviac 30 zápisov za minútu na klienta a 10 pokusov o kód za minútu na IP adresu, v pamäti procesu. Pri prekročení `rate_limited`.
 - **Vstupy:** Pydantic modely s limitmi. Meno partie najviac 60 znakov, čas príchodu 60, poznámka 300, počty 0–20. Server orezáva medzery a odmieta prázdne meno a duplicitné meno bez ohľadu na veľkosť písmen.
 - **Výstup v HTML:** všetok text od ľudí sa vkladá cez `textContent`, nikdy cez `innerHTML`.
@@ -531,3 +576,4 @@ Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a n
 - [ ] **Pred cestou, slovenský text zo servera:** obsah `config/info.yaml` posiela server stránke ako údaje od organizátora (ako názvy izieb); pravidlo „server neposiela slovenské hlášky“ sa týka chybových hlášok a ostáva.
 - [ ] **„Čo kto donesie“:** predvolene jeden text na partiu (najviac 120 znakov), upraviť ho môže ktokoľvek s kódom skupiny (ako ostatné údaje partie), vidia ho všetci.
 - [x] **Plán, nastavenia produkcie v súbore s premennými (T-069):** požiadavka organizátora z 25. 10. 2026, rozhodnutie podľa odporúčania (organizátor ho nechal na Claude). Nastavenia, ktoré sa líšia medzi produkciou a skúšobným serverom (zatiaľ `INFO_ENABLED`), sa na produkcii píšu do toho istého súboru ako tajomstvá, `/etc/cabin/secrets.env` (mimo projektu, `chmod 600`, `docker compose --env-file`), nie do `compose.yaml` a nie do `.env` vedľa neho. `compose.yaml` premennú iba odovzdá s poistkou `${INFO_ENABLED:-false}`. Dôvod: súbor už existuje, je mimo gitu aj priečinka projektu, takže ho `git pull` neprepíše a lokálny vývojový `.env` ho nemôže potichu prepísať. Zmena je len v dokumentácii (README časť 4, `.env.example`, `tests/manual.md`), kód sa nemení. Nasadenie na produkciu iba na výslovnú žiadosť organizátora.
+- [ ] **Prihlásenie telefónom (SMS):** rozhodnutie organizátora z 25. 10. 2026: Twilio Verify, chránia sa zápisy partie s číslom, cookie partií 30 dní. Predvolené hodnoty: domáca `0` = `+421`; číslo sa pridáva iba po overení SMS; v `state` iba posledné 3 číslice; limity 1 SMS/60 s a 5/h na partiu, 10/h na IP, 5 pokusov o kód za 10 min; bez premenných Twilia je pridanie čísla skryté a `SMS_FAKE=1` zapisuje kód do logu (skúšobný server); stratený telefón rieši organizátor admin cookie alebo úpravou `cabin-data.yaml`; zmena čísla zruší staré overenia.
