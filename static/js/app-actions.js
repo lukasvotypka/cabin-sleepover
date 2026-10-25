@@ -153,6 +153,7 @@ function clearSlot(slot) {
 // --- move mode ---
 
 function renderMoveBar() {
+  if (app.move && !canWrite(app.state, app.role)) app.move = null;      // signup was locked meanwhile
   var bar = $("moveBar"), m = app.move;
   bar.hidden = !m;
   if (m && app.state) {
@@ -166,6 +167,7 @@ function renderMoveBar() {
 
 function startMove(slot) {
   stopIntroZoom();
+  if (!canWrite(app.state, app.role)) return;
   app.move = { partyId: app.myParty, fromSlot: slot, all: false };
   closePanel();
   renderMoveBar();
@@ -205,6 +207,7 @@ function onBedTap(room, bed) {
 // Sets the number of places the party needs on a night (the panel button sends its placed count).
 function sendPlaces(action, party) {
   closePanel();
+  if (!canWrite(app.state, app.role)) return;      // signup was locked meanwhile
   write("POST", "api/places", { party_id: party.id, night: action.night, places: action.places }).then(function (res) {
     if (!res.ok && res.status !== 401) showToast(errorText(res.error, app.state), "error");
   });
@@ -223,9 +226,11 @@ function openPlacesPanel(night) {
       if (info.primary.kind === "fewer") sendPlaces(info.primary.action, party);
       else { closePanel(); openPartyForm(party, { returnKey: "status" }); }
     });
+    var locked = !canWrite(st, app.role);
+    if (locked) body.appendChild(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note));
     var secondary = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "places-secondary" }, info.secondary.label);
     secondary.addEventListener("click", closePanel);
-    body.appendChild(primary);
+    if (!locked) body.appendChild(primary);
     body.appendChild(secondary);
   }, { returnKey: "status" });
 }
@@ -238,11 +243,13 @@ function openPlacesUndoPanel(night) {
   openPanel(info.title, function (body) {
     body.className = "places-panel";
     body.appendChild(htmlEl("p", null, info.line));
+    var locked = !canWrite(st, app.role);
+    if (locked) body.appendChild(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note));
     var primary = htmlEl("button", { "class": "btn", type: "button", "data-key": "places-undo" }, info.primary.label);
     primary.addEventListener("click", function () { sendPlaces(info.primary.action, party); });
     var secondary = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "places-keep" }, info.secondary.label);
     secondary.addEventListener("click", closePanel);
-    body.appendChild(primary);
+    if (!locked) body.appendChild(primary);
     body.appendChild(secondary);
   }, { returnKey: "status" });
 }

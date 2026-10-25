@@ -3978,3 +3978,23 @@ test("the key icon is drawn only for the admin and is a labelled button", () => 
   assert.match(appSource, /if \(isAdmin\(app\.role\)\) drawKey\(g, scene\.key\)/);
   assert.match(appSource, /makeButton\(g, "Admin nástroje", "key", openAdmin\)/);
 });
+
+test("canWrite: open signup or admin may write, a closed signup lets only the admin write", () => {
+  assert.equal(L.canWrite({ signup_open: true }, "group"), true);
+  assert.equal(L.canWrite({ signup_open: true }, "admin"), true);
+  assert.equal(L.canWrite({ signup_open: false }, "admin"), true);
+  assert.equal(L.canWrite({ signup_open: false }, "group"), false);
+  assert.equal(L.canWrite({}, "group"), true);
+});
+
+test("page source: every panel that changes places is gated by canWrite while signup is locked", () => {
+  const fn = (name) => {
+    const i = appSource.indexOf(`function ${name}(`);
+    assert.ok(i >= 0, name);
+    return appSource.slice(i, appSource.indexOf("\n}\n", i));
+  };
+  for (const name of ["openPlacesPanel", "openPlacesUndoPanel", "sendPlaces"]) {
+    assert.match(fn(name), /canWrite\(/, name);
+  }
+  assert.match(fn("openWho"), /canWrite\(app\.state, app\.role\)\) actions\.appendChild\(add\)/);
+});

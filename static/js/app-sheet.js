@@ -32,7 +32,7 @@ function openBedSheet(room, bed) {
       label.appendChild(htmlEl("span", null, rowText));
       if (!who && bed.tight.indexOf(slot) !== -1) label.appendChild(htmlEl("span", { "class": "tight" }, "(tesné)"));
       row.appendChild(label);
-      if (who && night === app.night) slotActions(row, st, slot, who, rowText);
+      if (who && night === app.night && canWrite(st, app.role)) slotActions(row, st, slot, who, rowText);
       return row;
     }
 
@@ -107,7 +107,8 @@ function openBedSheet(room, bed) {
       }
       body.appendChild(htmlEl("p", { "class": "sub" }, room.name));
       st.event.nights.forEach(function (night) { body.appendChild(nightSection(st, night)); });
-      addActions(st);
+      if (canWrite(st, app.role)) addActions(st);
+      else body.appendChild(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note));
     }
 
     panel.refresh = function () {
@@ -158,7 +159,8 @@ function openWho(opts) {
       openPartyForm(mine, { returnKey: "who" });
     });
     me.appendChild(edit);
-    actions.appendChild(add);
+    if (canWrite(app.state, app.role)) actions.appendChild(add);
+    else actions.appendChild(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note));
     function fillAdminLine() {
       clearNode(adminLine);
       if (isAdmin(app.role)) {

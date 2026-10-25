@@ -51,6 +51,18 @@ function isAdmin(role) {
   return role === "admin";
 }
 
+// Whether this role may change places: signup is open, or the role is the organizer (T-075).
+// A state without `signup_open` counts as open.
+function canWrite(state, role) {
+  return !state || state.signup_open !== false || isAdmin(role);
+}
+
+var LOCKED_TEXTS = {
+  sign: "Zápis je zatvorený",
+  note: "Zápis je zatvorený, zmeny už nejdú uložiť.",
+  summary: "Zápis je zatvorený, miesta sa dajú len prezerať."
+};
+
 // Texts of the admin panel (T-076). The button flips the lock by the current `signup_open`.
 function signupToggleLabel(signupOpen) {
   return signupOpen === false ? "Otvoriť zápis" : "Zamknúť zápis";
