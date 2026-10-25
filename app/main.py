@@ -14,6 +14,7 @@ The write endpoints are built on `require_group`, `require_admin`, `enforce_writ
 `ok_response` and `RuleError`/`ApiError` defined here.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -21,19 +22,22 @@ import os
 import secrets
 import time
 import tomllib
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import aclosing, asynccontextmanager, suppress
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
+from app.events import PING_SECONDS, EventHub, HubRefused
 from app.models import (
     PARTY_PALETTE,
     AppConfig,
@@ -163,6 +167,26 @@ class Runtime:
     seen: SeenTracker
     layout_json: dict[str, Any]
     config_hash: str  # digest of the served layout, computed once at startup
+    hub: EventHub
+    known_ids: set[str]  # party ids, refreshed on every commit (no file read per request)
+    # Event loop state, touched on the loop only (the lifespan sets `loop`; without it nothing is scheduled).
+    loop: asyncio.AbstractEventLoop | None = None
+    connected: set[str] = field(default_factory=set)  # last set of parties with a stream, to see who changed
+    last_online: set[str] = field(default_factory=set)  # online set of the last state or presence frame sent
+
+    def refresh_presence(self) -> None:
+        """Send a `presence` event when the online set differs from the last one sent. Event loop only."""
+        presence = self.seen.presence(self.known_ids)
+        online = set(presence["online"])
+        if online != self.last_online:
+            self.last_online = online
+            self.hub.publish_presence(presence)
+
+    def request_presence_check(self) -> None:
+        """Like `refresh_presence`, callable from the thread pool (a polling party may have entered the window)."""
+        if self.loop is not None:
+            with suppress(RuntimeError):  # the loop is closed during shutdown
+                self.loop.call_soon_threadsafe(self.refresh_presence)
 
 
 def get_runtime(request: Request) -> Runtime:
@@ -274,7 +298,10 @@ def require_group(request: Request) -> Auth:
     if auth is None:
         raise ApiError("bad_code", "Missing or invalid group cookie", with_state=False)
     rt = get_runtime(request)  # the caller proves to be in the group: note which party it says it is
-    rt.seen.record(request.headers.get("x-party-id"), {p.id for p in rt.store.read().parties})
+    party_id = clean_id(request.headers.get("x-party-id"))
+    if party_id in rt.known_ids:
+        rt.seen.record(party_id, rt.known_ids)
+        rt.request_presence_check()
     return auth
 
 
@@ -289,9 +316,14 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def clean_id(value: str | None) -> str | None:
+    """An id from a header or query parameter: trimmed and length-capped, or None when empty."""
+    return (value or "").strip()[:CLIENT_ID_MAX_LEN] or None
+
+
 def client_id_of(request: Request) -> str | None:
     """The page's `X-Client-Id` (trimmed, length-capped) or None. Used for audit and limits."""
-    return (request.headers.get("x-client-id") or "").strip()[:CLIENT_ID_MAX_LEN] or None
+    return clean_id(request.headers.get("x-client-id"))
 
 
 def enforce_write_limit(request: Request, _auth: Annotated[Auth, Depends(require_group)]) -> None:
@@ -445,6 +477,7 @@ def create_app(
     store = Store(layout, data_dir=data_dir, backups_keep=app_config.backups_keep)  # the data file check
     layout_json = layout.model_dump(mode="json")
 
+    hub = EventHub(on_online_change=lambda online: on_online_change(online))
     rt = Runtime(
         settings=settings,
         layout=layout,
@@ -460,9 +493,54 @@ def create_app(
         ),
         layout_json=layout_json,
         config_hash=config_digest(layout_json),
+        hub=hub,
+        known_ids={p.id for p in store.read().parties},
     )
+    seen = rt.seen
+    seen.connected = hub.online_parties
+    rt.last_online = set(seen.presence(rt.known_ids)["online"])
+
+    def on_online_change(online: set[str]) -> None:
+        """Hub callback (event loop): a party's first stream opened or its last one closed."""
+        try:
+            for party_id in online ^ rt.connected:  # connect and disconnect both count as "seen now"
+                seen.record(party_id, rt.known_ids, polled=False)
+            rt.connected = set(online)
+            rt.refresh_presence()
+        except Exception:  # must not raise: it would replace the stream's normal end (see events.py)
+            log.exception("presence update failed")
+
+    def on_commit(state: State) -> None:
+        """Store hook (event loop, inside the write lock): tell every stream about the committed state."""
+        rt.known_ids = {p.id for p in state.parties}
+        payload = state_payload(rt, state)
+        rt.last_online = set(payload["presence"]["online"])  # the state frame carries presence too
+        hub.publish_state(payload)
+
+    store.after_commit = on_commit
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        rt.loop = asyncio.get_running_loop()
+
+        async def presence_watch() -> None:
+            # Parties that only poll age out of the 75 s window without any event of their own.
+            while True:
+                await asyncio.sleep(PING_SECONDS)
+                try:
+                    rt.refresh_presence()
+                except Exception:
+                    log.exception("presence check failed")
+
+        watcher = asyncio.create_task(presence_watch())
+        try:
+            yield
+        finally:
+            watcher.cancel()
+            hub.close()
+            rt.loop = None
     # No docs or OpenAPI routes: the app has one consumer, its own page.
-    app = FastAPI(title="chrapa-poll", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="chrapa-poll", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.runtime = rt
 
     @app.exception_handler(RuleError)
@@ -537,13 +615,48 @@ def create_app(
     @app.get("/api/state")
     async def get_state(request: Request, _auth: Annotated[Auth, Depends(require_group)]) -> Response:
         state = rt.store.read()
-        etag = state_etag(state, rt.config_hash, rt.seen.presence({p.id for p in state.parties}))
+        etag = state_etag(state, rt.config_hash, rt.seen.presence(rt.known_ids))
         headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
         if _etag_matches(request.headers.get("if-none-match"), etag):
             return Response(status_code=304, headers=headers)
         response = ok_response(rt, state)
         response.headers.update(headers)
         return response
+
+    @app.get("/api/events")
+    async def events(
+        request: Request, _auth: Annotated[Auth, Depends(require_group)], party: str | None = None, client: str | None = None
+    ) -> StreamingResponse:
+        # `EventSource` cannot send headers, so the party and the client come as query parameters.
+        party_id = clean_id(party)
+        if party_id not in rt.known_ids:
+            party_id = None  # unknown or malformed: a stream without presence
+        client_id = clean_id(client) or client_id_of(request) or f"ip:{client_ip(request)}"
+        seen.record(party_id, rt.known_ids, polled=False)
+        try:
+            conn = hub.connect(client_id, party_id)
+        except HubRefused as exc:
+            raise ApiError("rate_limited", f"Too many open event streams: {exc}", {"retry_after": 5}) from exc
+        try:
+            initial = state_payload(rt, rt.store.read())  # after connect(), so presence lists this party
+            hub.drop_pending_presence(conn)  # our own connect may have queued one; the initial state has it
+        except BaseException:
+            hub.release(conn)
+            raise
+
+        async def body() -> AsyncIterator[str]:
+            async with aclosing(hub.stream(conn, initial)) as frames:
+                async for chunk in frames:
+                    if chunk.startswith("event: ping"):
+                        seen.record(party_id, rt.known_ids, polled=False)
+                    yield chunk
+
+        return StreamingResponse(
+            body(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            background=BackgroundTask(hub.release, conn),  # a stream that never started would leak its slot
+        )
 
     # --- write endpoints: thin handlers, the rules are in validate.py ------------------------
 

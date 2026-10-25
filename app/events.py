@@ -117,6 +117,10 @@ class EventHub:
             conn.presence = data
             conn.wake.set()
 
+    def drop_pending_presence(self, conn: Connection) -> None:
+        """Forget a queued presence frame (the initial state frame already carries the presence)."""
+        conn.presence = None
+
     def close(self) -> None:
         """End every generator and refuse new connections."""
         self._closed = True

@@ -23,7 +23,7 @@ import logging
 import os
 import shutil
 import tempfile
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -177,6 +177,8 @@ class Store:
         self.audit_path = self.data_dir / AUDIT_FILE
         self.backup_dir = self.data_dir / BACKUP_DIR
         self._lock = asyncio.Lock()
+        # Called with the new state after every committed write (the live updates hook, T-052).
+        self.after_commit: Callable[[State], None] | None = None
         self._startup()
 
     # --- startup and reading ------------------------------------------------
@@ -283,6 +285,11 @@ class Store:
                 "could not append to %s (write %s, version %d), entry:%s",
                 self.audit_path, action, state.version, audit_doc,
             )
+        if self.after_commit is not None:
+            try:  # the write is committed: a failing listener must not turn it into an error
+                self.after_commit(state)
+            except Exception:
+                log.exception("after-commit hook failed (write %s, version %d)", action, state.version)
 
     def _backup(self, version: int) -> None:
         """Copy the current file to backups/ (UTC time with microseconds, then version) and prune the old ones."""

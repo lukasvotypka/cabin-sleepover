@@ -37,4 +37,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # 127.0.0.1, so the proxy's address cannot be listed. "*" is safe only because nothing but the reverse proxy on this
 # host can reach the port. Without proxy headers every client would look the same and one person's wrong codes
 # would lock everybody out of joining. Do not publish the port on 0.0.0.0, anyone could then fake X-Forwarded-For.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips=*"]
+# --timeout-graceful-shutdown 3: uvicorn waits for open requests before the lifespan shutdown, and an event stream
+# (/api/events) never ends by itself. After 3 s the streams are cancelled, so a stop or restart does not hang.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips=*", "--timeout-graceful-shutdown", "3"]

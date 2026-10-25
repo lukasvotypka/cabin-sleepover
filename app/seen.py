@@ -25,7 +25,7 @@ from app.store import _atomic_write
 
 log = logging.getLogger("chrapa.seen")
 
-ONLINE_WINDOW = 75  # seconds: a party seen within this long is online
+ONLINE_WINDOW = 75  # seconds: a party that polled within this long is online (or has an open stream)
 PERSIST_INTERVAL = 60  # seconds between file writes for one party
 
 
@@ -68,9 +68,16 @@ class SeenTracker:
         self.path = path
         self.clock = clock
         self.seen: dict[str, float] = {}
+        # When a plain request (not an event stream) last named the party: the polling fallback for "online".
+        # Stream activity only moves `seen`, so a closed tab goes offline at once instead of after the window.
+        self.polled: dict[str, float] = {}
         self.written: dict[str, float] = {}  # when each party's time was last put into the file
         # Sync dependencies and endpoints run in FastAPI's thread pool, so the dicts need a lock.
+        # The lock is a threading.Lock on purpose: the live stream code (event loop) and the sync
+        # dependencies (thread pool) both call in, and no critical section awaits.
         self._lock = threading.Lock()
+        # Party ids with at least one open event stream; they are online whatever their last seen time is.
+        self.connected: Callable[[], Collection[str]] = lambda: ()
         if audit_path is not None and not path.exists():
             self.seed(audit_path, known_ids)
         else:
@@ -123,13 +130,18 @@ class SeenTracker:
             log.info("%s: seeded last seen of %d parties from %s", self.path, added, audit_path)
         return added
 
-    def record(self, party_id: str | None, known_ids: Collection[str]) -> None:
-        """Remember now as the party's last seen time. Anything unknown or malformed is ignored."""
+    def record(self, party_id: str | None, known_ids: Collection[str], polled: bool = True) -> None:
+        """Remember now as the party's last seen time. Anything unknown or malformed is ignored.
+
+        `polled=False` is for event stream activity (connect, ping, disconnect): it updates last seen only.
+        """
         if not party_id or party_id not in known_ids:
             return
         with self._lock:
             now = self.clock()
             self.seen[party_id] = now
+            if polled:
+                self.polled[party_id] = now
             if now - self.written.get(party_id, float("-inf")) >= PERSIST_INTERVAL:
                 self._persist(known_ids, party_id, now)
 
@@ -143,13 +155,15 @@ class SeenTracker:
 
     def presence(self, known_ids: Collection[str]) -> dict[str, Any]:
         """The `presence` object of the state: only parties that exist are listed."""
+        connected = set(self.connected())
         with self._lock:
             now = self.clock()
             seen = {pid: t for pid, t in self.seen.items() if pid in known_ids}
+            polled = dict(self.polled)
         return {
             "server_time": to_iso(now),
             "last_seen": {pid: to_iso(t) for pid, t in seen.items()},
-            "online": [pid for pid, t in seen.items() if now - t <= ONLINE_WINDOW],
+            "online": [pid for pid, t in seen.items() if pid in connected or now - polled.get(pid, float("-inf")) <= ONLINE_WINDOW],
         }
 
 
