@@ -23,6 +23,7 @@ import time
 import tomllib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -52,6 +53,7 @@ from app.models import (
     load_layout,
 )
 from app.ratelimit import CODE_ATTEMPTS_PER_MINUTE, SlidingWindowLimiter
+from app.seen import SeenTracker
 from app.store import Store, now_iso
 from app.validate import (
     ERROR_STATUS,
@@ -158,6 +160,7 @@ class Runtime:
     cookies: CookieSigner
     join_limiter: SlidingWindowLimiter
     write_limiter: SlidingWindowLimiter
+    seen: SeenTracker
     layout_json: dict[str, Any]
     config_hash: str  # digest of the served layout, computed once at startup
 
@@ -196,6 +199,7 @@ def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
         "layout": rt.layout_json,
         "parties": [p.model_dump(mode="json") for p in state.parties],
         "sleeping": state.sleeping,
+        "presence": rt.seen.presence({p.id for p in state.parties}),
     }
 
 
@@ -204,14 +208,24 @@ def config_digest(layout_json: dict[str, Any]) -> str:
     return hashlib.sha1(canonical.encode()).hexdigest()[:8]
 
 
-def state_etag(state: State, config_hash: str) -> str:
-    """Changes on every write and when the served `cabin.yaml` content changes (after a restart), and at no other time.
+def state_etag(state: State, config_hash: str, presence: dict[str, Any] | None = None) -> str:
+    """Changes on every write, when the served `cabin.yaml` changes (after a restart) and when presence changes.
 
     `updated_at` is mixed in, so a hand-restored older backup (lower `version`) differs too.
     `config_hash` covers `layout` and `event`, which come from `cabin.yaml` and not from the data file.
+    Presence (T-049) adds the `online` set and every party's `last_seen` floored to the minute: second
+    precision would change the tag on every poll, while the page only shows minutes. The `online` set keeps
+    "online" right within one poll, so the page can use the server's list as it is after a 304.
     """
     digest = hashlib.sha1(state.updated_at.encode()).hexdigest()[:8]
-    return f'"{state.version}-{digest}-{config_hash}"'
+    tag = f"{state.version}-{digest}-{config_hash}"
+    if presence:
+        minutes = sorted(
+            (pid, int(datetime.fromisoformat(t).timestamp() // 60)) for pid, t in presence["last_seen"].items()
+        )
+        seen_digest = hashlib.sha1(json.dumps([sorted(presence["online"]), minutes]).encode()).hexdigest()[:8]
+        tag += f"-{seen_digest}"
+    return f'"{tag}"'
 
 
 def ok_response(rt: Runtime, state: State, **extra: Any) -> JSONResponse:
@@ -259,6 +273,8 @@ def require_group(request: Request) -> Auth:
     auth = _auth_of(request)
     if auth is None:
         raise ApiError("bad_code", "Missing or invalid group cookie", with_state=False)
+    rt = get_runtime(request)  # the caller proves to be in the group: note which party it says it is
+    rt.seen.record(request.headers.get("x-party-id"), {p.id for p in rt.store.read().parties})
     return auth
 
 
@@ -439,6 +455,7 @@ def create_app(
         ),
         join_limiter=SlidingWindowLimiter(CODE_ATTEMPTS_PER_MINUTE, clock=monotonic),
         write_limiter=SlidingWindowLimiter(app_config.limits.writes_per_client_minute, clock=monotonic),
+        seen=SeenTracker(Path(data_dir) / "seen.yaml", clock, {p.id for p in store.read().parties}),
         layout_json=layout_json,
         config_hash=config_digest(layout_json),
     )
@@ -518,7 +535,7 @@ def create_app(
     @app.get("/api/state")
     async def get_state(request: Request, _auth: Annotated[Auth, Depends(require_group)]) -> Response:
         state = rt.store.read()
-        etag = state_etag(state, rt.config_hash)
+        etag = state_etag(state, rt.config_hash, rt.seen.presence({p.id for p in state.parties}))
         headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
         if _etag_matches(request.headers.get("if-none-match"), etag):
             return Response(status_code=304, headers=headers)

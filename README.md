@@ -149,6 +149,7 @@ Everything is in `data/` next to the app (git-ignored, created on first start, a
 | --- | --- |
 | `data/cabin-data.yaml` | the parties and who sleeps where: the live data, with a `version` counter |
 | `data/audit.yaml` | one YAML document per write, separated by `---`: time, version, action, source, anonymous client id, party, nights, slots, before and after |
+| `data/seen.yaml` | when each party was last seen (`party id: time`), written at most once a minute per party; losing it only forgets who was online |
 | `data/backups/` | a copy of the data file taken before every write, named `cabin-data-<UTC time>-v<version>.yaml`; the last 50 are kept (`backups_keep` in `config/app.yaml`) |
 
 Every write is atomic (temp file, `fsync`, rename), so a crash cannot leave a half-written file.
