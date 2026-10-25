@@ -75,3 +75,66 @@ def test_blocked_counts_nothing_and_hit_counts_one(clock):
     assert not limiter.blocked("b")
     clock.advance(61)
     assert not limiter.blocked("a")
+
+
+# --- SMS limits ------------------------------------------------------------------------
+
+
+def sms_limits(clock):
+    from app.models import Limits
+    from app.ratelimit import SmsLimits
+
+    limits = Limits(
+        writes_per_client_minute=30, ai_per_client_minute=10, ai_per_day=200,
+        sms_party_interval_seconds=60, sms_per_party_hour=5, sms_per_ip_hour=10,
+        sms_code_attempts=5, sms_code_window_seconds=600,
+    )
+    return SmsLimits(limits, clock=clock)
+
+
+def test_sms_one_per_minute_per_party(clock):
+    sms = sms_limits(clock)
+    assert sms.send("p-a", "1.1.1.1") == 0
+    clock.advance(20)
+    assert sms.send("p-a", "1.1.1.1") == 40
+    assert sms.send("p-b", "1.1.1.1") == 0  # another party is independent
+    clock.advance(40)
+    assert sms.send("p-a", "1.1.1.1") == 0
+
+
+def test_sms_five_per_hour_per_party(clock):
+    sms = sms_limits(clock)
+    for _ in range(5):
+        assert sms.send("p-a", "1.1.1.1") == 0
+        clock.advance(61)
+    wait = sms.send("p-a", "2.2.2.2")
+    assert 0 < wait <= 3600
+    clock.advance(wait)
+    assert sms.send("p-a", "2.2.2.2") == 0
+
+
+def test_sms_ten_per_hour_per_ip(clock):
+    sms = sms_limits(clock)
+    for n in range(10):
+        assert sms.send(f"p-{n}", "1.1.1.1") == 0
+    assert sms.send("p-new", "1.1.1.1") == 3600
+    assert sms.send("p-new", "9.9.9.9") == 0
+
+
+def test_rejected_send_counts_nothing(clock):
+    sms = sms_limits(clock)
+    assert sms.send("p-a", "1.1.1.1") == 0
+    for _ in range(20):
+        assert sms.send("p-a", "1.1.1.1") > 0
+    clock.advance(60)
+    assert sms.send("p-a", "1.1.1.1") == 0  # the IP and hour counters did not grow from the rejects
+
+
+def test_sms_code_attempts(clock):
+    sms = sms_limits(clock)
+    assert [sms.attempt("p-a") for _ in range(5)] == [0] * 5
+    clock.advance(100)
+    assert sms.attempt("p-a") == 500
+    assert sms.attempt("p-b") == 0
+    clock.advance(500)
+    assert sms.attempt("p-a") == 0

@@ -59,7 +59,8 @@ from app.models import (
     load_info,
     load_layout,
 )
-from app.ratelimit import CODE_ATTEMPTS_PER_MINUTE, SlidingWindowLimiter
+from app.ratelimit import CODE_ATTEMPTS_PER_MINUTE, SlidingWindowLimiter, SmsLimits
+from app.sms import DEFAULT_FAKE_CODE, FakeSmsClient, SmsClient, TwilioVerifyClient
 from app.seen import STREAM_GRACE, SeenTracker
 from app.store import Store, now_iso
 from app.validate import (
@@ -79,6 +80,7 @@ from app.validate import (
     adjust_places,
     find_party,
     raise_places_to_placed,
+    phone_hint,
     set_food_note,
     set_places,
 )
@@ -101,9 +103,12 @@ LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
 
 @dataclass(frozen=True)
 class Settings:
-    group_code: str
-    admin_code: str
-    secret_key: str
+    group_code: str = field(repr=False)
+    admin_code: str = field(repr=False)
+    secret_key: str = field(repr=False)
+    twilio: tuple[str, str, str] | None = field(default=None, repr=False)  # account SID, auth token, Verify service SID; None = not configured
+    sms_fake: bool = False  # SMS_FAKE=1: log the code instead of sending it (trial server and development)
+    sms_fake_code: str = DEFAULT_FAKE_CODE
 
 
 def info_enabled_override(env: Mapping[str, str]) -> bool | None:
@@ -135,7 +140,30 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         )
     if secrets.compare_digest(values["GROUP_CODE"].encode(), values["ADMIN_CODE"].encode()):
         raise ConfigError("GROUP_CODE and ADMIN_CODE must differ")
-    return Settings(values["GROUP_CODE"], values["ADMIN_CODE"], values["SECRET_KEY"])
+    twilio_names = ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID")
+    twilio_values = [env.get(name, "").strip() for name in twilio_names]
+    twilio = tuple(twilio_values) if all(twilio_values) else None
+    if any(twilio_values) and twilio is None:
+        absent = [n for n, v in zip(twilio_names, twilio_values) if not v]
+        log.warning("Twilio is not configured, missing: %s", ", ".join(absent))
+    return Settings(
+        values["GROUP_CODE"],
+        values["ADMIN_CODE"],
+        values["SECRET_KEY"],
+        twilio,
+        env.get("SMS_FAKE", "").strip().lower() in ("1", "true", "yes", "on"),
+        env.get("SMS_FAKE_CODE", "").strip() or DEFAULT_FAKE_CODE,
+    )
+
+
+def build_sms_client(settings: Settings) -> SmsClient | None:
+    """Twilio when all three variables are set, else the fake client for `SMS_FAKE=1`, else None."""
+    if settings.twilio:
+        return TwilioVerifyClient(*settings.twilio)
+    if settings.sms_fake:
+        log.warning("SMS_FAKE is on: codes are written to the log and nothing is sent")
+        return FakeSmsClient(settings.sms_fake_code)
+    return None
 
 
 class CookieSigner:
@@ -183,6 +211,8 @@ class Runtime:
     cookies: CookieSigner
     join_limiter: SlidingWindowLimiter
     write_limiter: SlidingWindowLimiter
+    sms_limits: SmsLimits
+    sms: SmsClient | None  # None = SMS is off
     seen: SeenTracker
     layout_json: dict[str, Any]
     info_json: dict[str, Any] | None  # `config/info.yaml` as served, None when the file is missing
@@ -194,6 +224,10 @@ class Runtime:
     connected: set[str] = field(default_factory=set)  # last set of parties with a stream, to see who changed
     last_online: set[str] = field(default_factory=set)  # online set of the last state or presence frame sent
     asset_version: Callable[[], str] = lambda: ""  # current page code hash (set to `PageRenderer.version`)
+
+    @property
+    def sms_enabled(self) -> bool:
+        return self.sms is not None
 
     def refresh_presence(self) -> None:
         """Send a `presence` event when the online set differs from the last one sent. Event loop only."""
@@ -234,6 +268,15 @@ class ApiError(RuleError):
         self.headers = headers or {}
 
 
+def public_party(party: Party) -> dict[str, Any]:
+    """A party as the page sees it: never the number, only `phone_hint` when it is protected."""
+    data = party.model_dump(mode="json", exclude={"phone", "phone_set_at"})
+    hint = phone_hint(party)
+    if hint is not None:
+        data["phone_hint"] = hint
+    return data
+
+
 def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
     """The `state` object of every response: the data file plus the layout from `cabin.yaml`."""
     return {
@@ -243,7 +286,7 @@ def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
         "event": rt.layout_json["event"],
         "layout": rt.layout_json,
         "info": rt.info_json,
-        "parties": [p.model_dump(mode="json") for p in state.parties],
+        "parties": [public_party(p) for p in state.parties],
         "sleeping": state.sleeping,
         "briefing": state.briefing,
         "presence": rt.seen.presence({p.id for p in state.parties}),
@@ -503,11 +546,13 @@ def create_app(
     clock: Callable[[], float] = time.time,
     monotonic: Callable[[], float] = time.monotonic,
     pyproject: str | Path = ROOT / "pyproject.toml",
+    sms_client: SmsClient | None = None,
 ) -> FastAPI:
     """Build the app. Raises `ConfigError` or `StartupError` with a precise message when something is wrong.
 
     `env` defaults to `os.environ`. `clock` (epoch seconds) is used for cookie ages and
-    `monotonic` for the rate-limit windows. Both are injectable for tests.
+    `monotonic` for the rate-limit windows. Both are injectable for tests, and so is `sms_client`
+    (it replaces the one the settings would build).
     """
     env = os.environ if env is None else env
     settings = load_settings(env)
@@ -537,6 +582,8 @@ def create_app(
         ),
         join_limiter=SlidingWindowLimiter(CODE_ATTEMPTS_PER_MINUTE, clock=monotonic),
         write_limiter=SlidingWindowLimiter(app_config.limits.writes_per_client_minute, clock=monotonic),
+        sms_limits=SmsLimits(app_config.limits, clock=monotonic),
+        sms=sms_client or build_sms_client(settings),
         seen=SeenTracker(
             Path(data_dir) / "seen.yaml", clock, {p.id for p in store.read().parties}, store.audit_path
         ),
@@ -854,8 +901,8 @@ def create_app(
                 **body.model_dump(exclude={"color"}),
             )
             tx.state.parties.append(party)
-            tx.audit(party=party.id, before=None, after=party.model_dump())
-        return ok_response(rt, tx.state, party=party.model_dump(mode="json"))
+            tx.audit(party=party.id, before=None, after=public_party(party))
+        return ok_response(rt, tx.state, party=public_party(party))
 
     @app.put("/api/parties/{party_id}", dependencies=[Limited])
     async def update_party(request: Request, party_id: PartyId, body: PartyUpdate, auth: Group) -> JSONResponse:
@@ -865,7 +912,7 @@ def create_app(
             check_signup_open(tx.state, auth.is_admin)
             freed = check_party_update(tx.state, rt.layout, party_id, body)
             party = find_party(tx.state, party_id)
-            before = party.model_dump()
+            before = public_party(party)
             for key, value in body.model_dump(exclude={"color"}).items():
                 setattr(party, key, value)
             if body.color is not None:
@@ -879,10 +926,10 @@ def create_app(
                 nights=sorted({e["night"] for e in freed}),
                 slots=[e["slot"] for e in freed],
                 before=before,
-                after=party.model_dump(),
+                after=public_party(party),
                 changes=[{**e, "before": party.id, "after": None} for e in freed],
             )
-        return ok_response(rt, tx.state, party=party.model_dump(mode="json"), freed=freed)
+        return ok_response(rt, tx.state, party=public_party(party), freed=freed)
 
     # Only the static folder is served. data/, config/, files/ and .env are never mounted.
     app.mount("/static", StaticFiles(directory=static_dir), name="static")

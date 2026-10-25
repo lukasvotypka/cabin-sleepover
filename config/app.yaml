@@ -2,5 +2,10 @@ limits:
   writes_per_client_minute: 30
   ai_per_client_minute: 10      # phase 2
   ai_per_day: 200               # phase 2
+  sms_party_interval_seconds: 60  # 1 SMS per party per 60 s
+  sms_per_party_hour: 5
+  sms_per_ip_hour: 10
+  sms_code_attempts: 5          # code checks per party per 10 min
+  sms_code_window_seconds: 600
 model: claude-haiku-5-5          # phase 2
 backups_keep: 5000

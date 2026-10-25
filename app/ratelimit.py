@@ -76,3 +76,32 @@ class SlidingWindowLimiter:
     def _prune(self, now: float) -> None:
         for key in [k for k in self._hits if not self._recent(k, now)]:
             del self._hits[key]
+
+
+class SmsLimits:
+    """The SMS limits: sending (per party interval, per party hour, per IP hour) and code attempts per party.
+
+    Methods return 0 when the action is allowed (and counted), else the seconds to wait.
+    """
+
+    def __init__(self, limits, clock: Callable[[], float] = time.monotonic):
+        """`limits` is `app.models.Limits`."""
+        hour = 3600.0
+        self._interval = SlidingWindowLimiter(1, limits.sms_party_interval_seconds, clock)
+        self._party_hour = SlidingWindowLimiter(limits.sms_per_party_hour, hour, clock)
+        self._ip_hour = SlidingWindowLimiter(limits.sms_per_ip_hour, hour, clock)
+        self._attempts = SlidingWindowLimiter(limits.sms_code_attempts, limits.sms_code_window_seconds, clock)
+
+    def send(self, party_id: str, ip: str) -> int:
+        checks = [(self._interval, party_id), (self._party_hour, party_id), (self._ip_hour, ip)]
+        wait = max(limiter.retry_after(key) for limiter, key in checks)
+        if wait:
+            return wait
+        for limiter, key in checks:
+            limiter.hit(key)
+        return 0
+
+    def attempt(self, party_id: str) -> int:
+        if self._attempts.allow(party_id):
+            return 0
+        return self._attempts.retry_after(party_id)

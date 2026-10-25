@@ -11,10 +11,11 @@ only as a quick pre-check. There is no other place for rules.
 `invalid`, `params["reason"]` says what exactly is wrong (see the `_invalid(...)` calls below).
 """
 
+import re
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from app.models import BRIEFING_STEPS, FOOD_NOTE_MAX, Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
@@ -22,6 +23,7 @@ from app.models import BRIEFING_STEPS, FOOD_NOTE_MAX, Layout, Party, PartyCreate
 ERROR_STATUS: dict[str, int] = {
     "bad_code": 401,
     "forbidden": 403,
+    "login_required": 403,
     "signup_closed": 403,
     "slot_taken": 409,
     "not_present": 409,
@@ -30,6 +32,7 @@ ERROR_STATUS: dict[str, int] = {
     "unknown_party": 404,
     "invalid": 422,
     "rate_limited": 429,
+    "sms_unavailable": 503,
 }
 
 
@@ -484,3 +487,50 @@ def raise_places_to_placed(state: State, party: Party, night: str) -> None:
     placed = placed_on_night(state, party.id, night)
     if placed > current:
         set_places(party, night, placed)
+
+
+# --- phone login (T-073) -------------------------------------------------------
+
+_PHONE_RE = re.compile(r"^\+[1-9][0-9]{7,14}$")
+
+
+def normalize_phone(raw: str) -> str:
+    """Return the E.164 form of a typed number: `0905 123 456` -> `+421905123456`.
+
+    Spaces, dashes, dots and parentheses are dropped, a leading `00` becomes `+`, a single
+    leading `0` means Slovakia (`+421`).
+    """
+    value = re.sub(r"[\s().\-]", "", raw if isinstance(raw, str) else "")
+    if value.startswith("00"):
+        value = "+" + value[2:]
+    elif value.startswith("0"):
+        value = "+421" + value[1:]
+    if not _PHONE_RE.match(value):
+        raise RuleError("invalid", "Phone number is not valid", {"field": "phone", "reason": "phone_format"})
+    return value
+
+
+def phone_hint(party: Party) -> str | None:
+    """The last 3 digits of the stored number, or None for a party without a phone."""
+    return party.phone[-3:] if party.phone else None
+
+
+def is_protected(party: Party) -> bool:
+    return party.phone is not None
+
+
+def is_verified(party: Party, verified: Mapping[str, float]) -> bool:
+    """True when the caller verified the party's phone at or after the time the phone was set."""
+    if party.phone_set_at is None or party.id not in verified:
+        return False
+    set_at = datetime.fromisoformat(party.phone_set_at).timestamp()
+    return verified[party.id] >= set_at
+
+
+def check_party_access(party: Party, verified: Mapping[str, float], is_admin: bool) -> None:
+    """A party with a phone may be changed only by a verified caller or the admin."""
+    if is_admin or not is_protected(party) or is_verified(party, verified):
+        return
+    raise RuleError(
+        "login_required", "Party is protected by a phone number", {"party_id": party.id, "party_name": party.name}
+    )

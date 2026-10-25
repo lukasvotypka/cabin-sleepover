@@ -22,6 +22,7 @@ Add, change and remove a party's number, saved only after a correct SMS code: pr
 - [ ] `uv run pytest` passes.
 
 ## Notes for developer
+- `SmsLimits` (T-074) only returns wait seconds; the endpoint raises `429 rate_limited` with `params.retry_after` from them (same as T-075).
 - Defaults in `tasks/QUESTIONS.md`: Q22, Q23 (no signup-lock check), Q25.
 - Open decision "Prihlásenie telefónom": number saved only after SMS; a changed number cancels old verifications.
 

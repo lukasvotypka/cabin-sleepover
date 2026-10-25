@@ -269,6 +269,11 @@ class Limits(_Model):
     writes_per_client_minute: PositiveInt
     ai_per_client_minute: PositiveInt
     ai_per_day: PositiveInt
+    sms_party_interval_seconds: PositiveInt = 60  # at most 1 SMS per party in this many seconds
+    sms_per_party_hour: PositiveInt = 5
+    sms_per_ip_hour: PositiveInt = 10
+    sms_code_attempts: PositiveInt = 5  # wrong or right code checks per party within `sms_code_window_seconds`
+    sms_code_window_seconds: PositiveInt = 600
 
 
 class AppConfig(_Model):
@@ -338,14 +343,25 @@ class Party(PartyInput):
     places: dict[NightRef, Annotated[int, Field(strict=True, ge=1)]] = {}
     # "Čo kto donesie": one free text, stored only when set (not part of the form input)
     food_note: Annotated[str, Field(strict=True, min_length=1, max_length=FOOD_NOTE_MAX)] | None = None
+    # Phone login (T-073): E.164 number and the time it was set; both or neither, stored only when set.
+    # Never part of the form input and never sent to the page (`state_payload` sends `phone_hint`).
+    phone: Annotated[str, Field(strict=True, pattern=r"^\+[1-9][0-9]{7,14}$")] | None = None
+    phone_set_at: IsoDateTime | None = None
     created_at: IsoDateTime
     updated_at: IsoDateTime
 
+    @model_validator(mode="after")
+    def _phone_pair(self) -> "Party":
+        if (self.phone is None) != (self.phone_set_at is None):
+            raise ValueError("phone and phone_set_at must be set together")
+        return self
+
     @model_serializer(mode="wrap")
-    def _omit_unset_food_note(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def _omit_unset_optionals(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         data = handler(self)
-        if data.get("food_note") is None:
-            data.pop("food_note", None)
+        for key in ("food_note", "phone", "phone_set_at"):
+            if data.get(key) is None:
+                data.pop(key, None)
         return data
 
 

@@ -656,3 +656,21 @@ def test_startup_briefing_repeated_step(layout, data_dir, make_party):
     write_data(data_dir, {**good_data(make_party, [ivan]), "briefing": {ivan.id: ["pack", "pack"]}})
     msg = start_error(layout, data_dir)
     assert "briefing.p-ivan01" in msg and "more than once" in msg
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [{"phone": "0905123456", "phone_set_at": "2026-10-25T10:00:00+02:00"}, {"phone": "+421905123456"}],
+)
+def test_startup_bad_phone(layout, data_dir, make_party, extra):
+    data = good_data(make_party, [make_party(id="p-ivan01")])
+    data["parties"][0].update(extra)
+    write_data(data_dir, data)
+    msg = start_error(layout, data_dir)
+    assert str(data_dir / DATA_FILE) in msg and "parties[0]" in msg
+
+
+def test_startup_accepts_a_phone(layout, data_dir, make_party):
+    ivan = make_party(id="p-ivan01", phone="+421905123456", phone_set_at="2026-10-25T10:00:00+02:00")
+    write_data(data_dir, good_data(make_party, [ivan]))
+    assert Store(layout, data_dir=data_dir).read().parties[0].phone == "+421905123456"

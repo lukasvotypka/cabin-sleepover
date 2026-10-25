@@ -470,7 +470,7 @@ def test_validate_module_has_no_io_or_fastapi_imports():
             imported |= {a.name.split(".")[0] for a in node.names}
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module.split(".")[0])
-    assert imported <= {"collections", "dataclasses", "datetime", "typing", "unicodedata", "app"}
+    assert imported <= {"collections", "dataclasses", "datetime", "typing", "unicodedata", "re", "app"}
 
 
 # --- party color ----------------------------------------------------------------
@@ -725,3 +725,42 @@ def test_set_food_note(ivan):
     assert not v.set_food_note(ivan, "x")
     assert v.set_food_note(ivan, "") and ivan.food_note is None
     assert not v.set_food_note(ivan, "")
+
+
+# --- phone login (T-073) -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw", ["0905 123 456", "0905-123-456", "00421905123456", "+421 905 123 456", "(0905) 123.456"]
+)
+def test_normalize_phone_accepts_common_forms(raw):
+    assert v.normalize_phone(raw) == "+421905123456"
+
+
+@pytest.mark.parametrize("raw", ["", "abc", "+12", "0", "+1234567890123456", "905123456", "0905 12x 456"])
+def test_normalize_phone_rejects(raw):
+    with pytest.raises(RuleError) as exc:
+        v.normalize_phone(raw)
+    assert exc.value.code == "invalid" and exc.value.params["field"] == "phone"
+
+
+def test_phone_hint(make_party):
+    assert v.phone_hint(make_party()) is None
+    assert v.phone_hint(make_party(phone="+421905123456", phone_set_at="2026-10-25T10:00:00+02:00")) == "456"
+
+
+def test_check_party_access(make_party):
+    set_at = "2026-10-25T10:00:00+02:00"
+    ts = 1792915200.0  # 2026-10-25T10:00:00+02:00
+    assert v.datetime.fromisoformat(set_at).timestamp() == ts
+    protected = make_party(phone="+421905123456", phone_set_at=set_at)
+    open_party = make_party()
+    v.check_party_access(open_party, {}, False)
+    v.check_party_access(protected, {}, True)
+    v.check_party_access(protected, {protected.id: ts}, False)  # equal time passes
+    v.check_party_access(protected, {protected.id: ts + 5}, False)
+    for verified in ({}, {protected.id: ts - 1}, {open_party.id: ts}):
+        with pytest.raises(RuleError) as exc:
+            v.check_party_access(protected, verified, False)
+        assert exc.value.code == "login_required" and exc.value.status == 403
+        assert exc.value.params == {"party_id": protected.id, "party_name": protected.name}

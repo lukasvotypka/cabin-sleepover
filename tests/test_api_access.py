@@ -658,3 +658,42 @@ async def test_write_limit_needs_the_group_cookie_first(test_routes, client):
     resp = await client.post("/api/_write")
     assert resp.status_code == 401
     assert error_of(resp)["code"] == "bad_code"
+
+
+# --- phone never leaves the server (T-073) -------------------------------------------
+
+PHONE = "+421905123456"
+
+
+async def test_state_hides_the_phone_and_shows_a_hint(group_client, app, make_party):
+    rt = app.state.runtime
+    locked = make_party(phone=PHONE, phone_set_at="2026-10-25T10:00:00+02:00")
+    free = make_party()
+    async with rt.store.write(action="party_create", source="form", client_id=None) as tx:
+        tx.state.parties.extend([locked, free])
+    resp = await group_client.get("/api/state")
+    assert PHONE not in resp.text and "phone_set_at" not in resp.text and "905123456" not in resp.text
+    by_id = {p["id"]: p for p in resp.json()["state"]["parties"]}
+    assert by_id[locked.id]["phone_hint"] == "456"
+    assert "phone_hint" not in by_id[free.id]
+    assert "phone" not in by_id[locked.id]
+
+
+async def test_party_forms_reject_a_phone_and_keep_the_stored_one(group_client, app, make_party):
+    from tests.api_helpers import party_body
+
+    rt = app.state.runtime
+    locked = make_party(id="p-lockd1", phone=PHONE, phone_set_at="2026-10-25T10:00:00+02:00")
+    async with rt.store.write(action="party_create", source="form", client_id=None) as tx:
+        tx.state.parties.append(locked)
+    resp = await group_client.post("/api/parties", json=party_body("Nova", phone=PHONE))
+    assert resp.status_code == 422 and resp.json()["error"]["code"] == "invalid"
+    resp = await group_client.put(f"/api/parties/{locked.id}", json=party_body("Zmena", phone="+421900000000"))
+    assert resp.status_code == 422
+    resp = await group_client.put(f"/api/parties/{locked.id}", json=party_body("Zmena"))
+    assert resp.status_code == 200 and PHONE not in resp.text
+    stored = rt.store.read().parties[0]
+    assert stored.name == "Zmena" and stored.phone == PHONE and stored.phone_set_at == "2026-10-25T10:00:00+02:00"
+    audit = rt.store.audit_path.read_text(encoding="utf-8")
+    assert PHONE not in audit and "905123456" not in audit and "phone_set_at" not in audit
+    assert "phone_hint: '456'" in audit

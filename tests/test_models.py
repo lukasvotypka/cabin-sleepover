@@ -607,3 +607,26 @@ def test_party_input_color_is_optional_and_a_strict_hex(model):
     for bad in ["#abc", "red", "#GGGGGG", 123, ""]:
         with pytest.raises(ValidationError):
             model(**BASE, color=bad)
+
+
+# --- phone on Party (T-073) ---------------------------------------------------------
+
+
+def test_party_phone_is_omitted_until_set(make_party):
+    assert "phone" not in make_party().model_dump() and "phone_set_at" not in make_party().model_dump()
+    p = make_party(phone="+421905123456", phone_set_at="2026-10-25T10:00:00+02:00")
+    assert p.model_dump()["phone"] == "+421905123456"
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"phone": "0905123456", "phone_set_at": "2026-10-25T10:00:00+02:00"},
+        {"phone": "+421 905 123 456", "phone_set_at": "2026-10-25T10:00:00+02:00"},
+        {"phone": "+421905123456"},
+        {"phone_set_at": "2026-10-25T10:00:00+02:00"},
+    ],
+)
+def test_party_phone_must_be_e164_and_paired(make_party, extra):
+    with pytest.raises(ValidationError):
+        make_party(**extra)
