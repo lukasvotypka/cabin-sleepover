@@ -235,6 +235,7 @@ function drawBoards() {
   drawPartyTable(g, scene.parties, state);
   drawLetter(g, scene.letter);
   drawLegend(g, scene.legend);
+  if (isAdmin(app.role)) drawKey(g, scene.key);
   if (state.info && scene.briefing) drawBriefing(g, scene.briefing, state);
 }
 

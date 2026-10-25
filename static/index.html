@@ -33,7 +33,7 @@
 :root {
   --bg: #EFE5D3; --surface: #FBF6EC; --surface2: #F4EBDB; --ink: #2B1D14; --muted: #6B5644;
   --line: #DCC9AE; --forest: #4A2C1A; --moss: #5E6B24; --amber: #96540F; --amber-soft: #F6DFB8;
-  --warn: #A3361E; --warn-soft: #F6D6C8; --ok: #3F6E2C;
+  --warn: #A3361E; --warn-soft: #F6D6C8; --ok: #3F6E2C; --rust: #8E3424;
   --font-head: "Alegreya", Georgia, "Times New Roman", serif;
   --font-text: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light dark;
@@ -42,7 +42,7 @@
   :root {
     --bg: #1A1410; --surface: #241C16; --surface2: #2D231B; --ink: #F1E7D9; --muted: #B9A38C;
     --line: #47382B; --forest: #F2DBB8; --moss: #B9C46F; --amber: #EDA94E; --amber-soft: #3F2C16;
-    --warn: #F08C70; --warn-soft: #43241A; --ok: #93C67E;
+    --warn: #F08C70; --warn-soft: #43241A; --ok: #93C67E; --rust: #F08C70;
   }
 }
 * { box-sizing: border-box; }
@@ -169,6 +169,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .sound-toggle svg { display: block; margin: auto; }
 .sound-toggle[aria-pressed="true"] { color: var(--muted); }
 .sheet p { margin: 0 0 12px; color: var(--muted); }
+.admin-tools .btn.danger { background: var(--rust); border-color: var(--rust); color: var(--surface); }
+.admin-tools .btn.secondary.danger { background: transparent; color: var(--rust); }
+.admin-tools a.btn { text-decoration: none; display: flex; align-items: center; justify-content: center; }
+.admin-tools .confirm-text { margin: 8px 0; font-weight: 600; overflow-wrap: anywhere; }
 .party-list { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
 .party-row {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 12px; text-align: left;
@@ -667,6 +671,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-briefing.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-quick.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-sound.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-admin.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-live.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-start.js?v=__ASSET_VERSION__"></script>
 </body>

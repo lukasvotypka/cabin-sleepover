@@ -126,7 +126,7 @@ var app = {
 // The role from /api/join: "group" or "admin" (decide with isAdmin()).
 app.role = storage.get(KEYS.role);
 
-// Called when the admin cookie turned out to be gone (a 403 forbidden). Later tasks hide admin UI here.
+// Called when the admin cookie turned out to be gone (a 403 forbidden): renderAdminUi (app-admin.js) hides the key.
 function onAdminLost() {
   if (typeof renderAdminUi === "function") renderAdminUi();
 }
@@ -136,6 +136,7 @@ function setRole(role) {
   app.role = role;
   storage.set(KEYS.role, role);
   if (was && !isAdmin(role)) onAdminLost();
+  else if (!was && isAdmin(role) && typeof renderAdminUi === "function") renderAdminUi();
 }
 
 function $(id) { return document.getElementById(id); }

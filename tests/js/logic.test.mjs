@@ -3965,3 +3965,16 @@ test("forbidden and signup_closed have Slovak texts", () => {
   assert.equal(L.errorText({ code: "forbidden" }, null), "Na toto treba admin kód.");
   assert.notEqual(L.errorText({ code: "signup_closed" }, null), L.errorText({ code: "nope" }, null));
 });
+
+// --- admin panel texts (T-076) ---
+
+test("signupToggleLabel flips by signup_open and deleteConfirmText names the party", () => {
+  assert.equal(L.signupToggleLabel(true), "Zamknúť zápis");
+  assert.equal(L.signupToggleLabel(false), "Otvoriť zápis");
+  assert.equal(L.deleteConfirmText("Novákovci"), "Naozaj zmazať „Novákovci“? Uvoľnia sa všetky jej miesta.");
+});
+
+test("the key icon is drawn only for the admin and is a labelled button", () => {
+  assert.match(appSource, /if \(isAdmin\(app\.role\)\) drawKey\(g, scene\.key\)/);
+  assert.match(appSource, /makeButton\(g, "Admin nástroje", "key", openAdmin\)/);
+});

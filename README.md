@@ -218,6 +218,10 @@ grep -n -B3 -A12 'slot-id-here' /opt/chrapa-poll/data/audit.yaml
 
 `config/info.yaml` holds the texts of the „Pred cestou“ section (water, packing list, bedding, menu per day, what to bring, program). Edit it and restart the container. A missing file or `enabled: false` turns the feature off (the file is still checked). The environment variable `INFO_ENABLED` (`true`/`false`) overrides the file's `enabled`: `compose.yaml` sets it to `false` unless you export `INFO_ENABLED=true` next to the secrets, so production keeps the section off while local runs and the trial server (variable unset) follow the file. The startup log says which one decided; a broken one stops the app with a message naming the path (for example `pack[3].icon`). Icons come from the fixed set `INFO_ICONS` in `app/models.py`, and menu days are quoted ISO dates within the event days.
 
+### Organizer tools (lock signup, export, delete a party)
+
+Open the page, tap „Si: …“ or „Kto si?“ and then „Mám admin kód“, and enter `ADMIN_CODE`. The panel then says „Si organizátor“ and a key icon appears on the map (next to the letter). The key opens „Admin“ with three tools: „Zamknúť zápis“ / „Otvoriť zápis“ (while locked, only the organizer can change places), „Stiahnuť dáta“ (downloads `cabin-data-<version>.yaml`) and „Zmazať partiu“ (pick a party, confirm, its places are freed). The admin cookie lasts 12 hours; after that the key disappears and you enter the code again.
+
 ## 6. Open decisions and the defaults used
 
 These are listed in `proposal.md` ("Otvorené rozhodnutia"). They were not decided by the developer: the stated default is used until the organizer says otherwise.

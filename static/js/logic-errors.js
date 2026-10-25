@@ -51,6 +51,15 @@ function isAdmin(role) {
   return role === "admin";
 }
 
+// Texts of the admin panel (T-076). The button flips the lock by the current `signup_open`.
+function signupToggleLabel(signupOpen) {
+  return signupOpen === false ? "Otvoriť zápis" : "Zamknúť zápis";
+}
+
+function deleteConfirmText(name) {
+  return "Naozaj zmazať „" + name + "“? Uvoľnia sa všetky jej miesta.";
+}
+
 // The role to keep after a response: a 403 `forbidden` means the 12 h admin cookie is gone, so the
 // role falls back to `group`. Any other answer leaves the role as it is.
 function roleAfterResponse(role, status, error) {
