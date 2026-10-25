@@ -223,10 +223,11 @@ test("seenText covers each branch and boundaries", () => {
   assert.equal(L.seenText(ago(3 * 86400000), now, false), "pred 3 d");
 });
 
-test("onlineLine counts other parties", () => {
-  assert.equal(L.onlineLine({ online: ["a", "b", "c"] }, "a"), "online: 2");
+test("onlineLine counts all online parties, mine included", () => {
+  assert.equal(L.onlineLine({ online: ["a", "b", "c"] }, "a"), "online: 3");
+  assert.equal(L.onlineLine({ online: ["a", "b"] }, "a"), "online: 2");
   assert.equal(L.onlineLine({ online: ["a"] }, "a"), "online: len ty");
-  assert.equal(L.onlineLine({ online: ["a"] }, "z"), "online: 1");   // my party is not in `online`
+  assert.equal(L.onlineLine({ online: ["a"] }, "z"), "online: 2");   // my party is not in `online` yet
   assert.equal(L.onlineLine({ online: [] }, "a"), "online: len ty");
   assert.equal(L.onlineLine({ online: [] }, null), "online: nikto");
   assert.equal(L.onlineLine({ online: ["a", "b"] }, null), "online: 2");
@@ -235,12 +236,12 @@ test("onlineLine counts other parties", () => {
 test("hudCrestLine switches to the age text on a problem", () => {
   const presence = { online: ["a", "b"] };
   const base = { presence, myPartyId: "a", fetchedAtMs: 1000000, nowMs: 1030000, lastPollFailed: false };
-  assert.equal(L.hudCrestLine(base), "online: 1");
-  assert.equal(L.hudCrestLine({ ...base, nowMs: 1090000 }), "online: 1");
+  assert.equal(L.hudCrestLine(base), "online: 2");
+  assert.equal(L.hudCrestLine({ ...base, nowMs: 1090000 }), "online: 2");
   assert.equal(L.hudCrestLine({ ...base, nowMs: 1091000 }), "aktualizované pred 1 min");
   assert.equal(L.hudCrestLine({ ...base, lastPollFailed: true }), "aktualizované pred 30 s");
   // a 304 refresh resets fetchedAt, so the online line is back
-  assert.equal(L.hudCrestLine({ ...base, fetchedAtMs: 1091000, nowMs: 1092000 }), "online: 1");
+  assert.equal(L.hudCrestLine({ ...base, fetchedAtMs: 1091000, nowMs: 1092000 }), "online: 2");
 });
 
 test("relative refresh time", () => {

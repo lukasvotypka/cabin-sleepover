@@ -537,12 +537,13 @@ function seenText(lastSeenIso, serverNowMs, isOnline) {
   return "pred " + Math.floor(min / 1440) + " d";
 }
 
-// The line under „Si: …“ in the bottom HUD: how many other parties are online.
+// The line under „Si: …“ in the bottom HUD: how many parties are online, mine included.
 function onlineLine(presence, myPartyId) {
+  // Everyone online, me included: this page is polling, so my party counts even before the server lists it.
   var online = presence && presence.online ? presence.online : [];
-  var n = online.filter(function (id) { return id !== myPartyId; }).length;
-  if (n > 0) return "online: " + n;
-  return myPartyId ? "online: len ty" : "online: nikto";
+  var n = online.filter(function (id) { return id !== myPartyId; }).length + (myPartyId ? 1 : 0);
+  if (myPartyId && n === 1) return "online: len ty";
+  return n > 0 ? "online: " + n : "online: nikto";
 }
 
 // The online line, or the age of the data when the last poll failed or the data are older than 90 s.
