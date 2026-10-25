@@ -192,12 +192,18 @@ function menuDays(info) {
   return info && Array.isArray(info.menu) ? info.menu : [];
 }
 
+// The „Čo kto donesie“ list: [{id, name, color, text}] for parties with a food_note, in party order.
+function foodNotes(state) {
+  return ((state && state.parties) || []).filter(function (p) { return typeof p.food_note === "string" && p.food_note; })
+    .map(function (p) { return { id: p.id, name: p.name, color: p.color, text: p.food_note }; });
+}
+
 // What the open food or sleep slide shows from the state. A new state redraws the slide only when this changes.
 function slideSignature(step, state, partyId) {
   var info = state && state.info;
   if (!info) return "";
   if (step === "sleep") return JSON.stringify([info.sleep, info.sleep_intro, info.facilities, matPlaces(state, partyId)]);
-  if (step === "food") return JSON.stringify([info.menu, info.bring, info.food_intro, info.food_plan, info.food_note, eventDays(state.event), foodRow(state)]);
+  if (step === "food") return JSON.stringify([info.menu, info.bring, info.food_intro, info.food_plan, info.food_note, foodNotes(state), eventDays(state.event), foodRow(state), partyById(state, partyId) ? partyId : null]);
   return "";
 }
 

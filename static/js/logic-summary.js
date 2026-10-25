@@ -350,6 +350,11 @@ function summaryText(state, link) {
     lines.push("Chýbajú miesta:");
     warnings.forEach(function (w) { lines.push(w); });
   }
+  var food = foodNotes(state);
+  if (food.length) {
+    lines.push("");
+    lines.push("Čo kto donesie: " + food.map(function (f) { return f.name + " – " + f.text; }).join("; "));
+  }
   var notBriefed = notBriefedNames(state);
   if (notBriefed.length) {
     lines.push("");

@@ -99,6 +99,11 @@ function qkFood(parent, info) {
   }
   if (info.food_note) card.appendChild(htmlEl("p", null, info.food_note));
   if (info.bring) card.appendChild(htmlEl("p", null, "Dones: " + bringText(info.bring)));
+  var notes = foodNotes(app.state);
+  if (notes.length) {
+    card.appendChild(htmlEl("p", null, "Čo kto donesie:")).style.fontWeight = "700";
+    foodNotesList(card, notes);
+  }
 }
 
 function qkProgram(parent, info) {

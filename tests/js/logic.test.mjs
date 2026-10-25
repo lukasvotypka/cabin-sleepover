@@ -3796,3 +3796,53 @@ test("slideSignature covers the new food and sleep fields", () => {
     assert.notEqual(L.slideSignature(step, a, p.id), L.slideSignature(step, withInfo(extra), p.id));
   }
 });
+
+test("foodNotes lists parties with a food_note in party order", () => {
+  const a = party({ id: "p-aaaaaa", name: "A", color: "#112233" });
+  const b = party({ id: "p-bbbbbb", name: "B", food_note: "pizza pec", color: "#445566" });
+  const c = party({ id: "p-cccccc", name: "C", food_note: "víno", color: "#778899" });
+  assert.deepEqual(plain(L.foodNotes(infoState([a, b, c]))), [
+    { id: "p-bbbbbb", name: "B", color: "#445566", text: "pizza pec" },
+    { id: "p-cccccc", name: "C", color: "#778899", text: "víno" },
+  ]);
+  assert.deepEqual(plain(L.foodNotes(infoState([a]))), []);
+  assert.deepEqual(plain(L.foodNotes(null)), []);
+});
+
+test("slideSignature food changes with the notes", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const s1 = infoState([a]);
+  const s2 = infoState([{ ...a, food_note: "x" }]);
+  assert.notEqual(L.slideSignature("food", s1, a.id), L.slideSignature("food", s2, a.id));
+});
+
+test("slideSignature food changes when a party gets chosen", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const s = infoState([a]);
+  assert.notEqual(L.slideSignature("food", s, ""), L.slideSignature("food", s, a.id));
+});
+
+test("slideSignature food changes when another party gets chosen", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const b = party({ id: "p-bbbbbb", name: "B" });
+  const s = infoState([a, b]);
+  assert.notEqual(L.slideSignature("food", s, a.id), L.slideSignature("food", s, b.id));
+});
+
+test("summaryText has the „Čo kto donesie“ line only when a note exists", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const b = party({ id: "p-bbbbbb", name: "B", food_note: "pizza pec" });
+  const c = party({ id: "p-cccccc", name: "C", food_note: "víno" });
+  const link = "https://cabin.example/";
+  assert.ok(!L.summaryText(realState([a], {}), link).includes("Čo kto donesie"));
+  assert.ok(L.summaryText(realState([a, b], {}), link).split("\n").includes("Čo kto donesie: B – pizza pec"));
+  assert.ok(L.summaryText(realState([b, c], {}), link).split("\n").includes("Čo kto donesie: B – pizza pec; C – víno"));
+});
+
+test("errorText: food note reasons have their own Slovak text", () => {
+  const tooLong = L.errorText(err("invalid", { field: "text", reason: "too_long", max: 120 }));
+  const ctrl = L.errorText(err("invalid", { field: "text", reason: "control_chars" }));
+  assert.match(tooLong, /dlhý/);
+  assert.match(ctrl, /znaky/);
+  assert.notEqual(tooLong, ctrl);
+});

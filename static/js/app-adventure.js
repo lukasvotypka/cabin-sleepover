@@ -247,6 +247,7 @@ function advOnState() {
   if (adv.slide !== "sleep" && adv.slide !== "food") return;
   var sig = slideSignature(adv.slide, app.state, app.myParty);
   if (sig === adv.slideSig) return;
+  if (adv.slide === "food" && document.activeElement && document.activeElement.id === "foodNoteInput") return;   // keep the typed text
   var slide = adv.els.slide, back = slide.querySelector(".adv-back");
   var scroll = slide.querySelector(".adv-text");
   var top = scroll ? scroll.scrollTop : 0;

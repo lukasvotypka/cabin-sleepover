@@ -219,6 +219,58 @@ function slWater(box, info) {
   upd();
 }
 
+// The „Čo kto donesie“ rows (colored square, name, text), all via textContent. Shared with the quick list.
+function foodNotesList(parent, notes) {
+  var ul = htmlEl("ul", { "class": "food-notes" });
+  notes.forEach(function (n) {
+    var li = htmlEl("li");
+    var sq = htmlEl("span", { "class": "food-sq", "aria-hidden": "true" });
+    sq.style.background = n.color;
+    li.appendChild(sq);
+    li.appendChild(htmlEl("b", null, n.name + ": "));
+    li.appendChild(document.createTextNode(n.text));
+    ul.appendChild(li);
+  });
+  parent.appendChild(ul);
+  return ul;
+}
+
+// The editor of my party's note, or the „Vyber, kto si“ button without a chosen party.
+function slFoodEditor(box) {
+  var wrap = slAdd(box, "div", "food-edit");
+  var party = partyById(app.state, app.myParty);
+  if (!party) {
+    var who = htmlEl("button", { type: "button", "class": "food-btn" }, "Vyber, kto si");
+    who.addEventListener("click", function () { openWho({ after: function () { if (adv.open) advOnState(); } }); });
+    wrap.appendChild(who);
+    return;
+  }
+  var id = "foodNoteInput";
+  var form = htmlEl("form", { "class": "food-form" });
+  wrap.appendChild(form);
+  form.appendChild(htmlEl("label", { "for": id }, "Čo donesie " + party.name));
+  var input = htmlEl("input", { id: id, type: "text", maxlength: "120", autocomplete: "off", "class": "food-input" });
+  input.value = party.food_note || "";
+  var save = htmlEl("button", { type: "submit", "class": "food-btn" }, "Uložiť");
+  var msg = htmlEl("p", { "class": "food-msg", role: "status" });
+  var busy = false;
+  // Redraw a slide that was held back while typing (a note from someone else, my own saved note).
+  input.addEventListener("blur", function () { setTimeout(function () { if (adv.open) advOnState(); }, 250); });
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (busy) return;
+    busy = true; save.disabled = true;
+    write("POST", "api/food", { party_id: party.id, text: input.value }).then(function (res) {
+      busy = false; save.disabled = false;
+      if (res.ok) { msg.textContent = "Uložené."; input.blur(); if (adv.open) advOnState(); return; }
+      if (res.status !== 401) msg.textContent = errorText(res.error, app.state);
+    });
+  });
+  form.appendChild(input);
+  form.appendChild(save);
+  form.appendChild(msg);
+}
+
 function slFood(box, info) {
   slHead(box, "3 · Ohnisko", "Čo sa bude variť");
   if (info.food_intro) slAdd(box, "p", null, info.food_intro);
@@ -248,6 +300,10 @@ function slFood(box, info) {
     tip.appendChild(htmlEl("b", null, "Do kuchyne dones: "));
     tip.appendChild(document.createTextNode(bringText(info.bring)));
   }
+  slAdd(box, "p", "adv-kick", "Čo kto donesie");
+  var notes = foodNotes(app.state);
+  if (notes.length) foodNotesList(box, notes);
+  slFoodEditor(box);
   var eventNights = eventDays(app.state.event), counts = foodRow(app.state);
   var eat = slAdd(box, "div", "adv-eat");
   eat.appendChild(htmlEl("b", null, "Na jedlo nás je"));
