@@ -5,7 +5,7 @@ water:
   drinkable: false        # false: the page shows the warning that tap water is not drinkable
   liters_per_day: 2
   bottle_liters: 1.5
-host_arrival: "Organizátor príde na chatu okolo 16:00."
+host_arrival: "Lukáš príde na chatu okolo 16:00."
 pack_intro: "Zbaľ si veci na tri noci v chate."
 pack:
   - { icon: spacak, label: "Spacák", note: "Nemáš? Daj vedieť, požičiame." }
@@ -27,7 +27,7 @@ sleep:
 facilities:
   have: ["gril", "piecka", "sporák", "teplá voda v kuchynke"]
   missing: ["sprcha", "WC"]
-food_intro: "Každý si bežne donesie jedlo, varí sa spolu a organizátor kúpi niečo navyše."
+food_intro: "Každý si bežne donesie jedlo, varí sa spolu a Lukáš kúpi niečo navyše."
 food_plan:
   - "grilovanie"
   - "mäso upečené v piecke"
