@@ -671,3 +671,24 @@ def test_assign_and_places_refuse_a_day_only_party(layout, make_state, make_part
     assert err(v.check_assign, state, layout, THU, [A1], guest.id).code == "not_present"
     assert err(v.check_places, state, layout, guest.id, THU, 1).code == "not_present"
     assert err(v.check_assign_stay, state, layout, [A1], guest.id).params["reason"] == "no_event_nights"
+
+
+# --- briefing (T-058) ---------------------------------------------------------
+
+
+def test_check_briefing_known_step_and_party(make_state, ivan):
+    assert v.check_briefing(make_state([ivan]), ivan.id, "water") is ivan
+
+
+def test_check_briefing_errors(make_state, ivan):
+    state = make_state([ivan])
+    assert (err(v.check_briefing, state, ivan.id, "nope").code) == "invalid"
+    assert (err(v.check_briefing, state, "p-ghost1", "pack").code) == "unknown_party"
+
+
+def test_add_briefing_step_keeps_canonical_order_and_reports_repeat(make_state, ivan):
+    state = make_state([ivan])
+    assert v.add_briefing_step(state, ivan.id, "list") is True
+    assert v.add_briefing_step(state, ivan.id, "pack") is True
+    assert state.briefing[ivan.id] == ["pack", "list"]
+    assert v.add_briefing_step(state, ivan.id, "pack") is False

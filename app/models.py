@@ -335,12 +335,17 @@ class Party(PartyInput):
     updated_at: IsoDateTime
 
 
+# Steps of "Pred cestou" in canonical order; the page draws and names them.
+BRIEFING_STEPS = ("pack", "water", "food", "program", "sleep", "list")
+
+
 class State(_Model):
     version: Annotated[int, Field(strict=True, ge=0)]
     updated_at: IsoDateTime
     signup_open: bool = True
     parties: list[Party] = []
     sleeping: dict[str, dict[str, PartyId]] = {}  # night → slot → party id
+    briefing: dict[PartyId, list[str]] = {}  # party id → "Pred cestou" steps gone through, canonical order
 
 
 # --- action requests --------------------------------------------------------
@@ -388,6 +393,11 @@ class PlacesRequest(_Model):
     party_id: PartyRef
     night: NightRef
     places: int = Field(strict=True)
+
+
+class BriefingRequest(_Model):
+    party_id: PartyRef
+    step: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=32)]
 
 
 class SignupRequest(_Model):

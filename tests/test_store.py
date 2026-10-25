@@ -522,7 +522,7 @@ async def test_data_file_is_readable_yaml_with_strings(store, data_dir, make_par
     assert all(isinstance(party[k], str) for k in ("arrive", "leave", "arrival_time", "created_at", "updated_at"))
     assert party["arrival_time"] == "18:00" and party["note"] == "Ďakujeme!\nDruhý riadok"
     assert list(loaded["sleeping"]) == [THU] and isinstance(next(iter(loaded["sleeping"])), str)
-    assert list(loaded) == ["version", "updated_at", "signup_open", "parties", "sleeping"]  # key order kept
+    assert list(loaded) == ["version", "updated_at", "signup_open", "parties", "sleeping", "briefing"]  # key order kept
 
 
 async def test_new_store_on_same_directory_sees_the_same_data(layout, data_dir, make_party):
@@ -619,3 +619,31 @@ async def test_day_only_party_survives_a_save_and_load(layout, data_dir, make_pa
     assert yaml.safe_load((data_dir / DATA_FILE).read_text(encoding="utf-8"))["parties"][0]["day_visits"] == [THU, SAT]
     party = Store(layout, data_dir=data_dir).read().parties[0]
     assert (party.arrive, party.leave, party.day_visits) == (None, None, [THU, SAT])
+
+
+# --- briefing (T-058) ---------------------------------------------------------
+
+
+def test_file_without_briefing_loads(layout, data_dir, make_party):
+    write_data(data_dir, good_data(make_party))
+    assert Store(layout, data_dir=data_dir).read().briefing == {}
+
+
+def test_startup_briefing_unknown_party(layout, data_dir, make_party):
+    write_data(data_dir, {**good_data(make_party), "briefing": {"p-ghost1": ["pack"]}})
+    msg = start_error(layout, data_dir)
+    assert "briefing.p-ghost1" in msg and "unknown party ID" in msg
+
+
+def test_startup_briefing_unknown_step(layout, data_dir, make_party):
+    ivan = make_party(id="p-ivan01")
+    write_data(data_dir, {**good_data(make_party, [ivan]), "briefing": {ivan.id: ["pack", "dance"]}})
+    msg = start_error(layout, data_dir)
+    assert "briefing.p-ivan01" in msg and "unknown step" in msg and "dance" in msg
+
+
+def test_startup_briefing_repeated_step(layout, data_dir, make_party):
+    ivan = make_party(id="p-ivan01")
+    write_data(data_dir, {**good_data(make_party, [ivan]), "briefing": {ivan.id: ["pack", "pack"]}})
+    msg = start_error(layout, data_dir)
+    assert "briefing.p-ivan01" in msg and "more than once" in msg

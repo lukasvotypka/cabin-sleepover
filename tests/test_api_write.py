@@ -868,3 +868,68 @@ async def test_update_party_mode_errors_write_nothing(app, group_client):
     )
     assert resp.status_code == 422 and error_of(resp)["params"]["reason"] == "stay_mode_mixed"
     assert snapshot(app) == before
+
+
+# --- briefing (T-058) -----------------------------------------------------------------
+
+
+async def post_step(client, pid, step):
+    return await client.post("/api/briefing", json={"party_id": pid, "step": step}, headers=CLIENT)
+
+
+async def test_briefing_first_step_writes(app, group_client):
+    p = await mk_party(group_client)
+    before = snapshot(app)
+    resp = await post_step(group_client, p["id"], "water")
+    assert resp.status_code == 200
+    assert resp.json()["state"]["briefing"] == {p["id"]: ["water"]}
+    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
+    doc = audit_docs(app)[-1]
+    assert (doc["action"], doc["source"], doc["party"], doc["step"]) == ("briefing", "map", p["id"], "water")
+
+
+async def test_briefing_stored_in_canonical_order(app, group_client):
+    p = await mk_party(group_client)
+    await post_step(group_client, p["id"], "list")
+    resp = await post_step(group_client, p["id"], "pack")
+    assert resp.json()["state"]["briefing"][p["id"]] == ["pack", "list"]
+
+
+async def test_briefing_repeat_is_a_no_op(app, group_client):
+    p = await mk_party(group_client)
+    await post_step(group_client, p["id"], "food")
+    before = snapshot(app)
+    resp = await post_step(group_client, p["id"], "food")
+    assert resp.status_code == 200 and resp.json()["ok"] is True
+    assert resp.json()["state"]["briefing"] == {p["id"]: ["food"]}
+    assert snapshot(app) == before
+
+
+async def test_briefing_errors(app, group_client):
+    p = await mk_party(group_client)
+    before = snapshot(app)
+    resp = await post_step(group_client, p["id"], "dance")
+    assert resp.status_code == 422 and error_of(resp)["code"] == "invalid" and "state" in resp.json()
+    resp = await post_step(group_client, "p-nobody", "pack")
+    assert resp.status_code == 404 and error_of(resp)["code"] == "unknown_party" and "state" in resp.json()
+    assert snapshot(app) == before
+
+
+async def test_briefing_allowed_when_signup_locked(app, group_client):
+    p = await mk_party(group_client)
+    await lock_signup(app)
+    assert (await post_step(group_client, p["id"], "sleep")).status_code == 200
+    assert error_of(await set_places(group_client, p["id"], THU, 1))["code"] == "signup_closed"
+
+
+async def test_briefing_needs_the_group_cookie(client):
+    resp = await client.post("/api/briefing", json={"party_id": "p-abcdef", "step": "pack"})
+    assert resp.status_code == 401 and error_of(resp)["code"] == "bad_code"
+
+
+async def test_briefing_concurrent_identical_steps_bump_once(app, group_client):
+    p = await mk_party(group_client)
+    before = snapshot(app)
+    results = await asyncio.gather(*(post_step(group_client, p["id"], "program") for _ in range(5)))
+    assert all(r.status_code == 200 for r in results)
+    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)

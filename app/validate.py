@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from app.models import Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
+from app.models import BRIEFING_STEPS, Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
 
 ERROR_STATUS: dict[str, int] = {
     "bad_code": 401,
@@ -419,6 +419,22 @@ def check_places(state: State, layout: Layout, party_id: str, night: str, places
             field="places", night=night, places=places, party_id=party.id, party_name=party.name,
         )
     return party
+
+
+def check_briefing(state: State, party_id: str, step: str) -> Party:
+    """Check a `briefing` request: known step, known party. Returns the party. Allowed while signup is locked."""
+    if step not in BRIEFING_STEPS:
+        raise _invalid("unknown_step", "Unknown briefing step", field="step", step=step)
+    return find_party(state, party_id)
+
+
+def add_briefing_step(state: State, party_id: str, step: str) -> bool:
+    """Record the step in canonical order. False when it was already recorded (nothing changed)."""
+    done = state.briefing.get(party_id, [])
+    if step in done:
+        return False
+    state.briefing[party_id] = [s for s in BRIEFING_STEPS if s in done or s == step]
+    return True
 
 
 def set_places(party: Party, night: str, places: int) -> None:

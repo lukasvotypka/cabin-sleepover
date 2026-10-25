@@ -47,6 +47,7 @@ from app.models import (
     ConfigError,
     Layout,
     MoveRequest,
+    BriefingRequest,
     PlacesRequest,
     PartyId,
     Party,
@@ -69,6 +70,8 @@ from app.validate import (
     check_move,
     check_party_create,
     check_party_update,
+    add_briefing_step,
+    check_briefing,
     check_places,
     check_signup_open,
     adjust_places,
@@ -227,6 +230,7 @@ def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
         "info": rt.info_json,
         "parties": [p.model_dump(mode="json") for p in state.parties],
         "sleeping": state.sleeping,
+        "briefing": state.briefing,
         "presence": rt.seen.presence({p.id for p in state.parties}),
         "asset_version": rt.asset_version(),
     }
@@ -785,6 +789,19 @@ def create_app(
                 party=party.id, nights=[body.night], before=before, after=party.places.get(body.night),
                 places=body.places,
             )
+        return ok_response(rt, tx.state)
+
+    @app.post("/api/briefing", dependencies=[Limited])
+    async def briefing(request: Request, body: BriefingRequest, auth: Group) -> JSONResponse:
+        # No check_signup_open: "Pred cestou" is not a signup change and stays open when signup is locked.
+        async with rt.store.write(
+            action="briefing", source=audit_source(auth, "map"), client_id=client_id_of(request)
+        ) as tx:
+            party = check_briefing(tx.state, body.party_id, body.step)
+            if not add_briefing_step(tx.state, party.id, body.step):
+                tx.skip()
+            else:
+                tx.audit(party=party.id, step=body.step)
         return ok_response(rt, tx.state)
 
     @app.post("/api/parties", dependencies=[Limited])
