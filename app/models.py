@@ -6,7 +6,7 @@ Dates are ISO strings everywhere (“2026-10-29”), never `date` objects.
 """
 
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import cached_property
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -151,6 +151,7 @@ class SceneRects(_Model):
     legend: Rect
     parties: Rect
     meadow: Rect
+    briefing: Rect = [296, 408, 56, 56]  # "Pred cestou" board; optional, default here
 
 
 class MapLayout(_Model):
@@ -393,6 +394,62 @@ class SignupRequest(_Model):
     open: bool = Field(strict=True)
 
 
+# --- guest info (config/info.yaml) -------------------------------------------
+
+# Icon names of the page's pixel sprites. The page draws them, the server only knows the names.
+INFO_ICONS = frozenset(
+    "spacak vankus papuce mikina bunda topanky uterak hygiena celovka lieky nabijacka kocka plachta "
+    "karimatka flasa smerovnik lezenie lopta ohen lampion truhla hrniec".split()
+)
+
+def _check_icon(value: str) -> str:
+    if value not in INFO_ICONS:
+        raise ValueError(f"unknown icon (allowed: {', '.join(sorted(INFO_ICONS))})")
+    return value
+
+
+InfoIcon = Annotated[str, Field(strict=True), AfterValidator(_check_icon)]
+Positive = Annotated[float, Field(strict=False, gt=0)]
+
+
+class InfoWater(_Model):
+    drinkable: bool
+    liters_per_day: Positive
+    bottle_liters: Positive
+
+
+class InfoItem(_Model):
+    icon: InfoIcon
+    label: Label
+    note: Label | None = None
+
+
+class InfoMeal(_Model):
+    when: Label
+    what: Label
+
+
+class InfoMenuDay(_Model):
+    day: IsoDate
+    meals: list[InfoMeal] = Field(min_length=1)
+
+
+class InfoProgram(_Model):
+    icon: InfoIcon
+    title: Label
+    when: Label
+    note: Label | None = None
+
+
+class Info(_Model):
+    water: InfoWater
+    pack: list[InfoItem] = Field(min_length=1)
+    sleep: list[InfoItem] = Field(min_length=1)
+    menu: list[InfoMenuDay] = Field(min_length=1)
+    bring: Label
+    program: list[InfoProgram] = Field(min_length=1)
+
+
 # --- loading configuration --------------------------------------------------
 
 
@@ -450,3 +507,31 @@ def load_app_config(path: str | Path) -> AppConfig:
         return AppConfig.model_validate(_read_yaml(path))
     except ValidationError as exc:
         raise ConfigError(format_validation_error(exc, str(path))) from exc
+
+
+def event_days(event: Event) -> list[str]:
+    """Every day of the event, from the first arrive day to the last leave day."""
+    first, last = date.fromisoformat(min(event.arrive_days)), date.fromisoformat(max(event.leave_days))
+    return [(first + timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
+
+
+def load_info(path: str | Path, event: Event) -> Info | None:
+    """Load `info.yaml`. A missing file returns None (feature off); a broken one raises `ConfigError`."""
+    path = Path(path)
+    if not path.is_file():
+        return None
+    try:
+        info = Info.model_validate(_read_yaml(path))
+    except ValidationError as exc:
+        raise ConfigError(format_validation_error(exc, str(path))) from exc
+    days, problems = event_days(event), []
+    seen: set[str] = set()
+    for i, entry in enumerate(info.menu):
+        if entry.day not in days:
+            problems.append(f"  menu[{i}].day: {entry.day} is outside the event days {days[0]} to {days[-1]}")
+        elif entry.day in seen:
+            problems.append(f"  menu[{i}].day: {entry.day} is repeated")
+        seen.add(entry.day)
+    if problems:
+        raise ConfigError("\n".join([f"{path}: invalid file", *problems]))
+    return info

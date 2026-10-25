@@ -33,6 +33,7 @@ SCENE = {
     "legend": [24, 264, 44, 44],
     "parties": [176, 112, 196, 136],
     "meadow": [112, 453, 124, 14],
+    "briefing": [296, 408, 56, 56],
 }
 
 
@@ -110,12 +111,17 @@ def test_layout_dump_is_json_ready(layout):
 # --- errors in cabin.yaml ------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", sorted(SCENE))
+@pytest.mark.parametrize("name", sorted(set(SCENE) - {"briefing"}))
 def test_missing_scene_rect_names_it(layout_data, name):
     del layout_data["map"]["scene"][name]
     with pytest.raises(ConfigError) as exc:
         parse_layout(layout_data)
     assert f"map.scene.{name}" in str(exc.value)
+
+
+def test_briefing_rect_is_optional_with_a_default(layout_data):
+    del layout_data["map"]["scene"]["briefing"]
+    assert parse_layout(layout_data).map.scene.briefing == [296, 408, 56, 56]
 
 
 def test_scene_rect_must_have_four_ints(layout_data):

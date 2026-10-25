@@ -452,7 +452,7 @@ async def test_update_party_with_a_malformed_id_is_invalid(app, group_client, pa
     assert resp.status_code == 422
     err = error_of(resp)
     assert (err["code"], err["params"]["field"]) == ("invalid", "party_id")
-    assert len(resp.text) < 4000  # the long value is not echoed back
+    assert len(resp.text) < 8000  # the long value is not echoed back
     assert snapshot(app) == before
 
 

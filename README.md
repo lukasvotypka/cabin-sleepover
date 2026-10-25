@@ -14,6 +14,7 @@ Where things are:
 | `static/index.html` | the page shell (markup and CSS); it loads the scripts below |
 | `static/js/` | the page code as plain scripts: `logic-*.js` (pure logic, tested in Node) and `app-*.js` (DOM, drawing, requests); load order is the order of the `<script>` tags in `index.html` |
 | `config/cabin.yaml` | event dates, nights and the cabin layout (rooms, beds, slots, map coordinates) |
+| `config/info.yaml` | guest info „Pred cestou“ (what to pack, water, menu, program); optional, without it the feature is off |
 | `config/app.yaml` | limits and `backups_keep` |
 | `data/` | the live data, created on first start, never committed, never served |
 | `Dockerfile`, `compose.yaml` | the Docker image and its one-service compose file |
@@ -210,6 +211,10 @@ grep -n -B3 -A12 'slot-id-here' /opt/chrapa-poll/data/audit.yaml
 ```
 
 `source` says where the change came from (`map` for a tap on the map, `form` for the party form), `client_id` is a random anonymous id of the browser, and `before` and `after` show what changed. The backup taken before that write is in `data/backups/` and carries the previous version: the audit entry for `version: 12` belongs to the backup `...-v000011.yaml`.
+
+### Editing the guest info
+
+`config/info.yaml` holds the texts of the „Pred cestou“ section (water, packing list, bedding, menu per day, what to bring, program). Edit it and restart the container. A missing file turns the feature off; a broken one stops the app with a message naming the path (for example `pack[3].icon`). Icons come from the fixed set `INFO_ICONS` in `app/models.py`, and menu days are quoted ISO dates within the event days.
 
 ## 6. Open decisions and the defaults used
 

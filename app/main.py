@@ -54,6 +54,7 @@ from app.models import (
     PartyUpdate,
     State,
     load_app_config,
+    load_info,
     load_layout,
 )
 from app.ratelimit import CODE_ATTEMPTS_PER_MINUTE, SlidingWindowLimiter
@@ -166,6 +167,7 @@ class Runtime:
     write_limiter: SlidingWindowLimiter
     seen: SeenTracker
     layout_json: dict[str, Any]
+    info_json: dict[str, Any] | None  # `config/info.yaml` as served, None when the file is missing
     config_hash: str  # digest of the served layout, computed once at startup
     hub: EventHub
     known_ids: set[str]  # party ids, refreshed on every commit (no file read per request)
@@ -222,6 +224,7 @@ def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
         "signup_open": state.signup_open,
         "event": rt.layout_json["event"],
         "layout": rt.layout_json,
+        "info": rt.info_json,
         "parties": [p.model_dump(mode="json") for p in state.parties],
         "sleeping": state.sleeping,
         "presence": rt.seen.presence({p.id for p in state.parties}),
@@ -229,8 +232,8 @@ def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
     }
 
 
-def config_digest(layout_json: dict[str, Any]) -> str:
-    canonical = json.dumps(layout_json, sort_keys=True, ensure_ascii=False)
+def config_digest(layout_json: dict[str, Any], info_json: dict[str, Any] | None = None) -> str:
+    canonical = json.dumps([layout_json, info_json], sort_keys=True, ensure_ascii=False)
     return hashlib.sha1(canonical.encode()).hexdigest()[:8]
 
 
@@ -240,7 +243,7 @@ def state_etag(
     """Changes on every write, when the served `cabin.yaml` changes (after a restart) and when presence changes.
 
     `updated_at` is mixed in, so a hand-restored older backup (lower `version`) differs too.
-    `config_hash` covers `layout` and `event`, which come from `cabin.yaml` and not from the data file.
+    `config_hash` covers `layout`, `event` and `info`, which come from `cabin.yaml` and `info.yaml`, not the data file.
     Presence (T-049) adds the `online` set and every party's `last_seen` floored to the minute: second
     precision would change the tag on every poll, while the page only shows minutes. The `online` set keeps
     "online" right within one poll, so the page can use the server's list as it is after a 304.
@@ -496,6 +499,8 @@ def create_app(
         raise ConfigError(f"{index_file}: the page is missing")
     store = Store(layout, data_dir=data_dir, backups_keep=app_config.backups_keep)  # the data file check
     layout_json = layout.model_dump(mode="json")
+    info = load_info(config_dir / "info.yaml", layout.event)
+    info_json = info.model_dump(mode="json") if info else None
 
     hub = EventHub(on_online_change=lambda online: on_online_change(online))
     rt = Runtime(
@@ -512,7 +517,8 @@ def create_app(
             Path(data_dir) / "seen.yaml", clock, {p.id for p in store.read().parties}, store.audit_path
         ),
         layout_json=layout_json,
-        config_hash=config_digest(layout_json),
+        info_json=info_json,
+        config_hash=config_digest(layout_json, info_json),
         hub=hub,
         known_ids={p.id for p in store.read().parties},
     )

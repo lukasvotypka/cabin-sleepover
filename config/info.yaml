@@ -1,0 +1,47 @@
+# Guest info for the „Pred cestou“ section. Texts are organizer data (Slovak), like room names.
+# Icons come from a fixed set (see INFO_ICONS in app/models.py). Days are quoted ISO dates.
+water:
+  drinkable: false        # false: the page shows the warning that tap water is not drinkable
+  liters_per_day: 2
+  bottle_liters: 1.5
+pack:
+  - { icon: spacak, label: "Spacák" }
+  - { icon: vankus, label: "Vankúš" }
+  - { icon: papuce, label: "Papuče" }
+  - { icon: mikina, label: "Teplá mikina" }
+  - { icon: bunda, label: "Bunda do dažďa" }
+  - { icon: topanky, label: "Pevné topánky" }
+  - { icon: uterak, label: "Uterák" }
+  - { icon: hygiena, label: "Hygiena" }
+  - { icon: celovka, label: "Čelovka" }
+  - { icon: lieky, label: "Lieky" }
+  - { icon: nabijacka, label: "Nabíjačka" }
+  - { icon: kocka, label: "Hra alebo karty" }
+sleep:
+  - { icon: spacak, label: "Spacák", note: "každý vlastný, aj deti" }
+  - { icon: plachta, label: "Plachta na matrac", note: "matrace a postele sú bez obliečok" }
+  - { icon: vankus, label: "Vankúš", note: "alebo aspoň obliečka na vankúš" }
+menu:
+  - day: "2026-10-29"
+    meals:
+      - { when: "večer", what: "guláš z kotlíka" }
+  - day: "2026-10-30"
+    meals:
+      - { when: "ráno", what: "raňajky si robí každý sám" }
+      - { when: "večer", what: "zapekané zemiaky" }
+  - day: "2026-10-31"
+    meals:
+      - { when: "obed", what: "tekvicová polievka" }
+      - { when: "večer", what: "opekačka pri ohni" }
+  - day: "2026-11-01"
+    meals:
+      - { when: "ráno", what: "palacinky, potom upratujeme" }
+bring: "raňajky pre svoju partiu, niečo na opekanie a pochutiny alebo koláč"
+program:
+  - { icon: smerovnik, title: "Túra na vyhliadku", when: "Pi doobeda", note: "pevné topánky" }
+  - { icon: lezenie, title: "Lezenie", when: "Pi poobede, pre veľkých aj malých" }
+  - { icon: lopta, title: "Loptové hry", when: "So doobeda na lúke" }
+  - { icon: ohen, title: "Opekačka a oheň", when: "So večer" }
+  - { icon: lampion, title: "Lampiónový sprievod", when: "So po zotmení", note: "vezmi lampión" }
+  - { icon: truhla, title: "Hľadanie pokladu", when: "Ne ráno, pre deti" }
+  - { icon: kocka, title: "Spoločenské hry", when: "každý večer" }
