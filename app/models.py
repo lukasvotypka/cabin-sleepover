@@ -451,13 +451,25 @@ class InfoProgram(_Model):
     note: Label | None = None
 
 
+class InfoFacilities(_Model):
+    have: list[Label] | None = None
+    missing: list[Label] | None = None
+
+
 class Info(_Model):
     water: InfoWater
     pack: list[InfoItem] = Field(min_length=1)
     sleep: list[InfoItem] = Field(min_length=1)
-    menu: list[InfoMenuDay] = Field(min_length=1)
-    bring: Label
+    menu: list[InfoMenuDay] | None = Field(default=None, min_length=1)
+    bring: Label | None = None
     program: list[InfoProgram] = Field(min_length=1)
+    pack_intro: Label | None = None
+    sleep_intro: Label | None = None
+    food_intro: Label | None = None
+    food_note: Label | None = None
+    host_arrival: Label | None = None
+    food_plan: list[Label] | None = None
+    facilities: InfoFacilities | None = None
 
 
 # --- loading configuration --------------------------------------------------
@@ -536,7 +548,7 @@ def load_info(path: str | Path, event: Event) -> Info | None:
         raise ConfigError(format_validation_error(exc, str(path))) from exc
     days, problems = event_days(event), []
     seen: set[str] = set()
-    for i, entry in enumerate(info.menu):
+    for i, entry in enumerate(info.menu or []):
         if entry.day not in days:
             problems.append(f"  menu[{i}].day: {entry.day} is outside the event days {days[0]} to {days[-1]}")
         elif entry.day in seen:

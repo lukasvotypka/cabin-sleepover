@@ -221,7 +221,7 @@ function slWater(box, info) {
 function slFood(box, info) {
   slHead(box, "3 · Ohnisko", "Čo sa bude variť");
   var menu = slAdd(box, "div", "adv-menu");
-  info.menu.forEach(function (d) {
+  (info.menu || []).forEach(function (d) {
     var row = htmlEl("div", { "class": "adv-day" });
     row.appendChild(htmlEl("span", { "class": "adv-d" }, dayLabel(d.day)));
     var meals = htmlEl("div", { "class": "adv-m" });

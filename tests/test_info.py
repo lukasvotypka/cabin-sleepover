@@ -35,7 +35,7 @@ def test_icon_set_has_22_names():
 def test_sample_file_loads():
     info = load_info(SAMPLE, load_layout(ROOT / "config" / "cabin.yaml").event)
     assert info.water.drinkable is False
-    assert len(info.pack) == 12 and len(info.sleep) == 3 and len(info.menu) == 4 and len(info.program) == 7
+    assert len(info.pack) == 12 and len(info.sleep) == 2 and info.menu is None and len(info.program) == 7
 
 
 def test_missing_file_means_feature_off(tmp_path):
@@ -50,11 +50,19 @@ def _empty_list(d):
     d["program"] = []
 
 
+MENU = [
+    {"day": "2026-10-29", "meals": [{"when": "večer", "what": "guláš"}]},
+    {"day": "2026-10-30", "meals": [{"when": "ráno", "what": "raňajky"}]},
+]
+
+
 def _day_outside(d):
+    d["menu"] = [dict(m) for m in MENU]
     d["menu"][0]["day"] = "2026-11-05"
 
 
 def _day_repeated(d):
+    d["menu"] = [dict(m) for m in MENU]
     d["menu"][1]["day"] = d["menu"][0]["day"]
 
 
@@ -101,3 +109,77 @@ async def test_state_carries_info_and_etag_follows_it(tmp_path, make_client):
         infos.append(r.json()["state"]["info"])
     assert infos[0]["water"]["liters_per_day"] == 2 and infos[1]["bring"] == "nič"
     assert tags[0] != tags[1]
+
+
+NEW_FIELDS = {
+    "pack_intro": "Úvod",
+    "sleep_intro": "Spanie",
+    "food_intro": "Jedlo",
+    "food_note": "Obchod",
+    "host_arrival": "O 16:00",
+    "food_plan": ["gril"],
+    "facilities": {"have": ["gril"], "missing": ["WC"]},
+}
+
+
+def _load(tmp_path, data):
+    path = tmp_path / "info.yaml"
+    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return load_info(path, load_layout(ROOT / "config" / "cabin.yaml").event)
+
+
+def test_shipped_file_has_organizer_content():
+    info = load_info(SAMPLE, load_layout(ROOT / "config" / "cabin.yaml").event)
+    assert info.menu is None and info.bring is None
+    assert info.food_plan and info.facilities.have and info.facilities.missing
+    assert info.host_arrival and info.pack_intro and info.sleep_intro and info.food_intro and info.food_note
+    assert info.pack[0].note
+
+
+def test_old_required_fields_only_load(tmp_path):
+    data = {k: _sample()[k] for k in ("water", "pack", "sleep", "program")}
+    info = _load(tmp_path, data)
+    assert info.menu is None and info.facilities is None and info.food_plan is None and info.host_arrival is None
+
+
+@pytest.mark.parametrize("field", sorted(NEW_FIELDS))
+def test_each_new_field_present_and_absent(tmp_path, field):
+    base = {k: _sample()[k] for k in ("water", "pack", "sleep", "program")}
+    assert getattr(_load(tmp_path, base), field) is None
+    info = _load(tmp_path, {**base, field: NEW_FIELDS[field]})
+    assert getattr(info, field) is not None
+
+
+def test_facilities_with_only_have(tmp_path):
+    base = {k: _sample()[k] for k in ("water", "pack", "sleep", "program")}
+    info = _load(tmp_path, {**base, "facilities": {"have": ["gril"]}})
+    assert info.facilities.have == ["gril"] and info.facilities.missing is None
+
+
+def test_pack_item_note(tmp_path):
+    base = {k: _sample()[k] for k in ("water", "pack", "sleep", "program")}
+    base["pack"] = [{"icon": "spacak", "label": "Spacák", "note": "Požičiame."}]
+    assert _load(tmp_path, base).pack[0].note == "Požičiame."
+
+
+def test_menu_still_checked_when_present(tmp_path):
+    base = {k: _sample()[k] for k in ("water", "pack", "sleep", "program")}
+    assert _load(tmp_path, {**base, "menu": MENU}).menu[0].day == "2026-10-29"
+
+
+@pytest.mark.parametrize(
+    ("patch", "needle"),
+    [
+        ({"food_note": "  "}, "food_note"),
+        ({"host_arrival": ""}, "host_arrival"),
+        ({"food_plan": ["gril", ""]}, "food_plan[1]"),
+        ({"facilities": {"have": [""]}}, "facilities.have[0]"),
+        ({"facilities": {"have": ["a"], "extra": []}}, "facilities.extra"),
+        ({"unknown_key": "x"}, "unknown_key"),
+    ],
+)
+def test_rejected_new_field_values(tmp_path, patch, needle):
+    base = {k: _sample()[k] for k in ("water", "pack", "sleep", "program")}
+    with pytest.raises(ConfigError) as exc:
+        _load(tmp_path, {**base, **patch})
+    assert needle in str(exc.value)

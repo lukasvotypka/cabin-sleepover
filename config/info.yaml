@@ -1,11 +1,14 @@
 # Guest info for the „Pred cestou“ section. Texts are organizer data (Slovak), like room names.
 # Icons come from a fixed set (see INFO_ICONS in app/models.py). Days are quoted ISO dates.
+# Optional: pack_intro, sleep_intro, food_intro, food_note, host_arrival, food_plan, facilities, menu, bring.
 water:
   drinkable: false        # false: the page shows the warning that tap water is not drinkable
   liters_per_day: 2
   bottle_liters: 1.5
+host_arrival: "Organizátor príde na chatu okolo 16:00."
+pack_intro: "Zbaľ si veci na tri noci v chate."
 pack:
-  - { icon: spacak, label: "Spacák" }
+  - { icon: spacak, label: "Spacák", note: "Nemáš? Daj vedieť, požičiame." }
   - { icon: vankus, label: "Vankúš" }
   - { icon: papuce, label: "Papuče" }
   - { icon: mikina, label: "Teplá mikina" }
@@ -17,26 +20,18 @@ pack:
   - { icon: lieky, label: "Lieky" }
   - { icon: nabijacka, label: "Nabíjačka" }
   - { icon: kocka, label: "Hra alebo karty" }
+sleep_intro: "Spí sa v spacákoch na posteliach a matracoch."
 sleep:
   - { icon: spacak, label: "Spacák", note: "každý vlastný, aj deti" }
-  - { icon: plachta, label: "Plachta na matrac", note: "matrace a postele sú bez obliečok" }
-  - { icon: vankus, label: "Vankúš", note: "alebo aspoň obliečka na vankúš" }
-menu:
-  - day: "2026-10-29"
-    meals:
-      - { when: "večer", what: "guláš z kotlíka" }
-  - day: "2026-10-30"
-    meals:
-      - { when: "ráno", what: "raňajky si robí každý sám" }
-      - { when: "večer", what: "zapekané zemiaky" }
-  - day: "2026-10-31"
-    meals:
-      - { when: "obed", what: "tekvicová polievka" }
-      - { when: "večer", what: "opekačka pri ohni" }
-  - day: "2026-11-01"
-    meals:
-      - { when: "ráno", what: "palacinky, potom upratujeme" }
-bring: "raňajky pre svoju partiu, niečo na opekanie a pochutiny alebo koláč"
+  - { icon: plachta, label: "Plachta na matrac", note: "podľa potreby" }
+facilities:
+  have: ["gril", "piecka", "sporák", "teplá voda v kuchynke"]
+  missing: ["sprcha", "WC"]
+food_intro: "Každý si bežne donesie jedlo, varí sa spolu a organizátor kúpi niečo navyše."
+food_plan:
+  - "grilovanie"
+  - "mäso upečené v piecke"
+food_note: "Obchod je 15 minút, netreba robiť nákup na 4 dni."
 program:
   - { icon: smerovnik, title: "Túra na vyhliadku", when: "Pi doobeda", note: "pevné topánky" }
   - { icon: lezenie, title: "Lezenie", when: "Pi poobede, pre veľkých aj malých" }
