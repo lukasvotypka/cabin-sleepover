@@ -22,12 +22,21 @@ function soundContext() {
 }
 
 // Called from a touch, click or key: creates or wakes the audio (iOS Safari allows that only inside a gesture).
+// iOS leaves the audio "interrupted" (not "suspended") after the app was in the background, the screen locked or a
+// call, so anything but "running" is woken; a closed one is replaced.
 function unlockSound() {
+  if (app.audio && app.audio.state === "closed") app.audio = app.noise = null;
   var ctx = soundContext();
-  if (ctx && ctx.state === "suspended") ctx.resume();
+  if (ctx && ctx.state !== "running") ctx.resume().catch(function () {});
 }
 ["pointerdown", "touchend", "keydown"].forEach(function (type) {
   document.addEventListener(type, unlockSound, { capture: true, passive: true });
+});
+// Back in front: try to wake the audio at once (may need the next tap on iOS, which unlockSound handles).
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "visible" && app.audio && app.audio.state !== "running" && app.audio.state !== "closed") {
+    app.audio.resume().catch(function () {});
+  }
 });
 
 app.muted = storage.get(KEYS.sound) === "off";
