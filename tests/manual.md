@@ -9,6 +9,7 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 ## 1. Deploy, server and files
 
 - [ ] **Clean server:** following only `README.md` (install Docker, clone, supply the three secrets as environment variables, create `data/` with the right owner, `docker compose up -d --build`, add Caddy), the container becomes „healthy“ and the page opens. Note anything in the README that was wrong or missing.
+- [ ] **Pred cestou switch (T-069):** with no `INFO_ENABLED` line in `/etc/cabin/secrets.env`, the board is hidden and `docker compose logs cabin | grep "Pred cestou"` says the section is off; after adding `INFO_ENABLED=true` and `docker compose --env-file /etc/cabin/secrets.env up -d`, the board shows and the log line says on.
 - [ ] **Version after deploy:** after `docker compose up -d --build` on the server, `curl -s http://127.0.0.1:8010/api/health` returns `{"ok":true,"version":"<the version in pyproject.toml>"}` (not `unknown`), and the image builds with `pyproject.toml` present (T-035; Docker build not run by the tester).
 - [ ] **HTTPS works:** `https://<host>/` opens with a valid certificate, `http://` redirects to it, and the page works on a phone over mobile data.
 - [ ] **Final URL and sub-path:** under the real URL (and, if used, a sub-path such as `/cabin/`) the page loads and the `api/...` calls work (relative paths).

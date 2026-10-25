@@ -102,13 +102,15 @@ What you get: the image is built from the official `python:3.12-slim` with the l
 
    ```sh
    sudo install -d -m 700 /etc/cabin
-   sudo nano /etc/cabin/secrets.env      # three lines: GROUP_CODE=..., ADMIN_CODE=..., SECRET_KEY=...
+   sudo nano /etc/cabin/secrets.env      # three lines: GROUP_CODE=..., ADMIN_CODE=..., SECRET_KEY=... (optional fourth: INFO_ENABLED=true)
    sudo chmod 600 /etc/cabin/secrets.env
    ```
 
    Then run every compose command as `sudo docker compose --env-file /etc/cabin/secrets.env ...` (`sudo` because the file is readable by root only; if you prefer, make the file owned by the deploying user instead) (the examples below show the plain `docker compose ...` for short; add the option, or export the variables first, for `up`, `down` and `config`; `stop`, `start` and `restart` work without them).
 
-   Do **not** keep a file called `.env` next to `compose.yaml` on the server. Compose reads such a file automatically to fill in `${...}` values, so it would silently supply (or override) the secrets, and it would leave them in the project directory. `--env-file` replaces that default, so an old `.env` is ignored, but the cleanest server has none.
+   Production switches live in this same file. The optional fourth line `INFO_ENABLED=true` (or `false`) turns the „Pred cestou“ section on or off; when the line is missing, the section stays off (`compose.yaml` defaults it to `false`). After changing it, run `docker compose --env-file /etc/cabin/secrets.env up -d`; a plain restart, or `up` without the env file, keeps the old value. Check the result in the startup log, which says `„Pred cestou“ section on/off (INFO_ENABLED)`: `docker compose logs cabin | grep "Pred cestou"`.
+
+   Do **not** keep a file called `.env` next to `compose.yaml` on the server. Compose reads such a file automatically to fill in `${...}` values, so it would silently supply (or override) the secrets and `INFO_ENABLED`, and it would leave them in the project directory. `--env-file` replaces that default, so an old `.env` is ignored, but the cleanest server has none.
 
    Then create the data directory:
 
