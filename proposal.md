@@ -183,6 +183,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | POST | `/api/move` | skupina | `{party_id, from_slot, to_slot, nights[]}`: presun buď celý, alebo nič |
 | POST | `/api/parties` | skupina | Vytvorí partiu |
 | POST | `/api/briefing` | skupina | `{party_id, step}`: zapíše, že partia otvorila zastávku „Pred cestou“ (sekcia Pred cestou). Ide aj pri zamknutom zápise |
+| POST | `/api/food` | skupina | `{party_id, text}`: nastaví alebo zmaže text partie „Čo kto donesie“ (sekcia Pred cestou). Ide aj pri zamknutom zápise |
 | POST | `/api/places` | skupina | `{party_id, night, places}`: nastaví počet potrebných miest partie v tú noc (pole `places`). Plný počet pole pre tú noc zmaže |
 | PUT | `/api/parties/{id}` | skupina | Upraví partiu. Pri skrátení pobytu uvoľní miesta v nociach mimo pobytu a vráti ich v `freed` |
 | DELETE | `/api/parties/{id}` | admin | Fáza 2. Zmaže partiu a uvoľní jej miesta |
@@ -406,6 +407,21 @@ Sada ikon je v kóde stránky (pixelové obrázky z návrhu: spacák, vankúš, 
 - **Desktop (od 900 px):** dvor vľavo, snímka zastávky vpravo vedľa neho; kým nie je nič otvorené, vpravo je uvítanie so zoznamom zastávok (dajú sa ťuknúť). Rýchly prehľad v dvoch stĺpcoch.
 - Animácie (chôdza, blikanie, stieranie) sú pixelové po krokoch; pri `prefers-reduced-motion` postavička preskočí hneď a nič nebliká. Zastávky sú prvky s `role="button"`, ovládateľné klávesnicou, s popisom pre čítačky. Všetok text z konfigurácie ide cez `textContent`.
 
+### Obsah podľa organizátora a „Čo kto donesie“
+
+Rozhodnutie organizátora z 25. 10. 2026 (porovnanie s inštrukciami z minulého roka).
+
+- **Žiadne pevné vety o chate v kóde.** Úvodné vety zastávok (balenie, spanie, jedlo) sú v `config/info.yaml`, nie v kóde; pevná ostáva iba veta varovania pri nepitnej vode. Veta „Nákup na spoločné jedlá rozpočítame.“ sa ruší, náklady sa nerozpočítavajú.
+- **Nové polia v `config/info.yaml`** (všetky voliteľné, chýbajúce sa nezobrazia):
+  - `pack_intro`, `sleep_intro`, `food_intro`: úvodná veta zastávky.
+  - `note` pri položke `pack` (napr. pri spacáku „Nemáš? Daj vedieť, požičiame.“), zobrazí sa pod vecou na snímke a v rýchlom prehľade.
+  - `food_plan`: zoznam textov bez dátumu, čo sa varí spolu (napr. „grilovanie“, „mäso upečené v piecke“). `menu` po dňoch je voliteľné a môže chýbať.
+  - `food_note`: voľný text pri jedle (napr. „Obchod je 15 minút, netreba robiť nákup na 4 dni.“).
+  - `facilities: {have: [...], missing: [...]}`: čo na chate je a čo nie je. Ukáže sa na snímke Chata ako dva zoznamy „Na chate je“ (✓) a „Na chate nie je“ (✗, výrazne) a v rýchlom prehľade pri spaní.
+  - `host_arrival`: kedy príde organizátor (napr. „Organizátor príde na chatu okolo 16:00.“), zobrazí sa na úvode dvora a v rýchlom prehľade hore.
+- **Obsah:** jedlo si každý bežne donesie, varí sa spolu, organizátor kúpi niečo navyše; plán je grilovanie a mäso upečené v piecke; obchod je 15 minút; na chate je gril, piecka, sporák a teplá voda v kuchynke, nie je sprcha ani WC; spacák si donesie každý, kto nemá, dá vedieť; plachta na matrac podľa potreby; organizátor príde okolo 16:00. Vymyslený jedálniček po dňoch sa z ukážkového súboru odstráni.
+- **„Čo kto donesie“:** každá partia môže napísať jeden voľný text, čo donesie alebo pripraví (napr. „donesieme pizza pec“). Uloží sa ako pole partie `food_note` v `cabin-data.yaml` (najviac 120 znakov po orezaní medzier, prázdny text pole zmaže) cez `POST /api/food {party_id, text}` bežnou cestou zápisu (audit `food`). Ide aj pri zamknutom zápise. Neznáma partia je `unknown_party`, dlhý text `invalid` s `reason` `too_long`. Na snímke Ohnisko je časť „Čo kto donesie“: zoznam partií s textom (farebný štvorček, meno, text cez `textContent`) a pre moju partiu pole s tlačidlom „Uložiť“ (bez vybranej partie tlačidlo „Vyber, kto si“). Ten istý zoznam je v rýchlom prehľade pri jedle a v „Prehľade na poslanie“ ako riadok „Čo kto donesie: …“, keď nejaký text je.
+
 ### Kto si to prešiel
 
 - Keď je vybratá moja partia, stránka pri otvorení každej zastávky pošle `POST /api/briefing {party_id, step}`, `step` je `pack`, `water`, `food`, `program`, `sleep` alebo `list` (otvorený rýchly prehľad). Bez vybranej partie sa nič neposiela.
@@ -513,3 +529,4 @@ Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a n
 - [ ] **Pred cestou, čo je „prejdené“:** predvolene všetkých päť zastávok alebo otvorený rýchly prehľad.
 - [ ] **Pred cestou, obsah:** predvolene ukážkový obsah z návrhu v `config/info.yaml` (voda nepitná, 2 l na človeka a deň, jedlo, program); organizátor ho opraví.
 - [ ] **Pred cestou, slovenský text zo servera:** obsah `config/info.yaml` posiela server stránke ako údaje od organizátora (ako názvy izieb); pravidlo „server neposiela slovenské hlášky“ sa týka chybových hlášok a ostáva.
+- [ ] **„Čo kto donesie“:** predvolene jeden text na partiu (najviac 120 znakov), upraviť ho môže ktokoľvek s kódom skupiny (ako ostatné údaje partie), vidia ho všetci.
