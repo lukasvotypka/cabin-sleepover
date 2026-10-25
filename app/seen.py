@@ -145,6 +145,12 @@ class SeenTracker:
             if now - self.written.get(party_id, float("-inf")) >= PERSIST_INTERVAL:
                 self._persist(known_ids, party_id, now)
 
+    def forget_polled(self, party_id: str) -> None:
+        """The party's last stream closed: its plain requests (boot load, writes) were made by the page that
+        had the stream, so they must not keep it online for the polling window after the tab is gone."""
+        with self._lock:
+            self.polled.pop(party_id, None)
+
     def _persist(self, known_ids: Collection[str], party_id: str, now: float) -> None:
         data = {pid: to_iso(t) for pid, t in self.seen.items() if pid in known_ids}
         try:

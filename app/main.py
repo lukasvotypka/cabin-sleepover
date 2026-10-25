@@ -300,7 +300,8 @@ def require_group(request: Request) -> Auth:
     rt = get_runtime(request)  # the caller proves to be in the group: note which party it says it is
     party_id = clean_id(request.headers.get("x-party-id"))
     if party_id in rt.known_ids:
-        rt.seen.record(party_id, rt.known_ids)
+        # With an open stream the stream is what keeps the party online; only a polling party uses the window.
+        rt.seen.record(party_id, rt.known_ids, polled=party_id not in rt.connected)
         rt.request_presence_check()
     return auth
 
@@ -505,6 +506,8 @@ def create_app(
         try:
             for party_id in online ^ rt.connected:  # connect and disconnect both count as "seen now"
                 seen.record(party_id, rt.known_ids, polled=False)
+            for party_id in rt.connected - online:  # its last stream closed: offline now, not after the window
+                seen.forget_polled(party_id)
             rt.connected = set(online)
             rt.refresh_presence()
         except Exception:  # must not raise: it would replace the stream's normal end (see events.py)

@@ -57,6 +57,7 @@ function openSummary() {
 function showCodeScreen() {
   if (app.codeOpen) return;
   app.codeOpen = true;
+  liveStop();
   cancelWalks();
   closePanel();
   hideToast();

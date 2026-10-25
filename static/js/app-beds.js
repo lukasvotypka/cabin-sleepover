@@ -180,7 +180,8 @@ function showTip(bed) {
 
 function renderAge() {
   if (!app.ageNode || !app.fetchedAt) return;
-  var age = crestAgeText({ fetchedAtMs: app.fetchedAt, nowMs: Date.now(), lastPollFailed: app.pollFailed });
+  var age = liveProblemText({ stream: liveStreamMode(), errored: live.errored, lastEventMs: live.lastEventAt,
+    fetchedAtMs: app.fetchedAt, nowMs: Date.now(), lastPollFailed: app.pollFailed });
   var online = onlineChips(app.state, app.myParty, CREST_CHIPS_MAX);
   var line = age || online.label;
   // Rebuilt only when something changed: this runs every second.

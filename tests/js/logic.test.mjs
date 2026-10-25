@@ -258,6 +258,48 @@ test("crestAgeText shows the age only on a problem", () => {
   assert.equal(L.crestAgeText({ ...base, fetchedAtMs: 1091000, nowMs: 1092000 }), null);   // a 304 resets fetchedAt
 });
 
+// --- live stream (T-053) ---
+
+test("state event version guard", () => {
+  assert.equal(L.stateEventAction(5, 6), "full");
+  assert.equal(L.stateEventAction(5, 5), "presence");
+  assert.equal(L.stateEventAction(5, 4), "ignore");
+  assert.equal(L.stateEventAction(null, 1), "full");
+  assert.equal(L.stateEventAction(5, undefined), "ignore");
+});
+
+test("liveProblemText: stream mode shows the age after 45 s or on an error", () => {
+  const o = { stream: true, errored: false, lastEventMs: 1000000, fetchedAtMs: 1000000, nowMs: 1044000, lastPollFailed: false };
+  assert.equal(L.liveProblemText(o), null);
+  assert.equal(L.liveProblemText({ ...o, nowMs: 1045000 }), null);
+  assert.equal(L.liveProblemText({ ...o, nowMs: 1046000 }), "aktualizované pred 46 s");
+  assert.equal(L.liveProblemText({ ...o, errored: true, nowMs: 1010000 }), "aktualizované pred 10 s");
+  // data fetched by the poll after an error are newer than the last stream event
+  assert.equal(L.liveProblemText({ ...o, errored: true, fetchedAtMs: 1008000, nowMs: 1010000 }), "aktualizované pred 2 s");
+});
+
+test("liveProblemText: fallback mode keeps the polling rule", () => {
+  const o = { stream: false, errored: true, lastEventMs: 0, fetchedAtMs: 1000000, nowMs: 1030000, lastPollFailed: false };
+  assert.equal(L.liveProblemText(o), null);   // the stream error flag does not matter without a stream
+  assert.equal(L.liveProblemText({ ...o, nowMs: 1091000 }), "aktualizované pred 1 min");
+  assert.equal(L.liveProblemText({ ...o, lastPollFailed: true }), "aktualizované pred 30 s");
+});
+
+test("shouldFallBack after 60 s without a state", () => {
+  assert.equal(L.shouldFallBack(null, 999999), false);
+  assert.equal(L.shouldFallBack(1000, 60999), false);
+  assert.equal(L.shouldFallBack(1000, 61000), true);
+});
+
+test("reconnect delay grows and is capped", () => {
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 20].map(L.reconnectDelayMs), [3000, 6000, 12000, 24000, 30000, 30000, 30000]);
+});
+
+test("eventsUrl is relative, encoded, and omits a missing party", () => {
+  assert.equal(L.eventsUrl("p-abc123", "c 1&x"), "api/events?party=p-abc123&client=c%201%26x");
+  assert.equal(L.eventsUrl(null, "cid"), "api/events?client=cid");
+});
+
 test("relative refresh time", () => {
   assert.equal(L.updatedAgoText(0, 20000), "aktualizované pred 20 s");
   assert.equal(L.updatedAgoText(0, 0), "aktualizované pred 0 s");
@@ -3448,4 +3490,9 @@ test("sound: „Kto si?“ has a mute button next to the close button, remembere
   assert.match(appSource, /return !app\.muted && ctx/);
   assert.match(appSource, /storage\.set\(KEYS\.sound, "off"\)/);
   assert.match(appSource, /"aria-pressed", app\.muted/);
+});
+
+test("shouldReopenStale after 45 s of silence", () => {
+  assert.equal(L.shouldReopenStale(1000, 45000), false);   // 44 s
+  assert.equal(L.shouldReopenStale(1000, 47000), true);    // 46 s
 });

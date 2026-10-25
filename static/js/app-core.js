@@ -203,11 +203,16 @@ function write(method, path, body, ops) {
     var ok = r.status === 200 && r.json && r.json.ok;
     if (r.json && r.json.state) {
       app.writeEpoch++;
-      // A write response has no ETag header, so forget the old one and let the poll below fetch the
-      // new one. The poll after that gets a 304.
-      app.etag = r.etag || null;
-      applyState(r.json.state);
-      if (ok) poll();
+      // A newer state from the stream may already be shown: never put an older one back.
+      if (!app.state || r.json.state.version >= app.state.version) {
+        // A write response has no ETag header, so forget the old one and let the poll below fetch the
+        // new one. The poll after that gets a 304.
+        app.etag = r.etag || null;
+        applyState(r.json.state);
+      } else {
+        render();
+      }
+      if (ok && !liveStreaming()) poll();   // an open stream brings the next state itself
     } else {
       render();
     }
@@ -225,7 +230,7 @@ function poll() {
   app.polling = true;
   var epoch = app.writeEpoch;
   return request("GET", "api/state", undefined, app.etag, POLL_TIMEOUT_MS).then(function (r) {
-    if (r.status === 401) { showCodeScreen(); return; }
+    if (r.status === 401) { liveStop(); showCodeScreen(); return; }
     app.pollFailed = r.status !== 200 && r.status !== 304;
     if (epoch !== app.writeEpoch) return;   // a write finished meanwhile and its state is newer
     if (r.status === 304) {
@@ -234,8 +239,10 @@ function poll() {
       // The seen ages in an open „Kto si?“ keep growing although the state did not change.
       if (app.panel && app.panel.refresh && app.panel.ageTicks) app.panel.refresh();
     } else if (r.status === 200 && r.json && r.json.ok && r.json.state) {
-      app.etag = r.etag;
-      applyState(r.json.state);
+      if (!app.state || r.json.state.version >= app.state.version) {
+        app.etag = r.etag;
+        applyState(r.json.state);
+      }
     }
   }).catch(function () {
     // Offline or a bad reply: keep what is shown and try again on the next tick.
@@ -244,6 +251,7 @@ function poll() {
   }).then(function () {
     app.polling = false;
     if (app.pollAgain) { app.pollAgain = false; poll(); return; }
+    liveEnsure();
     if (!app.state && !app.codeOpen) {
       $("bootText").textContent = "Nepodarilo sa načítať, skúšam znova…";
       $("boot").classList.add("boot--error");

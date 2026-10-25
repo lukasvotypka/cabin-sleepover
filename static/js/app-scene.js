@@ -7,12 +7,15 @@ function forgetMyParty() {
   app.myParty = null;
   storage.remove(KEYS.party);
   app.move = null;
+  liveReopen();
 }
 
 function setMyParty(id) {
-  if (app.myParty !== id) app.move = null;
+  var changed = app.myParty !== id;
+  if (changed) app.move = null;
   app.myParty = id;
   storage.set(KEYS.party, id);
+  if (changed) liveReopen();
 }
 
 function selectNight(night) {

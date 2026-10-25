@@ -87,6 +87,28 @@ async def test_presence_on_connect_and_disconnect(group_client, app, make_party,
     await wgen.aclose()
 
 
+async def test_requests_of_a_streaming_party_do_not_keep_it_online(group_client, app, make_party, clock):
+    # The page boots with GET /api/state and writes with plain requests; closing its stream must still end
+    # its online status at once (bug found in T-053 testing: it stayed online for the 75 s window).
+    rt = app.state.runtime
+    party = make_party()
+    await add_party(app, party)
+    rt.loop = asyncio.get_running_loop()
+    await group_client.get("/api/state", headers={"X-Party-Id": party.id})  # boot load before the stream
+    _watcher, wgen = await open_stream(rt, client="watcher")
+    conn, gen = await open_stream(rt, party.id, client="phone")
+    await group_client.get("/api/state", headers={"X-Party-Id": party.id})  # a request while streaming
+    clock.advance(5)
+    await gen.aclose()
+    assert party.id not in rt.seen.presence(rt.known_ids)["online"]
+    while True:  # the watcher hears the party leave
+        event, data = await next_frame(wgen)
+        if event == "presence" and party.id not in data["online"]:
+            break
+    rt.loop = None
+    await wgen.aclose()
+
+
 async def test_polling_party_enters_and_ages_out(group_client, app, make_party, clock):
     rt = app.state.runtime
     party = make_party()
