@@ -297,7 +297,7 @@ function bedLabel(state, room, bed, night) {
 // Falls back to "Zapísať nás sem" when no party is chosen yet.
 function assignLabel(count, partyName) {
   var base = partyName ? "Zapísať sem „" + partyName + "“" : "Zapísať nás sem";
-  return count > 0 ? base + " (" + pluralPlaces(count) + ")" : base;
+  return count > 0 ? base + " (" + pluralPlaces(count).replace(" ", "\u00a0") + ")" : base;
 }
 
 var DAY_ACCUSATIVE = ["nedeľu", "pondelok", "utorok", "stredu", "štvrtok", "piatok", "sobotu"];
@@ -337,11 +337,10 @@ function stayFullNote(full) {
 // Returns {single, main, sub, only, note}.
 function bedActionTexts(state, party, bed, night, take) {
   var places = take.length;
-  var count = places > 0 ? " (" + pluralPlaces(places) + ")" : "";
   var name = party ? "„" + party.name + "“" : "nás";
   var present = party ? state.event.nights.filter(function (n) { return isPresent(party, n); }) : [];
   if (!party || present.length <= 1) {
-    return { single: true, main: party ? "Zapísať sem " + name + count : assignLabel(places), sub: "", only: "", note: "" };
+    return { single: true, main: assignLabel(places, party && party.name), sub: "", only: "", note: "" };
   }
   var booked = stayNights(state, party, take);
   var full = present.filter(function (n) {
@@ -351,12 +350,12 @@ function bedActionTexts(state, party, bed, night, take) {
   });
   var note = stayFullNote(full);
   if (booked.length <= 1) {
-    return { single: true, main: "Zapísať sem " + name + count, sub: "", only: "", note: note };
+    return { single: true, main: assignLabel(places, party.name), sub: "", only: "", note: note };
   }
   return {
     single: false,
-    main: "Zapísať " + name + (full.length ? " na voľné noci" : " na celý pobyt") + count,
-    sub: stayNightsText(booked),
+    main: "Zapísať " + name + (full.length ? " na voľné noci" : " na celý pobyt"),
+    sub: stayNightsText(booked) + (places > 0 ? " · " + pluralPlaces(places).replace(" ", "\u00a0") : ""),
     only: "Len na " + dayAccusative(night),
     note: note
   };

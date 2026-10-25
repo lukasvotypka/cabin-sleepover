@@ -770,17 +770,17 @@ test("bed panel buttons: whole stay first, nights named", () => {
   const three = party({ name: "Ivan", arrive: THU, leave: "2026-11-01" });
   let t = L.bedActionTexts(realState([three]), three, bed, SAT, ["left-window-1"]);
   assert.equal(t.single, false);
-  assert.equal(t.main, "Zapísať „Ivan“ na celý pobyt (1 miesto)");
-  assert.equal(t.sub, "št – ne · 3 noci");
+  assert.equal(t.main, "Zapísať „Ivan“ na celý pobyt");
+  assert.equal(t.sub, "št – ne · 3 noci · 1\u00a0miesto");
   assert.equal(t.only, "Len na sobotu");
   assert.equal(t.note, "");
   const two = party({ name: "Ivan", arrive: FRI, leave: "2026-11-01" });
   t = L.bedActionTexts(realState([two]), two, bed, FRI, ["left-window-1"]);
-  assert.equal(t.sub, "pi – ne · 2 noci");
+  assert.equal(t.sub, "pi – ne · 2 noci · 1\u00a0miesto");
   assert.equal(t.only, "Len na piatok");
   const one = party({ name: "Ivan", arrive: SAT, leave: "2026-11-01" });
   t = L.bedActionTexts(realState([one]), one, bed, SAT, ["left-window-1"]);
-  assert.deepEqual(plain(t), { single: true, main: "Zapísať sem „Ivan“ (1 miesto)", sub: "", only: "", note: "" });
+  assert.deepEqual(plain(t), { single: true, main: "Zapísať sem „Ivan“ (1\u00a0miesto)", sub: "", only: "", note: "" });
 });
 
 test("bed panel: a full night is announced and not counted", () => {
@@ -788,8 +788,8 @@ test("bed panel: a full night is announced and not counted", () => {
   const s = realState([p], { [FRI]: hold("p-other", ["left-window-1"]) });
   const t = L.bedActionTexts(s, p, bedById("left-window"), SAT, ["left-window-1"]);
   assert.equal(t.single, false);
-  assert.equal(t.main, "Zapísať „Ivan“ na voľné noci (1 miesto)");
-  assert.equal(t.sub, "št, so · 2 noci");   // not consecutive
+  assert.equal(t.main, "Zapísať „Ivan“ na voľné noci");
+  assert.equal(t.sub, "št, so · 2 noci · 1\u00a0miesto");   // not consecutive
   assert.equal(t.only, "Len na sobotu");
   assert.equal(t.note, "V piatok je tu plno.");
 });
@@ -798,7 +798,7 @@ test("bed panel: partial stay on consecutive nights uses a range", () => {
   const p = party({ name: "Ivan", arrive: THU, leave: "2026-11-01" });
   const s = realState([p], { [THU]: hold("p-other", ["left-window-1"]) });
   const t = L.bedActionTexts(s, p, bedById("left-window"), SAT, ["left-window-1"]);
-  assert.equal(t.sub, "pi – ne · 2 noci");
+  assert.equal(t.sub, "pi – ne · 2 noci · 1\u00a0miesto");
   assert.equal(t.note, "Vo štvrtok je tu plno.");
 });
 
@@ -806,7 +806,7 @@ test("bed panel: only the selected night bookable gives a single button and a no
   const p = party({ name: "Ivan", arrive: THU, leave: "2026-11-01" });
   const s = realState([p], { [THU]: hold("p-other", ["left-window-1"]), [FRI]: hold("p-other", ["left-window-1"]) });
   const t = L.bedActionTexts(s, p, bedById("left-window"), SAT, ["left-window-1"]);
-  assert.deepEqual(plain(t), { single: true, main: "Zapísať sem „Ivan“ (1 miesto)", sub: "", only: "", note: "Vo štvrtok a v piatok je tu plno." });
+  assert.deepEqual(plain(t), { single: true, main: "Zapísať sem „Ivan“ (1\u00a0miesto)", sub: "", only: "", note: "Vo štvrtok a v piatok je tu plno." });
 });
 
 test("bed panel: counts only the slots the write takes, so a shared bed is not full", () => {
@@ -816,7 +816,7 @@ test("bed panel: counts only the slots the write takes, so a shared bed is not f
   const take = plain(L.slotsToTake(s, p, bed, SAT));
   assert.deepEqual(take, ["left-double-1"]);
   const t = L.bedActionTexts(s, p, bed, SAT, take);
-  assert.equal(t.sub, "št – ne · 3 noci");
+  assert.equal(t.sub, "št – ne · 3 noci · 1\u00a0miesto");
   assert.equal(t.note, "");
 });
 
@@ -825,9 +825,9 @@ test("bed panel: a night the party already holds this bed is not announced as fu
   const bed = bedById("left-window");
   const s = realState([p], { [THU]: hold(p.id, ["left-window-1"]) });
   const t = L.bedActionTexts(s, p, bed, SAT, ["left-window-1"]);
-  assert.equal(t.sub, "pi – ne · 2 noci");
+  assert.equal(t.sub, "pi – ne · 2 noci · 1\u00a0miesto");
   assert.equal(t.note, "");
-  assert.equal(t.main, "Zapísať „Ivan“ na celý pobyt (1 miesto)");
+  assert.equal(t.main, "Zapísať „Ivan“ na celý pobyt");
 });
 
 test("nights plural and accusative day names", () => {
@@ -875,16 +875,16 @@ test("free places in Slovak", () => {
 });
 
 test("assign button label says how many places it takes", () => {
-  assert.equal(L.assignLabel(2), "Zapísať nás sem (2 miesta)");
-  assert.equal(L.assignLabel(1), "Zapísať nás sem (1 miesto)");
+  assert.equal(L.assignLabel(2), "Zapísať nás sem (2\u00a0miesta)");
+  assert.equal(L.assignLabel(1), "Zapísať nás sem (1\u00a0miesto)");
   assert.equal(L.assignLabel(0), "Zapísať nás sem");
 });
 
 test("assign button label names the party when one is chosen", () => {
-  assert.equal(L.assignLabel(2, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“ (2 miesta)");
-  assert.equal(L.assignLabel(1, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“ (1 miesto)");
+  assert.equal(L.assignLabel(2, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“ (2\u00a0miesta)");
+  assert.equal(L.assignLabel(1, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“ (1\u00a0miesto)");
   assert.equal(L.assignLabel(0, "Ivan a Eva"), "Zapísať sem „Ivan a Eva“");
-  assert.equal(L.assignLabel(2, null), "Zapísať nás sem (2 miesta)");
+  assert.equal(L.assignLabel(2, null), "Zapísať nás sem (2\u00a0miesta)");
 });
 
 test("bed panel warns when the party already has enough places", () => {
