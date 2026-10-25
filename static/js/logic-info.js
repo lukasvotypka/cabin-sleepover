@@ -57,10 +57,15 @@ function packItems(info, withMat) {
   return out;
 }
 
-// The labels ticked on this phone (a Set); corrupt or missing data gives an empty set.
-function loadPacked(storage) {
+// Packing ticks are kept per party on this phone ("info-packed.p-xxxxxx"); without a chosen party the plain key.
+function packedKey(partyId) {
+  return partyId ? PACKED_KEY + "." + partyId : PACKED_KEY;
+}
+
+// The labels ticked on this phone for the party (a Set); corrupt or missing data gives an empty set.
+function loadPacked(storage, partyId) {
   try {
-    var list = JSON.parse(storage.getItem(PACKED_KEY) || "[]");
+    var list = JSON.parse(storage.getItem(packedKey(partyId)) || "[]");
     return new Set(Array.isArray(list) ? list.filter(function (x) { return typeof x === "string"; }) : []);
   } catch (e) {
     return new Set();
@@ -68,10 +73,10 @@ function loadPacked(storage) {
 }
 
 // Flips one label and saves; returns the new set.
-function togglePacked(storage, label) {
-  var set = loadPacked(storage);
+function togglePacked(storage, label, partyId) {
+  var set = loadPacked(storage, partyId);
   if (set.has(label)) set.delete(label); else set.add(label);
-  try { storage.setItem(PACKED_KEY, JSON.stringify(Array.from(set))); } catch (e) { /* storage full or blocked */ }
+  try { storage.setItem(packedKey(partyId), JSON.stringify(Array.from(set))); } catch (e) { /* storage full or blocked */ }
   return set;
 }
 

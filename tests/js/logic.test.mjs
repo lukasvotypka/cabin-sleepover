@@ -3596,6 +3596,16 @@ test("loadPacked and togglePacked use the injected storage; corrupt JSON gives a
   assert.equal(L.loadPacked(memoryStorage('{"a":1}')).size, 0);
 });
 
+test("packing ticks are kept per party", () => {
+  const st = memoryStorage();
+  L.togglePacked(st, "Spacák", "p-aaaaaa");
+  L.togglePacked(st, "Vankúš", "p-bbbbbb");
+  assert.deepEqual([...L.loadPacked(st, "p-aaaaaa")], ["Spacák"]);
+  assert.deepEqual([...L.loadPacked(st, "p-bbbbbb")], ["Vankúš"]);
+  assert.equal(L.loadPacked(st, "p-cccccc").size, 0);
+  assert.equal(L.loadPacked(st).size, 0);
+});
+
 test("packProgressText", () => {
   assert.equal(L.packProgressText(3, 15), "Ťukni, čo už máš · 3 z 15");
   assert.equal(L.packProgressText(0, 5), "Ťukni, čo už máš · 0 z 5");

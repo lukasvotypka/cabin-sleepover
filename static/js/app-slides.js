@@ -151,7 +151,7 @@ function slPack(box, info) {
   var grid = slAdd(box, "div", "adv-grid");
   var buttons = [];
   var sync = function () {
-    var set = loadPacked(localStorage), n = 0;
+    var set = loadPacked(localStorage, app.myParty), n = 0;
     items.forEach(function (it, i) {
       var got = set.has(it.label);
       if (got) n++;
@@ -166,7 +166,7 @@ function slPack(box, info) {
     b.appendChild(advIcon(it.icon));
     b.appendChild(htmlEl("div", null, it.label));
     if (it.note) b.appendChild(htmlEl("small", { "class": "adv-note" }, it.note));
-    b.addEventListener("click", function () { togglePacked(localStorage, it.label); sync(); });
+    b.addEventListener("click", function () { togglePacked(localStorage, it.label, app.myParty); sync(); });
     grid.appendChild(b);
     buttons.push(b);
   });

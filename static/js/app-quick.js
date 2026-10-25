@@ -32,7 +32,7 @@ function qkPack(parent, info) {
   track.appendChild(fill); prog.appendChild(label); prog.appendChild(track);
   card.appendChild(prog);
   var checks = htmlEl("div", { "class": "qk-checks" });
-  var set = loadPacked(localStorage);      // re-read on every open, so it matches the pack slide
+  var set = loadPacked(localStorage, app.myParty);      // re-read on every open, so it matches the pack slide
   function count() {
     var n = items.filter(function (it) { return set.has(it.label); }).length;
     label.textContent = packProgressText(n, items.length);
@@ -44,7 +44,7 @@ function qkPack(parent, info) {
     cb.checked = set.has(it.label);
     l.classList.toggle("done", cb.checked);
     cb.addEventListener("change", function () {
-      set = togglePacked(localStorage, it.label);
+      set = togglePacked(localStorage, it.label, app.myParty);
       cb.checked = set.has(it.label);
       l.classList.toggle("done", cb.checked);
       count();

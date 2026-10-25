@@ -22,7 +22,7 @@ var ADV_LEGS = [[[200, 470], [130, 470]], [[250, 470], [250, 385]], [[250, 300],
 var ADV_CHAIN = [ADV_START].concat.apply([ADV_START], ADV_LEGS);
 
 var adv = {
-  open: false, els: null, at: -1, pos: ADV_START.slice(), session: [], walking: false, frame: 0,
+  open: false, els: null, at: -1, pos: ADV_START.slice(), session: [], sessionParty: null, walking: false, frame: 0,
   slide: null,          // the step of the open slide, or null
   finishPending: false, // the last station was just completed: show the end panel when its slide closes
   opener: null
@@ -37,7 +37,9 @@ function advChainIndex(i) {
 
 function advVisited() {
   var seen = briefingSteps(app.state, app.myParty);
-  return BRIEFING_STEPS.filter(function (s) { return seen.indexOf(s) !== -1 || adv.session.indexOf(s) !== -1; });
+  // stops opened in this visit count only for the party that opened them (switching „Kto si“ starts afresh)
+  var session = adv.sessionParty === app.myParty ? adv.session : [];
+  return BRIEFING_STEPS.filter(function (s) { return seen.indexOf(s) !== -1 || session.indexOf(s) !== -1; });
 }
 
 function advRect(parent, x, y, w, h, fill, cls) {
@@ -319,6 +321,7 @@ function advWalk(points, done) {
 function advOpenStation(i) {
   var step = BRIEFING_STEPS[i];
   var before = nextStation(advVisited());
+  if (adv.sessionParty !== app.myParty) { adv.session = []; adv.sessionParty = app.myParty; }
   if (adv.session.indexOf(step) === -1) adv.session.push(step);
   if (before && !nextStation(advVisited())) adv.finishPending = true;
   adv.slide = step;

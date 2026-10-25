@@ -16,6 +16,7 @@ function setMyParty(id) {
   app.myParty = id;
   storage.set(KEYS.party, id);
   if (changed) liveReopen();
+  if (changed && typeof advOnState === "function") advOnState();   // an open yard shows the new party's progress
 }
 
 function selectNight(night) {
