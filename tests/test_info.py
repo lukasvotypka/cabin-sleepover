@@ -42,6 +42,33 @@ def test_missing_file_means_feature_off(tmp_path):
     assert _app(tmp_path, None).state.runtime.info_json is None
 
 
+def test_enabled_false_means_feature_off(tmp_path):
+    d = _sample()
+    d["enabled"] = False
+    assert _app(tmp_path, d).state.runtime.info_json is None
+
+
+def test_enabled_true_is_the_default(tmp_path):
+    d = _sample()
+    d.pop("enabled", None)
+    assert _app(tmp_path, d).state.runtime.info_json is not None
+
+
+def test_switched_off_file_is_still_checked(tmp_path):
+    d = _sample()
+    d["enabled"] = False
+    d["pack"][3]["icon"] = "dragon"
+    with pytest.raises(ConfigError):
+        _app(tmp_path, d)
+
+
+def test_enabled_must_be_a_bool(tmp_path):
+    d = _sample()
+    d["enabled"] = "no"
+    with pytest.raises(ConfigError):
+        _app(tmp_path, d)
+
+
 def _break_icon(d):
     d["pack"][3]["icon"] = "dragon"
 

@@ -3834,9 +3834,12 @@ test("summaryText has the „Čo kto donesie“ line only when a note exists", (
   const b = party({ id: "p-bbbbbb", name: "B", food_note: "pizza pec" });
   const c = party({ id: "p-cccccc", name: "C", food_note: "víno" });
   const link = "https://cabin.example/";
-  assert.ok(!L.summaryText(realState([a], {}), link).includes("Čo kto donesie"));
-  assert.ok(L.summaryText(realState([a, b], {}), link).split("\n").includes("Čo kto donesie: B – pizza pec"));
-  assert.ok(L.summaryText(realState([b, c], {}), link).split("\n").includes("Čo kto donesie: B – pizza pec; C – víno"));
+  const on = (parties) => ({ ...realState(parties, {}), info: {} });
+  assert.ok(!L.summaryText(on([a]), link).includes("Čo kto donesie"));
+  assert.ok(L.summaryText(on([a, b]), link).split("\n").includes("Čo kto donesie: B – pizza pec"));
+  assert.ok(L.summaryText(on([b, c]), link).split("\n").includes("Čo kto donesie: B – pizza pec; C – víno"));
+  // the whole section is off (no info.yaml or enabled: false): no food line either
+  assert.ok(!L.summaryText(realState([b], {}), link).includes("Čo kto donesie"));
 });
 
 test("errorText: food note reasons have their own Slovak text", () => {

@@ -477,6 +477,7 @@ class InfoFacilities(_Model):
 
 
 class Info(_Model):
+    enabled: bool = Field(default=True, strict=True)  # false: the whole „Pred cestou“ section is off
     water: InfoWater
     pack: list[InfoItem] = Field(min_length=1)
     sleep: list[InfoItem] = Field(min_length=1)
@@ -558,7 +559,7 @@ def event_days(event: Event) -> list[str]:
 
 
 def load_info(path: str | Path, event: Event) -> Info | None:
-    """Load `info.yaml`. A missing file returns None (feature off); a broken one raises `ConfigError`."""
+    """Load `info.yaml`. A missing file or `enabled: false` returns None (feature off); a broken one raises `ConfigError`."""
     path = Path(path)
     if not path.is_file():
         return None
@@ -576,4 +577,5 @@ def load_info(path: str | Path, event: Event) -> Info | None:
         seen.add(entry.day)
     if problems:
         raise ConfigError("\n".join([f"{path}: invalid file", *problems]))
-    return info
+    # A switched-off file is still checked, so turning it back on cannot break the next start.
+    return info if info.enabled else None

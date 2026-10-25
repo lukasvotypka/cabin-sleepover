@@ -1,6 +1,7 @@
 # Guest info for the „Pred cestou“ section. Texts are organizer data (Slovak), like room names.
 # Icons come from a fixed set (see INFO_ICONS in app/models.py). Days are quoted ISO dates.
 # Optional: pack_intro, sleep_intro, food_intro, food_note, host_arrival, food_plan, facilities, menu, bring.
+enabled: true            # false: the whole „Pred cestou“ section is hidden (board, yard, progress, „Čo kto donesie“)
 water:
   drinkable: false        # false: the page shows the warning that tap water is not drinkable
   liters_per_day: 2
