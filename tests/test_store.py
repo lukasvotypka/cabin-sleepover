@@ -154,6 +154,15 @@ def test_startup_unknown_party(layout, data_dir, make_party):
     assert f"sleeping.{THU}.{SLOT1}" in msg and "unknown party ID" in msg and "p-ghost1" in msg
 
 
+@pytest.mark.parametrize("note", ["", "a" * 121])
+def test_startup_bad_food_note(layout, data_dir, make_party, note):
+    data = good_data(make_party, [make_party(id="p-ivan01")])
+    data["parties"][0]["food_note"] = note
+    write_data(data_dir, data)
+    msg = start_error(layout, data_dir)
+    assert str(data_dir / DATA_FILE) in msg and "parties[0].food_note" in msg
+
+
 def test_startup_night_not_in_event(layout, data_dir, make_party):
     ivan = make_party(id="p-ivan01")
     write_data(data_dir, good_data(make_party, [ivan], {"2026-11-05": {SLOT1: ivan.id}}))

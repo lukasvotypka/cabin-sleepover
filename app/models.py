@@ -17,10 +17,12 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     StringConstraints,
     ValidationError,
     ValidationInfo,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -326,13 +328,25 @@ class PartyUpdate(PartyInput):
     color: HexColor | None = None  # None: the stored color stays
 
 
+FOOD_NOTE_MAX = 120
+
+
 class Party(PartyInput):
     id: PartyId
     color: HexColor
     # night → needed places on that night when fewer than the full count (not part of the form input)
     places: dict[NightRef, Annotated[int, Field(strict=True, ge=1)]] = {}
+    # "Čo kto donesie": one free text, stored only when set (not part of the form input)
+    food_note: Annotated[str, Field(strict=True, min_length=1, max_length=FOOD_NOTE_MAX)] | None = None
     created_at: IsoDateTime
     updated_at: IsoDateTime
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_food_note(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("food_note") is None:
+            data.pop("food_note", None)
+        return data
 
 
 # Steps of "Pred cestou" in canonical order; the page draws and names them.
@@ -398,6 +412,12 @@ class PlacesRequest(_Model):
 class BriefingRequest(_Model):
     party_id: PartyRef
     step: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=32)]
+
+
+class FoodRequest(_Model):
+    party_id: PartyRef
+    # Length and content are checked in validate.py (`check_food`), so the error carries a stable reason
+    text: Annotated[str, StringConstraints(strict=True)]
 
 
 class SignupRequest(_Model):

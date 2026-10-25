@@ -48,6 +48,7 @@ from app.models import (
     Layout,
     MoveRequest,
     BriefingRequest,
+    FoodRequest,
     PlacesRequest,
     PartyId,
     Party,
@@ -72,11 +73,13 @@ from app.validate import (
     check_party_update,
     add_briefing_step,
     check_briefing,
+    check_food,
     check_places,
     check_signup_open,
     adjust_places,
     find_party,
     raise_places_to_placed,
+    set_food_note,
     set_places,
 )
 
@@ -802,6 +805,20 @@ def create_app(
                 tx.skip()
             else:
                 tx.audit(party=party.id, step=body.step)
+        return ok_response(rt, tx.state)
+
+    @app.post("/api/food", dependencies=[Limited])
+    async def food(request: Request, body: FoodRequest, auth: Group) -> JSONResponse:
+        # No check_signup_open: the food note is not a signup change and stays open when signup is locked.
+        async with rt.store.write(
+            action="food", source=audit_source(auth, "map"), client_id=client_id_of(request)
+        ) as tx:
+            party, text = check_food(tx.state, body.party_id, body.text)
+            before = party.food_note
+            if not set_food_note(party, text):
+                tx.skip()
+            else:
+                tx.audit(party=party.id, before=before, after=party.food_note)
         return ok_response(rt, tx.state)
 
     @app.post("/api/parties", dependencies=[Limited])

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from app.models import BRIEFING_STEPS, Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
+from app.models import BRIEFING_STEPS, FOOD_NOTE_MAX, Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
 
 ERROR_STATUS: dict[str, int] = {
     "bad_code": 401,
@@ -434,6 +434,29 @@ def add_briefing_step(state: State, party_id: str, step: str) -> bool:
     if step in done:
         return False
     state.briefing[party_id] = [s for s in BRIEFING_STEPS if s in done or s == step]
+    return True
+
+
+def check_food(state: State, party_id: str, text: str) -> tuple[Party, str]:
+    """Check a `food` request: known party, text trimmed (NFC), at most 120 chars, no control characters.
+
+    Returns the party and the normalized text ("" clears the note). Allowed while signup is locked.
+    """
+    party = find_party(state, party_id)
+    text = unicodedata.normalize("NFC", text.strip())
+    if len(text) > FOOD_NOTE_MAX:
+        raise _invalid("too_long", "Food note is too long", field="text", max=FOOD_NOTE_MAX)
+    if any(unicodedata.category(ch) in ("Cc", "Zl", "Zp") for ch in text):
+        raise _invalid("control_chars", "Control characters and line breaks are not allowed", field="text")
+    return party, text
+
+
+def set_food_note(party: Party, text: str) -> bool:
+    """Set or (for "") remove the note. False when nothing changed."""
+    new = text or None
+    if party.food_note == new:
+        return False
+    party.food_note = new
     return True
 
 
