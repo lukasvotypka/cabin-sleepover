@@ -15,9 +15,15 @@ document.addEventListener("keydown", function (e) {
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape" && e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") app.navKeyAt = Date.now();
 }, true);
+var hiddenTimer = null;
 document.addEventListener("visibilitychange", function () {
-  if (document.visibilityState !== "visible" && live.active) { liveStop(); return; }   // no stream in a hidden tab
-  if (document.visibilityState !== "visible") return;
+  clearTimeout(hiddenTimer);
+  hiddenTimer = null;
+  if (document.visibilityState !== "visible") {
+    // No stream in a hidden tab, but only after a short grace period.
+    if (live.active) hiddenTimer = setTimeout(function () { if (document.visibilityState !== "visible") liveStop(); }, LIVE_HIDDEN_GRACE_MS);
+    return;
+  }
   if (app.state && !live.fallback && live.supported) { liveEnsure(); return; }   // the new stream brings fresh state
   // A poll still waiting from before the phone slept is most likely dead: drop it and ask again.
   if (app.polling && app.pollAbort) {
