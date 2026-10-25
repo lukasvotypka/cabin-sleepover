@@ -149,3 +149,24 @@ The offer shows „kým moja partia nemá všetko prejdené“, which is undefin
 - „Tvoje miesto: … pribaľ karimatku“ when the party has `mats`/`cot` places on different nights or in different rooms. **Default:** list the distinct „room · bed“ names, comma-separated.
 - Affects: T-059, T-061.
 - **Answer:** open.
+
+## Q19. Which fixed sentences go, and what happens to `bring` (25. 10. 2026)
+
+„Žiadne pevné vety o chate v kóde“ names only the pack, sleep and food intros and the dropped „Nákup … rozpočítame.“ The page also has „Nič nie je povinné. Kto chce, len leží pri peci.“ on the program slide and a second water line „Na umývanie je v poriadku. Na pitie, čaj a varenie nie.“ The new content does not mention `bring`.
+
+- **Default:** the program sentence is removed (there is no `program_intro`); both water warning lines stay as the warning. `bring` stays as an optional field, absent from the sample file (its content now lives in `food_intro`).
+- Affects: T-065, T-067.
+- **Answer:** open.
+
+## Q20. Where `host_arrival` shows „na úvode dvora“ (25. 10. 2026)
+
+- **Default:** a line under the top board of the yard while no slide is open (mobile and desktop), and in the desktop welcome beside the yard.
+- Affects: T-067.
+- **Answer:** open.
+
+## Q21. `POST /api/food` details and the summary line (25. 10. 2026)
+
+- **Default:** besides the 120-char limit the text follows the party name rules (NFC, no control characters or line breaks); saving the same text is a no-op `200` without version bump, backup or audit.
+- **Default:** the summary line is „Čo kto donesie: Name – text; Name – text“, placed before „Pred cestou ešte neprešli“.
+- Affects: T-066, T-068.
+- **Answer:** open.
