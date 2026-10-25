@@ -3692,8 +3692,28 @@ test("every INFO_ICONS name of app/models.py has a well-formed sprite", () => {
 });
 
 test("the adventure files avoid innerHTML and are listed in index.html", () => {
-  for (const f of ["logic-info-art.js", "app-adventure.js"]) {
+  for (const f of ["logic-info-art.js", "app-adventure.js", "app-slides.js"]) {
     assert.ok(!/innerHTML/.test(fs.readFileSync(path.join(root, "static", "js", f), "utf8")), f);
     assert.ok(scriptTags.includes(`static/js/${f}`), f);
   }
+});
+
+test("summaryText: Pred cestou line for parties that are not done", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" }), b = party({ id: "p-bbbbbb", name: "B" });
+  const c = party({ id: "p-cccccc", name: "C" }), d = party({ id: "p-dddddd", name: "D" });
+  const link = "https://cabin.example/";
+  const s = infoState([a, b, c, d], {}, { [a.id]: ["list"], [b.id]: ["pack"] });
+  const lines = L.summaryText(s, link).split("\n");
+  assert.equal(lines[lines.length - 3], "Pred cestou ešte neprešli: B, C, D");
+  assert.equal(lines[lines.length - 1], "Tu sa zapíšeš: " + link);
+  const done = infoState([a], {}, { [a.id]: ["list"] });
+  assert.ok(!L.summaryText(done, link).includes("Pred cestou"));
+  assert.ok(!L.summaryText({ ...s, info: null }, link).includes("Pred cestou"));
+  assert.ok(!L.summaryText(infoState([], {}, {}), link).includes("Pred cestou"));
+});
+
+test("bottlesText uses the Slovak plural of „fľaša“", () => {
+  assert.equal(L.bottlesText(1, 1.5), "≈ 1 fľaša po 1,5 l");
+  assert.equal(L.bottlesText(3, 1.5), "≈ 3 fľaše po 1,5 l");
+  assert.equal(L.bottlesText(8, 2), "≈ 8 fliaš po 2 l");
 });

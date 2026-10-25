@@ -292,6 +292,7 @@ function applyState(state) {
   render();
   openWhoIfAsked();
   if (app.panel && app.panel.refresh) app.panel.refresh();
+  if (typeof advOnState === "function") advOnState();
 }
 
 function openWhoIfAsked() {

@@ -2,7 +2,7 @@
 
 // App part 14: „Pred cestou“, the adventure view: a full-screen pixel yard with my party's figure walking to five stations.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
-// The station slides are filled by openStation(step) (the placeholder below is replaced by T-061); the quick list
+// The station slides are filled by openStation(step, slide) (app-slides.js); the quick list
 // is openQuickList() (T-062). The art is data in logic-info-art.js, the hints and order in logic-info.js.
 
 var ADV_W = 380, ADV_H = 600;
@@ -166,6 +166,11 @@ function advBuild() {
   board.appendChild(boardIcon); board.appendChild(boardText);
   view.appendChild(board);
 
+  // Desktop only (CSS): the welcome with the station list, beside the yard, while no slide is open.
+  var side = htmlEl("div", { "class": "adv-side" });
+  slWelcome(side);
+  view.appendChild(side);
+
   var slide = htmlEl("div", { "class": "adv-slide", role: "dialog", "aria-modal": "true", "aria-labelledby": "advSlideTitle", hidden: "" });
   view.appendChild(slide);
 
@@ -186,7 +191,7 @@ function advBuild() {
   bar.appendChild(list); bar.appendChild(prog); bar.appendChild(nextBtn);
   view.appendChild(bar);
 
-  adv.els = { world: world, svg: svg, spots: spots, me: me, body: body, board: board, boardIcon: boardIcon, boardText: boardText, slide: slide, nextBtn: nextBtn, slots: slots };
+  adv.els = { world: world, svg: svg, spots: spots, me: me, body: body, board: board, boardIcon: boardIcon, boardText: boardText, slide: slide, side: side, nextBtn: nextBtn, slots: slots };
 }
 
 // --- state of the view ---
@@ -205,9 +210,27 @@ function advRefresh() {
   var hint = adv.slide ? "Prečítaj si to. Potom ťukni na dvor a vyber si ďalšiu vec."
     : next ? boardHint(next) : "Máš všetko! Ťukni na hocičo a pozri si to znova.";
   e.boardText.textContent = hint;
+  e.side.hidden = !!adv.slide;
+  slWelcomeMarks(e.side, visited);
   var iconName = next && !adv.slide ? ADV_STATIONS[nextIdx].icon : adv.slide ? ADV_STATIONS[BRIEFING_STEPS.indexOf(adv.slide)].icon : "truhla";
   clearNode(e.boardIcon);
   e.boardIcon.appendChild(advIcon(iconName));
+}
+
+// New state arrived while the view is open: marks and board follow, and a slide that shows state data is redrawn.
+function advOnState() {
+  if (!adv.open || !adv.els) return;
+  advRefresh();
+  if (adv.slide === "sleep" || adv.slide === "food") {
+    var slide = adv.els.slide, back = slide.querySelector(".adv-back");
+    var scroll = slide.querySelector(".adv-text");
+    var top = scroll ? scroll.scrollTop : 0;
+    clearNode(slide);
+    slide.appendChild(back);
+    openStation(adv.slide, slide);
+    scroll = slide.querySelector(".adv-text");
+    if (scroll) scroll.scrollTop = top;
+  }
 }
 
 function advPlace() {
@@ -279,14 +302,6 @@ function advOpenStation(i) {
   advRefresh();
   var h = slide.querySelector("h2");
   if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
-}
-
-// The hook that shows the content of a station inside its slide. Placeholder until T-061 replaces it.
-function openStation(step, slide) {
-  var st = ADV_STATIONS[BRIEFING_STEPS.indexOf(step)];
-  var box = htmlEl("div", { "class": "adv-slide-body" });
-  box.appendChild(htmlEl("h2", { id: "advSlideTitle" }, st.label + ": " + st.about));
-  slide.appendChild(box);
 }
 
 function advCloseSlide(silent) {
@@ -383,6 +398,7 @@ function closeAdventure() {
   $("adventure").hidden = true;
   clearNode($("adventure"));
   adv.els = null;
+  slidesReset();
   advSetInert(false);
   if (adv.opener && document.contains(adv.opener) && adv.opener.focus) adv.opener.focus({ preventScroll: true });
 }

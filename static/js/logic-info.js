@@ -112,6 +112,12 @@ function formatNumber(n) {
   return String(Math.round(n * 10) / 10).replace(".", ",");
 }
 
+// "≈ 3 fľaše po 1,5 l" (Slovak plural: 1 fľaša, 2-4 fľaše, 5+ fliaš).
+function bottlesText(n, bottleLiters) {
+  var word = n === 1 ? "fľaša" : n >= 2 && n <= 4 ? "fľaše" : "fliaš";
+  return "≈ " + n + " " + word + " po " + formatNumber(bottleLiters) + " l";
+}
+
 function briefingSteps(state, partyId) {
   var list = (state && state.briefing && state.briefing[partyId]) || [];
   return Array.isArray(list) ? list : [];
