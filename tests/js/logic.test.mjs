@@ -3692,7 +3692,7 @@ test("every INFO_ICONS name of app/models.py has a well-formed sprite", () => {
 });
 
 test("the adventure files avoid innerHTML and are listed in index.html", () => {
-  for (const f of ["logic-info-art.js", "app-adventure.js", "app-slides.js"]) {
+  for (const f of ["logic-info-art.js", "app-adventure.js", "app-slides.js", "app-briefing.js"]) {
     assert.ok(!/innerHTML/.test(fs.readFileSync(path.join(root, "static", "js", f), "utf8")), f);
     assert.ok(scriptTags.includes(`static/js/${f}`), f);
   }
@@ -3716,4 +3716,33 @@ test("bottlesText uses the Slovak plural of „fľaša“", () => {
   assert.equal(L.bottlesText(1, 1.5), "≈ 1 fľaša po 1,5 l");
   assert.equal(L.bottlesText(3, 1.5), "≈ 3 fľaše po 1,5 l");
   assert.equal(L.bottlesText(8, 2), "≈ 8 fliaš po 2 l");
+});
+
+test("bringText: one closing mark, no double period", () => {
+  assert.equal(L.bringText("raňajky a koláč"), "raňajky a koláč.");
+  assert.equal(L.bringText("raňajky a koláč."), "raňajky a koláč.");
+  assert.equal(L.bringText("  koláč!  "), "koláč!");
+  assert.equal(L.bringText(""), ".");
+  const text = L.quickWhatsAppText({ ...infoCfg, bring: "koláč." }, "Chata");
+  assert.ok(text.includes("Dones: koláč.") && !text.includes("koláč.."));
+});
+
+test("slideSignature: changes only when the food or sleep slide data changes", () => {
+  const p = party({ id: "p-aaaaaa", name: "A" }), q = party({ id: "p-bbbbbb", name: "B" });
+  const a = infoState([p, q], { [THU]: { "left-cot-1-1": p.id } });
+  const same = { ...a, version: a.version + 1 };
+  for (const step of ["food", "sleep"]) assert.equal(L.slideSignature(step, a, p.id), L.slideSignature(step, same, p.id));
+  assert.equal(L.slideSignature("pack", a, p.id), "");
+  assert.equal(L.slideSignature("sleep", { ...a, info: null }, p.id), "");
+  // another party's place changes the food counts but not my sleep note
+  const moved = infoState([p, q], { [THU]: { "left-cot-1-1": p.id, "left-cot-2-1": q.id } });
+  assert.equal(L.slideSignature("sleep", a, p.id), L.slideSignature("sleep", moved, p.id));
+  assert.notEqual(L.slideSignature("sleep", a, p.id), L.slideSignature("sleep", infoState([p, q], {}), p.id));
+});
+
+test("the adventure shows the next station button on desktop and a non-modal slide", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-adventure.js"), "utf8");
+  assert.ok(src.includes('adv.slide && !wide ? "‹ Späť na dvor"'));
+  assert.ok(src.includes('setAttribute("aria-modal", wide ? "false" : "true")'));
+  assert.ok(fs.readFileSync(path.join(root, "static", "js", "app-slides.js"), "utf8").includes("Nákup na spoločné jedlá rozpočítame."));
 });

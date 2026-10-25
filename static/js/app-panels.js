@@ -78,6 +78,7 @@ function openPanel(title, build, opts) {
 
 function hideToast() {
   $("toast").hidden = true;
+  placeBriefingOffer();
 }
 
 function showToast(text, kind) {
@@ -85,6 +86,7 @@ function showToast(text, kind) {
   node.textContent = text;
   node.className = kind || "info";
   node.hidden = false;
+  placeBriefingOffer();
   clearTimeout(app.toastTimer);
   app.toastTimer = setTimeout(hideToast, TOAST_MS);
 }

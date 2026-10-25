@@ -235,7 +235,7 @@ function slFood(box, info) {
   if (info.bring) {
     var tip = slAdd(box, "div", "adv-tip");
     tip.appendChild(htmlEl("b", null, "Do kuchyne dones: "));
-    tip.appendChild(document.createTextNode(info.bring + "."));
+    tip.appendChild(document.createTextNode(bringText(info.bring) + " Nákup na spoločné jedlá rozpočítame."));
   }
   var days = eventDays(app.state.event), counts = foodRow(app.state);
   var eat = slAdd(box, "div", "adv-eat");

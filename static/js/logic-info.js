@@ -168,6 +168,21 @@ function boardHint(nextStep) {
   return BRIEFING_HINTS[nextStep] || null;
 }
 
+// The `bring` text with exactly one closing mark: no second period when the organizer already ended it with one.
+function bringText(bring) {
+  var text = String(bring || "").trim();
+  return /[.!?…]$/.test(text) ? text : text + ".";
+}
+
+// What the open food or sleep slide shows from the state. A new state redraws the slide only when this changes.
+function slideSignature(step, state, partyId) {
+  var info = state && state.info;
+  if (!info) return "";
+  if (step === "sleep") return JSON.stringify([info.sleep, matPlaces(state, partyId)]);
+  if (step === "food") return JSON.stringify([info.menu, info.bring, eventDays(state.event), foodRow(state)]);
+  return "";
+}
+
 // The text for WhatsApp from the quick list (no HTML); the water line only when the tap water is not drinkable.
 function quickWhatsAppText(info, title) {
   if (!info) return "";
@@ -180,7 +195,7 @@ function quickWhatsAppText(info, title) {
   lines.push("🍲 " + (info.menu || []).map(function (d) {
     return dayLabel(d.day) + " " + d.meals.map(function (m) { return m.what; }).join(", ");
   }).join("; ") + ".");
-  if (info.bring) lines.push("🍞 Dones: " + info.bring + ".");
+  if (info.bring) lines.push("🍞 Dones: " + bringText(info.bring));
   lines.push("🍂 " + (info.program || []).map(function (p) { return p.title; }).join(", ") + ".");
   return lines.join("\n");
 }

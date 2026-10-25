@@ -116,6 +116,7 @@ function finishSplash() {
   hideBoot();
   openWhoIfAsked();
   startIntroZoom();
+  renderBriefingOffer();
 }
 
 // Time comes from the clock, not from a frame count. The canvas is redrawn only when the step changes.

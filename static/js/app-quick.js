@@ -74,7 +74,7 @@ function qkFood(parent, info) {
     table.appendChild(tr);
   });
   card.appendChild(table);
-  if (info.bring) card.appendChild(htmlEl("p", null, "Dones: " + info.bring + "."));
+  if (info.bring) card.appendChild(htmlEl("p", null, "Dones: " + bringText(info.bring)));
 }
 
 function qkProgram(parent, info) {
@@ -113,6 +113,7 @@ function qkCopy(body, text) {
 function openQuickList() {
   var info = app.state && app.state.info;
   if (!info) return;
+  recordStep("list");
   openPanel("Rýchly prehľad", function (body) {
     var grid = htmlEl("div", { "class": "qk-grid" });
     qkWater(grid, info);

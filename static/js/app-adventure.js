@@ -116,6 +116,9 @@ function advDrawYard(svg) {
 
 function advReducedMotion() { return prefersReducedMotion(); }
 
+// The desktop layout (CSS min-width 900 px): the yard and the slide side by side.
+function advWide() { return !!(window.matchMedia && window.matchMedia("(min-width: 900px)").matches); }
+
 // --- building the view ---
 
 function advBuildStation(svg, st, i) {
@@ -184,7 +187,14 @@ function advBuild() {
   var nextBtn = htmlEl("button", { "class": "adv-next", type: "button" });
   nextBtn.addEventListener("click", function () {
     if (adv.walking) return;
-    if (adv.slide) advCloseSlide();
+    if (adv.slide && advWide()) {         // desktop: the button leads on, the yard beside the slide stays usable
+      var after = nextStation(advVisited());
+      if (after) { advGoTo(BRIEFING_STEPS.indexOf(after)); return; }
+      adv.finishPending = false;
+      advCloseSlide(true);
+      advEndPanel();
+    }
+    else if (adv.slide) advCloseSlide();
     else if (!nextStation(advVisited())) advEndPanel();
     else advGoTo(BRIEFING_STEPS.indexOf(nextStation(advVisited())));
   });
@@ -206,7 +216,9 @@ function advRefresh() {
     g.classList.toggle("done", visited.indexOf(BRIEFING_STEPS[i]) !== -1);
   });
   e.slots.forEach(function (s, i) { s.classList.toggle("got", visited.indexOf(BRIEFING_STEPS[i]) !== -1); s.title = ADV_STATIONS[i].label; });
-  e.nextBtn.textContent = adv.slide ? "‹ Späť na dvor" : next ? "Choď: " + ADV_STATIONS[nextIdx].label + " ›" : "Hotovo ›";
+  var wide = advWide();
+  e.slide.setAttribute("aria-modal", wide ? "false" : "true");
+  e.nextBtn.textContent = adv.slide && !wide ? "‹ Späť na dvor" : next ? "Choď: " + ADV_STATIONS[nextIdx].label + " ›" : "Hotovo ›";
   var hint = adv.slide ? "Prečítaj si to. Potom ťukni na dvor a vyber si ďalšiu vec."
     : next ? boardHint(next) : "Máš všetko! Ťukni na hocičo a pozri si to znova.";
   e.boardText.textContent = hint;
@@ -217,20 +229,27 @@ function advRefresh() {
   e.boardIcon.appendChild(advIcon(iconName));
 }
 
-// New state arrived while the view is open: marks and board follow, and a slide that shows state data is redrawn.
+// New state arrived while the view is open: marks and board follow. A slide that shows state data is redrawn only
+// when the numbers or places it shows changed, and then without the pop-in and with the focus kept on its heading.
 function advOnState() {
   if (!adv.open || !adv.els) return;
   advRefresh();
-  if (adv.slide === "sleep" || adv.slide === "food") {
-    var slide = adv.els.slide, back = slide.querySelector(".adv-back");
-    var scroll = slide.querySelector(".adv-text");
-    var top = scroll ? scroll.scrollTop : 0;
-    clearNode(slide);
-    slide.appendChild(back);
-    openStation(adv.slide, slide);
-    scroll = slide.querySelector(".adv-text");
-    if (scroll) scroll.scrollTop = top;
-  }
+  if (adv.slide !== "sleep" && adv.slide !== "food") return;
+  var sig = slideSignature(adv.slide, app.state, app.myParty);
+  if (sig === adv.slideSig) return;
+  var slide = adv.els.slide, back = slide.querySelector(".adv-back");
+  var scroll = slide.querySelector(".adv-text");
+  var top = scroll ? scroll.scrollTop : 0;
+  var hadFocus = slide.contains(document.activeElement);
+  clearNode(slide);
+  slide.appendChild(back);
+  openStation(adv.slide, slide);
+  adv.slideSig = sig;
+  slide.classList.add("still");
+  scroll = slide.querySelector(".adv-text");
+  if (scroll) scroll.scrollTop = top;
+  var h = slide.querySelector("h2");
+  if (h && hadFocus) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
 }
 
 function advPlace() {
@@ -298,7 +317,10 @@ function advOpenStation(i) {
   var back = htmlEl("button", { "class": "adv-back", type: "button" }, "‹ Dvor");
   back.addEventListener("click", function () { advCloseSlide(); });
   slide.appendChild(back);
+  slide.classList.remove("still");
   openStation(step, slide);
+  adv.slideSig = slideSignature(step, app.state, app.myParty);
+  recordStep(step);
   advRefresh();
   var h = slide.querySelector("h2");
   if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
@@ -386,7 +408,7 @@ function openAdventure() {
   });
 }
 
-function advOnResize() { if (adv.open) advCamera(false); }
+function advOnResize() { if (adv.open) { advCamera(false); advRefresh(); } }
 
 function closeAdventure() {
   if (!adv.open) return;

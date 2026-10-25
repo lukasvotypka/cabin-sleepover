@@ -200,7 +200,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg g.bed:focus-visible .ring { display: block; }
 #scene svg g.bed:focus-visible .hit { stroke: none; fill: rgba(58, 167, 224, .15); }
 @media (prefers-reduced-motion: reduce) {
-  #scene svg .free { animation: none; }
+  #scene svg .free, #scene svg .briefing-bang { animation: none; }
 }
 
 /* --- HUD (fixed scene colors, never inverted in dark mode): quest log top right, crest bottom left.
@@ -247,6 +247,24 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-family: var(--font-text); font-size: 15px; font-weight: 700; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 .update-sign[hidden] { display: none; }
+/* „Pred cestou“ offer above the bottom HUD; app-briefing.js lifts it over the update sign and the toast. */
+.briefing-offer {
+  position: fixed; z-index: 13; left: calc(8px + env(safe-area-inset-left, 0px)); box-sizing: border-box; display: flex; align-items: stretch;
+  max-width: calc(100% - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); width: 420px;
+  bottom: calc(max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px)) + 10px);
+  background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
+  font-family: var(--font-text); font-size: 14px; line-height: 1.25;
+}
+.briefing-offer[hidden] { display: none; }
+.briefing-offer-go { flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; text-align: left;
+  background: none; border: 0; color: inherit; font: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.briefing-offer-go svg { width: 28px; height: 28px; flex: none; }
+.briefing-offer-go span { display: block; min-width: 0; }
+.briefing-offer-go em { margin-left: auto; font-style: normal; font-weight: 700; font-size: 20px; }
+.briefing-offer-x { flex: none; width: 44px; min-height: 44px; background: none; border: 0; border-left: 2px solid #D6BC8E; color: #6B5644; font-size: 20px; cursor: pointer; }
+.briefing-offer-go:focus-visible, .briefing-offer-x:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
+#scene svg .briefing-bang { animation: blink 1.4s ease-in-out infinite; }
+.adv-slide.still .adv-b { animation: none; }
 .update-sign.wait { cursor: default; color: #6B5644; }
 .update-sign:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
 .crest {
@@ -577,6 +595,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 </div>
 <div id="updateSign" class="update-sign" role="button" tabindex="0" aria-live="polite" hidden></div>
 <section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
+<div id="briefingOffer" class="briefing-offer" role="group" aria-label="Pred cestou" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
 <div id="codeScreen" class="code-screen" hidden>
@@ -618,6 +637,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-summary.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-adventure.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-slides.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-briefing.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-quick.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-sound.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-live.js?v=__ASSET_VERSION__"></script>

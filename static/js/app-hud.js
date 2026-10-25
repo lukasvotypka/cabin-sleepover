@@ -123,6 +123,7 @@ function renderHud() {
   }, function () { return $("quest").querySelector(".quest-head"); });
   var h = hudHeight(), top = questBottom();
   renderUpdateSign();
+  renderBriefingOffer();
   var changed = h !== app.hudHeight || top !== app.questBottom;
   app.hudHeight = h;
   app.questBottom = top;
