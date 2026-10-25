@@ -390,6 +390,60 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .summary-text { min-height: 280px; font-size: 16px; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; }
 .copy-status { min-height: 1.4em; margin: 8px 0 0; font-weight: 700; color: var(--ok); }
 
+/* „Pred cestou“: the adventure view (app-adventure.js). Fixed pixel colors, like the scene. */
+.adventure { position: fixed; inset: 0; z-index: 18; background: #8E9B48; color: #2B1D14; user-select: none; -webkit-user-select: none; }
+.adv-world { position: absolute; inset: 0 0 calc(68px + env(safe-area-inset-bottom, 0px)) 0; overflow: hidden; }
+.adv-world svg { display: block; width: min(100%, 440px); height: auto; margin: 0 auto; will-change: translate; }
+.adv-hit { cursor: pointer; }
+.adv-hit:focus-visible { outline: 3px solid #FFD54A; }
+.adv-spot .adv-ring, .adv-spot .adv-marker, .adv-spot .adv-check { display: none; }
+.adv-spot.next .adv-ring { display: inline; animation: adv-blink .8s steps(2) infinite; }
+.adv-spot.next .adv-marker { display: inline; }
+.adv-spot.next .adv-name { display: none; }
+.adv-spot.next .adv-arrow { animation: adv-bob .6s steps(2) infinite; }
+.adv-spot.done .adv-check { display: inline; }
+.adv-glow { animation: adv-blink 2.4s steps(2) infinite; }
+.adv-smoke { animation: adv-rise 3s steps(6) infinite; animation-delay: var(--d, 0s); }
+.adv-bob { animation: adv-bob 1.2s steps(2) infinite; }
+.adv-flame-a { animation: adv-flame-a .5s steps(1) infinite; }
+.adv-flame-b { animation: adv-flame-b .5s steps(1) infinite; }
+@keyframes adv-blink { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes adv-bob { 50% { transform: translateY(-4px); } }
+@keyframes adv-rise { from { transform: translate(0, 0); opacity: .9; } to { transform: translate(8px, -36px); opacity: 0; } }
+@keyframes adv-flame-a { 0% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes adv-flame-b { 0% { opacity: 0; } 50% { opacity: 1; } }
+.adv-board {
+  position: absolute; z-index: 3; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; max-width: 420px; margin: 0 auto;
+  display: flex; gap: 8px; align-items: center; min-height: 48px; padding: 6px 10px; background: #FBF6EC;
+  border: 3px solid #2B1D14; box-shadow: 0 0 0 2px #FFD54A; font-size: 15.5px; line-height: 1.25;
+}
+.adv-board-icon svg { display: block; width: 30px; height: 30px; flex: none; }
+.adv-slide {
+  position: absolute; z-index: 5; inset: 0 0 calc(68px + env(safe-area-inset-bottom, 0px)) 0; overflow-y: auto; padding: 64px 16px 16px;
+  background: #FBF6EC; border-bottom: 4px solid #2B1D14;
+}
+.adv-slide-body { max-width: 560px; margin: 0 auto; }
+.adv-slide h2 { margin: 0 0 8px; font-family: var(--font-head); outline: none; }
+.adv-back {
+  position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; min-height: 44px; padding: 8px 14px; cursor: pointer;
+  background: #2B1D14; color: #FFD54A; border: 3px solid #2B1D14; font-weight: 700;
+}
+.adv-bar {
+  position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; height: calc(68px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: center;
+  background: #5C4033; border-top: 4px solid #2B1D14;
+}
+.adv-list { flex: none; width: 48px; min-height: 48px; font-size: 22px; cursor: pointer; background: #E8D2A6; color: #2B1D14; border: 3px solid #2B1D14; }
+.adv-prog { display: flex; gap: 3px; }
+.adv-prog span { width: 28px; height: 28px; display: grid; place-items: center; background: #3A2A1E; border: 2px solid #2B1D14; }
+.adv-prog span svg { width: 20px; height: 20px; opacity: .25; filter: grayscale(1); }
+.adv-prog span.got { background: #E8D2A6; }
+.adv-prog span.got svg { opacity: 1; filter: none; }
+.adv-next { flex: 1 1 auto; min-height: 48px; padding: 6px 10px; font-size: 14px; font-weight: 700; cursor: pointer; background: #FFD54A; color: #2B1D14; border: 3px solid #2B1D14; box-shadow: inset -3px -3px 0 #C08A1E; }
+.adv-list:focus-visible, .adv-next:focus-visible, .adv-back:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+.adv-end { display: flex; flex-direction: column; gap: 8px; }
+.adv-end .btn { width: 100%; }
+
 @media (prefers-color-scheme: dark) {
   .party-row .swatch, .slot-row .swatch, .legend-row .swatch { border-color: rgba(241, 231, 217, .55); }
   .slot-row .swatch.free { border-color: var(--muted); }
@@ -434,6 +488,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   </form>
 </div>
 
+<div id="adventure" class="adventure" role="region" aria-label="Pred cestou" hidden></div>
 <div id="panelRoot"></div>
 
 <script src="static/js/logic-model.js?v=__ASSET_VERSION__"></script>
@@ -442,6 +497,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/logic-form.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-summary.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-info.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-info-art.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-errors.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-boot.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-sound.js?v=__ASSET_VERSION__"></script>
@@ -458,6 +514,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-sheet.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-form.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-summary.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-adventure.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-sound.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-live.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-start.js?v=__ASSET_VERSION__"></script>

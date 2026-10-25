@@ -1633,7 +1633,7 @@ test("page: API paths are relative", () => {
 });
 
 test("page: no header, list view or overview switch", () => {
-  assert.doesNotMatch(html, /<header|<nav|Zoznam/);
+  assert.doesNotMatch(html, /<header|<nav|Zoznam(?! na zbalenie)/);
 });
 
 test("page: no bed, room or slot geometry or names are hardcoded in the page code", () => {
@@ -3669,4 +3669,31 @@ test("quickWhatsAppText: water line only for non-drinkable water, no HTML", () =
   const drinkable = L.quickWhatsAppText({ ...infoCfg, water: { ...infoCfg.water, drinkable: true } }, "Chata");
   assert.ok(!drinkable.includes("💧"));
   assert.equal(L.quickWhatsAppText(null, "Chata"), "");
+});
+
+// --- „Pred cestou“ art (logic-info-art.js, app-adventure.js) ---
+
+test("every INFO_ICONS name of app/models.py has a well-formed sprite", () => {
+  const models = fs.readFileSync(path.join(root, "app", "models.py"), "utf8");
+  const block = models.match(/INFO_ICONS = frozenset\(\s*((?:"[^"]*"\s*)+)\.split\(\)/);
+  assert.ok(block, "INFO_ICONS not found in app/models.py");
+  const names = [...block[1].matchAll(/"([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean);
+  assert.ok(names.length >= 22);
+  for (const name of [...names, "batoh"]) {
+    const rows = L.INFO_SPRITES[name];
+    assert.ok(Array.isArray(rows) && rows.length > 0, `no sprite for ${name}`);
+    for (const row of rows) {
+      assert.equal(row.length, rows[0].length, `ragged sprite ${name}`);
+      for (const ch of row) assert.ok(ch === "." || L.PAL[ch], `unknown color ${ch} in ${name}`);
+    }
+    assert.ok(L.spriteRects(name, 1).length > 0);
+  }
+  assert.equal(L.spriteRects("bunda", 1).find((r) => r.fill === "#3E6FB0") !== undefined, true);
+});
+
+test("the adventure files avoid innerHTML and are listed in index.html", () => {
+  for (const f of ["logic-info-art.js", "app-adventure.js"]) {
+    assert.ok(!/innerHTML/.test(fs.readFileSync(path.join(root, "static", "js", f), "utf8")), f);
+    assert.ok(scriptTags.includes(`static/js/${f}`), f);
+  }
 });
