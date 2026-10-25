@@ -18,7 +18,8 @@ var ADV_STATIONS = [
 ];
 // The route: each leg ends at the stand of its station and starts where the previous one ended.
 var ADV_LEGS = [[[200, 470], [130, 470]], [[250, 470], [250, 385]], [[250, 300], [110, 300]], [[110, 225], [290, 225]], [[210, 225], [210, 165]]];
-var ADV_CHAIN = [ADV_START].concat.apply([], ADV_LEGS);
+// ADV_CHAIN[0] is the gate, so advChainIndex(i) points at the stand of station i
+var ADV_CHAIN = [ADV_START].concat.apply([ADV_START], ADV_LEGS);
 
 var adv = {
   open: false, els: null, at: -1, pos: ADV_START.slice(), session: [], walking: false, frame: 0,
