@@ -87,7 +87,7 @@ Single uvicorn process with **one worker**, bound to `127.0.0.1` (default port 8
 
 ### Write path and file safety
 
-Every write action runs under the one lock: load current state → validate via `validate.py` → write → bump `version` → append audit → return `{ok, state}`. Writes are atomic: temp file in the same directory, `fsync`, `os.replace`. A timestamped backup goes to `data/backups/` before each write (keep the last 50). Use `yaml.safe_load` and `safe_dump(allow_unicode=True, sort_keys=False)` only. At startup, validate the data file with the Pydantic models and against `cabin.yaml` (unknown slot, party or night; duplicate slot IDs). On error, refuse to start with a precise message. A missing or empty file is created.
+Every write action runs under the one lock: load current state → validate via `validate.py` → write → bump `version` → append audit → return `{ok, state}`. Writes are atomic: temp file in the same directory, `fsync`, `os.replace`. A timestamped backup goes to `data/backups/` before each write (keep the last `backups_keep`, 5000 in `config/app.yaml`). Use `yaml.safe_load` and `safe_dump(allow_unicode=True, sort_keys=False)` only. At startup, validate the data file with the Pydantic models and against `cabin.yaml` (unknown slot, party or night; duplicate slot IDs). On error, refuse to start with a precise message. A missing or empty file is created.
 
 ### API conventions
 

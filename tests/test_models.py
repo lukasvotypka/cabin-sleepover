@@ -90,7 +90,7 @@ def test_app_yaml_loads(app_config):
     assert app_config.limits.ai_per_client_minute == 10
     assert app_config.limits.ai_per_day == 200
     assert app_config.model == "claude-haiku-5-5"
-    assert app_config.backups_keep == 50
+    assert app_config.backups_keep == 5000
 
 
 def test_app_config_rejects_unknown_and_bad_values(tmp_path):

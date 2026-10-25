@@ -84,7 +84,7 @@ limits:
   ai_per_client_minute: 10      # fáza 2
   ai_per_day: 200               # fáza 2
 model: claude-haiku-5-5          # fáza 2
-backups_keep: 50
+backups_keep: 5000
 ```
 
 ### `data/cabin-data.yaml`
@@ -145,7 +145,7 @@ Každý zápis sa pripíše ako samostatný YAML dokument (oddelený `---`): ča
 
 - Každé čítanie, úprava a zápis beží pod jedným `asyncio.Lock`.
 - Atomický zápis: obsah do dočasného súboru v tom istom priečinku, `fsync`, potom `os.replace`.
-- Pred každým zápisom kópia do `data/backups/` s časom v názve, ponechá sa posledných 50.
+- Pred každým zápisom kópia do `data/backups/` s časom v názve, ponechá sa posledných 5000 (`backups_keep`).
 - PyYAML výhradne `safe_load` a `safe_dump` s `allow_unicode=True` a `sort_keys=False`, aby súbor ostal čitateľný.
 - Pri štarte sa súbor overí cez Pydantic modely a proti `cabin.yaml` (neznámy slot, neznáma partia, noc mimo akcie). Pri chybe server nenaštartuje a vypíše, čo presne je zle. Prázdny alebo chýbajúci súbor sa vytvorí.
 

@@ -3,4 +3,4 @@ limits:
   ai_per_client_minute: 10      # phase 2
   ai_per_day: 200               # phase 2
 model: claude-haiku-5-5          # phase 2
-backups_keep: 50
+backups_keep: 5000
