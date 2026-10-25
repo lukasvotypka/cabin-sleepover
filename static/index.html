@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#8E9B48">
+<meta name="asset-version" content="__ASSET_VERSION__">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chata">
 <meta name="color-scheme" content="light dark">
 <title>Chata 29. 10. – 1. 11.</title>
 <meta name="description" content="Zapíš sa, kde budeš spať na chate 29. 10. – 1. 11.">
@@ -211,6 +215,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .q-done .quest-text, .q-fewer .quest-text, .q-away .quest-text { color: #6B5644; text-decoration: line-through; }
 .q-who .quest-text { font-weight: 700; color: #A3361E; }
 .quest-bang { margin-left: auto; padding: 0 4px; background: #B4472F; color: #FFFFFF; font-size: 10px; font-weight: 700; animation: blink 2.4s ease-in-out infinite; }
+.update-sign {
+  position: fixed; z-index: 13; left: calc(8px + env(safe-area-inset-left, 0px)); max-width: calc(100% - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  bottom: calc(max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px)) + 10px); box-sizing: border-box; min-height: 44px; padding: 8px 14px;
+  display: flex; align-items: center; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
+  font-family: var(--font-text); font-size: 15px; font-weight: 700; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.update-sign[hidden] { display: none; }
+.update-sign.wait { cursor: default; color: #6B5644; }
+.update-sign:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
 .crest {
   position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   display: flex; align-items: flex-end; max-width: calc(100% - 140px);      /* leaves room for „Celá mapa“ beside it */
@@ -404,6 +417,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   <div id="quest" class="quest"></div>
   <button id="crest" class="crest" type="button" data-key="who"></button>
 </div>
+<div id="updateSign" class="update-sign" role="button" tabindex="0" aria-live="polite" hidden></div>
 <section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 

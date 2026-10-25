@@ -3496,3 +3496,21 @@ test("shouldReopenStale after 45 s of silence", () => {
   assert.equal(L.shouldReopenStale(1000, 45000), false);   // 44 s
   assert.equal(L.shouldReopenStale(1000, 47000), true);    // 46 s
 });
+
+// --- "new version" sign (T-055) ---
+
+test("updateSign: null unless the server runs other code", () => {
+  assert.equal(L.updateSign("abc", "abc", 0), null);
+  assert.equal(L.updateSign("", "abc", 0), null);
+  assert.equal(L.updateSign("abc", "", 0), null);
+  assert.equal(L.updateSign(undefined, "abc", 0), null);
+  assert.equal(L.updateSign("abc", undefined, 0), null);
+  assert.equal(L.updateSign("__ASSET_VERSION__", "abc", 0), null);
+});
+
+test("updateSign: any difference is newer, a pending save asks to wait", () => {
+  assert.deepEqual({ ...L.updateSign("abc", "abd", 0) }, { text: "Nová verzia – ťukni pre obnovenie", canReload: true });
+  assert.deepEqual({ ...L.updateSign("abc", "aaa", 0) }, { text: "Nová verzia – ťukni pre obnovenie", canReload: true });
+  assert.deepEqual({ ...L.updateSign("abc", "abd", 2) }, { text: "Ukladám, chvíľu počkaj", canReload: false });
+  assert.equal(L.updateSign("abc", "abc", 2), null);
+});

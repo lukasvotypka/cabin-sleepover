@@ -194,11 +194,14 @@ function request(method, path, body, etag, timeoutMs) {
 // resolves to {ok, status, error, json}. `error` is undefined for a network failure (status 0).
 // `ops` are the pending changes of this write: they are dropped just before the answer is applied.
 function write(method, path, body, ops) {
+  writesInFlight++;
   function settle() {
+    writesInFlight--;
     if (ops) app.pending = app.pending.filter(function (op) { return ops.indexOf(op) === -1; });
   }
   return request(method, path, body).then(function (r) {
     settle();
+    if (r.json && r.json.state) noteAssetVersion(r.json.state);
     if (r.status === 401) showCodeScreen();
     var ok = r.status === 200 && r.json && r.json.ok;
     if (r.json && r.json.state) {
@@ -220,6 +223,7 @@ function write(method, path, body, ops) {
     return { ok: false, status: r.status, error: r.json ? r.json.error : undefined, json: r.json };
   }, function () {
     settle();
+    renderUpdateSign();
     render();
     return { ok: false, status: 0, error: undefined, json: null };
   });
@@ -239,6 +243,7 @@ function poll() {
       // The seen ages in an open „Kto si?“ keep growing although the state did not change.
       if (app.panel && app.panel.refresh && app.panel.ageTicks) app.panel.refresh();
     } else if (r.status === 200 && r.json && r.json.ok && r.json.state) {
+      noteAssetVersion(r.json.state);
       if (!app.state || r.json.state.version >= app.state.version) {
         app.etag = r.etag;
         applyState(r.json.state);

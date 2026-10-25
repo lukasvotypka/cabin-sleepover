@@ -79,6 +79,7 @@ function liveGotEvent() {
 function liveOnState(e) {
   var state = liveParse(e);
   if (!state || app.codeOpen) return;
+  noteAssetVersion(state);
   liveGotEvent();
   live.noStateSince = null;
   live.attempt = 0;
@@ -158,3 +159,36 @@ function liveTick() {
   // A retry stream that gives no state is dropped again; polling went on all the time.
   else if (live.active && live.fallback && shouldFallBack(live.noStateSince, Date.now())) liveStop();
 }
+
+// --- the "new version" sign (T-055) ---
+
+var assetMeta = document.querySelector('meta[name="asset-version"]');
+var shownAssetVersion = assetMeta ? assetMeta.getAttribute("content") : "";
+var updateSeen = false;     // once the server ran other code, the sign stays until reload
+var writesInFlight = 0;     // saves that wait for the server (the sign asks to wait during them)
+
+// Every received state payload goes through here, whether or not its data is applied.
+function noteAssetVersion(state) {
+  if (!state || updateSeen) { renderUpdateSign(); return; }
+  if (updateSign(shownAssetVersion, state.asset_version, 0)) updateSeen = true;
+  renderUpdateSign();
+}
+
+function renderUpdateSign() {
+  var node = $("updateSign");
+  var sign = updateSeen ? updateSign(shownAssetVersion, "changed", writesInFlight) : null;
+  if (!sign || $("hud").hidden) { node.hidden = true; return; }
+  node.hidden = false;
+  node.textContent = sign.text;
+  node.setAttribute("aria-disabled", sign.canReload ? "false" : "true");
+  node.classList.toggle("wait", !sign.canReload);
+}
+
+function updateSignAction() {
+  if (updateSeen && writesInFlight === 0) location.reload();
+}
+
+$("updateSign").addEventListener("click", updateSignAction);
+$("updateSign").addEventListener("keydown", function (e) {
+  if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); updateSignAction(); }
+});

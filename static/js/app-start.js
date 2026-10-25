@@ -49,3 +49,8 @@ setInterval(function () {
 setInterval(function () { liveTick(); renderAge(); }, AGE_TICK_MS);
 poll();           // the first request leaves before anything is drawn
 drawSplash();
+
+// Installable app (T-055): a minimal service worker without a fetch handler. A failure changes nothing.
+if ("serviceWorker" in navigator) {
+  try { navigator.serviceWorker.register("sw.js").catch(function () {}); } catch (err) { /* ignored */ }
+}

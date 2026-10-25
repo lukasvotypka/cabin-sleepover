@@ -50,3 +50,12 @@ function eventsUrl(partyId, clientId) {
   if (partyId) url += "party=" + encodeURIComponent(partyId) + "&";
   return url + "client=" + encodeURIComponent(clientId);
 }
+
+// The "new version" sign (T-055). `shownVersion` is the page code hash this page was loaded with (the asset-version
+// meta), `serverVersion` the one in a received state. Returns null (no sign) or {text, canReload}. Hashes have
+// no order, so any difference counts as newer. While a save is running the sign asks to wait and does not reload.
+function updateSign(shownVersion, serverVersion, pendingWrites) {
+  if (!shownVersion || !serverVersion || shownVersion === "__ASSET_VERSION__" || shownVersion === serverVersion) return null;
+  if (pendingWrites > 0) return { text: "Ukladám, chvíľu počkaj", canReload: false };
+  return { text: "Nová verzia – ťukni pre obnovenie", canReload: true };
+}

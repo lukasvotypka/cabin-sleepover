@@ -31,7 +31,7 @@ from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
 from starlette.background import BackgroundTask
@@ -173,6 +173,7 @@ class Runtime:
     loop: asyncio.AbstractEventLoop | None = None
     connected: set[str] = field(default_factory=set)  # last set of parties with a stream, to see who changed
     last_online: set[str] = field(default_factory=set)  # online set of the last state or presence frame sent
+    asset_version: Callable[[], str] = lambda: ""  # current page code hash (set to `PageRenderer.version`)
 
     def refresh_presence(self) -> None:
         """Send a `presence` event when the online set differs from the last one sent. Event loop only."""
@@ -224,6 +225,7 @@ def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
         "parties": [p.model_dump(mode="json") for p in state.parties],
         "sleeping": state.sleeping,
         "presence": rt.seen.presence({p.id for p in state.parties}),
+        "asset_version": rt.asset_version(),
     }
 
 
@@ -232,7 +234,9 @@ def config_digest(layout_json: dict[str, Any]) -> str:
     return hashlib.sha1(canonical.encode()).hexdigest()[:8]
 
 
-def state_etag(state: State, config_hash: str, presence: dict[str, Any] | None = None) -> str:
+def state_etag(
+    state: State, config_hash: str, presence: dict[str, Any] | None = None, asset_version: str = ""
+) -> str:
     """Changes on every write, when the served `cabin.yaml` changes (after a restart) and when presence changes.
 
     `updated_at` is mixed in, so a hand-restored older backup (lower `version`) differs too.
@@ -240,9 +244,13 @@ def state_etag(state: State, config_hash: str, presence: dict[str, Any] | None =
     Presence (T-049) adds the `online` set and every party's `last_seen` floored to the minute: second
     precision would change the tag on every poll, while the page only shows minutes. The `online` set keeps
     "online" right within one poll, so the page can use the server's list as it is after a 304.
+    `asset_version` (T-055) is the page code hash: after a code edit the old tag no longer matches, so the
+    page gets the new `asset_version` in a 200 instead of a 304.
     """
     digest = hashlib.sha1(state.updated_at.encode()).hexdigest()[:8]
     tag = f"{state.version}-{digest}-{config_hash}"
+    if asset_version:
+        tag += f"-{asset_version}"
     if presence:
         minutes = sorted(
             (pid, int(datetime.fromisoformat(t).timestamp() // 60)) for pid, t in presence["last_seen"].items()
@@ -422,10 +430,16 @@ class PageRenderer:
         self._scripts = static_dir / "js"
         self._signature: tuple[Any, ...] | None = None
         self._html = ""
+        self._version = ""
 
     def _files(self) -> list[Path]:
         scripts = sorted(self._scripts.rglob("*.js")) if self._scripts.is_dir() else []
         return [self._index, *scripts]
+
+    def version(self) -> str:
+        """The current hash (the one in the script URLs)."""
+        self.render()
+        return self._version
 
     def render(self) -> str:
         files = self._files()
@@ -435,7 +449,7 @@ class PageRenderer:
             for f in files:
                 digest.update(f.name.encode("utf-8"))
                 digest.update(f.read_bytes())
-            version = digest.hexdigest()[:12]
+            version = self._version = digest.hexdigest()[:12]
             html = self._index.read_text(encoding="utf-8")
             self._html = html.replace(ASSET_VERSION_PLACEHOLDER, version)
             self._signature = signature
@@ -570,11 +584,19 @@ def create_app(
         )
 
     page = PageRenderer(static_dir)
+    rt.asset_version = page.version
     version = read_version(Path(pyproject))
 
     @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     async def index() -> HTMLResponse:
         return HTMLResponse(page.render(), headers={"Cache-Control": "no-cache"})
+
+    @app.get("/sw.js", include_in_schema=False)
+    async def service_worker() -> FileResponse:
+        # Served from the root so its scope covers the page. It has no fetch handler (installability only).
+        return FileResponse(
+            Path(static_dir) / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"}
+        )
 
     @app.api_route("/api/health", methods=["GET", "HEAD"])
     async def health() -> dict[str, bool | str]:
@@ -621,7 +643,7 @@ def create_app(
     @app.get("/api/state")
     async def get_state(request: Request, _auth: Annotated[Auth, Depends(require_group)]) -> Response:
         state = rt.store.read()
-        etag = state_etag(state, rt.config_hash, rt.seen.presence(rt.known_ids))
+        etag = state_etag(state, rt.config_hash, rt.seen.presence(rt.known_ids), page.version())
         headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
         if _etag_matches(request.headers.get("if-none-match"), etag):
             return Response(status_code=304, headers=headers)
