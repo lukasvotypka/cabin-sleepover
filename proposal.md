@@ -33,6 +33,7 @@ Postav malú webovú aplikáciu na rozdelenie spania na chate. Kamaráti si na p
 | `app/models.py` | Pydantic modely: `Party`, `Slot`, `State`, požiadavky akcií |
 | `app/validate.py` | Kontroly zápisov (voľné miesto, prítomnosť, presun, skrátenie pobytu) ako čisté funkcie |
 | `app/ratelimit.py` | Jednoduché limity v pamäti |
+| `app/events.py` | Rozosielanie zmien cez Server-Sent Events: zoznam otvorených spojení v pamäti, `presence` podľa spojení, ping a zatvorenie pri vypnutí |
 | `app/llm.py` | Fáza 2: volanie Clauda a nástroj `propose_signup` |
 | `static/index.html` | Celá stránka: jedna pixelová scéna s termínom, návodom a stavom zápisu, panely nad ňou (formulár partie, „Kto si?“, prehľad na poslanie, admin) |
 | `config/cabin.yaml` | Akcia, noci, izby, postele, sloty a súradnice pre mapu |
@@ -57,13 +58,13 @@ Jeden proces FastAPI (uvicorn s jedným workerom) servíruje stránku aj JSON AP
 
 &#91;embedded content: architektúra · stránka, FastAPI, YAML na disku, fáza 2 s Claudom\]
 
-**Čítanie:** stránka zavolá `GET /api/state` a dostane celý stav ako JSON: konfiguráciu akcie a rozloženia, partie, obsadenie slotov a `version`. Obnovuje sa každých 30 sekúnd, keď je karta viditeľná, po návrate na kartu a po každom zápise. Keď sa `version` ani údaje o tom, kto je online (sekcia Dáta v YAML, `data/seen.yaml`), nezmenili, server môže vrátiť `304` cez `ETag`. Toto obnovovanie zároveň zapisuje, kedy bola partia naposledy videná; SSE ani WebSocket sa nepoužívajú (rozhodnutie organizátora z 25. 10. 2026).
+**Čítanie:** stránka pri otvorení zavolá `GET /api/state` a dostane celý stav ako JSON: konfiguráciu akcie a rozloženia, partie, obsadenie slotov a `version`. Potom otvorí jedno trvalé spojenie Server-Sent Events (`GET /api/events`, `EventSource`), cez ktoré server pošle hneď celý stav a potom po každom zápise kohokoľvek nový stav, pri zmene toho, kto je online, len údaje `presence`, a každých 20 s krátky `ping` (rozhodnutie organizátora z 25. 10. 2026, nahrádza obnovovanie každých 30 sekúnd). Zmena od iných sa tak ukáže asi do sekundy. Keď je karta skrytá, stránka spojenie zatvorí a po návrate ho otvorí znova. Keď `EventSource` chýba alebo sa spojenie asi 60 s nedá nadviazať (napríklad proxy, ktorý odpoveď zadržiava), stránka sa vráti k obnovovaniu `GET /api/state` každých 30 sekúnd a spojenie skúša znova každých pár minút. `GET /api/state` ostáva s `ETag` a `304` ako doteraz. Kto je online, sa určuje podľa otvorených spojení (sekcia Dáta v YAML, `data/seen.yaml`). WebSocket sa nepoužíva.
 
 **Zápis:** `POST /api/…` s telom JSON (sekcia API). Odpoveď obsahuje výsledok a čerstvý stav, takže stránka nemusí čítať znova.
 
 **Optimistické UI:** po ťuknutí sa zmena hneď ukáže na mape ako „ukladám“. Keď ju server odmietne, mapa sa vráti do stavu zo servera a zobrazí dôvod (napr. „Toto miesto si medzitým zobral Riso a Ben“).
 
-**Jeden proces je podmienka:** zámok (`asyncio.Lock`), limity a rozhovory fázy 2 sú v pamäti procesu. YAML je jediný zdroj pravdy. Ručná úprava súborov je možná, ale iba pri zastavenej službe. Bežné opravy robí organizátor cez akcie s admin kódom.
+**Jeden proces je podmienka:** zámok (`asyncio.Lock`), limity, otvorené spojenia SSE a rozhovory fázy 2 sú v pamäti procesu. YAML je jediný zdroj pravdy. Ručná úprava súborov je možná, ale iba pri zastavenej službe. Bežné opravy robí organizátor cez akcie s admin kódom.
 
 **Technológie:** Python 3.12, FastAPI, Pydantic v2, PyYAML, uvicorn. Frontend je čisté HTML, CSS a JavaScript bez build kroku.
 
@@ -124,7 +125,7 @@ sleeping:                 # noc → slot → id partie
 
 ### `data/seen.yaml`
 
-Rozhodnutie organizátora z 25. 10. 2026: všetci vidia, kedy bola každá partia naposledy na stránke a kto je práve online. Stránka posiela v každej požiadavke hlavičku `X-Party-Id` s *mojou partiou* z `localStorage`; bez vybranej partie hlavičku neposiela a nič sa nezapíše. Server pri požiadavke s platnou cookie skupiny zapíše čas „naposledy videná“ iba pre existujúcu partiu, aj keď odpovedá `304`.
+Rozhodnutie organizátora z 25. 10. 2026: všetci vidia, kedy bola každá partia naposledy na stránke a kto je práve online. Stránka posiela v každej požiadavke hlavičku `X-Party-Id` s *mojou partiou* z `localStorage` a pri spojení SSE ten istý údaj v parametri `party` (`EventSource` nevie posielať hlavičky); bez vybranej partie ho neposiela a nič sa nezapíše. Server pri požiadavke s platnou cookie skupiny zapíše čas „naposledy videná“ iba pre existujúcu partiu, aj keď odpovedá `304`. Pri spojení SSE ho zapíše pri otvorení, pri každom `ping` a pri zatvorení (rozhodnutie organizátora z 25. 10. 2026).
 
 ```yaml
 p-7f3k2a: "2026-10-25T19:02:11+02:00"
@@ -134,7 +135,7 @@ p-2m9qxd: "2026-10-25T18:40:03+02:00"
 - Malý samostatný súbor, nie súčasť `cabin-data.yaml`. V pamäti procesu je vždy čerstvý čas, na disk sa zapisuje atomicky (ako dátový súbor) a najviac asi raz za minútu za partiu.
 - Nezvyšuje `version`, nerobí zálohy ani záznam v `audit.yaml` a nepočíta sa do limitov zápisu.
 - Údaje nie sú dôležité: chýbajúci alebo poškodený súbor server pri štarte nezastaví (začne s prázdnymi údajmi a zapíše varovanie do logu) a neznáme `id` partií zahodí.
-- Online je partia videná za posledných 75 sekúnd (obnovovanie je každých 30 s).
+- Rozhodnutie organizátora z 25. 10. 2026: online je partia, ktorá má otvorené aspoň jedno spojenie SSE, alebo (pre stránky, ktoré sa vrátili k obnovovaniu každých 30 s) bola videná za posledných 75 sekúnd. Partia je teda online hneď po otvorení stránky a prestane byť online hneď, keď zatvorí stránku alebo ju skryje (ak nemá iné spojenie ani nebola videná za 75 s).
 
 ### `data/audit.yaml`
 
@@ -150,7 +151,7 @@ Každý zápis sa pripíše ako samostatný YAML dokument (oddelený `---`): ča
 
 ## HTTP API
 
-JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/api/join` vyžadujú cookie skupiny. Admin akcie vyžadujú admin cookie. Stránka posiela v každej požiadavke hlavičku `X-Client-Id` (náhodný reťazec z `localStorage`) pre audit a limity a, keď je vybratá moja partia, hlavičku `X-Party-Id` pre údaje „naposledy videná“ (sekcia Dáta v YAML, `data/seen.yaml`).
+JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/api/join` vyžadujú cookie skupiny. Admin akcie vyžadujú admin cookie. Stránka posiela v každej požiadavke hlavičku `X-Client-Id` (náhodný reťazec z `localStorage`) pre audit a limity a, keď je vybratá moja partia, hlavičku `X-Party-Id` pre údaje „naposledy videná“ (sekcia Dáta v YAML, `data/seen.yaml`). Spojenie SSE posiela tie isté údaje v parametroch `client` a `party`, s rovnakou kontrolou a dĺžkou ako hlavičky.
 
 ### Odpoveď
 
@@ -175,6 +176,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | GET | `/api/health` | verejné | `{ok: true, version}` na kontrolu nasadenia (verzia z `pyproject.toml`) |
 | POST | `/api/join` | verejné | `{code}` → nastaví cookie skupiny alebo admina, vráti rolu |
 | GET | `/api/state` | skupina | Celý stav, s `ETag` podľa `version` a údajov o tom, kto je online |
+| GET | `/api/events?party=…&client=…` | skupina | Spojenie Server-Sent Events (rozhodnutie organizátora z 25. 10. 2026, sekcia Zmeny naživo) |
 | POST | `/api/assign` | skupina | `{night, slots[], party_id}`: zapíše partiu na voľné miesta, buď všetky, alebo žiadne. Partia musí byť v tú noc prítomná |
 | POST | `/api/assign-stay` | skupina | `{slots[], party_id}`: to isté pre všetky noci pobytu. Každá noc je buď celá, alebo žiadna: noci, kde niektoré z miest nie je voľné, vynechá a vráti v `skipped` |
 | POST | `/api/clear` | skupina | `{night, slot}`: uvoľní miesto |
@@ -187,6 +189,19 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | GET | `/api/admin/export` | admin | Fáza 2. Stiahne `cabin-data.yaml` |
 
 Pri zamknutom zápise vracajú zápisové akcie `signup_closed`, okrem požiadaviek s admin cookie.
+
+### Zmeny naživo (`/api/events`)
+
+Rozhodnutie organizátora z 25. 10. 2026: namiesto obnovovania každých 30 sekúnd posiela server zmeny cez Server-Sent Events.
+
+- Bez platnej cookie skupiny vráti `401 bad_code` v JSON ako ostatné cesty. Inak odpovie `Content-Type: text/event-stream`, `Cache-Control: no-cache` a `X-Accel-Buffering: no`, bez kompresie.
+- Hneď po pripojení pošle `retry:` (asi 3000 ms) a `event: state` s celým stavom (rovnaký tvar ako `state` z `/api/state`, vrátane `presence`).
+- Po každom zápise (hneď po atomickom zápise súboru) pošle všetkým spojeniam `event: state` s novým stavom.
+- Keď sa zmení, kto je online (prvé spojenie partie sa otvorí, posledné sa zatvorí, partia s obnovovaním vstúpi do 75 s okna alebo z neho vypadne), pošle `event: presence` iba s objektom `presence`. `version` sa nemení.
+- Každých 20 s pošle `event: ping` s `{server_time}`, aby stránka vedela, že spojenie žije, a aby proxy nezatvoril nečinné spojenie.
+- Každé spojenie drží najviac jeden čakajúci stav a jeden čakajúci `presence` (starší nahradí novší), takže pomalý telefón nezväčšuje pamäť.
+- Najviac 4 spojenia na `client` a 200 spolu, inak `429 rate_limited`. Otvorenie spojenia sa nepočíta do limitu 30 zápisov za minútu.
+- Pri vypnutí alebo reštarte servera sa všetky spojenia zatvoria, aby vypnutie nečakalo na otvorené spojenia. Prehliadač sa potom pripojí znova sám.
 
 ### Kódy a cookies
 
@@ -218,7 +233,7 @@ Scéna má voľné trávnaté plochy, na ktorých sú tieto prvky. Ich pozície 
 - **Tri smerovníky nocí:** Št → Pi, Pi → So, So → Ne a pod každým jeho dátum, napríklad „29./30. 10.“. Dátum je na smerovníku vždy. Zvolená noc je zvýraznená. Na každom je „obsadené X z 20“. Keď je vybratá moja partia, pod dátumom je na smerovníku štítok „máš 2/3“ (umiestnení z potrebných miest): červený s výkričníkom, keď miesta chýbajú, oranžový, keď ich je viac, zelený, keď sedia, a „nie si tu“, keď partia v tú noc nie je na chate. Ťuknutie prepne noc, v ktorej mapa ukazuje postavičky. Každý smerovník má výšku aspoň 44 px na obrazovke.
 - **Návod („?“):** v scéne je len ikonka „?“. Ťuknutím sa otvorí okno „Návod“ uprostred obrazovky so 4 očíslovanými krokmi po slovensky v poradí, v akom ich ide priateľ: „1. Pridaj svoju partiu.“, „2. Vyber, za ktorú partiu si.“, „3. Ťukni na posteľ a zapíš sa.“, „4. Skontroluj všetky tri noci.“ Okno sa samo neotvára. (Rozhodnutie organizátora z 24. 10. 2026.)
 - **Tabuľka partií:** pod smerovníkmi je vždy papierová tabuľka o dvoch častiach (rozhodnutie organizátora z 24. 10. 2026). Časť „Noc“ (pixelový mesiac): riadok je partia (farebný štvorček a meno, dlhé mená skrátené), stĺpce sú tri noci a v každej bunke je počet miest partie z potrebných, napríklad „2/3“. Keď miesta chýbajú, bunka je červená s výkričníkom, keď ich je viac, oranžová, a „–“ znamená, že partia v tú noc nie je na chate. Časť „Cez deň“ (pixelové slnko): stĺpec je každý deň udalosti, riadok je partia, ktorá príde len na deň, a spodný tučný riadok „spolu na jedlo“ ukazuje počet ľudí na jedlo v každý deň (aj 0). Riadok mojej partie je žltý a stĺpec zvolenej noci má žltú hlavičku. Keď sa riadky nezmestia, každá časť skončí riadkom „+N ďalších“. Ťuknutím na tabuľku sa otvorí „Kto je kto“.
-- **Spodná lišta (HUD):** „Si: Ivan a Eva“ (ťuknutím sa mení) s riadkom, kto je online, a vedľa nej stavová ceduľa mojej partie sú pevná drevená lišta dole na obrazovke mimo SVG, takže zostáva na mieste pri posúvaní aj priblížení mapy a scéna sa vmestí nad ňu (rozhodnutie organizátora z 24. 10. 2026). Keď mojej partii v niektorej noci chýba miesto, ceduľa je červená s výkričníkom, napríklad „Št: chýbajú 2“ a „Ťukni sem ›“; ťuknutím sa zvolí táto noc a keď je už zvolená, otvorí sa panel s názvom dňa. Ak partia v tú noc už má aspoň jedno miesto, panel ponúkne tlačidlo napríklad „Vo štvrtok nás viac nebude“ (deň podľa začiatku noci) a „Ešte hľadám posteľ“. Ak nemá žiadne, ponúkne „Upraviť príchod a odchod“. Ťuknutím na „… nás viac nebude“ sa potrebný počet v tú noc nastaví na počet už zabraných miest (`places`), takže zmizne upozornenie, postavičky na lúke aj červený štítok na smerovníku. Postavičky na lúke, „Kto je kto“ a Prehľad na poslanie vždy rátajú s počtom potrebných miest v danú noc. Ťuknúť sa dá aj na postavičky na lúke. Keď má partia v niektorej noci viac miest, než potrebuje, ceduľa je jemne oranžová („Máš o 1 miesto viac, než potrebuješ“; server to neodmieta). Keď má zvolená noc znížený počet a nič nechýba, ceduľa je zelená („Št: len 1 z 3 ›“) a ťuknutím sa otvorí panel s tlačidlom „Vo štvrtok prídeme všetci“, ktorý vráti plný počet. Keď je všetko v poriadku, je to zelená značka „Všetko máš“ bez ťuknutia. Rozhodnutie organizátora z 25. 10. 2026: riadok pod „Si: …“ už neukazuje „aktualizované pred …“, ale kto je online: „online:“ a malé farebné štvorčeky partií vrátane mojej, každý s písmenom ako na tričku postavičky, moja so žltým rámikom; najviac 6, zvyšok ako „+N“. Keď som online sám, je tam „online: len ty“ (štvorček by len opakoval erb vedľa), a „online: nikto“, keď nie je online nikto (rozhodnutie organizátora z 25. 10. 2026). Čas posledného načítania („aktualizované pred 2 min“) sa ukáže namiesto neho, iba keď je problém: posledné obnovenie zlyhalo alebo sú dáta staršie ako asi 90 sekúnd.
+- **Spodná lišta (HUD):** „Si: Ivan a Eva“ (ťuknutím sa mení) s riadkom, kto je online, a vedľa nej stavová ceduľa mojej partie sú pevná drevená lišta dole na obrazovke mimo SVG, takže zostáva na mieste pri posúvaní aj priblížení mapy a scéna sa vmestí nad ňu (rozhodnutie organizátora z 24. 10. 2026). Keď mojej partii v niektorej noci chýba miesto, ceduľa je červená s výkričníkom, napríklad „Št: chýbajú 2“ a „Ťukni sem ›“; ťuknutím sa zvolí táto noc a keď je už zvolená, otvorí sa panel s názvom dňa. Ak partia v tú noc už má aspoň jedno miesto, panel ponúkne tlačidlo napríklad „Vo štvrtok nás viac nebude“ (deň podľa začiatku noci) a „Ešte hľadám posteľ“. Ak nemá žiadne, ponúkne „Upraviť príchod a odchod“. Ťuknutím na „… nás viac nebude“ sa potrebný počet v tú noc nastaví na počet už zabraných miest (`places`), takže zmizne upozornenie, postavičky na lúke aj červený štítok na smerovníku. Postavičky na lúke, „Kto je kto“ a Prehľad na poslanie vždy rátajú s počtom potrebných miest v danú noc. Ťuknúť sa dá aj na postavičky na lúke. Keď má partia v niektorej noci viac miest, než potrebuje, ceduľa je jemne oranžová („Máš o 1 miesto viac, než potrebuješ“; server to neodmieta). Keď má zvolená noc znížený počet a nič nechýba, ceduľa je zelená („Št: len 1 z 3 ›“) a ťuknutím sa otvorí panel s tlačidlom „Vo štvrtok prídeme všetci“, ktorý vráti plný počet. Keď je všetko v poriadku, je to zelená značka „Všetko máš“ bez ťuknutia. Rozhodnutie organizátora z 25. 10. 2026: riadok pod „Si: …“ už neukazuje „aktualizované pred …“, ale kto je online: „online:“ a malé farebné štvorčeky partií vrátane mojej, každý s písmenom ako na tričku postavičky, moja so žltým rámikom; najviac 6, zvyšok ako „+N“. Keď som online sám, je tam „online: len ty“ (štvorček by len opakoval erb vedľa), a „online: nikto“, keď nie je online nikto (rozhodnutie organizátora z 25. 10. 2026). Čas posledného načítania („aktualizované pred 2 min“) sa ukáže namiesto neho, iba keď je problém: spojenie SSE je v chybe alebo zo servera neprišla žiadna správa (stav, `presence` ani `ping`) dlhšie ako asi 45 sekúnd, keď je karta viditeľná; pri záložnom obnovovaní, keď posledné obnovenie zlyhalo alebo sú dáta staršie ako asi 90 sekúnd (rozhodnutie organizátora z 25. 10. 2026). Keď sa spojenie obnoví, riadok online sa vráti.
 - **Úvodné priblíženie:** raz po načítaní stránky, hneď keď zmizne úvodný obrázok, mapa začne 2× priblížená na hornú časť scény (názov, smerovníky, tabuľka) a za 2,8 s sa plynulo oddiali na celú mapu, aby bolo vidieť, že sa dá posúvať a približovať. Prvý dotyk, koliesko alebo kláves na mape, zmena veľkosti okna alebo režim presunu ho zastaví tam, kde je. Otvorený panel ho nezastaví: nový návštevník, ktorému sa hneď po úvodnom obrázku otvorí „Kto si?“, vidí, ako sa mapa za polopriehľadným pozadím panela oddiali, a práve on ten náznak potrebuje. Pri `prefers-reduced-motion` sa nespustí. (Rozhodnutie organizátora z 24. 10. 2026.)
 - **Zamknutý zápis (fáza 2):** keď je `signup_open` false, v scéne je ceduľa „Zápis je zatvorený“ a miesta sa dajú len prezerať.
 - **Prehľad na poslanie:** malá ikona listu v scéne otvorí panel s textom do WhatsAppu a tlačidlom **Kopírovať**. Text vyrába čistá funkcia: názov a termín, pre každú noc izby s menami partií a na konci upozornenia na partie s chýbajúcimi miestami a odkaz na stránku.
@@ -392,7 +407,7 @@ Pri `ask` (chýba deň príchodu, nejasný počet ľudí) sa návrh neukáže, l
 - **Limity zápisu:** najviac 30 zápisov za minútu na klienta a 10 pokusov o kód za minútu na IP adresu, v pamäti procesu. Pri prekročení `rate_limited`.
 - **Vstupy:** Pydantic modely s limitmi. Meno partie najviac 60 znakov, čas príchodu 60, poznámka 300, počty 0–20. Server orezáva medzery a odmieta prázdne meno a duplicitné meno bez ohľadu na veľkosť písmen.
 - **Výstup v HTML:** všetok text od ľudí sa vkladá cez `textContent`, nikdy cez `innerHTML`.
-- **HTTPS** cez reverzný proxy (Caddy alebo nginx). Uvicorn počúva iba na `127.0.0.1`.
+- **HTTPS** cez reverzný proxy (Caddy alebo nginx). Uvicorn počúva iba na `127.0.0.1`. Proxy nesmie zadržiavať ani komprimovať `/api/events` (Caddy: bez `encode` na tejto ceste; nginx: `proxy_buffering off` a `proxy_read_timeout 1h`).
 - **Súbory:** `data/` nie je servírovaný ako statický priečinok a nie je v gite. Proces beží pod vlastným používateľom s právom zápisu iba do `data/`.
 
 ## Akceptačné kritériá a testovanie
@@ -401,7 +416,7 @@ Pri `ask` (chýba deň príchodu, nejasný počet ľudí) sa návrh neukáže, l
 
 - [ ] Organizátor podľa `README` na čistom serveri nastaví tajné hodnoty ako premenné prostredia (bez `.env`, ten je len na lokálny vývoj), spustí aplikáciu cez Docker (`docker compose`) a sprístupní ju cez Caddy alebo nginx s HTTPS.
 - [ ] Kamarát na mobile zadá kód, vyberie alebo pridá partiu a jedným ťuknutím sa zapíše na voľné miesto v jednu alebo všetky noci.
-- [ ] Zmena sa do 30 sekúnd ukáže na inom zariadení bez ručného obnovenia.
+- [ ] Zmena sa asi do sekundy ukáže na inom zariadení bez ručného obnovenia (cez SSE; pri záložnom obnovovaní do 30 sekúnd).
 - [ ] Dvaja ľudia naraz ťuknú na to isté voľné miesto: jeden uspeje, druhý dostane hlášku, kto ho má, a mapa sa vráti do správneho stavu.
 - [ ] Presun partie na iné miesto v jednej aj vo všetkých nociach prebehne celý alebo vôbec.
 - [ ] Skrátenie pobytu uvoľní miesta v nociach mimo pobytu a stránka na to vopred upozorní.
@@ -446,5 +461,6 @@ Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a n
 - [ ] **Tabuľka partií, časť „Cez deň“ (T-044):** predvolene sa kreslí vždy, aj bez denných hostí (hlavička so slnkom a riadok „spolu na jedlo“ pre všetky dni udalosti). Počet na jedlo podľa pravidla T-039, zobrazí sa aj 0.
 - [ ] **Tabuľka partií, keď sa nezmestí (T-044):** riadky oboch častí majú pevnú výšku a tabuľka rastie po výšku `map.scene.parties`. Keď sa všetky nezmestia, časť „Cez deň“ dostane najmenej 2 riadky (ak má toľko hostí), zvyšok časť „Noc“. Časť, ktorej riadky sa nezmestia, má v poslednom riadku „+N ďalšie“.
 - [ ] **Spodné menu (T-045):** predvolene je vidieť iba spolu s mapou (nie na obrazovke s kódom ani počas načítavania). Vľavo „Si: …“ s časom aktualizácie, vpravo stavová ceduľa. Panely sa vysúvajú ponad neho, tlačidlo „Celá mapa“ a hlášky sú nad ním.
-- [ ] **Naposledy videná a online (T-049, T-050):** predvolene stránka posiela *moju partiu* v hlavičke `X-Party-Id` (bez vybranej partie sa nič nezapíše), údaje sú v `data/seen.yaml` (na disk najviac raz za minútu za partiu), online znamená videná za posledných 75 s. Riadok v spodnej lište ukazuje „online:“ a štvorčeky partií online vrátane mojej (farba a písmeno z trička, najviac 6, potom „+N“); keď som sám, „online: len ty“; bez nikoho online „online: nikto“. V „Kto si?“ je pri partii „online“, „pred X min“ (najmenej 1 min), „pred X h“, „pred X d“ alebo „zatiaľ nevidené“. Čas načítania sa ukáže namiesto riadku online, keď posledné obnovenie zlyhalo alebo sú dáta staršie ako 90 s.
+- [ ] **Naposledy videná a online (T-049, T-050):** predvolene stránka posiela *moju partiu* v hlavičke `X-Party-Id` (bez vybranej partie sa nič nezapíše), údaje sú v `data/seen.yaml` (na disk najviac raz za minútu za partiu), online znamená videná za posledných 75 s. Riadok v spodnej lište ukazuje „online:“ a štvorčeky partií online vrátane mojej (farba a písmeno z trička, najviac 6, potom „+N“); keď som sám, „online: len ty“; bez nikoho online „online: nikto“. V „Kto si?“ je pri partii „online“, „pred X min“ (najmenej 1 min), „pred X h“, „pred X d“ alebo „zatiaľ nevidené“. Čas načítania sa ukáže namiesto riadku online, keď je problém so spojením (pozri Zmeny naživo nižšie).
+- [ ] **Zmeny naživo cez SSE (T-051 až T-054):** rozhodnutie organizátora z 25. 10. 2026 je SSE namiesto obnovovania každých 30 s. Predvolené hodnoty: modul `app/events.py`, `ping` každých 20 s, `retry` 3000 ms, najviac 4 spojenia na klienta a 200 spolu (`rate_limited`), online = aspoň jedno otvorené spojenie alebo videná za 75 s, „aktualizované pred …“ po 45 s bez správy zo servera, záložné obnovovanie každých 30 s po 60 s bez spojenia a nový pokus o spojenie každé 3 minúty, pri skrytej karte sa spojenie zatvorí.
 - [ ] **Úvodné priblíženie (T-046):** predvolene mapa začne 2× priblížená na hornú časť scény (názov, smerovníky, tabuľka) a za 2,8 s sa plynulo oddiali na celú mapu. Raz po načítaní stránky, nie pri `prefers-reduced-motion`, a zastaví sa pri prvom dotyku.

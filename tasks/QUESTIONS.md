@@ -1,6 +1,6 @@
 # Open questions for the organizer
 
-**All questions answered by the organizer on 21. 10. 2026.** Decisions: Q3 and Q4 changed (see below, `proposal.md` updated), Q9 status rect enlarged, Q11 positions accepted and added to `proposal.md`, all other defaults accepted. Q13, which came out of the Q3 answer, is answered as well: `assign-stay` takes `slots[]`. **Q14 (23. 10. 2026) is open**; T-023 uses its defaults until the organizer answers.
+**All questions answered by the organizer on 21. 10. 2026.** Decisions: Q3 and Q4 changed (see below, `proposal.md` updated), Q9 status rect enlarged, Q11 positions accepted and added to `proposal.md`, all other defaults accepted. Q13, which came out of the Q3 answer, is answered as well: `assign-stay` takes `slots[]`. **Q14 (23. 10. 2026) and Q15 (25. 10. 2026) are open**; the affected tasks use their defaults until the organizer answers.
 
 Written by the analyst while splitting `proposal.md` into tasks. Each question has a **default** that the tasks use until the organizer answers. When a question is answered, update the affected tasks (listed per question) and mark the question answered here.
 
@@ -117,3 +117,11 @@ The organizer asked for a table of all parties with their places per night on th
 - **The expanded noticeboard covers the same grass.** Default: the table is drawn only while the notice is collapsed to „?“ (after the first bed tap or a tap on the notice). The screen-reader summary always has the data.
 - Also a default: the „Kto je kto“ sign stays, and tapping the table opens „Kto je kto“, whose rows gain a line with the per-night numbers at normal text size, because the table text is about 5 px on a 380 px phone.
 - Affects: T-023.
+
+## Q15. Closing SSE streams on shutdown (25. 10. 2026)
+
+The SSE design says the hub closes all streams on app shutdown (lifespan). In uvicorn 0.54 the lifespan shutdown runs only after all open requests have finished, so with an open stream it would never be reached and a restart or `docker stop` would hang until killed.
+
+- **Default:** T-052 makes the process exit within 5 s of SIGTERM with open streams, either with uvicorn's `--timeout-graceful-shutdown` (then the Dockerfile `CMD` and the trial-server command in CLAUDE.md get the flag) or by hooking the exit signal, and still closes the hub in lifespan. The developer documents the choice; the orchestrator updates CLAUDE.md if the command changes.
+- Affects: T-052, T-054.
+- **Answer:** open.
