@@ -3525,3 +3525,148 @@ test("versionLine: both values, one missing, placeholders", () => {
   assert.equal(L.versionLine("1.11.0", "__ASSET_VERSION__"), "verzia 1.11.0");
   assert.equal(L.versionLine(undefined, null), "");
 });
+
+// --- „Pred cestou“ (logic-info.js) ---
+
+const infoCfg = {
+  water: { drinkable: false, liters_per_day: 2, bottle_liters: 1.5 },
+  pack: [{ icon: "spacak", label: "Spacák" }, { icon: "vankus", label: "Vankúš" }],
+  sleep: [{ icon: "plachta", label: "Plachta na matrac", note: "bez obliečok" }],
+  menu: [{ day: THU, meals: [{ when: "večer", what: "guláš" }] }],
+  bring: "raňajky",
+  program: [{ icon: "lampion", title: "Lampiónový sprievod", when: "So", note: "" }],
+};
+const kindLayout = {
+  ...layout,
+  rooms: rooms.map((r) => ({
+    ...r,
+    beds: r.beds.map((b) => ({ ...b, kind: b.id.includes("mats") ? "mats" : b.id.includes("cot") ? "cot" : "bed1" })),
+  })),
+};
+const infoState = (parties, sleeping = {}, briefing = {}) =>
+  ({ event, layout: kindLayout, parties, sleeping, info: infoCfg, briefing });
+const memoryStorage = (initial) => {
+  const data = new Map(initial === undefined ? [] : [["info-packed", initial]]);
+  return { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, v) };
+};
+
+test("BRIEFING_STEPS keep the station order", () => {
+  assert.deepEqual(plain(L.BRIEFING_STEPS), ["pack", "water", "food", "program", "sleep"]);
+});
+
+test("needsMat and matPlaces: mats and cot beds only, each place once", () => {
+  const p = party();
+  const s = infoState([p], {
+    [THU]: { "konica-lower-mats-1": p.id },
+    [FRI]: { "konica-lower-mats-2": p.id, "left-cot-1-1": p.id },
+    [SAT]: { "left-double-1": p.id },
+  });
+  assert.equal(L.needsMat(s, p.id), true);
+  assert.deepEqual(plain(L.matPlaces(s, p.id)), ["Konica, dole · Matrace na zemi", "Izba vľavo · Lehátko 1"]);
+  const cot = infoState([p], { [THU]: { "left-cot-2-1": p.id } });
+  assert.deepEqual(plain(L.matPlaces(cot, p.id)), ["Izba vľavo · Lehátko 2"]);
+  const bedOnly = infoState([p], { [THU]: { "left-double-1": p.id } });
+  assert.equal(L.needsMat(bedOnly, p.id), false);
+  assert.equal(L.needsMat(bedOnly, "p-nobody"), false);
+  assert.deepEqual(plain(L.matPlaces(null, p.id)), []);
+});
+
+test("packItems: pack, sheet, mat only when needed, water; duplicates once", () => {
+  const labels = (items) => plain(items.map((i) => i.label));
+  assert.deepEqual(labels(L.packItems(infoCfg, false)), ["Spacák", "Vankúš", "Plachta na matrac", "Balená voda"]);
+  assert.deepEqual(labels(L.packItems(infoCfg, true)), ["Spacák", "Vankúš", "Plachta na matrac", "Karimatka", "Balená voda"]);
+  assert.deepEqual(plain(L.packItems(infoCfg, true)[3]), { icon: "karimatka", label: "Karimatka" });
+  const dup = { ...infoCfg, pack: [{ icon: "plachta", label: "plachta na matrac" }] };
+  assert.deepEqual(labels(L.packItems(dup, false)), ["plachta na matrac", "Balená voda"]);
+  assert.deepEqual(plain(L.packItems(null, true)), []);
+});
+
+test("loadPacked and togglePacked use the injected storage; corrupt JSON gives an empty set", () => {
+  const st = memoryStorage();
+  assert.equal(L.loadPacked(st).size, 0);
+  assert.equal(L.togglePacked(st, "Spacák").has("Spacák"), true);
+  L.togglePacked(st, "Vankúš");
+  assert.deepEqual([...L.loadPacked(st)], ["Spacák", "Vankúš"]);
+  assert.equal(L.togglePacked(st, "Spacák").has("Spacák"), false);
+  assert.deepEqual([...L.loadPacked(st)], ["Vankúš"]);
+  assert.equal(L.loadPacked(memoryStorage("{not json")).size, 0);
+  assert.equal(L.loadPacked(memoryStorage('{"a":1}')).size, 0);
+});
+
+test("packProgressText", () => {
+  assert.equal(L.packProgressText(3, 15), "Ťukni, čo už máš · 3 z 15");
+  assert.equal(L.packProgressText(0, 5), "Ťukni, čo už máš · 0 z 5");
+  assert.equal(L.packProgressText(5, 5), "Všetko zbalené!");
+});
+
+test("waterDefaults: nights of the stay, day visits for a day-only party, null for unknowns", () => {
+  const stay = party({ adults: 2, kids: 1, kids_in_parents_bed: 1, arrive: FRI, leave: "2026-11-01" });
+  const day = party({ id: "p-bbbbbb", adults: 1, kids: 0, arrive: null, leave: null, day_visits: [THU, FRI, SAT] });
+  const s = infoState([stay, day]);
+  assert.deepEqual(plain(L.waterDefaults(s, stay.id)), { people: 3, days: 2 });
+  assert.deepEqual(plain(L.waterDefaults(s, day.id)), { people: 1, days: 3 });
+  assert.equal(L.waterDefaults(s, "p-nobody"), null);
+  assert.equal(L.waterDefaults({ ...s, info: null }, stay.id), null);
+  assert.deepEqual(plain(L.waterBounds(s)), { peopleMin: 1, peopleMax: 20, daysMin: 1, daysMax: 4 });
+});
+
+test("waterResult and formatNumber", () => {
+  assert.deepEqual(plain(L.waterResult(3, 2, infoCfg.water)), { liters: 12, bottles: 8 });
+  assert.deepEqual(plain(L.waterResult(1, 1, infoCfg.water)), { liters: 2, bottles: 2 });
+  assert.equal(L.waterResult(2, 2, null), null);
+  assert.equal(L.formatNumber(1.5), "1,5");
+  assert.equal(L.formatNumber(12), "12");
+});
+
+test("briefing status: all five, list alone, partial, none", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" }), b = party({ id: "p-bbbbbb", name: "B" });
+  const c = party({ id: "p-cccccc", name: "C" }), d = party({ id: "p-dddddd", name: "D" });
+  const s = infoState([a, b, c, d], {}, {
+    [a.id]: ["pack", "water", "food", "program", "sleep"],
+    [b.id]: ["list"],
+    [c.id]: ["pack", "sleep", "list-not-a-step"],
+  });
+  assert.equal(L.briefingDone(s, a.id), true);
+  assert.equal(L.briefingDone(s, b.id), true);
+  assert.equal(L.briefingDone(s, c.id), false);
+  assert.equal(L.briefingDone(s, d.id), false);
+  assert.equal(L.briefingStatusText(s, a.id), "✓ prejdené");
+  assert.equal(L.briefingStatusText(s, b.id), "✓ prejdené");
+  assert.equal(L.briefingStatusText(s, c.id), "2 z 5");
+  assert.equal(L.briefingStatusText(s, d.id), "ešte nie");
+  assert.deepEqual(plain(L.briefingCount(s)), { done: 2, total: 4 });
+  assert.deepEqual(plain(L.notBriefedNames(s)), ["C", "D"]);
+  const off = { ...s, info: null };
+  assert.equal(L.briefingStatusText(off, a.id), null);
+  assert.equal(L.briefingCount(off), null);
+  assert.deepEqual(plain(L.notBriefedNames(off)), []);
+  assert.equal(L.briefingStatusText(s, "p-nobody"), null);
+  assert.equal(L.briefingDone({ ...s, briefing: undefined }, a.id), false);
+});
+
+test("nextStation and boardHint", () => {
+  assert.equal(L.nextStation([]), "pack");
+  assert.equal(L.nextStation(["pack", "sleep"]), "water");
+  assert.equal(L.nextStation(["pack", "water", "food", "program", "sleep"]), null);
+  assert.equal(L.nextStation(undefined), "pack");
+  assert.equal(L.boardHint("water"), "Teraz ťukni na studňu.");
+  assert.equal(L.boardHint("sleep"), "Nakoniec ťukni na chatu. Kde budeš spať?");
+  assert.equal(L.boardHint(null), null);
+});
+
+test("quickWhatsAppText: water line only for non-drinkable water, no HTML", () => {
+  const text = L.quickWhatsAppText(infoCfg, "Chata");
+  assert.equal(text, [
+    "*Chata*",
+    "💧 Voda z kohútika nie je pitná, dones balenú (2 l na človeka a deň).",
+    "🎒 Zbaľ si: spacák, vankúš.",
+    "🛏️ Plachta na matrac.",
+    "🍲 Št 29. 10. guláš.",
+    "🍞 Dones: raňajky.",
+    "🍂 Lampiónový sprievod.",
+  ].join("\n"));
+  assert.ok(!/<[a-z]/i.test(text));
+  const drinkable = L.quickWhatsAppText({ ...infoCfg, water: { ...infoCfg.water, drinkable: true } }, "Chata");
+  assert.ok(!drinkable.includes("💧"));
+  assert.equal(L.quickWhatsAppText(null, "Chata"), "");
+});
