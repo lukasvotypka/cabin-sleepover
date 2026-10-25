@@ -250,6 +250,8 @@ function openLegend(returnKey) {
           text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · " + row.stay));
           if (nightRows[row.id]) text.appendChild(nightsLine(nightRows[row.id]));
         }
+        var briefing = briefingStatusText(app.state, row.id);
+        if (briefing) text.appendChild(htmlEl("div", { "class": "legend-nights legend-briefing" }, "Pred cestou: " + briefing));
         li.appendChild(swatch);
         li.appendChild(text);
         list.appendChild(li);

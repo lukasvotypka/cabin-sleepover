@@ -350,6 +350,11 @@ function summaryText(state, link) {
     lines.push("Chýbajú miesta:");
     warnings.forEach(function (w) { lines.push(w); });
   }
+  var notBriefed = notBriefedNames(state);
+  if (notBriefed.length) {
+    lines.push("");
+    lines.push("Pred cestou ešte neprešli: " + notBriefed.join(", "));
+  }
   lines.push("");
   lines.push("Tu sa zapíšeš: " + link);
   return lines.join("\n");
