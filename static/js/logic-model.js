@@ -537,20 +537,27 @@ function seenText(lastSeenIso, serverNowMs, isOnline) {
   return "pred " + Math.floor(min / 1440) + " d";
 }
 
-// The line under „Si: …“ in the bottom HUD: how many parties are online, mine included.
-function onlineLine(presence, myPartyId) {
-  // Everyone online, me included: this page is polling, so my party counts even before the server lists it.
-  var online = presence && presence.online ? presence.online : [];
-  var n = online.filter(function (id) { return id !== myPartyId; }).length + (myPartyId ? 1 : 0);
-  if (myPartyId && n === 1) return "online: len ty";
-  return n > 0 ? "online: " + n : "online: nikto";
+// The online parties under „Si: …“ in the bottom HUD, mine included, in `state.parties` order.
+// My party counts even before the server lists it: this page is polling, so it is online.
+// {chips: [{id, color, ch, ink, mine}] (at most `max`), more: how many did not fit, label: for screen readers}.
+function onlineChips(state, myPartyId, max) {
+  var presence = state && state.presence;
+  var ids = {};
+  ((presence && presence.online) || []).forEach(function (id) { ids[id] = true; });
+  if (myPartyId) ids[myPartyId] = true;
+  var parties = ((state && state.parties) || []).filter(function (p) { return ids[p.id]; });
+  var chips = parties.slice(0, max).map(function (p) {
+    return { id: p.id, color: p.color, ch: shirtChar(p.name), ink: shirtInk(p.color), mine: p.id === myPartyId };
+  });
+  var label = parties.length ? "online: " + parties.map(function (p) { return p.name; }).join(", ") : "online: nikto";
+  return { chips: chips, more: parties.length - chips.length, label: label };
 }
 
-// The online line, or the age of the data when the last poll failed or the data are older than 90 s.
+// The age of the data replaces the online chips when the last poll failed or the data are older than 90 s.
 var STALE_DATA_MS = 90000;
-function hudCrestLine(o) {
+function crestAgeText(o) {
   if (o.lastPollFailed || o.nowMs - o.fetchedAtMs > STALE_DATA_MS) return updatedAgoText(o.fetchedAtMs, o.nowMs);
-  return onlineLine(o.presence, o.myPartyId);
+  return null;
 }
 
 function ellipsize(text, max) {

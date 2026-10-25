@@ -223,25 +223,35 @@ test("seenText covers each branch and boundaries", () => {
   assert.equal(L.seenText(ago(3 * 86400000), now, false), "pred 3 d");
 });
 
-test("onlineLine counts all online parties, mine included", () => {
-  assert.equal(L.onlineLine({ online: ["a", "b", "c"] }, "a"), "online: 3");
-  assert.equal(L.onlineLine({ online: ["a", "b"] }, "a"), "online: 2");
-  assert.equal(L.onlineLine({ online: ["a"] }, "a"), "online: len ty");
-  assert.equal(L.onlineLine({ online: ["a"] }, "z"), "online: 2");   // my party is not in `online` yet
-  assert.equal(L.onlineLine({ online: [] }, "a"), "online: len ty");
-  assert.equal(L.onlineLine({ online: [] }, null), "online: nikto");
-  assert.equal(L.onlineLine({ online: ["a", "b"] }, null), "online: 2");
+test("onlineChips lists online parties with their shirt letter, mine included", () => {
+  const state = {
+    parties: [
+      { id: "a", name: "Ivan a Eva", color: "#2F7D6D" },
+      { id: "b", name: "Šimon", color: "#F3E3C0" },
+      { id: "c", name: "Cyril", color: "#6D5BA8" }
+    ],
+    presence: { online: ["c", "a", "gone"] }
+  };
+  const r = L.onlineChips(state, "b", 8);
+  assert.deepEqual(r.chips.map((c) => c.id), ["a", "b", "c"]);   // state order, unknown ids dropped
+  assert.equal(r.chips[1].ch, "S");
+  assert.equal(r.chips[1].mine, true);
+  assert.equal(r.chips[0].ink, L.shirtInk("#2F7D6D"));
+  assert.equal(r.more, 0);
+  assert.equal(r.label, "online: Ivan a Eva, Šimon, Cyril");
+  const few = L.onlineChips(state, "b", 2);
+  assert.deepEqual([few.chips.length, few.more], [2, 1]);
+  assert.equal(L.onlineChips({ parties: state.parties, presence: { online: [] } }, null, 8).label, "online: nikto");
+  assert.equal(L.onlineChips({ parties: state.parties }, "a", 8).chips.length, 1);   // no presence yet: just me
 });
 
-test("hudCrestLine switches to the age text on a problem", () => {
-  const presence = { online: ["a", "b"] };
-  const base = { presence, myPartyId: "a", fetchedAtMs: 1000000, nowMs: 1030000, lastPollFailed: false };
-  assert.equal(L.hudCrestLine(base), "online: 2");
-  assert.equal(L.hudCrestLine({ ...base, nowMs: 1090000 }), "online: 2");
-  assert.equal(L.hudCrestLine({ ...base, nowMs: 1091000 }), "aktualizované pred 1 min");
-  assert.equal(L.hudCrestLine({ ...base, lastPollFailed: true }), "aktualizované pred 30 s");
-  // a 304 refresh resets fetchedAt, so the online line is back
-  assert.equal(L.hudCrestLine({ ...base, fetchedAtMs: 1091000, nowMs: 1092000 }), "online: 2");
+test("crestAgeText shows the age only on a problem", () => {
+  const base = { fetchedAtMs: 1000000, nowMs: 1030000, lastPollFailed: false };
+  assert.equal(L.crestAgeText(base), null);
+  assert.equal(L.crestAgeText({ ...base, nowMs: 1090000 }), null);
+  assert.equal(L.crestAgeText({ ...base, nowMs: 1091000 }), "aktualizované pred 1 min");
+  assert.equal(L.crestAgeText({ ...base, lastPollFailed: true }), "aktualizované pred 30 s");
+  assert.equal(L.crestAgeText({ ...base, fetchedAtMs: 1091000, nowMs: 1092000 }), null);   // a 304 resets fetchedAt
 });
 
 test("relative refresh time", () => {

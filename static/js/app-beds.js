@@ -180,11 +180,28 @@ function showTip(bed) {
 
 function renderAge() {
   if (!app.ageNode || !app.fetchedAt) return;
-  var line = hudCrestLine({
-    presence: app.state ? app.state.presence : null, myPartyId: app.myParty,
-    fetchedAtMs: app.fetchedAt, nowMs: Date.now(), lastPollFailed: app.pollFailed
-  });
-  app.ageNode.textContent = line;
+  var age = crestAgeText({ fetchedAtMs: app.fetchedAt, nowMs: Date.now(), lastPollFailed: app.pollFailed });
+  var online = onlineChips(app.state, app.myParty, CREST_CHIPS_MAX);
+  var line = age || online.label;
+  // Rebuilt only when something changed: this runs every second.
+  var key = age || JSON.stringify([online.chips, online.more]);
+  if (app.ageKey !== key) {
+    app.ageKey = key;
+    clearNode(app.ageNode);
+    if (age) {
+      app.ageNode.textContent = age;
+    } else if (!online.chips.length) {
+      app.ageNode.textContent = "online: nikto";
+    } else {
+      online.chips.forEach(function (c) {
+        var chip = htmlEl("span", { "class": "online-chip" + (c.mine ? " mine" : ""), "aria-hidden": "true" });
+        chip.style.background = c.color;
+        chip.appendChild(glyphIcon(c.ch, c.ink));
+        app.ageNode.appendChild(chip);
+      });
+      if (online.more) app.ageNode.appendChild(htmlEl("span", { "class": "online-more", "aria-hidden": "true" }, "+" + online.more));
+    }
+  }
   var crest = $("crest");
   if (crest && app.crestLabel) crest.setAttribute("aria-label", app.crestLabel + " " + line + ".");
 }

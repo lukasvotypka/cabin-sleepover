@@ -96,6 +96,7 @@ function drawCrest(host, party) {
   var plate = htmlEl("span", { "class": "crest-plate" });
   plate.appendChild(htmlEl("span", { "class": "crest-name" }, party ? ellipsize(party.name, 16) : "Kto si?"));
   app.ageNode = htmlEl("span", { "class": "crest-age" });
+  app.ageKey = null;   // a new node: draw it again
   plate.appendChild(app.ageNode);
   host.appendChild(plate);
   app.crestLabel = (party ? "Si: " + party.name + ". " : "Zatiaľ nevieme, kto si. ") + "Ťuknutím vyberieš, kto si.";

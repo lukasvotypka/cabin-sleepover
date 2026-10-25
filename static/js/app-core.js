@@ -6,6 +6,7 @@
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
 var AGE_TICK_MS = 1000;
+var CREST_CHIPS_MAX = 7;   // online chips under „Si: …“; the rest is „+N“
 // A request that hangs (a phone that slept or lost the network mid-request) is given up after this,
 // so the next poll can run. Without it a hung poll blocked all later ones and the page stayed stale.
 var POLL_TIMEOUT_MS = 10000;
@@ -118,7 +119,8 @@ var app = {
   questBottom: 0,      // bottom edge of the quest log in CSS px, to refit the scene when it changes
   questRows: null,     // the last quest rows, to notice a finished night
   questParty: null,    // the party those rows were for
-  ageNode: null        // the „aktualizované pred …“ line in the bottom HUD
+  ageNode: null,       // the line under „Si: …“ in the bottom HUD: online chips, or the data age on a problem
+  ageKey: null         // what `ageNode` shows now, so the 1 s tick rebuilds it only on a change
 };
 // The role from /api/join is kept for T-009 (admin). Nothing uses it yet.
 app.role = storage.get(KEYS.role);
