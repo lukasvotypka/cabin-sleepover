@@ -98,7 +98,8 @@ function drawCrest(host, party) {
   app.ageNode = htmlEl("span", { "class": "crest-age" });
   plate.appendChild(app.ageNode);
   host.appendChild(plate);
-  host.setAttribute("aria-label", (party ? "Si: " + party.name + ". " : "Zatiaľ nevieme, kto si. ") + "Ťuknutím vyberieš, kto si.");
+  app.crestLabel = (party ? "Si: " + party.name + ". " : "Zatiaľ nevieme, kto si. ") + "Ťuknutím vyberieš, kto si.";
+  host.setAttribute("aria-label", app.crestLabel);
   renderAge();
 }
 

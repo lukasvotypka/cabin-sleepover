@@ -526,6 +526,32 @@ function updatedAgoText(thenMs, nowMs) {
   return "aktualizované pred " + Math.floor(s / 3600) + " h";
 }
 
+// Relative „last seen“ text of a party in „Kto si?“ (T-050). `serverNowMs` is the server's clock, not the phone's.
+function seenText(lastSeenIso, serverNowMs, isOnline) {
+  if (isOnline) return "online";
+  var then = lastSeenIso ? Date.parse(lastSeenIso) : NaN;
+  if (isNaN(then)) return "zatiaľ nevidené";
+  var min = Math.max(1, Math.floor((serverNowMs - then) / 60000));
+  if (min < 60) return "pred " + min + " min";
+  if (min < 24 * 60) return "pred " + Math.floor(min / 60) + " h";
+  return "pred " + Math.floor(min / 1440) + " d";
+}
+
+// The line under „Si: …“ in the bottom HUD: how many other parties are online.
+function onlineLine(presence, myPartyId) {
+  var online = presence && presence.online ? presence.online : [];
+  var n = online.filter(function (id) { return id !== myPartyId; }).length;
+  if (n > 0) return "online: " + n;
+  return myPartyId ? "online: len ty" : "online: nikto";
+}
+
+// The online line, or the age of the data when the last poll failed or the data are older than 90 s.
+var STALE_DATA_MS = 90000;
+function hudCrestLine(o) {
+  if (o.lastPollFailed || o.nowMs - o.fetchedAtMs > STALE_DATA_MS) return updatedAgoText(o.fetchedAtMs, o.nowMs);
+  return onlineLine(o.presence, o.myPartyId);
+}
+
 function ellipsize(text, max) {
   text = String(text);
   return text.length <= max ? text : text.slice(0, max - 1).replace(/\s+$/, "") + "…";

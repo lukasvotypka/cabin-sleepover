@@ -145,6 +145,7 @@ function openWho(opts) {
     });
     me.appendChild(edit);
     actions.appendChild(add);
+    panel.ageTicks = true;   // refreshed on a 304 too, so the „pred …“ texts stay current
     panel.refresh = function () {
       // A new state rebuilds the rows, so focus returns to the same party (or to the first button).
       keepFocus(body, function () {
@@ -170,6 +171,10 @@ function openWho(opts) {
         swatch.style.background = party.color;
         row.appendChild(swatch);
         row.appendChild(htmlEl("span", { "class": "name" }, party.name));
+        var pres = app.state.presence || {};
+        var seen = seenText((pres.last_seen || {})[party.id], serverNow(), (pres.online || []).indexOf(party.id) !== -1);
+        row.appendChild(htmlEl("span", { "class": "seen" }, seen));
+        row.setAttribute("aria-label", party.name + ", " + seen);
         if (party.id === app.myParty) row.appendChild(htmlEl("span", { "class": "mark", "aria-hidden": "true" }, "✓"));
         row.addEventListener("click", function () {
           setMyParty(party.id);

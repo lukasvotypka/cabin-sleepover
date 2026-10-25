@@ -5,7 +5,7 @@
 
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
-var AGE_TICK_MS = 5000;
+var AGE_TICK_MS = 1000;
 var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound" };
 var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
@@ -67,6 +67,9 @@ var app = {
   state: null,
   etag: null,
   fetchedAt: 0,
+  pollFailed: false,   // the last poll rejected or got an unexpected status
+  serverMs: 0,         // `presence.server_time` of the last 200 ...
+  serverLocalMs: 0,    // ... and the local time when that response arrived
   night: null,
   nightSynced: false,  // set by the first applyState: only that one may take the night from the remembered party
   myParty: storage.get(KEYS.party),
@@ -138,6 +141,11 @@ function svgEl(parent, tag, attrs, text) {
   return node;
 }
 
+// The server's clock now: its time in the last 200 plus the local time elapsed since then.
+function serverNow() {
+  return app.serverMs + (Date.now() - app.serverLocalMs);
+}
+
 function clearNode(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
@@ -148,6 +156,7 @@ function request(method, path, body, etag) {
   var headers = { "Accept": "application/json", "X-Client-Id": clientId };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (etag) headers["If-None-Match"] = etag;
+  if (app.myParty) headers["X-Party-Id"] = app.myParty;
   return fetch(path, {
     method: method,
     headers: headers,
@@ -201,16 +210,21 @@ function poll() {
   var epoch = app.writeEpoch;
   return request("GET", "api/state", undefined, app.etag).then(function (r) {
     if (r.status === 401) { showCodeScreen(); return; }
+    app.pollFailed = r.status !== 200 && r.status !== 304;
     if (epoch !== app.writeEpoch) return;   // a write finished meanwhile and its state is newer
     if (r.status === 304) {
       app.fetchedAt = Date.now();
       renderAge();
+      // The seen ages in an open „Kto si?“ keep growing although the state did not change.
+      if (app.panel && app.panel.refresh && app.panel.ageTicks) app.panel.refresh();
     } else if (r.status === 200 && r.json && r.json.ok && r.json.state) {
       app.etag = r.etag;
       applyState(r.json.state);
     }
   }).catch(function () {
     // Offline or a bad reply: keep what is shown and try again on the next tick.
+    app.pollFailed = true;
+    renderAge();
   }).then(function () {
     app.polling = false;
     if (!app.state && !app.codeOpen) {
@@ -226,6 +240,9 @@ function poll() {
 function applyState(state) {
   app.state = state;
   app.fetchedAt = Date.now();
+  app.pollFailed = false;   // any reply with a state (a poll or a write) shows the server is reachable
+  var serverMs = state.presence ? Date.parse(state.presence.server_time) : NaN;
+  if (!isNaN(serverMs)) { app.serverMs = serverMs; app.serverLocalMs = app.fetchedAt; }
   if (!app.nightSynced) {
     app.nightSynced = true;
     var remembered = app.myParty ? partyById(state, app.myParty) : null;

@@ -180,5 +180,11 @@ function showTip(bed) {
 
 function renderAge() {
   if (!app.ageNode || !app.fetchedAt) return;
-  app.ageNode.textContent = updatedAgoText(app.fetchedAt, Date.now());
+  var line = hudCrestLine({
+    presence: app.state ? app.state.presence : null, myPartyId: app.myParty,
+    fetchedAtMs: app.fetchedAt, nowMs: Date.now(), lastPollFailed: app.pollFailed
+  });
+  app.ageNode.textContent = line;
+  var crest = $("crest");
+  if (crest && app.crestLabel) crest.setAttribute("aria-label", app.crestLabel + " " + line + ".");
 }
