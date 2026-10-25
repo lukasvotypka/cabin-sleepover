@@ -1,5 +1,7 @@
 """Last seen and online (T-049). The clock is injected, nothing sleeps."""
 
+from datetime import datetime
+
 import yaml
 
 PARTY_HEADER = "X-Party-Id"
@@ -169,3 +171,71 @@ async def test_startup_loads_and_drops_unknown(make_app, tmp_path, make_party, c
     )
     app2 = make_app()
     assert list(app2.state.runtime.seen.seen) == [party.id]
+
+
+AUDIT = """
+---
+time: '2026-10-24T10:37:56+02:00'
+action: party-create
+party: p-aaaaaa
+---
+time: '2026-10-24T11:00:00+02:00'
+action: assign
+party: p-aaaaaa
+---
+broken: [entry
+---
+time: '2026-10-24T12:00:00+02:00'
+action: party-create
+party: p-bbbbbb
+---
+time: '2026-10-24T13:00:00+02:00'
+action: party-create
+party: p-gone00
+"""
+
+
+def test_creation_times_skips_broken_and_other_entries(tmp_path):
+    from app.seen import creation_times
+
+    (tmp_path / "audit.yaml").write_text(AUDIT, encoding="utf-8")
+    times = creation_times(tmp_path / "audit.yaml")
+    assert set(times) == {"p-aaaaaa", "p-bbbbbb", "p-gone00"}
+    assert times["p-aaaaaa"] == datetime.fromisoformat("2026-10-24T10:37:56+02:00").timestamp()
+    assert creation_times(tmp_path / "missing.yaml") == {}
+
+
+def test_first_start_seeds_from_audit(tmp_path, clock):
+    from app.seen import SeenTracker
+
+    (tmp_path / "audit.yaml").write_text(AUDIT, encoding="utf-8")
+    tracker = SeenTracker(tmp_path / "seen.yaml", clock, {"p-aaaaaa", "p-bbbbbb"}, tmp_path / "audit.yaml")
+    assert set(tracker.seen) == {"p-aaaaaa", "p-bbbbbb"}  # the unknown party is not seeded
+    on_disk = yaml.safe_load((tmp_path / "seen.yaml").read_text(encoding="utf-8"))
+    assert datetime.fromisoformat(on_disk["p-aaaaaa"]) == datetime.fromisoformat("2026-10-24T10:37:56+02:00")
+    assert tracker.presence({"p-aaaaaa", "p-bbbbbb"})["online"] == []  # long ago: not online
+
+
+def test_existing_file_is_not_reseeded_on_start(tmp_path, clock):
+    from app.seen import SeenTracker
+
+    (tmp_path / "audit.yaml").write_text(AUDIT, encoding="utf-8")
+    (tmp_path / "seen.yaml").write_text("p-aaaaaa: '2026-10-25T08:00:00+00:00'\n", encoding="utf-8")
+    tracker = SeenTracker(tmp_path / "seen.yaml", clock, {"p-aaaaaa", "p-bbbbbb"}, tmp_path / "audit.yaml")
+    assert list(tracker.seen) == ["p-aaaaaa"]
+
+
+def test_seed_command_fills_only_missing(tmp_path, capsys):
+    from app.seen import main
+
+    (tmp_path / "audit.yaml").write_text(AUDIT, encoding="utf-8")
+    (tmp_path / "cabin-data.yaml").write_text(
+        yaml.safe_dump({"parties": [{"id": "p-aaaaaa"}, {"id": "p-bbbbbb"}]}), encoding="utf-8"
+    )
+    (tmp_path / "seen.yaml").write_text("p-aaaaaa: '2026-10-25T08:00:00+00:00'\n", encoding="utf-8")
+    assert main(["seed", str(tmp_path)]) == 0
+    assert "seeded 1 of 2" in capsys.readouterr().out
+    on_disk = yaml.safe_load((tmp_path / "seen.yaml").read_text(encoding="utf-8"))
+    assert on_disk["p-aaaaaa"] == "2026-10-25T08:00:00+00:00"  # a newer real time is kept
+    assert datetime.fromisoformat(on_disk["p-bbbbbb"]) == datetime.fromisoformat("2026-10-24T12:00:00+02:00")
+    assert main(["oops"]) == 2

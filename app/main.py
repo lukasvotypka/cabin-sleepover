@@ -455,7 +455,9 @@ def create_app(
         ),
         join_limiter=SlidingWindowLimiter(CODE_ATTEMPTS_PER_MINUTE, clock=monotonic),
         write_limiter=SlidingWindowLimiter(app_config.limits.writes_per_client_minute, clock=monotonic),
-        seen=SeenTracker(Path(data_dir) / "seen.yaml", clock, {p.id for p in store.read().parties}),
+        seen=SeenTracker(
+            Path(data_dir) / "seen.yaml", clock, {p.id for p in store.read().parties}, store.audit_path
+        ),
         layout_json=layout_json,
         config_hash=config_digest(layout_json),
     )
