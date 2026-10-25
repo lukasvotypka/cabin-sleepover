@@ -141,6 +141,16 @@ What you get: the image is built from the official `python:3.12-slim` with the l
 
 The page uses relative paths for the API, so it also works under a sub-path such as `https://example.com/cabin/` (see the comment in `deploy/Caddyfile`). The default is the root of its own (sub)domain.
 
+### Live updates
+
+The page opens one `EventSource` on `GET /api/events` (needs the group cookie) and gets the full state as an `event: state` frame after every write, within about a second. The same stream carries who is online (`event: presence`) and an `event: ping` every 20 s as a keep-alive. If the stream cannot be opened or breaks, the page polls `/api/state` every 30 s (with `ETag`) and reconnects by itself.
+
+- **One worker is required.** The event hub lives in the memory of the single uvicorn process, like the write lock. With more workers a change would reach only the pages connected to the same worker.
+- **Proxies must not buffer or compress the stream.** Caddy flushes `text/event-stream` at once, so the example needs nothing. For nginx use the `location /api/events` block in `deploy/Caddyfile` (`proxy_buffering off;`, `proxy_read_timeout 1h;`). Do not apply `encode` to `/api/events`.
+- **Tailscale serve works as is** (`tailscale serve --https=8443 http://127.0.0.1:8010`).
+- **Shutdown:** an event stream never ends by itself, so uvicorn would wait for it forever. uvicorn therefore runs with `--timeout-graceful-shutdown 3` (in the `Dockerfile`; use the same flag when starting uvicorn by hand): it waits at most about 3 s for open requests, then cancels the remaining streams, and only after that the app closes its event hub in the lifespan shutdown. `docker compose stop` and `restart` therefore do not hang, and the pages reconnect when the server is back.
+- **Check it:** `curl -N -H 'Cookie: <group cookie>' https://cabin.example.com/api/events` prints `event: state` at once and `event: ping` every 20 s.
+
 ## 5. Where the data lives
 
 Everything is in `data/` next to the app (git-ignored, created on first start, and **never served over HTTP**; a test checks that `/data/...` and `/.env` give 404):

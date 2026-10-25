@@ -6,6 +6,11 @@ cabin.example.com {
 		# on 127.0.0.1 only, see compose.yaml) trusts this header and counts the wrong-code limit per IP.
 		header_up X-Forwarded-For {remote_host}
 	}
+	# Live updates: /api/events is a long-lived text/event-stream response. Caddy flushes it at once, so no extra
+	# setting is needed. If you ever add `encode` (compression), do not apply it to /api/events, because
+	# compression buffers the stream and the pages would fall back to polling every 30 s:
+	#   @notstream not path /api/events
+	#   encode @notstream gzip
 }
 
 # The app uses relative API paths, so it can also live under a sub-path of a bigger site:
@@ -31,5 +36,14 @@ cabin.example.com {
 #           proxy_set_header Host $host;
 #           proxy_set_header X-Forwarded-For $remote_addr;      # not $proxy_add_x_forwarded_for
 #           proxy_set_header X-Forwarded-Proto $scheme;
+#       }
+#       # Live updates (event stream): no buffering, long read timeout, same headers as above.
+#       location /api/events {
+#           proxy_pass http://127.0.0.1:8010;
+#           proxy_set_header Host $host;
+#           proxy_set_header X-Forwarded-For $remote_addr;
+#           proxy_set_header X-Forwarded-Proto $scheme;
+#           proxy_buffering off;
+#           proxy_read_timeout 1h;
 #       }
 #   }
