@@ -34,7 +34,7 @@ from zoneinfo import ZoneInfo
 import yaml
 from pydantic import ValidationError
 
-from app.models import Layout, State, format_validation_error
+from app.models import BRIEFING_STEPS, Layout, State, _duplicates, format_validation_error
 from app.validate import RuleError, check_party_name, check_stay_shape, is_present
 
 log = logging.getLogger("chrapa.store")
@@ -128,6 +128,15 @@ def _data_problems(state: State, layout: Layout) -> list[str]:
                 problems.append(f"{where}: unknown slot (not in cabin.yaml)")
             if party_id not in seen_ids:
                 problems.append(f"{where}: unknown party ID “{party_id}”")
+    for party_id, steps in state.briefing.items():
+        where = f"briefing.{party_id}"
+        if party_id not in seen_ids:
+            problems.append(f"{where}: unknown party ID “{party_id}”")
+        for step in steps:
+            if step not in BRIEFING_STEPS:
+                problems.append(f"{where}: unknown step “{step}”")
+        for step in _duplicates(steps):
+            problems.append(f"{where}: step “{step}” is listed more than once")
     return problems
 
 

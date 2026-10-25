@@ -16,6 +16,8 @@ var REASON_TEXTS = {
   day_outside_event: "Tento deň nie je v termíne chaty.",
   day_only_kids_in_bed: "Keď prídeš len cez deň, deti v rodičovskej posteli nechaj na 0.",
   places_out_of_range: "Počet miest nesedí. Obnov stránku a skús to znova.",
+  too_long: "Text je príliš dlhý, skráť ho (najviac 120 znakov).",
+  control_chars: "Text obsahuje nepovolené znaky. Napíš ho znova.",
   color_too_dark: "Táto farba je príliš tmavá, postavičku by na posteli nebolo vidno. Vyber svetlejšiu."
 };
 

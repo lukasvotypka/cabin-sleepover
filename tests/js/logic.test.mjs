@@ -1633,7 +1633,7 @@ test("page: API paths are relative", () => {
 });
 
 test("page: no header, list view or overview switch", () => {
-  assert.doesNotMatch(html, /<header|<nav|Zoznam/);
+  assert.doesNotMatch(html, /<header|<nav|Zoznam(?! na zbalenie)/);
 });
 
 test("page: no bed, room or slot geometry or names are hardcoded in the page code", () => {
@@ -3524,4 +3524,328 @@ test("versionLine: both values, one missing, placeholders", () => {
   assert.equal(L.versionLine("__APP_VERSION__", "__ASSET_VERSION__"), "");
   assert.equal(L.versionLine("1.11.0", "__ASSET_VERSION__"), "verzia 1.11.0");
   assert.equal(L.versionLine(undefined, null), "");
+});
+
+// --- „Pred cestou“ (logic-info.js) ---
+
+const infoCfg = {
+  water: { drinkable: false, liters_per_day: 2, bottle_liters: 1.5 },
+  pack: [{ icon: "spacak", label: "Spacák" }, { icon: "vankus", label: "Vankúš" }],
+  sleep: [{ icon: "plachta", label: "Plachta na matrac", note: "bez obliečok" }],
+  menu: [{ day: THU, meals: [{ when: "večer", what: "guláš" }] }],
+  bring: "raňajky",
+  program: [{ icon: "lampion", title: "Lampiónový sprievod", when: "So", note: "" }],
+};
+const kindLayout = {
+  ...layout,
+  rooms: rooms.map((r) => ({
+    ...r,
+    beds: r.beds.map((b) => ({ ...b, kind: b.id.includes("mats") ? "mats" : b.id.includes("cot") ? "cot" : "bed1" })),
+  })),
+};
+const infoState = (parties, sleeping = {}, briefing = {}) =>
+  ({ event, layout: kindLayout, parties, sleeping, info: infoCfg, briefing });
+const memoryStorage = (initial) => {
+  const data = new Map(initial === undefined ? [] : [["info-packed", initial]]);
+  return { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, v) };
+};
+
+test("BRIEFING_STEPS keep the station order", () => {
+  assert.deepEqual(plain(L.BRIEFING_STEPS), ["pack", "water", "food", "program", "sleep"]);
+});
+
+test("needsMat and matPlaces: mats and cot beds only, each place once", () => {
+  const p = party();
+  const s = infoState([p], {
+    [THU]: { "konica-lower-mats-1": p.id },
+    [FRI]: { "konica-lower-mats-2": p.id, "left-cot-1-1": p.id },
+    [SAT]: { "left-double-1": p.id },
+  });
+  assert.equal(L.needsMat(s, p.id), true);
+  assert.deepEqual(plain(L.matPlaces(s, p.id)), ["Konica, dole · Matrace na zemi", "Izba vľavo · Lehátko 1"]);
+  const cot = infoState([p], { [THU]: { "left-cot-2-1": p.id } });
+  assert.deepEqual(plain(L.matPlaces(cot, p.id)), ["Izba vľavo · Lehátko 2"]);
+  const bedOnly = infoState([p], { [THU]: { "left-double-1": p.id } });
+  assert.equal(L.needsMat(bedOnly, p.id), false);
+  assert.equal(L.needsMat(bedOnly, "p-nobody"), false);
+  assert.deepEqual(plain(L.matPlaces(null, p.id)), []);
+});
+
+test("packItems: pack, sheet, mat only when needed, water; duplicates once", () => {
+  const labels = (items) => plain(items.map((i) => i.label));
+  assert.deepEqual(labels(L.packItems(infoCfg, false)), ["Spacák", "Vankúš", "Plachta na matrac", "Balená voda"]);
+  assert.deepEqual(labels(L.packItems(infoCfg, true)), ["Spacák", "Vankúš", "Plachta na matrac", "Karimatka", "Balená voda"]);
+  assert.deepEqual(plain(L.packItems(infoCfg, true)[3]), { icon: "karimatka", label: "Karimatka" });
+  const dup = { ...infoCfg, pack: [{ icon: "plachta", label: "plachta na matrac" }] };
+  const withNote = L.packItems({ pack: [{ icon: "spacak", label: "Spacák", note: "Požičiame." }, { icon: "x", label: "Y", note: null }] }, false);
+  assert.equal(withNote[0].note, "Požičiame.");
+  assert.equal("note" in withNote[1], false);
+  assert.deepEqual(labels(L.packItems(dup, false)), ["plachta na matrac", "Balená voda"]);
+  assert.deepEqual(plain(L.packItems(null, true)), []);
+});
+
+test("loadPacked and togglePacked use the injected storage; corrupt JSON gives an empty set", () => {
+  const st = memoryStorage();
+  assert.equal(L.loadPacked(st).size, 0);
+  assert.equal(L.togglePacked(st, "Spacák").has("Spacák"), true);
+  L.togglePacked(st, "Vankúš");
+  assert.deepEqual([...L.loadPacked(st)], ["Spacák", "Vankúš"]);
+  assert.equal(L.togglePacked(st, "Spacák").has("Spacák"), false);
+  assert.deepEqual([...L.loadPacked(st)], ["Vankúš"]);
+  assert.equal(L.loadPacked(memoryStorage("{not json")).size, 0);
+  assert.equal(L.loadPacked(memoryStorage('{"a":1}')).size, 0);
+});
+
+test("packProgressText", () => {
+  assert.equal(L.packProgressText(3, 15), "Ťukni, čo už máš · 3 z 15");
+  assert.equal(L.packProgressText(0, 5), "Ťukni, čo už máš · 0 z 5");
+  assert.equal(L.packProgressText(5, 5), "Všetko zbalené!");
+});
+
+test("waterDefaults: nights of the stay, day visits for a day-only party, null for unknowns", () => {
+  const stay = party({ adults: 2, kids: 1, kids_in_parents_bed: 1, arrive: FRI, leave: "2026-11-01" });
+  const day = party({ id: "p-bbbbbb", adults: 1, kids: 0, arrive: null, leave: null, day_visits: [THU, FRI, SAT] });
+  const s = infoState([stay, day]);
+  assert.deepEqual(plain(L.waterDefaults(s, stay.id)), { people: 3, days: 2 });
+  assert.deepEqual(plain(L.waterDefaults(s, day.id)), { people: 1, days: 3 });
+  assert.equal(L.waterDefaults(s, "p-nobody"), null);
+  assert.equal(L.waterDefaults({ ...s, info: null }, stay.id), null);
+  assert.deepEqual(plain(L.waterBounds(s)), { peopleMin: 1, peopleMax: 20, daysMin: 1, daysMax: 4 });
+});
+
+test("waterResult and formatNumber", () => {
+  assert.deepEqual(plain(L.waterResult(3, 2, infoCfg.water)), { liters: 12, bottles: 8 });
+  assert.deepEqual(plain(L.waterResult(1, 1, infoCfg.water)), { liters: 2, bottles: 2 });
+  assert.equal(L.waterResult(2, 2, null), null);
+  assert.equal(L.formatNumber(1.5), "1,5");
+  assert.equal(L.formatNumber(12), "12");
+});
+
+test("briefing status: all five, list alone, partial, none", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" }), b = party({ id: "p-bbbbbb", name: "B" });
+  const c = party({ id: "p-cccccc", name: "C" }), d = party({ id: "p-dddddd", name: "D" });
+  const s = infoState([a, b, c, d], {}, {
+    [a.id]: ["pack", "water", "food", "program", "sleep"],
+    [b.id]: ["list"],
+    [c.id]: ["pack", "sleep", "list-not-a-step"],
+  });
+  assert.equal(L.briefingDone(s, a.id), true);
+  assert.equal(L.briefingDone(s, b.id), true);
+  assert.equal(L.briefingDone(s, c.id), false);
+  assert.equal(L.briefingDone(s, d.id), false);
+  assert.equal(L.briefingStatusText(s, a.id), "✓ prejdené");
+  assert.equal(L.briefingStatusText(s, b.id), "✓ prejdené");
+  assert.equal(L.briefingStatusText(s, c.id), "2 z 5");
+  assert.equal(L.briefingStatusText(s, d.id), "ešte nie");
+  assert.deepEqual(plain(L.briefingCount(s)), { done: 2, total: 4 });
+  assert.deepEqual(plain(L.notBriefedNames(s)), ["C", "D"]);
+  const off = { ...s, info: null };
+  assert.equal(L.briefingStatusText(off, a.id), null);
+  assert.equal(L.briefingCount(off), null);
+  assert.deepEqual(plain(L.notBriefedNames(off)), []);
+  assert.equal(L.briefingStatusText(s, "p-nobody"), null);
+  assert.equal(L.briefingDone({ ...s, briefing: undefined }, a.id), false);
+});
+
+test("nextStation and boardHint", () => {
+  assert.equal(L.nextStation([]), "pack");
+  assert.equal(L.nextStation(["pack", "sleep"]), "water");
+  assert.equal(L.nextStation(["pack", "water", "food", "program", "sleep"]), null);
+  assert.equal(L.nextStation(undefined), "pack");
+  assert.equal(L.boardHint("water"), "Teraz ťukni na studňu.");
+  assert.equal(L.boardHint("sleep"), "Nakoniec ťukni na chatu. Kde budeš spať?");
+  assert.equal(L.boardHint(null), null);
+});
+
+test("quickWhatsAppText: water line only for non-drinkable water, no HTML", () => {
+  const text = L.quickWhatsAppText(infoCfg, "Chata");
+  assert.equal(text, [
+    "*Chata*",
+    "💧 Voda z kohútika nie je pitná, dones balenú (2 l na človeka a deň).",
+    "🎒 Zbaľ si: spacák, vankúš.",
+    "🛏️ Plachta na matrac.",
+    "🍲 Št 29. 10. guláš.",
+    "🍞 Dones: raňajky.",
+    "🍂 Lampiónový sprievod.",
+  ].join("\n"));
+  assert.ok(!/<[a-z]/i.test(text));
+  const drinkable = L.quickWhatsAppText({ ...infoCfg, water: { ...infoCfg.water, drinkable: true } }, "Chata");
+  assert.ok(!drinkable.includes("💧"));
+  assert.equal(L.quickWhatsAppText(null, "Chata"), "");
+});
+
+// --- „Pred cestou“ art (logic-info-art.js, app-adventure.js) ---
+
+test("every INFO_ICONS name of app/models.py has a well-formed sprite", () => {
+  const models = fs.readFileSync(path.join(root, "app", "models.py"), "utf8");
+  const block = models.match(/INFO_ICONS = frozenset\(\s*((?:"[^"]*"\s*)+)\.split\(\)/);
+  assert.ok(block, "INFO_ICONS not found in app/models.py");
+  const names = [...block[1].matchAll(/"([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean);
+  assert.ok(names.length >= 22);
+  for (const name of [...names, "batoh"]) {
+    const rows = L.INFO_SPRITES[name];
+    assert.ok(Array.isArray(rows) && rows.length > 0, `no sprite for ${name}`);
+    for (const row of rows) {
+      assert.equal(row.length, rows[0].length, `ragged sprite ${name}`);
+      for (const ch of row) assert.ok(ch === "." || L.PAL[ch], `unknown color ${ch} in ${name}`);
+    }
+    assert.ok(L.spriteRects(name, 1).length > 0);
+  }
+  assert.equal(L.spriteRects("bunda", 1).find((r) => r.fill === "#3E6FB0") !== undefined, true);
+});
+
+test("the adventure files avoid innerHTML and are listed in index.html", () => {
+  for (const f of ["logic-info-art.js", "app-adventure.js", "app-slides.js", "app-briefing.js"]) {
+    assert.ok(!/innerHTML/.test(fs.readFileSync(path.join(root, "static", "js", f), "utf8")), f);
+    assert.ok(scriptTags.includes(`static/js/${f}`), f);
+  }
+});
+
+test("summaryText: Pred cestou line for parties that are not done", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" }), b = party({ id: "p-bbbbbb", name: "B" });
+  const c = party({ id: "p-cccccc", name: "C" }), d = party({ id: "p-dddddd", name: "D" });
+  const link = "https://cabin.example/";
+  const s = infoState([a, b, c, d], {}, { [a.id]: ["list"], [b.id]: ["pack"] });
+  const lines = L.summaryText(s, link).split("\n");
+  assert.equal(lines[lines.length - 3], "Pred cestou ešte neprešli: B, C, D");
+  assert.equal(lines[lines.length - 1], "Tu sa zapíšeš: " + link);
+  const done = infoState([a], {}, { [a.id]: ["list"] });
+  assert.ok(!L.summaryText(done, link).includes("Pred cestou"));
+  assert.ok(!L.summaryText({ ...s, info: null }, link).includes("Pred cestou"));
+  assert.ok(!L.summaryText(infoState([], {}, {}), link).includes("Pred cestou"));
+});
+
+test("bottlesText uses the Slovak plural of „fľaša“", () => {
+  assert.equal(L.bottlesText(1, 1.5), "≈ 1 fľaša po 1,5 l");
+  assert.equal(L.bottlesText(3, 1.5), "≈ 3 fľaše po 1,5 l");
+  assert.equal(L.bottlesText(8, 2), "≈ 8 fliaš po 2 l");
+});
+
+test("bringText: one closing mark, no double period", () => {
+  assert.equal(L.bringText("raňajky a koláč"), "raňajky a koláč.");
+  assert.equal(L.bringText("raňajky a koláč."), "raňajky a koláč.");
+  assert.equal(L.bringText("  koláč!  "), "koláč!");
+  assert.equal(L.bringText(""), ".");
+  const text = L.quickWhatsAppText({ ...infoCfg, bring: "koláč." }, "Chata");
+  assert.ok(text.includes("Dones: koláč.") && !text.includes("koláč.."));
+});
+
+test("slideSignature: changes only when the food or sleep slide data changes", () => {
+  const p = party({ id: "p-aaaaaa", name: "A" }), q = party({ id: "p-bbbbbb", name: "B" });
+  const a = infoState([p, q], { [THU]: { "left-cot-1-1": p.id } });
+  const same = { ...a, version: a.version + 1 };
+  for (const step of ["food", "sleep"]) assert.equal(L.slideSignature(step, a, p.id), L.slideSignature(step, same, p.id));
+  assert.equal(L.slideSignature("pack", a, p.id), "");
+  assert.equal(L.slideSignature("sleep", { ...a, info: null }, p.id), "");
+  // another party's place changes the food counts but not my sleep note
+  const moved = infoState([p, q], { [THU]: { "left-cot-1-1": p.id, "left-cot-2-1": q.id } });
+  assert.equal(L.slideSignature("sleep", a, p.id), L.slideSignature("sleep", moved, p.id));
+  assert.notEqual(L.slideSignature("sleep", a, p.id), L.slideSignature("sleep", infoState([p, q], {}), p.id));
+});
+
+test("the adventure shows the next station button on desktop and a non-modal slide", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-adventure.js"), "utf8");
+  assert.ok(src.includes('adv.slide && !wide ? "‹ Späť na dvor"'));
+  assert.ok(src.includes('setAttribute("aria-modal", wide ? "false" : "true")'));
+});
+
+test("no fixed cabin sentences left in static/", () => {
+  const dir = path.join(root, "static");
+  const files = [];
+  (function walk(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) f.isDirectory() ? walk(path.join(d, f.name)) : files.push(path.join(d, f.name)); })(dir);
+  const bad = ["Koniec októbra na chate", "Postele a matrace sú pripravené", "Nákup na spoločné jedlá", "Nič nie je povinné"];
+  for (const f of files) {
+    const t = fs.readFileSync(f, "utf8");
+    for (const b of bad) assert.ok(!t.includes(b), b + " in " + f);
+  }
+});
+
+test("facilityLists, menuDays, infoList tolerate missing fields", () => {
+  assert.equal(JSON.stringify(L.facilityLists({})), JSON.stringify({ have: [], missing: [] }));
+  assert.equal(JSON.stringify(L.facilityLists(null)), JSON.stringify({ have: [], missing: [] }));
+  assert.equal(JSON.stringify(L.facilityLists({ facilities: { have: ["gril", ""], missing: ["WC"] } })), JSON.stringify({ have: ["gril"], missing: ["WC"] }));
+  assert.equal(JSON.stringify(L.facilityLists({ facilities: { have: ["gril"] } })), JSON.stringify({ have: ["gril"], missing: [] }));
+  assert.equal(JSON.stringify(L.menuDays({})), JSON.stringify([]));
+  assert.equal(L.menuDays(infoCfg).length, 1);
+  assert.equal(JSON.stringify(L.infoList(undefined)), JSON.stringify([]));
+});
+
+test("quickWhatsAppText: new optional fields appear only when set, no menu line without menu", () => {
+  const { menu, bring, ...bare } = infoCfg;
+  const base = L.quickWhatsAppText(bare, "Chata");
+  assert.ok(!base.includes("🍲") && !base.includes("🍞") && !base.includes("🚫") && !base.includes("🕓") && !base.includes("🛒"));
+  const full = L.quickWhatsAppText({
+    ...bare, host_arrival: "Prídem o 16:00.", food_plan: ["grilovanie", "mäso"], food_note: "Obchod je blízko.",
+    facilities: { have: ["gril"], missing: ["sprcha", "WC"] },
+  }, "Chata");
+  const lines = full.split("\n");
+  assert.equal(lines[1], "🕓 Prídem o 16:00.");
+  assert.ok(full.includes("🚫 Na chate nie je: sprcha, WC."));
+  assert.ok(full.includes("🍲 Varí sa: grilovanie, mäso."));
+  assert.ok(full.includes("🛒 Obchod je blízko."));
+  assert.ok(!full.includes("gril."));
+  assert.ok(L.quickWhatsAppText({ ...bare, facilities: { have: ["gril"] } }, "Chata").indexOf("🚫") === -1);
+});
+
+test("slideSignature covers the new food and sleep fields", () => {
+  const p = party({ id: "p-aaaaaa", name: "A" });
+  const a = infoState([p], {});
+  const withInfo = (extra) => ({ ...a, info: { ...a.info, ...extra } });
+  for (const [step, extra] of [["food", { food_plan: ["x"] }], ["food", { food_note: "y" }], ["food", { food_intro: "z" }],
+    ["sleep", { facilities: { have: ["a"], missing: [] } }], ["sleep", { sleep_intro: "q" }]]) {
+    assert.notEqual(L.slideSignature(step, a, p.id), L.slideSignature(step, withInfo(extra), p.id));
+  }
+});
+
+test("foodNotes lists parties with a food_note in party order", () => {
+  const a = party({ id: "p-aaaaaa", name: "A", color: "#112233" });
+  const b = party({ id: "p-bbbbbb", name: "B", food_note: "pizza pec", color: "#445566" });
+  const c = party({ id: "p-cccccc", name: "C", food_note: "víno", color: "#778899" });
+  assert.deepEqual(plain(L.foodNotes(infoState([a, b, c]))), [
+    { id: "p-bbbbbb", name: "B", color: "#445566", text: "pizza pec" },
+    { id: "p-cccccc", name: "C", color: "#778899", text: "víno" },
+  ]);
+  assert.deepEqual(plain(L.foodNotes(infoState([a]))), []);
+  assert.deepEqual(plain(L.foodNotes(null)), []);
+});
+
+test("slideSignature food changes with the notes", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const s1 = infoState([a]);
+  const s2 = infoState([{ ...a, food_note: "x" }]);
+  assert.notEqual(L.slideSignature("food", s1, a.id), L.slideSignature("food", s2, a.id));
+});
+
+test("slideSignature food changes when a party gets chosen", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const s = infoState([a]);
+  assert.notEqual(L.slideSignature("food", s, ""), L.slideSignature("food", s, a.id));
+});
+
+test("slideSignature food changes when another party gets chosen", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const b = party({ id: "p-bbbbbb", name: "B" });
+  const s = infoState([a, b]);
+  assert.notEqual(L.slideSignature("food", s, a.id), L.slideSignature("food", s, b.id));
+});
+
+test("summaryText has the „Čo kto donesie“ line only when a note exists", () => {
+  const a = party({ id: "p-aaaaaa", name: "A" });
+  const b = party({ id: "p-bbbbbb", name: "B", food_note: "pizza pec" });
+  const c = party({ id: "p-cccccc", name: "C", food_note: "víno" });
+  const link = "https://cabin.example/";
+  const on = (parties) => ({ ...realState(parties, {}), info: {} });
+  assert.ok(!L.summaryText(on([a]), link).includes("Čo kto donesie"));
+  assert.ok(L.summaryText(on([a, b]), link).split("\n").includes("Čo kto donesie: B – pizza pec"));
+  assert.ok(L.summaryText(on([b, c]), link).split("\n").includes("Čo kto donesie: B – pizza pec; C – víno"));
+  // the whole section is off (no info.yaml or enabled: false): no food line either
+  assert.ok(!L.summaryText(realState([b], {}), link).includes("Čo kto donesie"));
+});
+
+test("errorText: food note reasons have their own Slovak text", () => {
+  const tooLong = L.errorText(err("invalid", { field: "text", reason: "too_long", max: 120 }));
+  const ctrl = L.errorText(err("invalid", { field: "text", reason: "control_chars" }));
+  assert.match(tooLong, /dlhý/);
+  assert.match(ctrl, /znaky/);
+  assert.notEqual(tooLong, ctrl);
 });

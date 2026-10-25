@@ -54,6 +54,7 @@ function introFrame() {
   if (t >= 1) {
     app.introZoom = "done";
     setView(to);
+    renderBriefingOffer();
     return;
   }
   var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1]);
@@ -72,6 +73,7 @@ function stopIntroZoom() {
   app.introZoom = "done";
   if (was === "held") setView(wholeView(app.bounds));
   else applyView();
+  renderBriefingOffer();
 }
 
 ["pointerdown", "touchstart", "wheel", "keydown"].forEach(function (type) {

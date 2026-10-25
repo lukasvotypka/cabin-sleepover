@@ -15,6 +15,9 @@ services:
       GROUP_CODE: ${GROUP_CODE:?set GROUP_CODE (the code you send to friends)}
       ADMIN_CODE: ${ADMIN_CODE:?set ADMIN_CODE (the organizer's code, different from GROUP_CODE)}
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (at least 32 random characters)}
+      # The „Pred cestou“ section (config/info.yaml) is off here unless INFO_ENABLED=true is set next to the secrets, in /etc/cabin/secrets.env.
+      # Locally and on the trial server the variable is unset, so the file's `enabled` decides.
+      INFO_ENABLED: ${INFO_ENABLED:-false}
     # Run as this UID:GID so the mounted ./data is writable. If the owner of ./data is not 1000, set CABIN_UID and
     # CABIN_GID in the shell next to the secrets.
     user: "${CABIN_UID:-1000}:${CABIN_GID:-1000}"

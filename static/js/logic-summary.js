@@ -350,6 +350,16 @@ function summaryText(state, link) {
     lines.push("Chýbajú miesta:");
     warnings.forEach(function (w) { lines.push(w); });
   }
+  var food = state && state.info ? foodNotes(state) : [];  // the section is off without info
+  if (food.length) {
+    lines.push("");
+    lines.push("Čo kto donesie: " + food.map(function (f) { return f.name + " – " + f.text; }).join("; "));
+  }
+  var notBriefed = notBriefedNames(state);
+  if (notBriefed.length) {
+    lines.push("");
+    lines.push("Pred cestou ešte neprešli: " + notBriefed.join(", "));
+  }
   lines.push("");
   lines.push("Tu sa zapíšeš: " + link);
   return lines.join("\n");

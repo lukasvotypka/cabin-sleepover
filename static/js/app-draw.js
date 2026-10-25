@@ -235,6 +235,7 @@ function drawBoards() {
   drawPartyTable(g, scene.parties, state);
   drawLetter(g, scene.letter);
   drawLegend(g, scene.legend);
+  if (state.info && scene.briefing) drawBriefing(g, scene.briefing, state);
 }
 
 // The letter icon opens „Prehľad na poslanie“. The hit area is the whole `map.scene.letter` rect.

@@ -188,6 +188,7 @@ function openWho(opts) {
           app.night = defaultNightFor(party, app.state.event.nights);
           closePanel();
           render();
+          if (opts && opts.after) opts.after();
         });
         li.appendChild(row);
         list.appendChild(li);
@@ -250,6 +251,8 @@ function openLegend(returnKey) {
           text.appendChild(htmlEl("div", { "class": "legend-meta" }, row.people + " · " + row.stay));
           if (nightRows[row.id]) text.appendChild(nightsLine(nightRows[row.id]));
         }
+        var briefing = briefingStatusText(app.state, row.id);
+        if (briefing) text.appendChild(htmlEl("div", { "class": "legend-nights legend-briefing" }, "Pred cestou: " + briefing));
         li.appendChild(swatch);
         li.appendChild(text);
         list.appendChild(li);

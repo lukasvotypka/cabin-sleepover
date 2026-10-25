@@ -182,6 +182,8 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | POST | `/api/clear` | skupina | `{night, slot}`: uvoľní miesto |
 | POST | `/api/move` | skupina | `{party_id, from_slot, to_slot, nights[]}`: presun buď celý, alebo nič |
 | POST | `/api/parties` | skupina | Vytvorí partiu |
+| POST | `/api/briefing` | skupina | `{party_id, step}`: zapíše, že partia otvorila zastávku „Pred cestou“ (sekcia Pred cestou). Ide aj pri zamknutom zápise |
+| POST | `/api/food` | skupina | `{party_id, text}`: nastaví alebo zmaže text partie „Čo kto donesie“ (sekcia Pred cestou). Ide aj pri zamknutom zápise |
 | POST | `/api/places` | skupina | `{party_id, night, places}`: nastaví počet potrebných miest partie v tú noc (pole `places`). Plný počet pole pre tú noc zmaže |
 | PUT | `/api/parties/{id}` | skupina | Upraví partiu. Pri skrátení pobytu uvoľní miesta v nociach mimo pobytu a vráti ich v `freed` |
 | DELETE | `/api/parties/{id}` | admin | Fáza 2. Zmaže partiu a uvoľní jej miesta |
@@ -368,6 +370,65 @@ rooms:
 
 Spolu 20 miest, z toho 2 tesné. Pozície postavičiek v posteli sa počítajú podľa `kind` rovnako ako v náhľade (`bed2` dve vedľa seba, `bunk` hore a dole, `mats` tri v rade, `sofa` a `stove` dve). Server pri štarte overí, že ID slotov sú unikátne a že dáta v `cabin-data.yaml` odkazujú len na existujúce sloty. Ak mapa nesedí s realitou, organizátor upraví iba tento súbor a reštartuje službu.
 
+## Pred cestou: informácie pre hostí
+
+Rozhodnutie organizátora z 25. 10. 2026. Okrem zápisu na miesta stránka odovzdá hosťom, čo treba vedieť pred cestou: čo si zbaliť, na čom sa spí, že voda z kohútika nie je pitná, čo sa bude variť a aký je program. Organizátor potrebuje vedieť, ktoré partie si to prešli. Schválený vzhľad je v `design/info/index.html` (len podklad, neservíruje sa). Platí jeho pohľad „Dobrodružstvo“ a „Rýchly prehľad“; „Prezentácia“ a nástroje nad telefónom sú iba z návrhu.
+
+### Obsah: `config/info.yaml`
+
+Píše organizátor, server ho načíta pri štarte, overí Pydanticom a pošle stránke v `/api/state` ako `info` (rovnako ako rozloženie z `cabin.yaml`). Texty sú po slovensky, lebo sú to údaje od organizátora ako názvy izieb, nie hlášky servera. Rozhodnutie organizátora z 25. 10. 2026: celá sekcia sa dá vypnúť príznakom `enabled: false` v súbore (predvolene `true`); súbor sa aj tak overí. Premenná prostredia `INFO_ENABLED` (`true`/`false`) prebije príznak zo súboru; `compose.yaml` ju predvolene nastaví na `false`, takže na produkcii je sekcia vypnutá, kým ju organizátor nezapne, a lokálne a na skúšobnom serveri (premenná nenastavená) rozhoduje súbor. Chýbajúci súbor alebo `enabled: false` znamená, že funkcia je vypnutá (žiadna tabuľa v scéne, žiadne sledovanie). Chybný súbor server nespustí s presnou hláškou (neznáma ikona, prázdny zoznam, deň mimo udalosti).
+
+```yaml
+water:
+  drinkable: false          # false → červené varovanie „Voda z kohútika nie je na pitie.“
+  liters_per_day: 2
+  bottle_liters: 1.5
+pack:                       # ikona z pevnej sady na stránke + text
+  - { icon: spacak, label: "Spacák" }
+  - { icon: vankus, label: "Vankúš" }
+sleep:
+  - { icon: plachta, label: "Plachta na matrac", note: "matrace a postele sú bez obliečok" }
+menu:
+  - { day: "2026-10-29", meals: [{ when: "večer", what: "guláš z kotlíka" }] }
+bring: "raňajky pre svoju partiu, niečo na opekanie a pochutiny alebo koláč"
+program:
+  - { icon: lampion, title: "Lampiónový sprievod", when: "So po zotmení", note: "vezmi lampión" }
+```
+
+Sada ikon je v kóde stránky (pixelové obrázky z návrhu: spacák, vankúš, papuče, mikina, bunda, topánky, uterák, hygiena, čelovka, lieky, nabíjačka, kocka, plachta, karimatka, fľaša, smerovník, lezenie, lopta, oheň, lampión, truhla, hrniec). Server pozná rovnaký zoznam názvov, aby neznámu ikonu odmietol pri štarte. Ukážkový súbor s obsahom z návrhu je v repozitári.
+
+### Stránka
+
+- **Vstup:** v scéne je drevená tabuľa s batohom (`map.scene.briefing`, predvolene `[296, 408, 56, 56]`). Kým moja partia nemá všetko prejdené, bliká nad ňou „!“. Pod tabuľou je počet partií, ktoré to majú prejdené, napríklad „6/9“. Raz po načítaní stránky, kým moja partia nemá všetko prejdené, sa nad spodnou lištou ukáže ponuka „Pred cestou · Čo si zbaliť, voda, jedlo a program ›“, ktorá sa dá zavrieť. Bez vybranej partie sa najprv otvorí „Kto si?“.
+- **Dobrodružstvo (hlavný pohľad):** celá obrazovka s dvorom pri chate zhora (kreslený v kóde, pevná výzdoba, nie skutočná chata) a postavičkou vo farbe mojej partie. Päť zastávok v pevnom poradí: auto (`pack`, čo si zbaliť), studňa (`water`), ohnisko (`food`), smerovník (`program`), chata (`sleep`). Ďalšia zastávka bliká, má poskakujúcu šípku a veľkú menovku, ostatné majú malú menovku a navštívené zelenú ✓. Ťuknutím na zastávku postavička dôjde po chodníku a otvorí sa snímka zastávky (pixelový obrázok hore, text dole) cez celý dvor. Späť na dvor vedie „‹ Dvor“ vľavo hore a tlačidlo dole; ťuknutie na dvor pri otvorenej snímke ju iba zavrie. Tabuľa hore vždy povie, čo robiť. Dole sú ikony piatich zastávok (zafarbia sa po návšteve), „☰“ (rýchly prehľad) a tlačidlo „Choď: Studňa ›“. Po poslednej zastávke sa otvorí záver „Máš všetko, vidíme sa na chate!“ s tlačidlami „Na mapu postelí“, „Zoznam na zbalenie“ a „Prejsť dvor znova“.
+- **Obsah zastávok:** podľa návrhu. Pri studni kalkulačka vody: ľudia a dni podľa mojej partie (dospelí + deti, počet nocí pobytu, pri dennej návšteve počet dní), dajú sa zmeniť, výsledok v litroch a fľašiach. Pri chate poznámka „Tvoje miesto: … pribaľ karimatku“, keď má moja partia v niektorú noc miesto v posteli druhu `mats` alebo `cot`. Pri ohnisku počty „na jedlo“ po dňoch z existujúceho výpočtu (T-039).
+- **Zbaliť si ako zoznam úloh:** veci z `pack`, k nim vždy „Plachta na matrac“, „Balená voda“ a „Karimatka“ (iba pri `mats`/`cot`). Ťuknutím sa vec označí ako zbalená (zelená, ✓) a znova ťuknutím zruší. Ukazovateľ „Ťukni, čo už máš · 3 z 15“, pri všetkom „Všetko zbalené!“. Ukladá sa iba v `localStorage` telefónu, na server nejde.
+- **Rýchly prehľad:** jedna stránka v štýle panelov (svetlý a tmavý režim): voda hore, zoznam na zbalenie so zaškrtávaním (ten istý stav ako v dobrodružstve), spanie, jedlo, program a tlačidlo „Kopírovať do WhatsAppu“. Otvára sa z „☰“ a z tabule.
+- **Desktop (od 900 px):** dvor vľavo, snímka zastávky vpravo vedľa neho; kým nie je nič otvorené, vpravo je uvítanie so zoznamom zastávok (dajú sa ťuknúť). Rýchly prehľad v dvoch stĺpcoch.
+- Animácie (chôdza, blikanie, stieranie) sú pixelové po krokoch; pri `prefers-reduced-motion` postavička preskočí hneď a nič nebliká. Zastávky sú prvky s `role="button"`, ovládateľné klávesnicou, s popisom pre čítačky. Všetok text z konfigurácie ide cez `textContent`.
+
+### Obsah podľa organizátora a „Čo kto donesie“
+
+Rozhodnutie organizátora z 25. 10. 2026 (porovnanie s inštrukciami z minulého roka).
+
+- **Žiadne pevné vety o chate v kóde.** Úvodné vety zastávok (balenie, spanie, jedlo) sú v `config/info.yaml`, nie v kóde; pevná ostáva iba veta varovania pri nepitnej vode. Veta „Nákup na spoločné jedlá rozpočítame.“ sa ruší, náklady sa nerozpočítavajú.
+- **Nové polia v `config/info.yaml`** (všetky voliteľné, chýbajúce sa nezobrazia):
+  - `pack_intro`, `sleep_intro`, `food_intro`: úvodná veta zastávky.
+  - `note` pri položke `pack` (napr. pri spacáku „Nemáš? Daj vedieť, požičiame.“), zobrazí sa pod vecou na snímke a v rýchlom prehľade.
+  - `food_plan`: zoznam textov bez dátumu, čo sa varí spolu (napr. „grilovanie“, „mäso upečené v piecke“). `menu` po dňoch je voliteľné a môže chýbať.
+  - `food_note`: voľný text pri jedle (napr. „Obchod je 15 minút, netreba robiť nákup na 4 dni.“).
+  - `facilities: {have: [...], missing: [...]}`: čo na chate je a čo nie je. Ukáže sa na snímke Chata ako dva zoznamy „Na chate je“ (✓) a „Na chate nie je“ (✗, výrazne) a v rýchlom prehľade pri spaní.
+  - `host_arrival`: kedy príde organizátor (napr. „Organizátor príde na chatu okolo 16:00.“), zobrazí sa na úvode dvora a v rýchlom prehľade hore.
+- **Obsah:** jedlo si každý bežne donesie, varí sa spolu, organizátor kúpi niečo navyše; plán je grilovanie a mäso upečené v piecke; obchod je 15 minút; na chate je gril, piecka, sporák a teplá voda v kuchynke, nie je sprcha ani WC; spacák si donesie každý, kto nemá, dá vedieť; plachta na matrac podľa potreby; organizátor príde okolo 16:00. Vymyslený jedálniček po dňoch sa z ukážkového súboru odstráni.
+- **„Čo kto donesie“:** každá partia môže napísať jeden voľný text, čo donesie alebo pripraví (napr. „donesieme pizza pec“). Uloží sa ako pole partie `food_note` v `cabin-data.yaml` (najviac 120 znakov po orezaní medzier, prázdny text pole zmaže) cez `POST /api/food {party_id, text}` bežnou cestou zápisu (audit `food`). Ide aj pri zamknutom zápise. Neznáma partia je `unknown_party`, dlhý text `invalid` s `reason` `too_long`. Na snímke Ohnisko je časť „Čo kto donesie“: zoznam partií s textom (farebný štvorček, meno, text cez `textContent`) a pre moju partiu pole s tlačidlom „Uložiť“ (bez vybranej partie tlačidlo „Vyber, kto si“). Ten istý zoznam je v rýchlom prehľade pri jedle a v „Prehľade na poslanie“ ako riadok „Čo kto donesie: …“, keď nejaký text je.
+
+### Kto si to prešiel
+
+- Keď je vybratá moja partia, stránka pri otvorení každej zastávky pošle `POST /api/briefing {party_id, step}`, `step` je `pack`, `water`, `food`, `program`, `sleep` alebo `list` (otvorený rýchly prehľad). Bez vybranej partie sa nič neposiela.
+- Server to zapíše do `cabin-data.yaml` pod `briefing: {id partie: [kroky]}` cez bežnú cestu zápisu (zámok, `version`, záloha, audit `briefing`), takže zmena príde všetkým naživo. Krok, ktorý už je zapísaný, nič nezapíše a vráti `ok` so stavom. Zapisuje sa aj pri zamknutom zápise. Neznámy krok je `invalid`, neznáma partia `unknown_party`. Pri štarte sa `briefing` overí ako `sleeping` (neznáma partia alebo krok server nespustí).
+- Partia *má prejdené*, keď má všetkých päť zastávok, alebo otvorila rýchly prehľad (`list`).
+- Vidia to všetci (rovnako ako „naposledy videná“): v „Kto je kto“ má každá partia riadok „Pred cestou: ✓ prejdené“, „2 z 5“ alebo „ešte nie“, na tabuli v scéne je počet partií s prejdeným a „Prehľad na poslanie“ končí riadkom „Pred cestou ešte neprešli: …“, keď také partie sú.
+
 ## Fáza 2: zápis vlastnými slovami cez Claude API
 
 Voliteľné rozšírenie, stavia sa až keď fáza 1 funguje. Nad mapou pribudne pole „Napíš, kedy prídeš a kde chceš spať“. Kamarát napíše vetu, ako by ju písal do WhatsAppu, a na mape uvidí návrh, ktorý potvrdí jedným ťuknutím.
@@ -464,3 +525,9 @@ Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a n
 - [ ] **Naposledy videná a online (T-049, T-050):** predvolene stránka posiela *moju partiu* v hlavičke `X-Party-Id` (bez vybranej partie sa nič nezapíše), údaje sú v `data/seen.yaml` (na disk najviac raz za minútu za partiu), online znamená videná za posledných 75 s. Riadok v spodnej lište ukazuje „online:“ a štvorčeky partií online vrátane mojej (farba a písmeno z trička, najviac 6, potom „+N“); keď som sám, „online: len ty“; bez nikoho online „online: nikto“. V „Kto si?“ je pri partii „online“, „pred X min“ (najmenej 1 min), „pred X h“, „pred X d“ alebo „zatiaľ nevidené“. Čas načítania sa ukáže namiesto riadku online, keď je problém so spojením (pozri Zmeny naživo nižšie).
 - [ ] **Zmeny naživo cez SSE (T-051 až T-054):** rozhodnutie organizátora z 25. 10. 2026 je SSE namiesto obnovovania každých 30 s. Predvolené hodnoty: modul `app/events.py`, `ping` každých 20 s, `retry` 3000 ms, najviac 4 spojenia na klienta a 200 spolu (`rate_limited`), online = aspoň jedno otvorené spojenie alebo videná za 75 s, „aktualizované pred …“ po 45 s bez správy zo servera, záložné obnovovanie každých 30 s po 60 s bez spojenia a nový pokus o spojenie každé 3 minúty, pri skrytej karte sa spojenie hneď zatvorí a server partiu nechá online ešte 10 s (rozhodnutie organizátora z 25. 10. 2026).
 - [ ] **Úvodné priblíženie (T-046):** predvolene mapa začne 2× priblížená na hornú časť scény (názov, smerovníky, tabuľka) a za 2,8 s sa plynulo oddiali na celú mapu. Raz po načítaní stránky, nie pri `prefers-reduced-motion`, a zastaví sa pri prvom dotyku.
+- [ ] **Pred cestou, kto to vidí:** predvolene všetci (v „Kto je kto“, na tabuli a v „Prehľade na poslanie“), nie iba organizátor, lebo admin nástroje sú fáza 2.
+- [ ] **Pred cestou, čo je „prejdené“:** predvolene všetkých päť zastávok alebo otvorený rýchly prehľad.
+- [ ] **Pred cestou, obsah:** predvolene ukážkový obsah z návrhu v `config/info.yaml` (voda nepitná, 2 l na človeka a deň, jedlo, program); organizátor ho opraví.
+- [ ] **Pred cestou, slovenský text zo servera:** obsah `config/info.yaml` posiela server stránke ako údaje od organizátora (ako názvy izieb); pravidlo „server neposiela slovenské hlášky“ sa týka chybových hlášok a ostáva.
+- [ ] **„Čo kto donesie“:** predvolene jeden text na partiu (najviac 120 znakov), upraviť ho môže ktokoľvek s kódom skupiny (ako ostatné údaje partie), vidia ho všetci.
+- [x] **Plán, nastavenia produkcie v súbore s premennými (T-069):** požiadavka organizátora z 25. 10. 2026, rozhodnutie podľa odporúčania (organizátor ho nechal na Claude). Nastavenia, ktoré sa líšia medzi produkciou a skúšobným serverom (zatiaľ `INFO_ENABLED`), sa na produkcii píšu do toho istého súboru ako tajomstvá, `/etc/cabin/secrets.env` (mimo projektu, `chmod 600`, `docker compose --env-file`), nie do `compose.yaml` a nie do `.env` vedľa neho. `compose.yaml` premennú iba odovzdá s poistkou `${INFO_ENABLED:-false}`. Dôvod: súbor už existuje, je mimo gitu aj priečinka projektu, takže ho `git pull` neprepíše a lokálny vývojový `.env` ho nemôže potichu prepísať. Zmena je len v dokumentácii (README časť 4, `.env.example`, `tests/manual.md`), kód sa nemení. Nasadenie na produkciu iba na výslovnú žiadosť organizátora.

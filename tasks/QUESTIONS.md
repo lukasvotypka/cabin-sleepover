@@ -1,6 +1,6 @@
 # Open questions for the organizer
 
-**All questions answered by the organizer on 21. 10. 2026.** Decisions: Q3 and Q4 changed (see below, `proposal.md` updated), Q9 status rect enlarged, Q11 positions accepted and added to `proposal.md`, all other defaults accepted. Q13, which came out of the Q3 answer, is answered as well: `assign-stay` takes `slots[]`. **Q14 (23. 10. 2026) and Q15 (25. 10. 2026) are open**; the affected tasks use their defaults until the organizer answers.
+**All questions answered by the organizer on 21. 10. 2026.** Decisions: Q3 and Q4 changed (see below, `proposal.md` updated), Q9 status rect enlarged, Q11 positions accepted and added to `proposal.md`, all other defaults accepted. Q13, which came out of the Q3 answer, is answered as well: `assign-stay` takes `slots[]`. **Q14 (23. 10. 2026), Q15 (25. 10. 2026) and Q16–Q18 (25. 10. 2026, „Pred cestou“) are open**; the affected tasks use their defaults until the organizer answers.
 
 Written by the analyst while splitting `proposal.md` into tasks. Each question has a **default** that the tasks use until the organizer answers. When a question is answered, update the affected tasks (listed per question) and mark the question answered here.
 
@@ -124,4 +124,49 @@ The SSE design says the hub closes all streams on app shutdown (lifespan). In uv
 
 - **Default:** T-052 makes the process exit within 5 s of SIGTERM with open streams, either with uvicorn's `--timeout-graceful-shutdown` (then the Dockerfile `CMD` and the trial-server command in CLAUDE.md get the flag) or by hooking the exit signal, and still closes the hub in lifespan. The developer documents the choice; the orchestrator updates CLAUDE.md if the command changes.
 - Affects: T-052, T-054.
+- **Answer:** open.
+
+## Q16. `POST /api/briefing` when `config/info.yaml` is missing (25. 10. 2026)
+
+The proposal says a missing `info.yaml` turns the feature off („žiadne sledovanie“), but does not say what the endpoint does then.
+
+- **Default:** the server still accepts and records steps (no new error code); the page never sends them while `state.info` is `null`, so nothing is tracked in practice. Alternative: reject with `invalid` and a `reason`.
+- Affects: T-058, T-063.
+- **Answer:** open.
+
+## Q17. The one-time HUD offer without a chosen party, and where visited ✓ come from (25. 10. 2026)
+
+The offer shows „kým moja partia nemá všetko prejdené“, which is undefined while no party is chosen, and the automatic „Kto si?“ already opens for new visitors.
+
+- **Default:** the offer appears once per page load only once a party is chosen (also right after picking one in „Kto si?“). Tapping the board without a party opens „Kto si?“ first.
+- **Default:** visited ✓ in the adventure come from the server (`state.briefing` of my party) plus stations opened in this page load, so they carry over between phones of the same party. Alternative: phone-only, like the packing ticks.
+- Affects: T-060, T-063.
+- **Answer:** open.
+
+## Q18. Packing list duplicates and the „Tvoje miesto“ note (25. 10. 2026)
+
+- The packing to-do always adds „Plachta na matrac“, „Balená voda“ and (for `mats`/`cot`) „Karimatka“ to `pack`. **Default:** if `pack` already has an item with the same label (ignoring case), it is listed once.
+- „Tvoje miesto: … pribaľ karimatku“ when the party has `mats`/`cot` places on different nights or in different rooms. **Default:** list the distinct „room · bed“ names, comma-separated.
+- Affects: T-059, T-061.
+- **Answer:** open.
+
+## Q19. Which fixed sentences go, and what happens to `bring` (25. 10. 2026)
+
+„Žiadne pevné vety o chate v kóde“ names only the pack, sleep and food intros and the dropped „Nákup … rozpočítame.“ The page also has „Nič nie je povinné. Kto chce, len leží pri peci.“ on the program slide and a second water line „Na umývanie je v poriadku. Na pitie, čaj a varenie nie.“ The new content does not mention `bring`.
+
+- **Default:** the program sentence is removed (there is no `program_intro`); both water warning lines stay as the warning. `bring` stays as an optional field, absent from the sample file (its content now lives in `food_intro`).
+- Affects: T-065, T-067.
+- **Answer:** open.
+
+## Q20. Where `host_arrival` shows „na úvode dvora“ (25. 10. 2026)
+
+- **Default:** a line under the top board of the yard while no slide is open (mobile and desktop), and in the desktop welcome beside the yard.
+- Affects: T-067.
+- **Answer:** open.
+
+## Q21. `POST /api/food` details and the summary line (25. 10. 2026)
+
+- **Default:** besides the 120-char limit the text follows the party name rules (NFC, no control characters or line breaks); saving the same text is a no-op `200` without version bump, backup or audit.
+- **Default:** the summary line is „Čo kto donesie: Name – text; Name – text“, placed before „Pred cestou ešte neprešli“.
+- Affects: T-066, T-068.
 - **Answer:** open.

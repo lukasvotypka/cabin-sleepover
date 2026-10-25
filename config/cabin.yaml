@@ -18,6 +18,7 @@ map:
     key:    [184, 408, 44, 44]   # key icon, admin only
     legend: [24, 264, 44, 44]    # „Kto je kto“ icon, party color legend
     parties: [176, 112, 196, 136] # table of parties and their places per night
+    briefing: [296, 408, 56, 56] # „Pred cestou“ board, info for guests
     meadow: [112, 453, 124, 14]  # meadow where people of my party without a bed wait
 
 rooms:

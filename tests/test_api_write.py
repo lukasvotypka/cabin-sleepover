@@ -19,6 +19,7 @@ WRITES = [
     ("post", "/api/places", {"party_id": "p-abcdef", "night": THU, "places": 1}),
     ("post", "/api/parties", party_body()),
     ("put", "/api/parties/p-abcdef", party_body()),
+    ("post", "/api/food", {"party_id": "p-abcdef", "text": "chlieb"}),
 ]
 
 
@@ -452,7 +453,7 @@ async def test_update_party_with_a_malformed_id_is_invalid(app, group_client, pa
     assert resp.status_code == 422
     err = error_of(resp)
     assert (err["code"], err["params"]["field"]) == ("invalid", "party_id")
-    assert len(resp.text) < 4000  # the long value is not echoed back
+    assert len(resp.text) < 8000  # the long value is not echoed back
     assert snapshot(app) == before
 
 
@@ -868,3 +869,158 @@ async def test_update_party_mode_errors_write_nothing(app, group_client):
     )
     assert resp.status_code == 422 and error_of(resp)["params"]["reason"] == "stay_mode_mixed"
     assert snapshot(app) == before
+
+
+# --- briefing (T-058) -----------------------------------------------------------------
+
+
+async def post_step(client, pid, step):
+    return await client.post("/api/briefing", json={"party_id": pid, "step": step}, headers=CLIENT)
+
+
+async def test_briefing_first_step_writes(app, group_client):
+    p = await mk_party(group_client)
+    before = snapshot(app)
+    resp = await post_step(group_client, p["id"], "water")
+    assert resp.status_code == 200
+    assert resp.json()["state"]["briefing"] == {p["id"]: ["water"]}
+    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
+    doc = audit_docs(app)[-1]
+    assert (doc["action"], doc["source"], doc["party"], doc["step"]) == ("briefing", "map", p["id"], "water")
+
+
+async def test_briefing_stored_in_canonical_order(app, group_client):
+    p = await mk_party(group_client)
+    await post_step(group_client, p["id"], "list")
+    resp = await post_step(group_client, p["id"], "pack")
+    assert resp.json()["state"]["briefing"][p["id"]] == ["pack", "list"]
+
+
+async def test_briefing_repeat_is_a_no_op(app, group_client):
+    p = await mk_party(group_client)
+    await post_step(group_client, p["id"], "food")
+    before = snapshot(app)
+    resp = await post_step(group_client, p["id"], "food")
+    assert resp.status_code == 200 and resp.json()["ok"] is True
+    assert resp.json()["state"]["briefing"] == {p["id"]: ["food"]}
+    assert snapshot(app) == before
+
+
+async def test_briefing_errors(app, group_client):
+    p = await mk_party(group_client)
+    before = snapshot(app)
+    resp = await post_step(group_client, p["id"], "dance")
+    assert resp.status_code == 422 and error_of(resp)["code"] == "invalid" and "state" in resp.json()
+    resp = await post_step(group_client, "p-nobody", "pack")
+    assert resp.status_code == 404 and error_of(resp)["code"] == "unknown_party" and "state" in resp.json()
+    assert snapshot(app) == before
+
+
+async def test_briefing_allowed_when_signup_locked(app, group_client):
+    p = await mk_party(group_client)
+    await lock_signup(app)
+    assert (await post_step(group_client, p["id"], "sleep")).status_code == 200
+    assert error_of(await set_places(group_client, p["id"], THU, 1))["code"] == "signup_closed"
+
+
+async def test_briefing_needs_the_group_cookie(client):
+    resp = await client.post("/api/briefing", json={"party_id": "p-abcdef", "step": "pack"})
+    assert resp.status_code == 401 and error_of(resp)["code"] == "bad_code"
+
+
+async def test_briefing_concurrent_identical_steps_bump_once(app, group_client):
+    p = await mk_party(group_client)
+    before = snapshot(app)
+    results = await asyncio.gather(*(post_step(group_client, p["id"], "program") for _ in range(5)))
+    assert all(r.status_code == 200 for r in results)
+    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
+
+
+# --- food note (T-066) ----------------------------------------------------------------
+
+
+async def post_food(client, pid, text):
+    return await client.post("/api/food", json={"party_id": pid, "text": text}, headers=CLIENT)
+
+
+def party_in(resp, pid):
+    return next(p for p in resp.json()["state"]["parties"] if p["id"] == pid)
+
+
+async def test_food_set_change_and_clear(app, group_client):
+    p = await mk_party(group_client)
+    assert "food_note" not in p or p["food_note"] is None
+    before = snapshot(app)
+    resp = await post_food(group_client, p["id"], "  chlieb a syr  ")
+    assert resp.status_code == 200 and party_in(resp, p["id"])["food_note"] == "chlieb a syr"
+    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)
+    doc = audit_docs(app)[-1]
+    assert (doc["action"], doc["party"], doc["before"], doc["after"]) == ("food", p["id"], None, "chlieb a syr")
+    resp = await post_food(group_client, p["id"], "víno")
+    assert party_in(resp, p["id"])["food_note"] == "víno"
+    assert audit_docs(app)[-1]["before"] == "chlieb a syr"
+    resp = await post_food(group_client, p["id"], "")
+    assert "food_note" not in party_in(resp, p["id"])
+    assert "food_note" not in app.state.runtime.store.data_path.read_text(encoding="utf-8")
+
+
+async def test_food_spaces_only_clears(app, group_client):
+    p = await mk_party(group_client)
+    await post_food(group_client, p["id"], "x")
+    resp = await post_food(group_client, p["id"], "   ")
+    assert resp.status_code == 200 and "food_note" not in party_in(resp, p["id"])
+
+
+async def test_food_same_text_and_clearing_nothing_are_no_ops(app, group_client):
+    p = await mk_party(group_client)
+    await post_food(group_client, p["id"], "x")
+    before = snapshot(app)
+    assert (await post_food(group_client, p["id"], " x ")).status_code == 200
+    assert snapshot(app) == before
+    other = await mk_party(group_client, name="Druhí")
+    before = snapshot(app)
+    assert (await post_food(group_client, other["id"], "")).status_code == 200
+    assert snapshot(app) == before
+
+
+async def test_food_length_limit(app, group_client):
+    p = await mk_party(group_client)
+    assert (await post_food(group_client, p["id"], "a" * 120)).status_code == 200
+    before = snapshot(app)
+    resp = await post_food(group_client, p["id"], "a" * 121)
+    err = error_of(resp)
+    assert resp.status_code == 422 and err["code"] == "invalid" and "state" in resp.json()
+    assert err["params"]["reason"] == "too_long" and err["params"]["max"] == 120
+    assert snapshot(app) == before
+    # trimmed first: 120 chars plus spaces is fine
+    assert (await post_food(group_client, p["id"], " " + "b" * 120 + " ")).status_code == 200
+
+
+async def test_food_rejects_line_breaks(app, group_client):
+    p = await mk_party(group_client)
+    before = snapshot(app)
+    resp = await post_food(group_client, p["id"], "a\nb")
+    assert resp.status_code == 422 and error_of(resp)["params"]["reason"] == "control_chars"
+    assert snapshot(app) == before
+
+
+async def test_food_unknown_party(app, group_client):
+    before = snapshot(app)
+    resp = await post_food(group_client, "p-nobody", "x")
+    assert resp.status_code == 404 and error_of(resp)["code"] == "unknown_party" and "state" in resp.json()
+    assert snapshot(app) == before
+
+
+async def test_food_allowed_when_signup_locked(app, group_client):
+    p = await mk_party(group_client)
+    await lock_signup(app)
+    assert (await post_food(group_client, p["id"], "x")).status_code == 200
+
+
+async def test_party_update_keeps_the_food_note(app, group_client):
+    p = await mk_party(group_client)
+    await post_food(group_client, p["id"], "chlieb")
+    resp = await group_client.put(f"/api/parties/{p['id']}", json=party_body(name="Iní"), headers=CLIENT)
+    assert resp.status_code == 200 and party_in(resp, p["id"])["food_note"] == "chlieb"
+    resp = await group_client.post("/api/parties", json=party_body(name="Tretí", food_note="x"), headers=CLIENT)
+    assert resp.status_code == 422

@@ -30,7 +30,7 @@ function openPanel(title, build, opts) {
   var root = $("panelRoot");
   var backdrop = htmlEl("div", { "class": "backdrop" });
   opts = opts || {};
-  var sheet = htmlEl("div", { "class": opts.center ? "sheet center" : "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "panelTitle" });
+  var sheet = htmlEl("div", { "class": opts.center ? "sheet center" : opts.wide ? "sheet quick" : "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "panelTitle" });
   var head = htmlEl("div", { "class": "sheet-head" });
   head.appendChild(htmlEl("h2", { id: "panelTitle" }, title));
   var close = htmlEl("button", { "class": "close", type: "button", "aria-label": "Zavrieť" }, "✕");
@@ -78,6 +78,7 @@ function openPanel(title, build, opts) {
 
 function hideToast() {
   $("toast").hidden = true;
+  placeBriefingOffer();
 }
 
 function showToast(text, kind) {
@@ -85,6 +86,7 @@ function showToast(text, kind) {
   node.textContent = text;
   node.className = kind || "info";
   node.hidden = false;
+  placeBriefingOffer();
   clearTimeout(app.toastTimer);
   app.toastTimer = setTimeout(hideToast, TOAST_MS);
 }

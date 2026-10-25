@@ -671,3 +671,57 @@ def test_assign_and_places_refuse_a_day_only_party(layout, make_state, make_part
     assert err(v.check_assign, state, layout, THU, [A1], guest.id).code == "not_present"
     assert err(v.check_places, state, layout, guest.id, THU, 1).code == "not_present"
     assert err(v.check_assign_stay, state, layout, [A1], guest.id).params["reason"] == "no_event_nights"
+
+
+# --- briefing (T-058) ---------------------------------------------------------
+
+
+def test_check_briefing_known_step_and_party(make_state, ivan):
+    assert v.check_briefing(make_state([ivan]), ivan.id, "water") is ivan
+
+
+def test_check_briefing_errors(make_state, ivan):
+    state = make_state([ivan])
+    assert (err(v.check_briefing, state, ivan.id, "nope").code) == "invalid"
+    assert (err(v.check_briefing, state, "p-ghost1", "pack").code) == "unknown_party"
+
+
+def test_add_briefing_step_keeps_canonical_order_and_reports_repeat(make_state, ivan):
+    state = make_state([ivan])
+    assert v.add_briefing_step(state, ivan.id, "list") is True
+    assert v.add_briefing_step(state, ivan.id, "pack") is True
+    assert state.briefing[ivan.id] == ["pack", "list"]
+    assert v.add_briefing_step(state, ivan.id, "pack") is False
+
+
+# --- food note (T-066) --------------------------------------------------------
+
+
+def test_check_food_trims_and_normalizes(make_state, ivan):
+    party, text = v.check_food(make_state([ivan]), ivan.id, "  Café  ")
+    assert party is ivan and text == "Café"
+
+
+def test_check_food_length_boundary(make_state, ivan):
+    state = make_state([ivan])
+    assert v.check_food(state, ivan.id, "a" * 120)[1] == "a" * 120
+    with pytest.raises(v.RuleError) as exc:
+        v.check_food(state, ivan.id, "a" * 121)
+    assert exc.value.code == "invalid" and exc.value.params["reason"] == "too_long" and exc.value.params["max"] == 120
+
+
+def test_check_food_rejects_control_chars_and_unknown_party(make_state, ivan):
+    state = make_state([ivan])
+    with pytest.raises(v.RuleError) as exc:
+        v.check_food(state, ivan.id, "a\tb")
+    assert exc.value.params["reason"] == "control_chars"
+    with pytest.raises(v.RuleError) as exc:
+        v.check_food(state, "p-nobody", "x")
+    assert exc.value.code == "unknown_party"
+
+
+def test_set_food_note(ivan):
+    assert v.set_food_note(ivan, "x") and ivan.food_note == "x"
+    assert not v.set_food_note(ivan, "x")
+    assert v.set_food_note(ivan, "") and ivan.food_note is None
+    assert not v.set_food_note(ivan, "")

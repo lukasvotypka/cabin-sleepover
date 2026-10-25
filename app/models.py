@@ -6,7 +6,7 @@ Dates are ISO strings everywhere (“2026-10-29”), never `date` objects.
 """
 
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import cached_property
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -17,10 +17,12 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     StringConstraints,
     ValidationError,
     ValidationInfo,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -151,6 +153,7 @@ class SceneRects(_Model):
     legend: Rect
     parties: Rect
     meadow: Rect
+    briefing: Rect = [296, 408, 56, 56]  # "Pred cestou" board; optional, default here
 
 
 class MapLayout(_Model):
@@ -325,13 +328,29 @@ class PartyUpdate(PartyInput):
     color: HexColor | None = None  # None: the stored color stays
 
 
+FOOD_NOTE_MAX = 120
+
+
 class Party(PartyInput):
     id: PartyId
     color: HexColor
     # night → needed places on that night when fewer than the full count (not part of the form input)
     places: dict[NightRef, Annotated[int, Field(strict=True, ge=1)]] = {}
+    # "Čo kto donesie": one free text, stored only when set (not part of the form input)
+    food_note: Annotated[str, Field(strict=True, min_length=1, max_length=FOOD_NOTE_MAX)] | None = None
     created_at: IsoDateTime
     updated_at: IsoDateTime
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_food_note(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("food_note") is None:
+            data.pop("food_note", None)
+        return data
+
+
+# Steps of "Pred cestou" in canonical order; the page draws and names them.
+BRIEFING_STEPS = ("pack", "water", "food", "program", "sleep", "list")
 
 
 class State(_Model):
@@ -340,6 +359,7 @@ class State(_Model):
     signup_open: bool = True
     parties: list[Party] = []
     sleeping: dict[str, dict[str, PartyId]] = {}  # night → slot → party id
+    briefing: dict[PartyId, list[str]] = {}  # party id → "Pred cestou" steps gone through, canonical order
 
 
 # --- action requests --------------------------------------------------------
@@ -389,8 +409,88 @@ class PlacesRequest(_Model):
     places: int = Field(strict=True)
 
 
+class BriefingRequest(_Model):
+    party_id: PartyRef
+    step: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=32)]
+
+
+class FoodRequest(_Model):
+    party_id: PartyRef
+    # Length and content are checked in validate.py (`check_food`), so the error carries a stable reason
+    text: Annotated[str, StringConstraints(strict=True)]
+
+
 class SignupRequest(_Model):
     open: bool = Field(strict=True)
+
+
+# --- guest info (config/info.yaml) -------------------------------------------
+
+# Icon names of the page's pixel sprites. The page draws them, the server only knows the names.
+INFO_ICONS = frozenset(
+    "spacak vankus papuce mikina bunda topanky uterak hygiena celovka lieky nabijacka kocka plachta "
+    "karimatka flasa smerovnik lezenie lopta ohen lampion truhla hrniec".split()
+)
+
+def _check_icon(value: str) -> str:
+    if value not in INFO_ICONS:
+        raise ValueError(f"unknown icon (allowed: {', '.join(sorted(INFO_ICONS))})")
+    return value
+
+
+InfoIcon = Annotated[str, Field(strict=True), AfterValidator(_check_icon)]
+Positive = Annotated[float, Field(strict=False, gt=0)]
+
+
+class InfoWater(_Model):
+    drinkable: bool
+    liters_per_day: Positive
+    bottle_liters: Positive
+
+
+class InfoItem(_Model):
+    icon: InfoIcon
+    label: Label
+    note: Label | None = None
+
+
+class InfoMeal(_Model):
+    when: Label
+    what: Label
+
+
+class InfoMenuDay(_Model):
+    day: IsoDate
+    meals: list[InfoMeal] = Field(min_length=1)
+
+
+class InfoProgram(_Model):
+    icon: InfoIcon
+    title: Label
+    when: Label
+    note: Label | None = None
+
+
+class InfoFacilities(_Model):
+    have: list[Label] | None = None
+    missing: list[Label] | None = None
+
+
+class Info(_Model):
+    enabled: bool = Field(default=True, strict=True)  # false: the whole „Pred cestou“ section is off
+    water: InfoWater
+    pack: list[InfoItem] = Field(min_length=1)
+    sleep: list[InfoItem] = Field(min_length=1)
+    menu: list[InfoMenuDay] | None = Field(default=None, min_length=1)
+    bring: Label | None = None
+    program: list[InfoProgram] = Field(min_length=1)
+    pack_intro: Label | None = None
+    sleep_intro: Label | None = None
+    food_intro: Label | None = None
+    food_note: Label | None = None
+    host_arrival: Label | None = None
+    food_plan: list[Label] | None = None
+    facilities: InfoFacilities | None = None
 
 
 # --- loading configuration --------------------------------------------------
@@ -450,3 +550,36 @@ def load_app_config(path: str | Path) -> AppConfig:
         return AppConfig.model_validate(_read_yaml(path))
     except ValidationError as exc:
         raise ConfigError(format_validation_error(exc, str(path))) from exc
+
+
+def event_days(event: Event) -> list[str]:
+    """Every day of the event, from the first arrive day to the last leave day."""
+    first, last = date.fromisoformat(min(event.arrive_days)), date.fromisoformat(max(event.leave_days))
+    return [(first + timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
+
+
+def load_info(path: str | Path, event: Event, enabled: bool | None = None) -> Info | None:
+    """Load `info.yaml`. A missing file or `enabled: false` returns None (feature off); a broken one raises `ConfigError`.
+
+    `enabled` (from `INFO_ENABLED`) overrides the file's own `enabled` when it is not None.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return None
+    try:
+        info = Info.model_validate(_read_yaml(path))
+    except ValidationError as exc:
+        raise ConfigError(format_validation_error(exc, str(path))) from exc
+    days, problems = event_days(event), []
+    seen: set[str] = set()
+    for i, entry in enumerate(info.menu or []):
+        if entry.day not in days:
+            problems.append(f"  menu[{i}].day: {entry.day} is outside the event days {days[0]} to {days[-1]}")
+        elif entry.day in seen:
+            problems.append(f"  menu[{i}].day: {entry.day} is repeated")
+        seen.add(entry.day)
+    if problems:
+        raise ConfigError("\n".join([f"{path}: invalid file", *problems]))
+    # A switched-off file is still checked, so turning it back on cannot break the next start.
+    on = info.enabled if enabled is None else enabled
+    return info if on else None

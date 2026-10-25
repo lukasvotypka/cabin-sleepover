@@ -14,6 +14,7 @@ Where things are:
 | `static/index.html` | the page shell (markup and CSS); it loads the scripts below |
 | `static/js/` | the page code as plain scripts: `logic-*.js` (pure logic, tested in Node) and `app-*.js` (DOM, drawing, requests); load order is the order of the `<script>` tags in `index.html` |
 | `config/cabin.yaml` | event dates, nights and the cabin layout (rooms, beds, slots, map coordinates) |
+| `config/info.yaml` | guest info „Pred cestou“ (what to pack, water, menu, program); optional; without it, or with `enabled: false`, the feature is off |
 | `config/app.yaml` | limits and `backups_keep` |
 | `data/` | the live data, created on first start, never committed, never served |
 | `Dockerfile`, `compose.yaml` | the Docker image and its one-service compose file |
@@ -101,13 +102,15 @@ What you get: the image is built from the official `python:3.12-slim` with the l
 
    ```sh
    sudo install -d -m 700 /etc/cabin
-   sudo nano /etc/cabin/secrets.env      # three lines: GROUP_CODE=..., ADMIN_CODE=..., SECRET_KEY=...
+   sudo nano /etc/cabin/secrets.env      # three lines: GROUP_CODE=..., ADMIN_CODE=..., SECRET_KEY=... (optional fourth: INFO_ENABLED=true)
    sudo chmod 600 /etc/cabin/secrets.env
    ```
 
    Then run every compose command as `sudo docker compose --env-file /etc/cabin/secrets.env ...` (`sudo` because the file is readable by root only; if you prefer, make the file owned by the deploying user instead) (the examples below show the plain `docker compose ...` for short; add the option, or export the variables first, for `up`, `down` and `config`; `stop`, `start` and `restart` work without them).
 
-   Do **not** keep a file called `.env` next to `compose.yaml` on the server. Compose reads such a file automatically to fill in `${...}` values, so it would silently supply (or override) the secrets, and it would leave them in the project directory. `--env-file` replaces that default, so an old `.env` is ignored, but the cleanest server has none.
+   Production switches live in this same file. The optional fourth line `INFO_ENABLED=true` (or `false`) turns the „Pred cestou“ section on or off; when the line is missing, the section stays off (`compose.yaml` defaults it to `false`). After changing it, run `docker compose --env-file /etc/cabin/secrets.env up -d`; a plain restart, or `up` without the env file, keeps the old value. Check the result in the startup log, which says `„Pred cestou“ section on/off (INFO_ENABLED)`: `docker compose logs cabin | grep "Pred cestou"`.
+
+   Do **not** keep a file called `.env` next to `compose.yaml` on the server. Compose reads such a file automatically to fill in `${...}` values, so it would silently supply (or override) the secrets and `INFO_ENABLED`, and it would leave them in the project directory. `--env-file` replaces that default, so an old `.env` is ignored, but the cleanest server has none.
 
    Then create the data directory:
 
@@ -210,6 +213,10 @@ grep -n -B3 -A12 'slot-id-here' /opt/chrapa-poll/data/audit.yaml
 ```
 
 `source` says where the change came from (`map` for a tap on the map, `form` for the party form), `client_id` is a random anonymous id of the browser, and `before` and `after` show what changed. The backup taken before that write is in `data/backups/` and carries the previous version: the audit entry for `version: 12` belongs to the backup `...-v000011.yaml`.
+
+### Editing the guest info
+
+`config/info.yaml` holds the texts of the „Pred cestou“ section (water, packing list, bedding, menu per day, what to bring, program). Edit it and restart the container. A missing file or `enabled: false` turns the feature off (the file is still checked). The environment variable `INFO_ENABLED` (`true`/`false`) overrides the file's `enabled`: `compose.yaml` sets it to `false` unless you export `INFO_ENABLED=true` next to the secrets, so production keeps the section off while local runs and the trial server (variable unset) follow the file. The startup log says which one decided; a broken one stops the app with a message naming the path (for example `pack[3].icon`). Icons come from the fixed set `INFO_ICONS` in `app/models.py`, and menu days are quoted ISO dates within the event days.
 
 ## 6. Open decisions and the defaults used
 
