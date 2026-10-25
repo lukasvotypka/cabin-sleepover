@@ -168,7 +168,15 @@ function advBuild() {
   var boardIcon = htmlEl("span", { "class": "adv-board-icon" });
   var boardText = htmlEl("span");
   board.appendChild(boardIcon); board.appendChild(boardText);
-  view.appendChild(board);
+  var top = htmlEl("div", { "class": "adv-top" });
+  top.appendChild(board);
+  view.appendChild(top);
+  var host = htmlEl("div", { "class": "adv-host", hidden: "" });
+  if (app.state.info && app.state.info.host_arrival) {
+    host.textContent = app.state.info.host_arrival;
+    host.hidden = false;
+  }
+  top.appendChild(host);
 
   // Desktop only (CSS): the welcome with the station list, beside the yard, while no slide is open.
   var side = htmlEl("div", { "class": "adv-side" });
@@ -202,7 +210,7 @@ function advBuild() {
   bar.appendChild(list); bar.appendChild(prog); bar.appendChild(nextBtn);
   view.appendChild(bar);
 
-  adv.els = { world: world, svg: svg, spots: spots, me: me, body: body, board: board, boardIcon: boardIcon, boardText: boardText, slide: slide, side: side, nextBtn: nextBtn, slots: slots };
+  adv.els = { world: world, svg: svg, spots: spots, me: me, body: body, board: board, boardIcon: boardIcon, boardText: boardText, slide: slide, side: side, nextBtn: nextBtn, slots: slots, host: host };
 }
 
 // --- state of the view ---
@@ -224,6 +232,7 @@ function advRefresh() {
     : next ? boardHint(next) : "Máš všetko! Ťukni na hocičo a pozri si to znova.";
   e.boardText.textContent = hint;
   e.side.hidden = !!adv.slide;
+  if (e.host.textContent) e.host.hidden = !!adv.slide;
   slWelcomeMarks(e.side, visited);
   var iconName = next && !adv.slide ? ADV_STATIONS[nextIdx].icon : adv.slide ? ADV_STATIONS[BRIEFING_STEPS.indexOf(adv.slide)].icon : "truhla";
   clearNode(e.boardIcon);

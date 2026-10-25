@@ -3577,6 +3577,9 @@ test("packItems: pack, sheet, mat only when needed, water; duplicates once", () 
   assert.deepEqual(labels(L.packItems(infoCfg, true)), ["Spacák", "Vankúš", "Plachta na matrac", "Karimatka", "Balená voda"]);
   assert.deepEqual(plain(L.packItems(infoCfg, true)[3]), { icon: "karimatka", label: "Karimatka" });
   const dup = { ...infoCfg, pack: [{ icon: "plachta", label: "plachta na matrac" }] };
+  const withNote = L.packItems({ pack: [{ icon: "spacak", label: "Spacák", note: "Požičiame." }, { icon: "x", label: "Y", note: null }] }, false);
+  assert.equal(withNote[0].note, "Požičiame.");
+  assert.equal("note" in withNote[1], false);
   assert.deepEqual(labels(L.packItems(dup, false)), ["plachta na matrac", "Balená voda"]);
   assert.deepEqual(plain(L.packItems(null, true)), []);
 });
@@ -3744,5 +3747,52 @@ test("the adventure shows the next station button on desktop and a non-modal sli
   const src = fs.readFileSync(path.join(root, "static", "js", "app-adventure.js"), "utf8");
   assert.ok(src.includes('adv.slide && !wide ? "‹ Späť na dvor"'));
   assert.ok(src.includes('setAttribute("aria-modal", wide ? "false" : "true")'));
-  assert.ok(fs.readFileSync(path.join(root, "static", "js", "app-slides.js"), "utf8").includes("Nákup na spoločné jedlá rozpočítame."));
+});
+
+test("no fixed cabin sentences left in static/", () => {
+  const dir = path.join(root, "static");
+  const files = [];
+  (function walk(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) f.isDirectory() ? walk(path.join(d, f.name)) : files.push(path.join(d, f.name)); })(dir);
+  const bad = ["Koniec októbra na chate", "Postele a matrace sú pripravené", "Nákup na spoločné jedlá", "Nič nie je povinné"];
+  for (const f of files) {
+    const t = fs.readFileSync(f, "utf8");
+    for (const b of bad) assert.ok(!t.includes(b), b + " in " + f);
+  }
+});
+
+test("facilityLists, menuDays, infoList tolerate missing fields", () => {
+  assert.equal(JSON.stringify(L.facilityLists({})), JSON.stringify({ have: [], missing: [] }));
+  assert.equal(JSON.stringify(L.facilityLists(null)), JSON.stringify({ have: [], missing: [] }));
+  assert.equal(JSON.stringify(L.facilityLists({ facilities: { have: ["gril", ""], missing: ["WC"] } })), JSON.stringify({ have: ["gril"], missing: ["WC"] }));
+  assert.equal(JSON.stringify(L.facilityLists({ facilities: { have: ["gril"] } })), JSON.stringify({ have: ["gril"], missing: [] }));
+  assert.equal(JSON.stringify(L.menuDays({})), JSON.stringify([]));
+  assert.equal(L.menuDays(infoCfg).length, 1);
+  assert.equal(JSON.stringify(L.infoList(undefined)), JSON.stringify([]));
+});
+
+test("quickWhatsAppText: new optional fields appear only when set, no menu line without menu", () => {
+  const { menu, bring, ...bare } = infoCfg;
+  const base = L.quickWhatsAppText(bare, "Chata");
+  assert.ok(!base.includes("🍲") && !base.includes("🍞") && !base.includes("🚫") && !base.includes("🕓") && !base.includes("🛒"));
+  const full = L.quickWhatsAppText({
+    ...bare, host_arrival: "Prídem o 16:00.", food_plan: ["grilovanie", "mäso"], food_note: "Obchod je blízko.",
+    facilities: { have: ["gril"], missing: ["sprcha", "WC"] },
+  }, "Chata");
+  const lines = full.split("\n");
+  assert.equal(lines[1], "🕓 Prídem o 16:00.");
+  assert.ok(full.includes("🚫 Na chate nie je: sprcha, WC."));
+  assert.ok(full.includes("🍲 Varí sa: grilovanie, mäso."));
+  assert.ok(full.includes("🛒 Obchod je blízko."));
+  assert.ok(!full.includes("gril."));
+  assert.ok(L.quickWhatsAppText({ ...bare, facilities: { have: ["gril"] } }, "Chata").indexOf("🚫") === -1);
+});
+
+test("slideSignature covers the new food and sleep fields", () => {
+  const p = party({ id: "p-aaaaaa", name: "A" });
+  const a = infoState([p], {});
+  const withInfo = (extra) => ({ ...a, info: { ...a.info, ...extra } });
+  for (const [step, extra] of [["food", { food_plan: ["x"] }], ["food", { food_note: "y" }], ["food", { food_intro: "z" }],
+    ["sleep", { facilities: { have: ["a"], missing: [] } }], ["sleep", { sleep_intro: "q" }]]) {
+    assert.notEqual(L.slideSignature(step, a, p.id), L.slideSignature(step, withInfo(extra), p.id));
+  }
 });

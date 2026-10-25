@@ -143,7 +143,7 @@ function slHead(box, kick, title) {
 
 function slPack(box, info) {
   slHead(box, "1 · Auto", "Zbaľ si");
-  slAdd(box, "p", null, "Koniec októbra na chate býva chladno a vlhko. Toto si dones:");
+  if (info.pack_intro) slAdd(box, "p", null, info.pack_intro);
   var items = packItems(info, needsMat(app.state, app.myParty));
   var bar = slAdd(box, "div", "adv-packbar");
   var label = htmlEl("span"), track = htmlEl("i"), fill = htmlEl("b");
@@ -165,6 +165,7 @@ function slPack(box, info) {
     var b = htmlEl("button", { "class": "adv-slot", type: "button" });
     b.appendChild(advIcon(it.icon));
     b.appendChild(htmlEl("div", null, it.label));
+    if (it.note) b.appendChild(htmlEl("small", { "class": "adv-note" }, it.note));
     b.addEventListener("click", function () { togglePacked(localStorage, it.label); sync(); });
     grid.appendChild(b);
     buttons.push(b);
@@ -220,28 +221,38 @@ function slWater(box, info) {
 
 function slFood(box, info) {
   slHead(box, "3 · Ohnisko", "Čo sa bude variť");
-  var menu = slAdd(box, "div", "adv-menu");
-  (info.menu || []).forEach(function (d) {
-    var row = htmlEl("div", { "class": "adv-day" });
-    row.appendChild(htmlEl("span", { "class": "adv-d" }, dayLabel(d.day)));
-    var meals = htmlEl("div", { "class": "adv-m" });
-    d.meals.forEach(function (m, j) {
-      if (j) meals.appendChild(document.createElement("br"));
-      meals.appendChild(htmlEl("i", null, m.when + ": "));
-      meals.appendChild(document.createTextNode(m.what));
+  if (info.food_intro) slAdd(box, "p", null, info.food_intro);
+  var plan = infoList(info.food_plan);
+  if (plan.length) {
+    var ul = slAdd(box, "ul", "adv-plan");
+    plan.forEach(function (t) { ul.appendChild(htmlEl("li", null, t)); });
+  }
+  var days = menuDays(info);
+  if (days.length) {
+    var menu = slAdd(box, "div", "adv-menu");
+    days.forEach(function (d) {
+      var row = htmlEl("div", { "class": "adv-day" });
+      row.appendChild(htmlEl("span", { "class": "adv-d" }, dayLabel(d.day)));
+      var meals = htmlEl("div", { "class": "adv-m" });
+      d.meals.forEach(function (m, j) {
+        if (j) meals.appendChild(document.createElement("br"));
+        meals.appendChild(htmlEl("i", null, m.when + ": "));
+        meals.appendChild(document.createTextNode(m.what));
+      });
+      row.appendChild(meals); menu.appendChild(row);
     });
-    row.appendChild(meals); menu.appendChild(row);
-  });
+  }
+  if (info.food_note) slAdd(box, "p", null, info.food_note);
   if (info.bring) {
     var tip = slAdd(box, "div", "adv-tip");
     tip.appendChild(htmlEl("b", null, "Do kuchyne dones: "));
-    tip.appendChild(document.createTextNode(bringText(info.bring) + " Nákup na spoločné jedlá rozpočítame."));
+    tip.appendChild(document.createTextNode(bringText(info.bring)));
   }
-  var days = eventDays(app.state.event), counts = foodRow(app.state);
+  var eventNights = eventDays(app.state.event), counts = foodRow(app.state);
   var eat = slAdd(box, "div", "adv-eat");
   eat.appendChild(htmlEl("b", null, "Na jedlo nás je"));
   var list = htmlEl("div", { "class": "adv-eat-days" });
-  days.forEach(function (day, i) { list.appendChild(htmlEl("span", null, dayLabel(day) + ": " + counts[i])); });
+  eventNights.forEach(function (day, i) { list.appendChild(htmlEl("span", null, dayLabel(day) + ": " + counts[i])); });
   eat.appendChild(list);
 }
 
@@ -255,12 +266,19 @@ function slProgram(box, info) {
     t.appendChild(htmlEl("span", null, p.when + (p.note ? " · " + p.note : "")));
     q.appendChild(t);
   });
-  slAdd(box, "p", "adv-muted", "Nič nie je povinné. Kto chce, len leží pri peci.");
+}
+
+function slFacilities(box, title, mark, items, cls) {
+  var wrap = slAdd(box, "div", cls);
+  wrap.appendChild(htmlEl("b", null, title));
+  var ul = htmlEl("ul");
+  items.forEach(function (t) { ul.appendChild(htmlEl("li", { "data-mark": mark }, t)); });
+  wrap.appendChild(ul);
 }
 
 function slSleep(box, info) {
   slHead(box, "5 · Chata", "Na čom sa spí");
-  slAdd(box, "p", null, "Postele a matrace sú pripravené, ale bez perín a obliečok.");
+  if (info.sleep_intro) slAdd(box, "p", null, info.sleep_intro);
   var rows = slAdd(box, "div", "adv-rows");
   info.sleep.forEach(function (s) {
     var r = htmlEl("div", { "class": "adv-row" });
@@ -270,6 +288,9 @@ function slSleep(box, info) {
     if (s.note) t.appendChild(htmlEl("span", null, s.note));
     r.appendChild(t); rows.appendChild(r);
   });
+  var fac = facilityLists(info);
+  if (fac.have.length) slFacilities(box, "Na chate je", "✓", fac.have, "adv-fac have");
+  if (fac.missing.length) slFacilities(box, "Na chate nie je", "✗", fac.missing, "adv-fac missing");
   var places = matPlaces(app.state, app.myParty);
   if (places.length) {
     var tip = slAdd(box, "div", "adv-tip");

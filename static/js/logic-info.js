@@ -42,13 +42,15 @@ function needsMat(state, partyId) {
 function packItems(info, withMat) {
   if (!info) return [];
   var out = [], seen = {};
-  function add(icon, label) {
+  function add(icon, label, note) {
     var key = String(label).toLowerCase();
     if (seen[key]) return;
     seen[key] = true;
-    out.push({ icon: icon, label: label });
+    var item = { icon: icon, label: label };
+    if (note) item.note = note;
+    out.push(item);
   }
-  (info.pack || []).forEach(function (p) { add(p.icon, p.label); });
+  (info.pack || []).forEach(function (p) { add(p.icon, p.label, p.note); });
   add("plachta", "Plachta na matrac");
   if (withMat) add("karimatka", "Karimatka");
   add("flasa", "Balená voda");
@@ -174,27 +176,53 @@ function bringText(bring) {
   return /[.!?…]$/.test(text) ? text : text + ".";
 }
 
+// A list of non-empty strings from the config (missing or wrong type gives an empty list).
+function infoList(list) {
+  return Array.isArray(list) ? list.filter(function (x) { return typeof x === "string" && x.trim() !== ""; }) : [];
+}
+
+// What the cabin has and lacks: { have: [...], missing: [...] }, each possibly empty.
+function facilityLists(info) {
+  var f = (info && info.facilities) || {};
+  return { have: infoList(f.have), missing: infoList(f.missing) };
+}
+
+// The menu by days, only when present and non-empty.
+function menuDays(info) {
+  return info && Array.isArray(info.menu) ? info.menu : [];
+}
+
 // What the open food or sleep slide shows from the state. A new state redraws the slide only when this changes.
 function slideSignature(step, state, partyId) {
   var info = state && state.info;
   if (!info) return "";
-  if (step === "sleep") return JSON.stringify([info.sleep, matPlaces(state, partyId)]);
-  if (step === "food") return JSON.stringify([info.menu, info.bring, eventDays(state.event), foodRow(state)]);
+  if (step === "sleep") return JSON.stringify([info.sleep, info.sleep_intro, info.facilities, matPlaces(state, partyId)]);
+  if (step === "food") return JSON.stringify([info.menu, info.bring, info.food_intro, info.food_plan, info.food_note, eventDays(state.event), foodRow(state)]);
   return "";
 }
 
 // The text for WhatsApp from the quick list (no HTML); the water line only when the tap water is not drinkable.
+// Each optional field adds its line only when set.
 function quickWhatsAppText(info, title) {
   if (!info) return "";
   var lines = ["*" + title + "*"];
+  if (info.host_arrival) lines.push("🕓 " + info.host_arrival);
   if (info.water && info.water.drinkable === false) {
     lines.push("💧 Voda z kohútika nie je pitná, dones balenú (" + formatNumber(info.water.liters_per_day) + " l na človeka a deň).");
   }
   lines.push("🎒 Zbaľ si: " + (info.pack || []).map(function (p) { return p.label.toLowerCase(); }).join(", ") + ".");
   lines.push("🛏️ " + (info.sleep || []).map(function (s) { return s.label; }).join(", ") + ".");
-  lines.push("🍲 " + (info.menu || []).map(function (d) {
-    return dayLabel(d.day) + " " + d.meals.map(function (m) { return m.what; }).join(", ");
-  }).join("; ") + ".");
+  var missing = facilityLists(info).missing;
+  if (missing.length) lines.push("🚫 Na chate nie je: " + missing.join(", ") + ".");
+  var plan = infoList(info.food_plan);
+  if (plan.length) lines.push("🍲 Varí sa: " + plan.join(", ") + ".");
+  var menu = menuDays(info);
+  if (menu.length) {
+    lines.push("🍲 " + menu.map(function (d) {
+      return dayLabel(d.day) + " " + d.meals.map(function (m) { return m.what; }).join(", ");
+    }).join("; ") + ".");
+  }
+  if (info.food_note) lines.push("🛒 " + info.food_note);
   if (info.bring) lines.push("🍞 Dones: " + bringText(info.bring));
   lines.push("🍂 " + (info.program || []).map(function (p) { return p.title; }).join(", ") + ".");
   return lines.join("\n");

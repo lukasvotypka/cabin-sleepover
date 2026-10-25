@@ -25,6 +25,7 @@ function qkWater(parent, info) {
 
 function qkPack(parent, info) {
   var card = qkCard(parent, "Zbaľ si");
+  if (info.pack_intro) card.appendChild(htmlEl("p", null, info.pack_intro));
   var items = packItems(info, needsMat(app.state, app.myParty));
   var prog = htmlEl("div", { "class": "qk-prog" });
   var label = htmlEl("span"), track = htmlEl("i"), fill = htmlEl("b");
@@ -48,7 +49,10 @@ function qkPack(parent, info) {
       l.classList.toggle("done", cb.checked);
       count();
     });
-    l.appendChild(cb); l.appendChild(htmlEl("span", null, it.label));
+    l.appendChild(cb);
+    var txt = htmlEl("span", null, it.label);
+    if (it.note) txt.appendChild(htmlEl("small", { "class": "qk-note" }, it.note));
+    l.appendChild(txt);
     checks.appendChild(l);
   });
   card.appendChild(checks);
@@ -57,23 +61,43 @@ function qkPack(parent, info) {
 
 function qkSleep(parent, info) {
   var card = qkCard(parent, "Spanie");
+  if (info.sleep_intro) card.appendChild(htmlEl("p", null, info.sleep_intro));
   var ul = htmlEl("ul");
   (info.sleep || []).forEach(function (s) { ul.appendChild(htmlEl("li", null, s.note ? s.label + ": " + s.note : s.label)); });
   var places = matPlaces(app.state, app.myParty);
   if (places.length) ul.appendChild(htmlEl("li", null, "Tvoje miesto: " + places.join(", ") + ". Pribaľ karimatku."));
   card.appendChild(ul);
+  var fac = facilityLists(info);
+  [["Na chate je", "✓", fac.have, "have"], ["Na chate nie je", "✗", fac.missing, "missing"]].forEach(function (f) {
+    if (!f[2].length) return;
+    var p = htmlEl("p", { "class": "qk-fac " + f[3] });
+    p.appendChild(htmlEl("b", null, f[1] + ": "));
+    p.appendChild(document.createTextNode(f[2].join(", ")));
+    card.appendChild(p);
+  });
 }
 
 function qkFood(parent, info) {
   var card = qkCard(parent, "Jedlo");
-  var table = htmlEl("table", { "class": "qk-table" });
-  (info.menu || []).forEach(function (d) {
-    var tr = htmlEl("tr");
-    tr.appendChild(htmlEl("td", null, dayLabel(d.day)));
-    tr.appendChild(htmlEl("td", null, d.meals.map(function (m) { return m.when + ": " + m.what; }).join(" · ")));
-    table.appendChild(tr);
-  });
-  card.appendChild(table);
+  if (info.food_intro) card.appendChild(htmlEl("p", null, info.food_intro));
+  var plan = infoList(info.food_plan);
+  if (plan.length) {
+    var ul = htmlEl("ul");
+    plan.forEach(function (t) { ul.appendChild(htmlEl("li", null, t)); });
+    card.appendChild(ul);
+  }
+  var days = menuDays(info);
+  if (days.length) {
+    var table = htmlEl("table", { "class": "qk-table" });
+    days.forEach(function (d) {
+      var tr = htmlEl("tr");
+      tr.appendChild(htmlEl("td", null, dayLabel(d.day)));
+      tr.appendChild(htmlEl("td", null, d.meals.map(function (m) { return m.when + ": " + m.what; }).join(" · ")));
+      table.appendChild(tr);
+    });
+    card.appendChild(table);
+  }
+  if (info.food_note) card.appendChild(htmlEl("p", null, info.food_note));
   if (info.bring) card.appendChild(htmlEl("p", null, "Dones: " + bringText(info.bring)));
 }
 
@@ -115,6 +139,7 @@ function openQuickList() {
   if (!info) return;
   recordStep("list");
   openPanel("Rýchly prehľad", function (body) {
+    if (info.host_arrival) body.appendChild(htmlEl("p", { "class": "qk-host" }, info.host_arrival));
     var grid = htmlEl("div", { "class": "qk-grid" });
     qkWater(grid, info);
     qkPack(grid, info);
