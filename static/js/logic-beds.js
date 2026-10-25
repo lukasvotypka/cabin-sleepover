@@ -313,26 +313,28 @@ function nightsCount(n) {
   return n + " " + (n === 1 ? "noc" : n >= 2 && n <= 4 ? "noci" : "nocí");
 }
 
-// "št – ne · 3 noci": the first night's day, the day after the last night, and the count.
+// "št – ne · 3 noci" for consecutive nights, "št, so · 2 noci" otherwise.
 function stayNightsText(nights) {
   if (!nights.length) return "";
   var a = parseIso(nights[0]), b = parseIso(addDays(nights[nights.length - 1], 1));
   if (!a || !b) return nightsCount(nights.length);
-  return DAY_SHORT[a.dow].toLowerCase() + " – " + DAY_SHORT[b.dow].toLowerCase() + " · " + nightsCount(nights.length);
+  var consecutive = nights.every(function (n, i) { return i === 0 || addDays(nights[i - 1], 1) === n; });
+  var days = nights.map(function (n) { return DAY_SHORT[parseIso(n).dow].toLowerCase(); });
+  var range = consecutive ? days[0] + " – " + DAY_SHORT[b.dow].toLowerCase() : days.join(", ");
+  return range + " · " + nightsCount(nights.length);
 }
 
-// "V piatok je tu plno, zapíšeme ťa na št a so." for the party nights the bed cannot take.
-function stayFullNote(full, booked) {
+// "V piatok je tu plno." for the party nights the bed cannot take.
+function stayFullNote(full) {
   if (!full.length) return "";
-  var days = full.map(function (n) { return dayLocative(n); });
-  var short = booked.map(function (n) { return DAY_SHORT[parseIso(n).dow].toLowerCase(); });
-  var head = capitalize(joinList(days)) + " je tu plno";
-  return booked.length ? head + ", zapíšeme ťa na " + joinList(short) + "." : head + ".";
+  return capitalize(joinList(full.map(function (n) { return dayLocative(n); }))) + " je tu plno.";
 }
 
-// The texts of the bed panel's two assign buttons. The main one books the whole stay (`stayNights`),
-// the second only the selected night. With a one-night stay there is a single button.
-// `take` is the slots one tap takes (`slotsToTake`). Returns {single, main, sub, only, note}.
+// The texts of the bed panel's assign buttons. When the bed takes all of the party's remaining nights,
+// the main one books the whole stay (`stayNights`) and the second only the selected night. When it
+// takes only the selected night (or the party is there one night) there is a single button; when it
+// takes some nights, the main one books those. `take` is the slots one tap takes (`slotsToTake`).
+// Returns {single, main, sub, only, note}.
 function bedActionTexts(state, party, bed, night, take) {
   var places = take.length;
   var count = places > 0 ? " (" + pluralPlaces(places) + ")" : "";
@@ -347,12 +349,16 @@ function bedActionTexts(state, party, bed, night, take) {
     var mine = bed.slots.some(function (slot) { return held[slot] === party.id; });
     return booked.indexOf(n) === -1 && !mine;
   });
+  var note = stayFullNote(full);
+  if (booked.length <= 1) {
+    return { single: true, main: "Zapísať sem " + name + count, sub: "", only: "", note: note };
+  }
   return {
     single: false,
-    main: "Zapísať " + name + " na celý pobyt" + count,
+    main: "Zapísať " + name + (full.length ? " na voľné noci" : " na celý pobyt") + count,
     sub: stayNightsText(booked),
     only: "Len na " + dayAccusative(night),
-    note: stayFullNote(full, booked)
+    note: note
   };
 }
 
