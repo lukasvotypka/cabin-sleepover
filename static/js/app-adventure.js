@@ -36,10 +36,7 @@ function advChainIndex(i) {
 }
 
 function advVisited() {
-  var seen = briefingSteps(app.state, app.myParty);
-  // stops opened in this visit count only for the party that opened them (switching „Kto si“ starts afresh)
-  var session = adv.sessionParty === app.myParty ? adv.session : [];
-  return BRIEFING_STEPS.filter(function (s) { return seen.indexOf(s) !== -1 || session.indexOf(s) !== -1; });
+  return visitedStations(app.state, app.myParty, adv.session, adv.sessionParty);
 }
 
 function advRect(parent, x, y, w, h, fill, cls) {

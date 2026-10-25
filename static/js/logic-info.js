@@ -163,6 +163,14 @@ function notBriefedNames(state) {
 }
 
 // The first station not visited yet, or null.
+// Stops shown as visited in the yard, in station order: the party's steps on the server plus the stops opened in
+// this visit, but the latter only when they were opened by the same party (switching „Kto si“ starts afresh).
+function visitedStations(state, partyId, session, sessionParty) {
+  var seen = briefingSteps(state, partyId);
+  var local = sessionParty === partyId && Array.isArray(session) ? session : [];
+  return BRIEFING_STEPS.filter(function (s) { return seen.indexOf(s) !== -1 || local.indexOf(s) !== -1; });
+}
+
 function nextStation(visited) {
   var seen = visited || [];
   for (var i = 0; i < BRIEFING_STEPS.length; i++) {

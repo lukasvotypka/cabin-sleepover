@@ -3657,6 +3657,19 @@ test("briefing status: all five, list alone, partial, none", () => {
   assert.equal(L.briefingDone({ ...s, briefing: undefined }, a.id), false);
 });
 
+test("visitedStations: stops opened in this visit belong to the party that opened them", () => {
+  const state = { briefing: { "p-aaaaaa": ["sleep"], "p-bbbbbb": [] } };
+  // A opened the car and the well in this visit; the server already has A's „sleep“
+  assert.deepEqual(plain(L.visitedStations(state, "p-aaaaaa", ["water", "pack"], "p-aaaaaa")), ["pack", "water", "sleep"]);
+  // switching to B must not show A's stops (the bug fixed in 1.14.1)
+  assert.deepEqual(plain(L.visitedStations(state, "p-bbbbbb", ["water", "pack"], "p-aaaaaa")), []);
+  // B's own server steps still count, no party at all sees only its own visit
+  state.briefing["p-bbbbbb"] = ["food"];
+  assert.deepEqual(plain(L.visitedStations(state, "p-bbbbbb", ["water"], "p-aaaaaa")), ["food"]);
+  assert.deepEqual(plain(L.visitedStations(state, null, ["program"], null)), ["program"]);
+  assert.deepEqual(plain(L.visitedStations({}, "p-aaaaaa", undefined, "p-aaaaaa")), []);
+});
+
 test("nextStation and boardHint", () => {
   assert.equal(L.nextStation([]), "pack");
   assert.equal(L.nextStation(["pack", "sleep"]), "water");
