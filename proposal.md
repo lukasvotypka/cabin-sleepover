@@ -376,7 +376,7 @@ Rozhodnutie organizátora z 25. 10. 2026. Okrem zápisu na miesta stránka odovz
 
 ### Obsah: `config/info.yaml`
 
-Píše organizátor, server ho načíta pri štarte, overí Pydanticom a pošle stránke v `/api/state` ako `info` (rovnako ako rozloženie z `cabin.yaml`). Texty sú po slovensky, lebo sú to údaje od organizátora ako názvy izieb, nie hlášky servera. Rozhodnutie organizátora z 25. 10. 2026: celá sekcia sa dá vypnúť príznakom `enabled: false` v súbore (predvolene `true`); súbor sa aj tak overí. Chýbajúci súbor alebo `enabled: false` znamená, že funkcia je vypnutá (žiadna tabuľa v scéne, žiadne sledovanie). Chybný súbor server nespustí s presnou hláškou (neznáma ikona, prázdny zoznam, deň mimo udalosti).
+Píše organizátor, server ho načíta pri štarte, overí Pydanticom a pošle stránke v `/api/state` ako `info` (rovnako ako rozloženie z `cabin.yaml`). Texty sú po slovensky, lebo sú to údaje od organizátora ako názvy izieb, nie hlášky servera. Rozhodnutie organizátora z 25. 10. 2026: celá sekcia sa dá vypnúť príznakom `enabled: false` v súbore (predvolene `true`); súbor sa aj tak overí. Premenná prostredia `INFO_ENABLED` (`true`/`false`) prebije príznak zo súboru; `compose.yaml` ju predvolene nastaví na `false`, takže na produkcii je sekcia vypnutá, kým ju organizátor nezapne, a lokálne a na skúšobnom serveri (premenná nenastavená) rozhoduje súbor. Chýbajúci súbor alebo `enabled: false` znamená, že funkcia je vypnutá (žiadna tabuľa v scéne, žiadne sledovanie). Chybný súbor server nespustí s presnou hláškou (neznáma ikona, prázdny zoznam, deň mimo udalosti).
 
 ```yaml
 water:

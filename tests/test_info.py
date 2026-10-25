@@ -210,3 +210,41 @@ def test_rejected_new_field_values(tmp_path, patch, needle):
     with pytest.raises(ConfigError) as exc:
         _load(tmp_path, {**base, **patch})
     assert needle in str(exc.value)
+
+
+def _app_env(tmp_path: Path, info: dict | None, value: str):
+    env = {**TEST_ENV, "INFO_ENABLED": value}
+    return create_app(config_dir=_config(tmp_path, info), data_dir=tmp_path / "data", env=env)
+
+
+@pytest.mark.parametrize("value", ["false", "0", "no", "off", "FALSE"])
+def test_env_false_turns_an_enabled_file_off(tmp_path, value):
+    assert _app_env(tmp_path, _sample(), value).state.runtime.info_json is None
+
+
+@pytest.mark.parametrize("value", ["true", "1", "yes", "on"])
+def test_env_true_turns_a_disabled_file_on(tmp_path, value):
+    d = _sample()
+    d["enabled"] = False
+    assert _app_env(tmp_path, d, value).state.runtime.info_json is not None
+
+
+def test_empty_env_lets_the_file_decide(tmp_path):
+    d = _sample()
+    d["enabled"] = False
+    assert _app_env(tmp_path, d, "").state.runtime.info_json is None
+    assert _app_env(tmp_path / "b", _sample(), " ").state.runtime.info_json is not None
+
+
+def test_env_true_without_a_file_stays_off(tmp_path):
+    assert _app_env(tmp_path, None, "true").state.runtime.info_json is None
+
+
+def test_bad_env_value_refuses_startup(tmp_path):
+    with pytest.raises(ConfigError, match="INFO_ENABLED"):
+        _app_env(tmp_path, _sample(), "maybe")
+
+
+def test_compose_turns_the_section_off_by_default():
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8"))
+    assert compose["services"]["cabin"]["environment"]["INFO_ENABLED"] == "${INFO_ENABLED:-false}"

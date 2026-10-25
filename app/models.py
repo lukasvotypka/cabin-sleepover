@@ -558,8 +558,11 @@ def event_days(event: Event) -> list[str]:
     return [(first + timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
 
 
-def load_info(path: str | Path, event: Event) -> Info | None:
-    """Load `info.yaml`. A missing file or `enabled: false` returns None (feature off); a broken one raises `ConfigError`."""
+def load_info(path: str | Path, event: Event, enabled: bool | None = None) -> Info | None:
+    """Load `info.yaml`. A missing file or `enabled: false` returns None (feature off); a broken one raises `ConfigError`.
+
+    `enabled` (from `INFO_ENABLED`) overrides the file's own `enabled` when it is not None.
+    """
     path = Path(path)
     if not path.is_file():
         return None
@@ -578,4 +581,5 @@ def load_info(path: str | Path, event: Event) -> Info | None:
     if problems:
         raise ConfigError("\n".join([f"{path}: invalid file", *problems]))
     # A switched-off file is still checked, so turning it back on cannot break the next start.
-    return info if info.enabled else None
+    on = info.enabled if enabled is None else enabled
+    return info if on else None

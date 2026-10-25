@@ -214,7 +214,7 @@ grep -n -B3 -A12 'slot-id-here' /opt/chrapa-poll/data/audit.yaml
 
 ### Editing the guest info
 
-`config/info.yaml` holds the texts of the „Pred cestou“ section (water, packing list, bedding, menu per day, what to bring, program). Edit it and restart the container. A missing file or `enabled: false` turns the feature off (the file is still checked); a broken one stops the app with a message naming the path (for example `pack[3].icon`). Icons come from the fixed set `INFO_ICONS` in `app/models.py`, and menu days are quoted ISO dates within the event days.
+`config/info.yaml` holds the texts of the „Pred cestou“ section (water, packing list, bedding, menu per day, what to bring, program). Edit it and restart the container. A missing file or `enabled: false` turns the feature off (the file is still checked). The environment variable `INFO_ENABLED` (`true`/`false`) overrides the file's `enabled`: `compose.yaml` sets it to `false` unless you export `INFO_ENABLED=true` next to the secrets, so production keeps the section off while local runs and the trial server (variable unset) follow the file. The startup log says which one decided; a broken one stops the app with a message naming the path (for example `pack[3].icon`). Icons come from the fixed set `INFO_ICONS` in `app/models.py`, and menu days are quoted ISO dates within the event days.
 
 ## 6. Open decisions and the defaults used
 

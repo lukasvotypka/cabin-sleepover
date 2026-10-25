@@ -106,6 +106,18 @@ class Settings:
     secret_key: str
 
 
+def info_enabled_override(env: Mapping[str, str]) -> bool | None:
+    """`INFO_ENABLED` from the environment: None when unset or empty (the file decides), else true/false."""
+    raw = env.get("INFO_ENABLED", "").strip().lower()
+    if not raw:
+        return None
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    raise ConfigError(f"INFO_ENABLED must be true or false, got {raw!r}")
+
+
 def load_settings(env: Mapping[str, str]) -> Settings:
     """Read the secrets from the environment. Names every problem at once."""
     values = {name: env.get(name, "").strip() for name in ("GROUP_CODE", "ADMIN_CODE", "SECRET_KEY")}
@@ -497,7 +509,9 @@ def create_app(
     `env` defaults to `os.environ`. `clock` (epoch seconds) is used for cookie ages and
     `monotonic` for the rate-limit windows. Both are injectable for tests.
     """
-    settings = load_settings(os.environ if env is None else env)
+    env = os.environ if env is None else env
+    settings = load_settings(env)
+    info_override = info_enabled_override(env)
     config_dir, static_dir = Path(config_dir), Path(static_dir)
     layout = load_layout(config_dir / "cabin.yaml")
     app_config = load_app_config(config_dir / "app.yaml")
@@ -506,8 +520,11 @@ def create_app(
         raise ConfigError(f"{index_file}: the page is missing")
     store = Store(layout, data_dir=data_dir, backups_keep=app_config.backups_keep)  # the data file check
     layout_json = layout.model_dump(mode="json")
-    info = load_info(config_dir / "info.yaml", layout.event)
+    info_path = config_dir / "info.yaml"
+    info = load_info(info_path, layout.event, info_override)
     info_json = info.model_dump(mode="json") if info else None
+    source = "INFO_ENABLED" if info_override is not None else ("info.yaml" if info_path.is_file() else "no info.yaml")
+    log.info("„Pred cestou“ section %s (%s)", "on" if info else "off", source)
 
     hub = EventHub(on_online_change=lambda online: on_online_change(online))
     rt = Runtime(
