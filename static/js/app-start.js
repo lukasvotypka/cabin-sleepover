@@ -16,8 +16,16 @@ document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape" && e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") app.navKeyAt = Date.now();
 }, true);
 document.addEventListener("visibilitychange", function () {
-  if (document.visibilityState === "visible") poll();
+  if (document.visibilityState !== "visible") return;
+  // A poll still waiting from before the phone slept is most likely dead: drop it and ask again.
+  if (app.polling && app.pollAbort) {
+    app.pollAgain = true;    // the aborted poll starts a new one when it has finished
+    app.pollAbort.abort();
+    return;
+  }
+  poll();
 });
+window.addEventListener("online", function () { poll(); });   // the network is back: do not wait for the tick
 setInterval(function () {
   if (document.visibilityState === "visible") poll();
 }, POLL_MS);

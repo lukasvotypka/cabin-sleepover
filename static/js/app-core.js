@@ -6,6 +6,10 @@
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
 var AGE_TICK_MS = 1000;
+// A request that hangs (a phone that slept or lost the network mid-request) is given up after this,
+// so the next poll can run. Without it a hung poll blocked all later ones and the page stayed stale.
+var POLL_TIMEOUT_MS = 10000;
+var WRITE_TIMEOUT_MS = 20000;
 var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound" };
 var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
@@ -79,6 +83,8 @@ var app = {
   introDone: false,    // true when the fall starts: from then on the loading view never comes back
   codeOpen: false,
   polling: false,
+  pollAbort: null,     // AbortController of the poll in flight
+  pollAgain: false,    // poll once more as soon as the current poll has finished
   writeEpoch: 0,       // bumped when a write response is applied, so an older poll cannot overwrite it
   pending: [],         // unconfirmed changes {night, slot, party_id} drawn on top of the state
   walking: {},         // "night|slot" keys of beds whose figure is still on its way (drawBed leaves them empty)
@@ -152,24 +158,32 @@ function clearNode(node) {
 
 // --- requests ---
 
-function request(method, path, body, etag) {
+function request(method, path, body, etag, timeoutMs) {
   var headers = { "Accept": "application/json", "X-Client-Id": clientId };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (etag) headers["If-None-Match"] = etag;
   if (app.myParty) headers["X-Party-Id"] = app.myParty;
+  var abort = typeof AbortController === "function" ? new AbortController() : null;
+  var timer = abort ? setTimeout(function () { abort.abort(); }, timeoutMs || WRITE_TIMEOUT_MS) : null;
+  if (method === "GET") app.pollAbort = abort;
   return fetch(path, {
     method: method,
     headers: headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",      // the browser then hands the 304 to this code
-    credentials: "same-origin"
+    credentials: "same-origin",
+    signal: abort ? abort.signal : undefined
   }).then(function (res) {
+    clearTimeout(timer);
     var etagOut = res.headers.get("ETag");
     if (res.status === 304) return { status: 304, json: null, etag: etagOut };
     return res.json().then(
       function (json) { return { status: res.status, json: json, etag: etagOut }; },
       function () { return { status: res.status, json: null, etag: null }; }
     );
+  }, function (err) {
+    clearTimeout(timer);
+    throw err;
   });
 }
 
@@ -208,7 +222,7 @@ function poll() {
   if (app.codeOpen || app.polling) return Promise.resolve();
   app.polling = true;
   var epoch = app.writeEpoch;
-  return request("GET", "api/state", undefined, app.etag).then(function (r) {
+  return request("GET", "api/state", undefined, app.etag, POLL_TIMEOUT_MS).then(function (r) {
     if (r.status === 401) { showCodeScreen(); return; }
     app.pollFailed = r.status !== 200 && r.status !== 304;
     if (epoch !== app.writeEpoch) return;   // a write finished meanwhile and its state is newer
@@ -227,6 +241,7 @@ function poll() {
     renderAge();
   }).then(function () {
     app.polling = false;
+    if (app.pollAgain) { app.pollAgain = false; poll(); return; }
     if (!app.state && !app.codeOpen) {
       $("bootText").textContent = "Nepodarilo sa načítať, skúšam znova…";
       $("boot").classList.add("boot--error");
