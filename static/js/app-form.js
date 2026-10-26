@@ -15,7 +15,7 @@ var FORM_LABELS = {
 function openPartyForm(party, opts) {
   var event = app.state.event, editing = !!party;
   // A protected party this device has not verified is not offered (the server refuses it too).
-  if (editing && !canEditParty(party, sessionVerified(), isAdmin(app.role))) {
+  if (editing && !canEditParty(party, sessionVerified(), isAdmin(app.role), app.state.phone_verify)) {
     showToast(errorText({ code: "login_required", params: { party_id: party.id, party_name: party.name } }, app.state), "error");
     return;
   }
@@ -339,7 +339,7 @@ function openPartyForm(party, opts) {
           }
           var freed = (res.json && res.json.freed) || [];
           if (app.panel !== panel) return;
-          if (!editing && created && app.session && app.session.sms_enabled) {
+          if (!editing && created && app.session && app.session.sms_enabled && app.state.phone_verify !== false) {
             showToast("Pridané: „" + payload.name + "“.", "info");
             showPhoneOffer(created);
             return;
@@ -381,13 +381,65 @@ function openPartyForm(party, opts) {
   });
 }
 
+// Contact mode (verification off): the number is only a contact for the organizer, saved without SMS.
+function contactPhone(box, party, info, reopen) {
+  if (info.hasPhone) box.appendChild(htmlEl("p", { "class": "hint" }, info.text));
+  var input = htmlEl("input", { type: "tel", inputmode: "tel", autocomplete: "tel", maxlength: "20", "aria-label": "Telefónne číslo", "data-key": "phone-contact" });
+  var error = htmlEl("p", { "class": "form-error", role: "alert", hidden: "" });
+  var row = htmlEl("div", { "class": "row" });
+  function fail(res) {
+    if (res.status === 401) return;
+    error.textContent = errorText(res.error, app.state);
+    error.hidden = false;
+  }
+  function done(text) { closePanel(); showToast(text, "info"); reopen(); }
+  var save = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "phone-save" }, info.hasPhone ? "Zmeniť" : "Uložiť číslo");
+  save.addEventListener("click", function () {
+    error.hidden = true;
+    write("PUT", "api/parties/" + encodeURIComponent(party.id) + "/phone", { phone: input.value }).then(function (res) {
+      if (!res.ok) { fail(res); return; }
+      done(PHONE_TEXTS.added);
+    });
+  });
+  row.appendChild(save);
+  // Enter would submit the surrounding party form; save the number instead.
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); save.click(); }
+  });
+  if (info.hasPhone) {
+    var rm = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "phone-remove" }, "Odstrániť");
+    rm.addEventListener("click", function () {
+      clearNode(row);
+      input.hidden = true;
+      box.insertBefore(htmlEl("p", { "class": "note phone-ask", role: "alert" }, PHONE_TEXTS.contactRemoveAsk), row);
+      var yes = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "phone-remove-yes" }, "Áno, odstrániť");
+      yes.addEventListener("click", function () {
+        write("DELETE", "api/parties/" + encodeURIComponent(party.id) + "/phone").then(function (res) {
+          if (!res.ok) { fail(res); return; }
+          done(PHONE_TEXTS.removed);
+        });
+      });
+      var no = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "phone-remove-no" }, "Nie");
+      no.addEventListener("click", function () { closePanel(); reopen(); });
+      row.appendChild(yes);
+      row.appendChild(no);
+    });
+    row.appendChild(rm);
+  }
+  box.appendChild(htmlEl("p", { "class": "hint" }, info.hasPhone ? PHONE_TEXTS.contactChangeIntro : PHONE_TEXTS.contactAddIntro));
+  box.appendChild(input);
+  box.appendChild(error);
+  box.appendChild(row);
+}
+
 // The „Telefón“ section of the form of an existing party (null without `sms_enabled`). `reopen` shows the form
 // again with fresh data after a number was saved.
 function phoneSection(party, reopen) {
-  var info = phoneSectionInfo(party, app.session ? app.session.sms_enabled : false, sessionVerified());
+  var info = phoneSectionInfo(party, app.session ? app.session.sms_enabled : false, sessionVerified(), app.state.phone_verify);
   if (!info.visible) return null;
   var box = htmlEl("div", { "class": "field phone-section", "data-key": "phone-section" });
   box.appendChild(htmlEl("span", { "class": "label" }, "Telefón"));
+  if (info.mode === "contact") { contactPhone(box, party, info, reopen); return box; }
   var row = htmlEl("div", { "class": "row" });
   function btn(text, key, onClick) {
     var b = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": key }, text);

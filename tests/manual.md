@@ -203,3 +203,9 @@ These are not defects, they are the developer's own choices that need a human op
 - [ ] **Removing the number (T-098):** remove the number; any device with the group code can change the party again.
 - [ ] **Real SMS once (T-098):** only after the organizer asks, with the Twilio variables set on production, add a real number once and check the SMS arrives. `SMS_FAKE` must not be set there.
 - [ ] **Party form phone section on phones (T-097):** on a 380 px iPhone Safari and Android Chrome, light and dark mode: open the form of your own party. „Telefón“ shows „Pridať telefón (na prihlásenie)“; after adding a number it shows „Telefón končí na …NNN“ with „Zmeniť“, „Odstrániť“ and „Odhlásiť toto zariadenie“, all at least 44 px tall and wrapping without horizontal scrolling. „Odstrániť“ asks first. „Odhlásiť toto zariadenie“ removes „Si: …“ on this phone, and the form of that protected party then shows the „si chránia zápis telefónom“ sentence instead of opening. Creating a party offers „Pridať telefón“ and „Teraz nie“ skips it. On a device without a login the bed sheet of the protected party shows no „Uvoľniť“.
+
+## 10. Phone verification switch (T-103)
+
+- [ ] **Off (two devices):** in the admin panel tap „Vypnúť overovanie cez SMS“. On device A „Kto si?“ shows no locks and a party with a number is picked directly; no login panel opens on reload. In the form of an existing party „Telefón“ is a number field: save a number (no SMS), device B sees the party's hint live without reload. „Odstrániť“ asks first and removes it. Creating a party offers no SMS step.
+- [ ] **On again:** tap „Zapnúť overovanie cez SMS“. The party with a number now shows the lock and asks for login on the other device; its bed sheet shows no actions until logged in.
+- [ ] **On without Twilio:** on a server without the Twilio variables and without `SMS_FAKE`, the switch-on button shows the Slovak „SMS nie je dostupná“-style error and the state stays off.

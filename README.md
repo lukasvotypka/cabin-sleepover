@@ -236,6 +236,8 @@ Twilio setup:
 
 Without the three variables `sms_enabled` is false in `GET /api/session`, the page hides „add a number“ and the SMS endpoints answer `503 sms_unavailable`. Protected parties stay protected, and the admin can still remove a number. Without Twilio, `SMS_FAKE=1` gives a fake client that logs the code, for development and the trial server only.
 
+Switch (`phone_verify`, default on): the admin panel has a button „Vypnúť/Zapnúť overovanie cez SMS“ (`POST /api/admin/phone-verify {on}`). The flag is stored in `cabin-data.yaml` and sent in `/api/state` as `phone_verify`. While it is off, no party is protected: „Kto si?“ shows no locks, nobody logs in, and the party form has a plain contact number field (`PUT`/`DELETE /api/parties/{id}/phone`, no SMS). Switching it on needs Twilio (or `SMS_FAKE=1`), otherwise `503 sms_unavailable`; parties with a saved number are then protected again. Privacy is unchanged: the number is never sent to the page, only `phone_hint`.
+
 A lost phone: open the page with the admin code and remove the number (`DELETE /api/parties/{id}/phone`, available in the party form as „Odstrániť“), or stop the service, delete the `phone` and `phone_set_at` lines of that party in `data/cabin-data.yaml` and start it again.
 
 Privacy: the full number is stored only in `data/cabin-data.yaml`. It never appears in `/api/state`, the event stream, `audit.yaml` or the logs; they carry at most the last three digits (`phone_hint`).

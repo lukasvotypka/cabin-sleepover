@@ -76,6 +76,12 @@ function openAdmin() {
           });
         }));
         var lock = box.lastChild;
+        box.appendChild(btn(phoneVerifyToggleLabel(app.state.phone_verify), "btn secondary", "admin-phone-verify", function () {
+          write("POST", "api/admin/phone-verify", { on: app.state.phone_verify === false }).then(function (res) {
+            fail(res);
+            if (app.panel === panel) show();
+          });
+        }));
         box.appendChild(btn("Stiahnuť dáta", "btn secondary", "admin-export", function () { downloadExport(); }));
         box.appendChild(btn("Zmazať partiu", "btn secondary danger", "admin-delete", function () { mode = "pick"; show(); }));
       } else if (mode === "pick") {

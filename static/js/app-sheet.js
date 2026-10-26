@@ -33,7 +33,7 @@ function openBedSheet(room, bed) {
       if (!who && bed.tight.indexOf(slot) !== -1) label.appendChild(htmlEl("span", { "class": "tight" }, "(tesné)"));
       row.appendChild(label);
       if (who && night === app.night && canWrite(st, app.role)) {
-        if (who.party && !canEditParty(who.party, sessionVerified(), isAdmin(app.role))) {
+        if (who.party && !canEditParty(who.party, sessionVerified(), isAdmin(app.role), st.phone_verify)) {
           // A protected party this device has not verified: no actions, only the reason.
           row.appendChild(htmlEl("p", { "class": "note" },
             errorText({ code: "login_required", params: { party_id: who.party.id, party_name: who.party.name } }, st)));
@@ -213,8 +213,8 @@ function openWho(opts) {
         var seen = seenText((pres.last_seen || {})[party.id], serverNow(), (pres.online || []).indexOf(party.id) !== -1);
         row.appendChild(htmlEl("span", { "class": "seen" }, seen));
         row.setAttribute("aria-label", party.name + ", " + seen);
-        var locked = needsLogin(party, sessionVerified());
-        if (isProtected(party)) {
+        var locked = needsLogin(party, sessionVerified(), app.state.phone_verify);
+        if (isProtected(party, app.state.phone_verify)) {
           row.appendChild(htmlEl("span", { "class": "lock", "aria-hidden": "true" }, "🔒"));
           row.setAttribute("aria-label", party.name + ", " + seen + ", chránené telefónom" + (locked ? "" : ", overené"));
         }

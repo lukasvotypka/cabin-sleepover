@@ -4052,7 +4052,7 @@ test("the login panel file avoids innerHTML, uses the right input attributes and
   assert.match(src, /"Overiť"/);
   assert.ok(scriptTags.includes("static/js/app-login.js"));
   const sheet = fs.readFileSync(path.join(root, "static", "js", "app-sheet.js"), "utf8");
-  assert.match(sheet, /needsLogin\(party, sessionVerified\(\)\)/);
+  assert.match(sheet, /needsLogin\(party, sessionVerified\(\), app\.state\.phone_verify\)/);
   assert.match(sheet, /openLogin\(party/);
 });
 
@@ -4140,7 +4140,7 @@ test("party form phone section: labels present, logout and removal wired, no inn
   assert.match(form, /showPhoneOffer/);                         // offered right after creating a party
   assert.match(login, /"\/" \+ apiPath \+ "\/start"/);
   assert.match(login, /apiPath = managing \? "phone" : "login"/);
-  assert.match(form, /canEditParty\(party, sessionVerified\(\), isAdmin\(app\.role\)\)/);
+  assert.match(form, /canEditParty\(party, sessionVerified\(\), isAdmin\(app\.role\), app\.state\.phone_verify\)/);
   assert.match(readScripts("app-sheet"), /canEditParty\(who\.party, sessionVerified\(\)/);
 });
 
@@ -4178,4 +4178,14 @@ test("phoneVerifyToggleLabel", () => {
   assert.equal(L.phoneVerifyToggleLabel(true), "Vypnúť overovanie cez SMS");
   assert.equal(L.phoneVerifyToggleLabel(undefined), "Vypnúť overovanie cez SMS");
   assert.equal(L.phoneVerifyToggleLabel(false), "Zapnúť overovanie cez SMS");
+});
+
+test("T-103: admin phone-verify button and contact field are wired", () => {
+  const admin = readScripts("app-admin");
+  assert.match(admin, /admin-phone-verify/);
+  assert.match(admin, /phoneVerifyToggleLabel\(app\.state\.phone_verify\)/);
+  assert.match(admin, /api\/admin\/phone-verify/);
+  const form = readScripts("app-form");
+  assert.match(form, /"PUT", "api\/parties\/"/);
+  assert.match(form, /autocomplete: "tel"/);
 });
