@@ -210,26 +210,19 @@ These are not defects, they are the developer's own choices that need a human op
 - [ ] **On again:** tap „Zapnúť overovanie cez SMS“. The party with a number now shows the lock and asks for login on the other device; its bed sheet shows no actions until logged in.
 - [ ] **On without Twilio:** on a server without the Twilio variables and without `SMS_FAKE`, the switch-on button shows the Slovak „SMS nie je dostupná“-style error and the state stays off.
 
-## 11. Day and night (T-110, T-111)
+## 11. Day and night and the time slider (T-110, T-111, T-114, T-115)
 
-Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open decisions with defaults to judge while testing (proposal „Deň a noc pri prepnutí noci“): speed (about 2.2 s per night), the swap moment of the figures (midnight of the last night passed), mild dimming of signposts and the party table, fireflies yes, sounds no, clock board only during the animation.
+Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open decisions with defaults to judge while testing (proposal „Deň a noc pri prepnutí noci“): speed (about 2.2 s per night), the time stays where the finger released it, the page opens at noon of the chosen night, figures fade in place, mild dimming of signposts and the party table, fireflies yes, sounds no. Two defaults from the T-115 notes to judge as well: an instant switch („Kto si?“, SSE) keeps the hour if it lies in the new night, and figures on the meadow switch without a fade.
 
-- [ ] **Durations and direction:** tapping the Št signpost, then So: dusk, night and dawn run twice with the clock board („Št 12:00“ ... „So 12:00“), about 3.4 s. Št to Pi takes about 2.2 s. So to Št runs backwards.
-- [ ] **Highlight and figures:** the signpost highlight changes at once. The beds keep the old night's figures until midnight of the last night passed (for a trip of one night, at once), then the figures walk to the new night's places.
-- [ ] **Rapid taps:** tapping several signposts during the animation continues smoothly from the current hour, with no jump or flash.
-- [ ] **Readability at night:** signposts and the party table stay readable. Rooms, windows and doors glow, fireflies blink, no bird flies at night.
+- [ ] **Bar position:** the wooden time bar is always visible at the top left, left of „Úlohy“ (closed and open), does not cover it, is at least 44 px high, and the scene starts below it. On an iPhone with a notch (also landscape) it stays clear of the notch and the rounded corners.
+- [ ] **Move mode:** tapping „Presunúť“ on a booked bed („Ťukni na nové miesto“) hides the bar; closing move mode shows it again.
+- [ ] **Knob drag:** dragging the sun/moon knob moves the light and the time text smoothly with the finger, the map does not pan and the page does not scroll. Releasing keeps the time, also at night.
+- [ ] **Tap on the strip:** a tap runs the time-lapse to that hour; a second tap during the run retargets it smoothly, with no jump or flash.
+- [ ] **Crossing 06:00:** dragging across 06:00 switches the signpost highlight, the bottom HUD and an open panel to the new night. Figures that leave shift and fade, new ones fade in, figures in the same place stay. Št to So swaps twice. On Sunday morning nobody gets up. Going back works the same way.
+- [ ] **Signpost and „Ťukni sem“:** both run the time-lapse to noon of that night. Page load starts at noon of the chosen night.
+- [ ] **No time-lapse without a tap:** the „Kto si?“ pick and a change from a second phone (SSE) switch the night at once, and the bar follows. An SSE update during an animation does not show the new night early.
+- [ ] **Readability at night:** signposts and the party table stay readable. Rooms, windows and doors glow, fireflies blink, no bird flies at night. Taps on beds and signposts still work at night.
 - [ ] **Multiply blend on iPhone Safari:** dusk is orange and night is navy, not grey or black. If not, the fallback is plain opacity (see T-111 notes).
-- [ ] **No animation without a tap:** page load, the „Kto si?“ pick and a change from a second phone (SSE) switch the night without the time-lapse. An SSE update during the animation does not show the new night early.
-- [ ] **Reduced motion (iOS „Zmenšiť pohyb“, Android „Remove animations“):** the night switches at once, no clock board, fireflies stay still.
-- [ ] **Clock board lifetime:** it disappears about 0.9 s after the end and is not shown at rest. Taps on beds and signposts still work at night.
-- [ ] **Clock board vs. HUD on a 360-390 px phone:** the „Úlohy“ button sits on top of the clock board and hides its right part (strip cells from about the second night on, including the framed current cell). Decide whether this is acceptable or the board needs a new place.
+- [ ] **Screen reader:** VoiceOver and TalkBack read the slider value like „piatok 03:00, noc Št → Pi“. On desktop the arrows, Page Up/Down, Home and End move the time.
+- [ ] **Reduced motion (iOS „Zmenšiť pohyb“, Android „Remove animations“):** no time-lapse, no fade, fireflies stay still; dragging the knob still works.
 - [ ] **Pan and zoom fps with the day-night layer at rest (T-113):** on a 380 px iPhone Safari (and Android Chrome) at noon, drag, pinch and zoom the map with one and two fingers for about 10 s: it moves smoothly, no visible lag compared with the night-free state. Headless Chrome at 8x CPU throttle showed no difference (median about 17 ms, p90 about 20 ms, layer hidden or forced), so the iOS gap from the organizer report is only checked here.
-
-### Top time slider (T-115)
-
-- [ ] **Bar position on a 360-390 px phone:** the wooden time bar sits top left, on the same row as „Úlohy“ (closed and open), does not overlap it and is at least 44 px high. On an iPhone with a notch (safari, landscape too) it stays clear of the notch and the rounded corners (`env(safe-area-inset-*)`).
-- [ ] **Knob drag with a finger (iPhone Safari, Android Chrome):** dragging the sun/moon knob moves the time and the light with the finger, the map does not pan, and the page does not scroll. Releasing at night keeps the night; the signposts and the bottom bar follow the night.
-- [ ] **Tap on the strip:** a tap runs the time-lapse to that hour, and a second tap during the run stops or retargets it smoothly.
-- [ ] **Figures at 06:00:** dragging across 06:00 (the strip position of the new day) swaps the figures once: leaving figures slide out and fade, arriving ones fade in, the rest stay as they are. Going back works the same way.
-- [ ] **Move mode hides the bar:** tapping „Presunúť“ on a booked bed hides the time bar; closing move mode shows it again.
-- [ ] **Two devices:** a change made on a second phone switches the night on this phone at once (no time-lapse) and the bar follows.
