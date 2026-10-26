@@ -136,7 +136,7 @@ function drawFigure(g, px, py, color, kind, ch) {
   }
 }
 
-// A free place: a blinking „+“ (amber on a tight place) with a dark edge, so it reads on a white pillow too.
+// A free place: a still „+“ (no blinking: many free places blinking at once were distracting) (amber on a tight place) with a dark edge, so it reads on a white pillow too.
 // It covers the same 8 x 8 box as the old square, at (px + 1, py + 2).
 function drawFreeMark(parent, px, py, tight) {
   var g = svgEl(parent, "g", { "class": "free" });

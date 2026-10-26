@@ -1712,7 +1712,8 @@ test("page: no bed, room or slot geometry or names are hardcoded in the page cod
   assert.doesNotMatch(app + logicSource, /konica|hallway|kitchen|["'`](left|right)["'`]|(left|right)-(double|window|cot|bunk|sofa)/i);
 });
 
-test("page: blinking has a reduced-motion rule and the free square is white or orange", () => {
+test("page: blinking has a reduced-motion rule, free places do not blink and the tight „+“ is orange", () => {
+  assert.doesNotMatch(html, /\.free \{[^}]*animation/);
   assert.match(html, /@keyframes blink/);
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none/);
   assert.match(html, /tight: "#E0A33A"/);
