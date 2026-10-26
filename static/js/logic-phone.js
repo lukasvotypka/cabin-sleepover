@@ -129,3 +129,30 @@ function resendSecondsLeft(sentAt, now) {
 function canResend(state, now) {
   return state.step === "code" && !state.busy && resendSecondsLeft(state.sentAt, now) === 0;
 }
+
+// --- the „Telefón“ section of the party form ---
+
+// What the section shows for a party that is being edited. Only with `sms_enabled`; with a number it
+// offers „Zmeniť“ and „Odstrániť“, and „Odhlásiť toto zariadenie“ when this device has verified the party.
+function phoneSectionInfo(party, smsEnabled, verifiedIds) {
+  if (!party || smsEnabled !== true) return { visible: false };
+  var has = isProtected(party);
+  return {
+    visible: true,
+    hasPhone: has,
+    text: has ? "Telefón končí na " + phoneHintText(party) : "Pridať telefón (na prihlásenie)",
+    canLogout: has && isVerifiedParty(party, verifiedIds)
+  };
+}
+
+var PHONE_TEXTS = {
+  addTitle: "Pridať telefón",
+  changeTitle: "Zmeniť telefón",
+  addIntro: "Zadaj telefónne číslo. Pošleme na neho kód a potom budeš partiu meniť iba ty.",
+  changeIntro: "Zadaj nové telefónne číslo. Pošleme na neho kód.",
+  offer: "Chceš si pridať telefón? Potom bude partiu meniť iba ty, na iných zariadeniach sa prihlásiš kódom z SMS.",
+  removeAsk: "Naozaj odstrániť telefón? Partiu potom môže meniť každý, kto má kód skupiny.",
+  removed: "Telefón je odstránený.",
+  added: "Telefón je uložený.",
+  loggedOut: "Toto zariadenie je odhlásené."
+};

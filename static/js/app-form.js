@@ -14,6 +14,11 @@ var FORM_LABELS = {
 // that gets focus back on close.
 function openPartyForm(party, opts) {
   var event = app.state.event, editing = !!party;
+  // A protected party this device has not verified is not offered (the server refuses it too).
+  if (editing && !canEditParty(party, sessionVerified(), isAdmin(app.role))) {
+    showToast(errorText({ code: "login_required", params: { party_id: party.id, party_name: party.name } }, app.state), "error");
+    return;
+  }
   var fields = {}, errors = {};
   openPanel(editing ? "Upraviť „" + party.name + "“" : "Pridať sa", function (body, panel) {
     var values = editing ? partyToForm(party, event) : defaultPartyForm(event);
@@ -207,6 +212,13 @@ function openPartyForm(party, opts) {
     form.appendChild(field("note", note, { optional: true }));
     form.appendChild(colorField());
 
+    if (editing) {
+      var phoneBox = phoneSection(party, function () {
+        var fresh = app.state ? partyById(app.state, party.id) : null;
+        if (fresh) openPartyForm(fresh, opts);
+      });
+      if (phoneBox) form.appendChild(phoneBox);
+    }
     var confirmBox = htmlEl("div", { "class": "note", hidden: "", role: "alert" });
     form.appendChild(confirmBox);
     var row = htmlEl("div", { "class": "row" });
@@ -284,6 +296,23 @@ function openPartyForm(party, opts) {
       save.focus();
     }
 
+    // Right after creating a party: add a phone now or skip.
+    function showPhoneOffer(created) {
+      clearNode(body);
+      body.appendChild(htmlEl("p", null, PHONE_TEXTS.offer));
+      var add = htmlEl("button", { "class": "btn", type: "button", "data-key": "phone-offer-add" }, "Pridať telefón");
+      add.addEventListener("click", function () {
+        closePanel();
+        var fresh = partyById(app.state, created.id) || created;
+        openLogin(fresh, { phone: "add" });
+      });
+      var skip = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "phone-offer-skip" }, "Teraz nie");
+      skip.addEventListener("click", closePanel);
+      body.appendChild(add);
+      body.appendChild(skip);
+      add.focus();
+    }
+
     function showDone(freed) {
       clearNode(body);
       body.appendChild(htmlEl("p", null, FREED_TEXTS.done));
@@ -310,6 +339,11 @@ function openPartyForm(party, opts) {
           }
           var freed = (res.json && res.json.freed) || [];
           if (app.panel !== panel) return;
+          if (!editing && created && app.session && app.session.sms_enabled) {
+            showToast("Pridané: „" + payload.name + "“.", "info");
+            showPhoneOffer(created);
+            return;
+          }
           if (freed.length) { showDone(freed); return; }
           closePanel();
           showToast(editing ? "Zmeny sú uložené." : "Pridané: „" + payload.name + "“.", "info");
@@ -345,4 +379,60 @@ function openPartyForm(party, opts) {
     returnKey: opts && opts.returnKey,
     initialFocus: function (body) { return body.querySelector("input"); }
   });
+}
+
+// The „Telefón“ section of the form of an existing party (null without `sms_enabled`). `reopen` shows the form
+// again with fresh data after a number was saved.
+function phoneSection(party, reopen) {
+  var info = phoneSectionInfo(party, app.session ? app.session.sms_enabled : false, sessionVerified());
+  if (!info.visible) return null;
+  var box = htmlEl("div", { "class": "field phone-section", "data-key": "phone-section" });
+  box.appendChild(htmlEl("span", { "class": "label" }, "Telefón"));
+  var row = htmlEl("div", { "class": "row" });
+  function btn(text, key, onClick) {
+    var b = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": key }, text);
+    b.addEventListener("click", onClick);
+    row.appendChild(b);
+    return b;
+  }
+  function draw() {
+    clearNode(row);
+    if (!info.hasPhone) {
+      btn(info.text, "phone-add", function () { closePanel(); openLogin(party, { phone: "add", after: reopen, back: reopen }); });
+      return;
+    }
+    box.insertBefore(htmlEl("p", { "class": "hint" }, info.text), row);
+    btn("Zmeniť", "phone-change", function () { closePanel(); openLogin(party, { phone: "change", after: reopen, back: reopen }); });
+    btn("Odstrániť", "phone-remove", askRemove);
+    if (info.canLogout) btn("Odhlásiť toto zariadenie", "phone-logout", logout);
+  }
+  function askRemove() {
+    clearNode(row);
+    box.appendChild(htmlEl("p", { "class": "note phone-ask", role: "alert" }, PHONE_TEXTS.removeAsk));
+    btn("Áno, odstrániť", "phone-remove-yes", function () {
+      write("DELETE", "api/parties/" + encodeURIComponent(party.id) + "/phone").then(function (res) {
+        if (!res.ok) { if (res.status !== 401) showToast(errorText(res.error, app.state), "error"); return; }
+        loadSession();
+        closePanel();
+        showToast(PHONE_TEXTS.removed, "info");
+        reopen();
+      });
+    });
+    btn("Nie", "phone-remove-no", function () { closePanel(); reopen(); });
+  }
+  function logout() {
+    request("POST", "api/logout", { party_id: party.id }).then(function (r) {
+      if (r.status === 401) { showCodeScreen(); return; }
+      if (!(r.status === 200 && r.json && r.json.ok)) { showToast(errorText(r.json ? r.json.error : undefined, app.state), "error"); return; }
+      if (app.session) app.session.verified = app.session.verified.filter(function (id) { return id !== party.id; });
+      if (app.myParty === party.id) forgetMyParty();
+      loadSession();
+      closePanel();
+      render();
+      showToast(PHONE_TEXTS.loggedOut, "info");
+    }, function () { showToast(errorText(undefined, app.state), "error"); });
+  }
+  box.appendChild(row);
+  draw();
+  return box;
 }

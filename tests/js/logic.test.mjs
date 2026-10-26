@@ -4110,3 +4110,36 @@ test("page source: every panel that changes places is gated by canWrite while si
   }
   assert.match(fn("openWho"), /canWrite\(app\.state, app\.role\)\) actions\.appendChild\(add\)/);
 });
+
+// --- party form „Telefón“ section (T-097) ---
+
+test("phoneSectionInfo: hidden without sms_enabled, add / change / logout variants", () => {
+  const open = { id: "p-a" }, locked = { id: "p-b", phone_hint: "456" };
+  assert.equal(L.phoneSectionInfo(open, false, []).visible, false);
+  assert.equal(L.phoneSectionInfo(open, undefined, []).visible, false);
+  assert.equal(L.phoneSectionInfo(null, true, []).visible, false);
+  const add = L.phoneSectionInfo(open, true, []);
+  assert.deepEqual([add.visible, add.hasPhone, add.canLogout, add.text], [true, false, false, "Pridať telefón (na prihlásenie)"]);
+  const has = L.phoneSectionInfo(locked, true, []);
+  assert.deepEqual([has.hasPhone, has.canLogout, has.text], [true, false, "Telefón končí na …456"]);
+  assert.equal(L.phoneSectionInfo(locked, true, ["p-b"]).canLogout, true);
+});
+
+test("party form phone section: labels present, logout and removal wired, no innerHTML", () => {
+  const form = readScripts("app-form").replace(/\/\/.*$/gm, "");
+  const login = readScripts("app-login").replace(/\/\/.*$/gm, "");
+  const logic = readScripts("logic-phone");
+  assert.doesNotMatch(form + login, /innerHTML/);
+  assert.match(logic, /Pridať telefón \(na prihlásenie\)/);
+  assert.match(logic, /Telefón končí na /);
+  for (const label of ["Zmeniť", "Odstrániť", "Odhlásiť toto zariadenie"]) assert.ok(form.includes(label), label);
+  assert.match(form, /"DELETE", "api\/parties\/" \+ encodeURIComponent\(party\.id\) \+ "\/phone"/);
+  assert.match(form, /"api\/logout", \{ party_id: party\.id \}/);
+  assert.match(form, /loadSession\(\)/);
+  assert.match(form, /forgetMyParty\(\)/);
+  assert.match(form, /showPhoneOffer/);                         // offered right after creating a party
+  assert.match(login, /"\/" \+ apiPath \+ "\/start"/);
+  assert.match(login, /apiPath = managing \? "phone" : "login"/);
+  assert.match(form, /canEditParty\(party, sessionVerified\(\), isAdmin\(app\.role\)\)/);
+  assert.match(readScripts("app-sheet"), /canEditParty\(who\.party, sessionVerified\(\)/);
+});

@@ -32,7 +32,15 @@ function openBedSheet(room, bed) {
       label.appendChild(htmlEl("span", null, rowText));
       if (!who && bed.tight.indexOf(slot) !== -1) label.appendChild(htmlEl("span", { "class": "tight" }, "(tesné)"));
       row.appendChild(label);
-      if (who && night === app.night && canWrite(st, app.role)) slotActions(row, st, slot, who, rowText);
+      if (who && night === app.night && canWrite(st, app.role)) {
+        if (who.party && !canEditParty(who.party, sessionVerified(), isAdmin(app.role))) {
+          // A protected party this device has not verified: no actions, only the reason.
+          row.appendChild(htmlEl("p", { "class": "note" },
+            errorText({ code: "login_required", params: { party_id: who.party.id, party_name: who.party.name } }, st)));
+        } else {
+          slotActions(row, st, slot, who, rowText);
+        }
+      }
       return row;
     }
 

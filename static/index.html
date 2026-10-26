@@ -402,6 +402,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .pform textarea, .summary-text { resize: vertical; line-height: 1.35; }
 .pform input:focus, .pform select:focus, .pform textarea:focus, .summary-text:focus { outline: none; border-color: var(--moss); }
+.pform .phone-section .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pform .phone-section .row .btn { width: auto; flex: 1 1 auto; min-height: 44px; }
+.pform .phone-section .hint { margin: 0; }
 .pform [aria-invalid="true"] { border-color: var(--warn); }
 .pform .colors { display: flex; flex-direction: column; gap: 8px; padding: 4px; border: 3px solid transparent; }
 .pform .colors:focus { outline: none; }

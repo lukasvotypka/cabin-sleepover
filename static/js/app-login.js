@@ -40,13 +40,16 @@ function checkStoredLogin() {
 // --- the „Prihlás sa“ panel ---
 
 // `opts.after` runs once the party is chosen. „Späť“ goes back to „Kto si?“.
+// With `opts.phone` ("add" or "change") the same panel saves a number for `party` instead (phone/start + phone/verify,
+// T-097): „Späť“ calls `opts.back`, and `opts.after` runs once the number is saved.
 function openLogin(party, opts) {
   opts = opts || {};
+  var managing = !!opts.phone, apiPath = managing ? "phone" : "login";
   var st = loginInitial();
   var timer = 0;
   var resendBtn = null;
   function stop() { if (timer) { clearInterval(timer); timer = 0; } }
-  openPanel("Prihlás sa", function (body, panel) {
+  openPanel(managing ? (opts.phone === "change" ? PHONE_TEXTS.changeTitle : PHONE_TEXTS.addTitle) : "Prihlás sa", function (body, panel) {
     function failed(r) {
       st = loginReduce(st, { type: "failed", error: r.error || { code: "unknown" } });
       draw();
@@ -55,7 +58,7 @@ function openLogin(party, opts) {
       var phone = normalizePhoneInput(st.phone);
       st = loginReduce(st, { type: "send" });
       draw();
-      request("POST", "api/parties/" + party.id + "/login/start", { phone: phone }).then(function (r) {
+      request("POST", "api/parties/" + party.id + "/" + apiPath + "/start", { phone: phone }).then(function (r) {
         if (r.status === 200 && r.json && r.json.ok) {
           st = loginReduce(st, { type: "sent", at: Date.now() });
           draw(true);
@@ -68,16 +71,19 @@ function openLogin(party, opts) {
       var phone = normalizePhoneInput(st.phone);
       st = loginReduce(st, { type: "verify" });
       draw();
-      request("POST", "api/parties/" + party.id + "/login/verify", { phone: phone, code: st.code }).then(function (r) {
+      request("POST", "api/parties/" + party.id + "/" + apiPath + "/verify", { phone: phone, code: st.code }).then(function (r) {
         if (r.status === 200 && r.json && r.json.ok) {
           st = loginReduce(st, { type: "verified" });
           if (r.json.state && (!app.state || r.json.state.version >= app.state.version)) applyState(r.json.state);
           if (app.session && app.session.verified.indexOf(party.id) < 0) app.session.verified.push(party.id);
           loadSession();
-          setMyParty(party.id);
-          app.night = defaultNightFor(party, app.state.event.nights);
+          if (!managing) {
+            setMyParty(party.id);
+            app.night = defaultNightFor(party, app.state.event.nights);
+          }
           closePanel();
           render();
+          if (managing) showToast(PHONE_TEXTS.added, "info");
           if (opts.after) opts.after();
         } else {
           failed({ error: r.json ? r.json.error : undefined });
@@ -94,7 +100,8 @@ function openLogin(party, opts) {
       var input;
       if (st.step === "phone") {
         var hint = phoneHintText(party);
-        form.appendChild(htmlEl("p", null, "Zadaj svoje telefónne číslo" + (hint ? " (končí na " + hint + ")" : "") + "."));
+        form.appendChild(htmlEl("p", null, managing ? (opts.phone === "change" ? PHONE_TEXTS.changeIntro : PHONE_TEXTS.addIntro) :
+          "Zadaj svoje telefónne číslo" + (hint ? " (končí na " + hint + ")" : "") + "."));
         var field = htmlEl("div", { "class": "field" });
         field.appendChild(htmlEl("label", { "for": "lg-phone" }, "Telefónne číslo"));
         input = htmlEl("input", { id: "lg-phone", type: "tel", inputmode: "tel", autocomplete: "tel", maxlength: "20", "data-key": "login-phone" });
@@ -141,7 +148,11 @@ function openLogin(party, opts) {
         tick();
       }
       var back = htmlEl("button", { "class": "btn secondary", type: "button", "data-key": "login-back" }, "Späť");
-      back.addEventListener("click", function () { closePanel(); openWho(opts.after ? { after: opts.after } : undefined); });
+      back.addEventListener("click", function () {
+        closePanel();
+        if (managing) { if (opts.back) opts.back(); return; }
+        openWho(opts.after ? { after: opts.after } : undefined);
+      });
       form.appendChild(back);
       if (focusCode !== false && input && (focusCode === true || !st.busy)) input.focus();
     }
@@ -153,5 +164,5 @@ function openLogin(party, opts) {
     }
     timer = setInterval(tick, 1000);
     draw();
-  }, { returnKey: "who", center: true, onClose: stop });
+  }, { returnKey: managing ? undefined : "who", center: true, onClose: stop });
 }
