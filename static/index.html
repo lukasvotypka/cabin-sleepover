@@ -495,7 +495,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @keyframes yard-rise { from { transform: translate(0, 0); opacity: .9; } to { transform: translate(8px, -36px); opacity: 0; } }
 @keyframes yard-flame-a { 0% { opacity: 1; } 50% { opacity: 0; } }
 @keyframes yard-flame-b { 0% { opacity: 0; } 50% { opacity: 1; } }
-.yard-top { position: absolute; z-index: 3; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; max-width: 420px; margin: 0 auto; }
+.yard-top { position: absolute; z-index: 3; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.yard-exit {
+  flex: none; min-height: 48px; padding: 0 12px; cursor: pointer; white-space: nowrap; font: inherit; font-size: 15px; font-weight: 700;
+  background: #2B1D14; color: #FFD54A; border: 3px solid #2B1D14; box-shadow: 0 0 0 2px #FFD54A;
+}
+.yard-exit:active { transform: translate(1px, 1px); box-shadow: 0 0 0 2px #FFD54A, inset 2px 2px 0 #000; }
 .yard-board {
   display: flex; gap: 8px; align-items: center; min-height: 48px; padding: 6px 10px; background: #FBF6EC;
   border: 3px solid #2B1D14; box-shadow: 0 0 0 2px #FFD54A; font-size: 15.5px; line-height: 1.25;
@@ -547,7 +552,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .yard-mine li { margin: 3px 0; }
 .yard-mine p { margin: 6px 0 0; font-size: 14px; }
 .yard-chip { display: inline-block; margin-right: 4px; padding: 3px 6px; background: #4A2C1A; color: #FBF6EC; font: 700 11px ui-monospace, Menlo, monospace; }
-.yard-host { margin-top: 6px; padding: 6px 10px; font-size: 14px; background: #F6DFB8; border-left: 6px solid #96540F; color: #2B1D14; }
+.yard-host { grid-column: 1 / -1; margin-top: 0; padding: 6px 10px; font-size: 14px; background: #F6DFB8; border-left: 6px solid #96540F; color: #2B1D14; }
 .yard-host[hidden] { display: none; }
 .yard-note { display: block; font-size: 11px; color: #6B5644; }
 .yard-plan { margin: 0 0 8px; padding-left: 20px; }
@@ -617,7 +622,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .yard-prog span.got svg { opacity: 1; filter: none; }
 .yard-count { display: none; margin-left: 4px; font: 12px ui-monospace, Menlo, monospace; color: #FBF6EC; }   /* desktop only */
 .yard-next { flex: 1 1 auto; min-height: 48px; padding: 6px 10px; font-size: 14px; font-weight: 700; cursor: pointer; background: #FFD54A; color: #2B1D14; border: 3px solid #2B1D14; box-shadow: inset -3px -3px 0 #C08A1E; }
-.yard-list:focus-visible, .yard-next:focus-visible, .yard-back:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+.yard-list:focus-visible, .yard-next:focus-visible, .yard-back:focus-visible, .yard-exit:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
 .yard-end { display: flex; flex-direction: column; gap: 8px; }
 .yard-end .btn { width: 100%; }
 

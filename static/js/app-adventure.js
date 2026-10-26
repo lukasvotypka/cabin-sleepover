@@ -25,7 +25,8 @@ var adv = {
   open: false, els: null, at: -1, pos: ADV_START.slice(), session: [], sessionParty: null, walking: false, frame: 0,
   slide: null,          // the step of the open slide, or null
   finishPending: false, // the last station was just completed: show the end panel when its slide closes
-  opener: null
+  opener: null,
+  hist: false           // our history entry is on the stack (browser or Android back closes the view)
 };
 
 function advChainIndex(i) {
@@ -168,6 +169,9 @@ function advBuild() {
   var boardText = htmlEl("span");
   board.appendChild(boardIcon); board.appendChild(boardText);
   var top = htmlEl("div", { "class": "yard-top" });
+  var exit = htmlEl("button", { "class": "yard-exit", type: "button", "aria-label": "Späť na mapu postelí" }, "‹ Mapa");
+  exit.addEventListener("click", advExit);
+  top.appendChild(exit);
   top.appendChild(board);
   view.appendChild(top);
   var host = htmlEl("div", { "class": "yard-host", hidden: "" });
@@ -411,6 +415,9 @@ function openAdventure() {
   advSetInert(true);
   document.addEventListener("keydown", advOnKey);
   window.addEventListener("resize", advOnResize);
+  window.addEventListener("popstate", advOnPop);
+  history.pushState({ adv: 1 }, "");
+  adv.hist = true;
   advPlace(); advRefresh(); advCamera(false);
   window.requestAnimationFrame(function () {
     if (!adv.open) return;
@@ -419,6 +426,26 @@ function openAdventure() {
     var spot = adv.els.spots[next ? BRIEFING_STEPS.indexOf(next) : 0];
     spot.querySelector(".yard-hit").focus({ preventScroll: true });
   });
+}
+
+// The way back to the bed map from any state: „‹ Mapa“, Escape, the browser or Android back button.
+function advExit() {
+  if (!adv.open) return;
+  if (adv.slide) advCloseSlide(true);
+  closeAdventure();
+}
+
+// Browser or Android back: an open slide closes first (like „‹ Dvor“), then the whole view.
+function advOnPop() {
+  adv.hist = false;
+  if (!adv.open) return;
+  if (adv.slide) {
+    advCloseSlide();
+    history.pushState({ adv: 1 }, "");
+    adv.hist = true;
+    return;
+  }
+  closeAdventure();
 }
 
 function advOnResize() { if (adv.open) { advCamera(false); advRefresh(); } }
@@ -430,10 +457,13 @@ function closeAdventure() {
   cancelAnimationFrame(adv.frame);
   document.removeEventListener("keydown", advOnKey);
   window.removeEventListener("resize", advOnResize);
+  window.removeEventListener("popstate", advOnPop);
+  if (adv.hist) { adv.hist = false; history.back(); }   // drop our history entry; the listener is already gone
   $("adventure").hidden = true;
   clearNode($("adventure"));
   adv.els = null;
   slidesReset();
   advSetInert(false);
-  if (adv.opener && document.contains(adv.opener) && adv.opener.focus) adv.opener.focus({ preventScroll: true });
+  var back = adv.opener && adv.opener !== document.body && document.contains(adv.opener) ? adv.opener : document.querySelector('#scene [data-key="briefing"]');
+  if (back && back.focus) back.focus({ preventScroll: true });
 }
