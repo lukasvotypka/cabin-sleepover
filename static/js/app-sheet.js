@@ -37,11 +37,11 @@ function openBedSheet(room, bed) {
         take.classList.add("take");
         if (t.who) take.appendChild(htmlEl("small", { "class": "take-who" }, t.who));
         row.appendChild(take);
-        if (tight) row.appendChild(htmlEl("span", { "class": "tight" }, "tesné"));
+        if (tight) row.appendChild(htmlEl("span", { "class": "tight", "aria-hidden": "true" }, "tesné"));      // the label says it
         return row;
       }
       var label = htmlEl("span", { "class": "who" });
-      label.appendChild(htmlEl("span", { "class": "sr-only" }, rowText));
+      label.appendChild(htmlEl("span", { "class": "sr-only" }, rowText + (tight ? ", tesné" : "")));
       if (who) {
         label.appendChild(figureIcon(who.party ? who.party.color : COLORS.mat, who.party ? shirtChar(who.party.name) : null, who.kind));
         label.appendChild(htmlEl("span", { "class": "name", "aria-hidden": "true" }, name));
