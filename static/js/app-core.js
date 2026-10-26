@@ -76,6 +76,7 @@ var app = {
   serverMs: 0,         // `presence.server_time` of the last 200 ...
   serverLocalMs: 0,    // ... and the local time when that response arrived
   night: null,
+  shownNight: null,    // during the day–night time-lapse the night whose figures are still drawn, else null
   nightSynced: false,  // set by the first applyState: only that one may take the night from the remembered party
   myParty: storage.get(KEYS.party),
   session: null,       // {verified: [party_id], sms_enabled} from GET /api/session, null until loaded

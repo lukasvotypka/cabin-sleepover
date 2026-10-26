@@ -179,6 +179,7 @@ function keepFocus(root, redraw, fallback) {
 function render() {
   if (!app.state || app.codeOpen || !app.introDone) return;     // the code screen and the loading view come first
   ensureScene();
+  dnSync();
   keepFocus($("scene"), function () {
     drawBoards();
     drawBeds();
@@ -320,7 +321,7 @@ function drawNights(parent, scene, state) {
     hitRect(g, [x - gap / 2, hit[1], w + gap, hit[3]]);
     makeButton(g, "Noc " + info.label + ", " + info.dates + ", obsadené " + used + " z " + total +
       " miest" + (selected ? ", zvolená noc" : "") + (tally ? ". " + tallyLabel(tally) : ""),
-      "night-" + night, function () { selectNight(night); });
+      "night-" + night, function () { selectNight(night, { animate: true }); });
     g.setAttribute("aria-pressed", selected ? "true" : "false");
   });
 }

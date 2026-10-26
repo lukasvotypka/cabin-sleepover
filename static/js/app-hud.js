@@ -59,7 +59,7 @@ function runQuestAction(row) {
   if (row.action === "who") openWho();
   else if (row.action === "places") openPlacesPanel(row.night);
   else if (row.action === "undo") openPlacesUndoPanel(row.night);
-  else if (row.action === "night") selectNight(row.night);
+  else if (row.action === "night") selectNight(row.night, { animate: true });
 }
 
 function drawQuest(host, rows) {

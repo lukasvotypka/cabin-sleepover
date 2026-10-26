@@ -209,3 +209,12 @@ These are not defects, they are the developer's own choices that need a human op
 - [ ] **Off (two devices):** in the admin panel tap „Vypnúť overovanie cez SMS“. On device A „Kto si?“ shows no locks and a party with a number is picked directly; no login panel opens on reload. In the form of an existing party „Telefón“ is a number field: save a number (no SMS), device B sees the party's hint live without reload. „Odstrániť“ asks first and removes it. Creating a party offers no SMS step.
 - [ ] **On again:** tap „Zapnúť overovanie cez SMS“. The party with a number now shows the lock and asks for login on the other device; its bed sheet shows no actions until logged in.
 - [ ] **On without Twilio:** on a server without the Twilio variables and without `SMS_FAKE`, the switch-on button shows the Slovak „SMS nie je dostupná“-style error and the state stays off.
+
+## 11. Day–night time-lapse (T-111)
+
+- [ ] **Tap animation on a phone:** on iPhone Safari and Android Chrome, tap another night's signpost: the sky goes dusk and night, the fireflies appear, the bird disappears at night, and the clock board („Št 12:00“-style label with the sun or moon and the 3-hour strip) shows at the top and fades about 1 s after the end. Light and dark mode both look right, and the boards stay readable at night.
+- [ ] **Mix-blend on iPhone Safari:** the multiply rects (dusk and night tint) render correctly on iOS Safari. If they do not, the fallback is plain opacity (see T-111 notes).
+- [ ] **Clock board vs. HUD on a 360–390 px phone:** the „Úlohy“ button sits on top of the clock board and hides its right part (the strip cells from about the second night on, including the framed current cell). Check whether this is acceptable or the board needs a new place.
+- [ ] **Figures during the animation:** the beds keep the old night's figures until midnight of the last night passed (for a trip of one night, at once) and then walk to the new night's places; tapping another night mid-way continues from the current hour without a jump.
+- [ ] **Reduced motion (iOS and Android settings „Zmenšiť pohyb“ / „Remove animations“):** the night switches at once, no clock board, no fireflies or bird movement.
+- [ ] **Two devices:** device A taps a night while device B has the page open. Device B switches the night at once with no animation (only a user tap animates).

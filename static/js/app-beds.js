@@ -79,7 +79,7 @@ function drawBeds() {
 // places panel (T-034).
 function drawMeadow(parent, view) {
   var party = app.myParty ? partyById(view.state, app.myParty) : null;
-  var waiting = waitingFigures(view.state, party, app.night);
+  var waiting = waitingFigures(view.state, party, drawnNight());
   if (!waiting.length) return;
   var spot = meadowLayout(view.state.layout.map.scene.meadow, waiting.length);
   var g = svgEl(parent, "g");
@@ -97,7 +97,7 @@ function drawMeadow(parent, view) {
 }
 
 function drawBed(parent, layout, view, room, bed) {
-  var night = app.night, st = view.state;
+  var night = drawnNight(), st = view.state;
   var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3];
   var g = svgEl(parent, "g", { "class": "bed" });
   hitRect(g, bedHit(layout, bed, BED_HIT_GROW));      // first, so figures keep their hover titles
@@ -161,7 +161,7 @@ function watchLongPress(g, bed) {
 function showTip(bed) {
   var st = viewState().state, names = [];
   bed.slots.forEach(function (slot) {
-    var who = slotOccupant(st, slot, app.night);
+    var who = slotOccupant(st, slot, drawnNight());
     var name = who ? (who.party ? who.party.name : UNKNOWN_PARTY) : null;
     if (name && names.indexOf(name) === -1) names.push(name);
   });

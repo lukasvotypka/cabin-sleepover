@@ -4257,3 +4257,14 @@ test("daynight: lightAt at noon and midnight", () => {
   near(night.bird, 0);
   near(night.dusk, 0);
 });
+
+test("daynight scene: script listed, no innerHTML, light layer between walk and boards", () => {
+  assert.ok(pageFile.includes("static/js/app-daynight.js?v=__ASSET_VERSION__"));
+  const dnSrc = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
+  assert.ok(!dnSrc.includes("innerHTML"));
+  const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
+  const ens = scene.slice(scene.indexOf("function ensureScene"));
+  assert.ok(ens.indexOf("walk:") > -1 && ens.indexOf("walk:") < ens.indexOf("boards:"));
+  assert.ok(ens.includes("dnBuild(svg, layout, app.layers.boards"));
+  assert.ok(ens.indexOf("drawBird(") < ens.indexOf("dnBuild("));
+});

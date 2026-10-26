@@ -19,9 +19,13 @@ function setMyParty(id) {
   if (changed && typeof advOnState === "function") advOnState();   // an open yard shows the new party's progress
 }
 
-function selectNight(night) {
+// `opts.animate`: a user tap, so the scene shows the time passing (day–night time-lapse, app-daynight.js).
+function selectNight(night, opts) {
   cancelWalks();
+  var prev = app.night;
   app.night = night;
+  if (opts && opts.animate) dnStart(prev, night);
+  else dnStop();
   render();
   if (app.panel && app.panel.refresh) app.panel.refresh();
 }
@@ -130,5 +134,6 @@ function ensureScene() {
   };
   drawBase(app.layers.base, layout);
   drawBird(app.layers.sky, layout);
+  dnBuild(svg, layout, app.layers.boards, app.layers.tip);
   setupZoom(host, svg, vb[0], vb[1]);
 }
