@@ -1726,6 +1726,26 @@ const SB = { x: 0, y: 0, w: SW, h: SH };    // the bounds of a viewport that is 
 const BOX = { left: 10, top: 20, width: 380, height: 412 };    // the svg on screen at 1x, one px per unit
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ""} ${a} != ${b}`);
 
+test("restView: whole when upright or on a desktop; a phone held sideways keeps the upright scale", () => {
+  const W = 380, H = 496;
+  const portrait = L.fitBounds(390, 780, W, H, {});
+  assert.deepEqual(plain(L.restView(portrait, W, H, 390, 780)), plain(L.wholeView(portrait)));
+  const desktop = L.fitBounds(1440, 900, W, H, {});
+  assert.deepEqual(plain(L.restView(desktop, W, H, 1440, 900)), plain(L.wholeView(desktop)), "a desktop window is not a phone");
+  const land = L.fitBounds(844, 320, W, H, {});
+  const v = plain(L.restView(land, W, H, 844, 320));
+  near(844 / v.w, 320 / W, "the scene is as wide in px as the short side");
+  near(v.x + v.w / 2, W / 2, "centred on x");
+  near(v.y + v.h / 2, H / 2, "centred on y without insets");
+  const hud = L.fitBounds(844, 390, W, H, { bottom: 70 });
+  const vh = plain(L.restView(hud, W, H, 844, 390));
+  near((H / 2 - vh.y) / vh.h * 390, (390 - 70) / 2, "with a bottom HUD the scene centre sits in the middle of the free part");
+  assert.ok(L.isZoomed(v, land), "so „Celá mapa“ shows the whole map");
+  assert.ok(L.sameView(v, L.restView(land, W, H, 844, 320)));
+  assert.ok(!L.sameView(v, L.wholeView(land)));
+  assert.ok(L.viewZoom(v, land) <= L.ZOOM_MAX);
+});
+
 test("zoom: the whole view is 1x and not zoomed; its viewBox text is the scene", () => {
   const v = plain(L.wholeView(SB));
   assert.deepEqual(v, { x: 0, y: 0, w: 380, h: 412 });

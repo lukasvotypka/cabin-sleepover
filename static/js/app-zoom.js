@@ -22,6 +22,12 @@ function resetView() {
   setView(wholeView(app.bounds));
 }
 
+// The view of the map at rest (whole, or the upright scale on a phone held sideways, see restView).
+function appRestView(bounds, px) {
+  px = px || app.viewportPx || [0, 0];
+  return restView(bounds, app.sceneSize[0], app.sceneSize[1], px[0], px[1]);
+}
+
 // --- the one-time intro zoom: the map starts zoomed on the top of the scene and eases out to the fitted view ---
 
 function introActive() {
@@ -53,7 +59,7 @@ function introFrame() {
   app.introRaf = 0;
   if (app.introZoom !== "running") return;
   var t = (performance.now() - app.introZoomAt) / INTRO_ZOOM_MS;
-  var to = wholeView(app.bounds);
+  var to = appRestView(app.bounds);
   if (t >= 1) {
     app.introZoom = "done";
     setView(to);
@@ -74,7 +80,7 @@ function stopIntroZoom() {
   if (app.introRaf) cancelAnimationFrame(app.introRaf);
   app.introRaf = 0;
   app.introZoom = "done";
-  if (was === "held") setView(wholeView(app.bounds));
+  if (was === "held") setView(appRestView(app.bounds));
   else applyView();
   renderBriefingOffer();
 }
@@ -124,9 +130,12 @@ function setupZoom(host, svg, W, H) {
     var r = host.getBoundingClientRect();
     if (!(r.width > 0 && r.height > 0) && app.bounds) return;      // hidden (the code screen): keep what we have
     var nb = fitBounds(r.width, r.height, W, H, readInsets());
-    var old = app.bounds;
+    var old = app.bounds, oldPx = app.viewportPx, px = [r.width, r.height];
     if (!force && old && old.x === nb.x && old.y === nb.y && old.w === nb.w && old.h === nb.h) return;
-    app.view = app.view && old ? refitView(app.view, old, nb) : wholeView(nb);
+    // A map at rest stays at rest (a rotation picks the rest view of the new shape); a zoomed one keeps its zoom.
+    var resting = !app.view || !old || sameView(app.view, appRestView(old, oldPx));
+    app.viewportPx = px;
+    app.view = resting ? appRestView(nb, px) : refitView(app.view, old, nb);
     app.bounds = nb;
     drawGround(app.layers.ground, nb);
     if (dn.fx) dnFitArea(dn.fx);

@@ -33,6 +33,25 @@ function wholeView(bounds) {
   return { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h };
 }
 
+// The view the map rests on when nobody zoomed it: the whole bounds, except on a phone held sideways. There the
+// whole scene would have to fit the short height and come out tiny, so the map keeps the scale it has with the
+// phone upright (the scene as wide as the short side of the screen), zoomed around the scene centre. vw x vh is the
+// viewport in CSS px; only below LANDSCAPE_MAX_H px of height (phones, not desktop windows).
+var LANDSCAPE_MAX_H = 500;
+function restView(bounds, W, H, vw, vh) {
+  var whole = wholeView(bounds);
+  if (!(vw > vh) || !(vh < LANDSCAPE_MAX_H) || !(bounds.w > 0)) return whole;
+  var s = vw / bounds.w;                                  // px per scene unit at 1x
+  var z = Math.min(ZOOM_MAX, vh / W / s);
+  if (!(z > 1.05)) return whole;
+  return zoomView(whole, bounds, z, W / 2, H / 2);      // the scene centre stays where it is (above the HUD)
+}
+
+// Two views are the same up to half a scene unit.
+function sameView(a, b) {
+  return !!a && !!b && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5;
+}
+
 function viewZoom(view, bounds) {
   return bounds.w / view.w;
 }
