@@ -4189,3 +4189,71 @@ test("T-103: admin phone-verify button and contact field are wired", () => {
   assert.match(form, /"PUT", "api\/parties\/"/);
   assert.match(form, /autocomplete: "tel"/);
 });
+
+// ---- logic-daynight.js: day and night time-lapse ----
+const DN_NIGHTS = ["2026-10-29", "2026-10-30", "2026-10-31"];
+const dnNear = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
+
+test("daynight: noonOf counts hours from the first night's 00:00", () => {
+  assert.deepEqual(DN_NIGHTS.map((n) => L.noonOf(n, DN_NIGHTS)), [12, 36, 60]);
+  assert.equal(L.noonOf("2026-11-05", DN_NIGHTS), null);
+});
+
+test("daynight: darkness and dusk by hour", () => {
+  near(L.darkness(12), 0);
+  near(L.darkness(0), 1);
+  near(L.darkness(3), 1);
+  near(L.darkness(-12), 0);
+  near(L.darkness(36), 0);
+  near(L.darkness(24), 1);
+  for (const h of [6 + 40 / 60, 16 + 40 / 60]) assert.ok(L.darkness(h) > 0 && L.darkness(h) < 1);
+  let prev = -1;
+  for (let h = 16; h <= 18; h += 0.05) { const d = L.darkness(h); assert.ok(d >= prev); prev = d; }
+  near(L.dusk(6 + 40 / 60), 1);
+  near(L.dusk(16 + 40 / 60), 1);
+  near(L.dusk(12), 0);
+  near(L.dusk(0), 0);
+  for (let h = -30; h < 80; h += 0.37) assert.ok(L.dusk(h) >= 0);
+});
+
+test("daynight: clockLabel", () => {
+  assert.equal(L.clockLabel(12, DN_NIGHTS), "Št 12:00");
+  assert.equal(L.clockLabel(27, DN_NIGHTS), "Pi 03:00");
+  assert.equal(L.clockLabel(60, DN_NIGHTS), "So 12:00");
+  assert.equal(L.clockLabel(84, DN_NIGHTS), "Ne 12:00");
+  assert.equal(L.clockLabel(27.6, DN_NIGHTS), "Pi 03:30");
+});
+
+test("daynight: durationMs, ease, swapHour", () => {
+  assert.equal(L.durationMs(12, 36), 2150);
+  assert.equal(L.durationMs(12, 60), 3400);
+  assert.equal(L.durationMs(60, 12), 3400);
+  near(L.ease(0), 0);
+  near(L.ease(0.5), 0.5);
+  near(L.ease(1), 1);
+  let prev = -1;
+  for (let x = 0; x <= 1; x += 0.01) { const e = L.ease(x); assert.ok(e >= prev); prev = e; }
+  assert.equal(L.swapHour(12, 36), 24);
+  assert.equal(L.swapHour(12, 60), 48);
+  assert.equal(L.swapHour(60, 12), 24);
+  assert.equal(L.swapHour(30, 36), 30);
+});
+
+test("daynight: retarget from a mid-animation hour uses the current hour", () => {
+  const cur = 40.3;
+  near(L.durationMs(cur, 12), 900 + 1250 * 28.3 / 24);
+  assert.equal(L.swapHour(cur, 12), 24);
+  assert.equal(L.swapHour(cur, 60), 48);
+  assert.equal(L.swapHour(cur, 36), cur);
+});
+
+test("daynight: lightAt at noon and midnight", () => {
+  const day = L.lightAt(12);
+  assert.deepEqual(plain(day), { dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1 });
+  const night = L.lightAt(0);
+  near(night.dark, 0.78);
+  near(night.lamp, 1);
+  near(night.fireflies, 1);
+  near(night.bird, 0);
+  near(night.dusk, 0);
+});
