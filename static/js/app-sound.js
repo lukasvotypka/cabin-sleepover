@@ -1,7 +1,7 @@
 "use strict";
 
 // App part 11b: the scene sounds (organizer request, 24. 10. 2026). The bird chirps once at a random moment of
-// each flight, and a tap on the tree blows wind through its crown. Synthesized with Web Audio, so there
+// each flight, a tap on the tree blows wind through its crown, and crickets chirp while the scene shows night. Synthesized with Web Audio, so there
 // are no sound files. Browsers allow sound only after the first touch, click or key, so the audio starts then;
 // before that the bird is silent. With `prefers-reduced-motion` the bird is hidden and never chirps. The speaker
 // button in „Kto si?“ mutes all sounds on this device (remembered in browser storage).
@@ -165,4 +165,35 @@ function rustleTree(tree) {
   tree.classList.add("rustle");
   clearTimeout(app.rustleTimer);
   app.rustleTimer = setTimeout(function () { tree.classList.remove("rustle"); }, 700);
+}
+
+// Crickets while the scene shows night: on and off by dnPaint (`lightAt(h).sleep`). Silent while muted, locked or
+// in the background (liveSound), but the timer keeps going, so they come back on their own.
+var CRICKET_GAIN = .3;
+
+function setCrickets(on) {
+  if (!!app.crickets === !!on) return;
+  app.crickets = !!on;
+  clearTimeout(app.cricketTimer);
+  if (on) app.cricketTimer = setTimeout(cricketTick, cricketGap(Math.random) * 1000);
+}
+
+function cricketTick() {
+  if (!app.crickets) return;
+  playCricket();
+  app.cricketTimer = setTimeout(cricketTick, cricketGap(Math.random) * 1000);
+}
+
+function playCricket() {
+  var ctx = liveSound();
+  if (!ctx) return;
+  var t0 = ctx.currentTime + .02;
+  cricketChirp(Math.random).forEach(function (p) {
+    var osc = ctx.createOscillator(), at = t0 + p.at;
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(p.freq, at);
+    osc.connect(envelope(ctx, at, p.dur, p.gain * CRICKET_GAIN, .003));
+    osc.start(at);
+    osc.stop(at + p.dur + .01);
+  });
 }

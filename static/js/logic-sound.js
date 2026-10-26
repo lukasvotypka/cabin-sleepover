@@ -53,3 +53,27 @@ function flutterSteps(flutter, end, rand) {
   }
   return steps;
 }
+
+// Crickets while the scene shows night (dnPaint, `lightAt(h).sleep`): three crickets, each with its own pitch,
+// take turns at random. One chirp is three or four short pulses of a high tone, the classic field cricket.
+var CRICKETS = [4300, 4700, 5100];      // Hz
+var CRICKET_GAP_S = [.45, 1.6];         // seconds from one chirp to the next, any cricket
+
+function cricketGap(rand) {
+  return CRICKET_GAP_S[0] + rand() * (CRICKET_GAP_S[1] - CRICKET_GAP_S[0]);
+}
+
+// One chirp of a random cricket: pulses {at, dur, freq, gain}, `at` and `dur` in seconds. Sometimes the same
+// cricket chirps twice in a row.
+function cricketChirp(rand) {
+  var freq = CRICKETS[Math.floor(rand() * CRICKETS.length) % CRICKETS.length];
+  var pulses = 3 + Math.floor(rand() * 2), twice = rand() < .3, gain = .5 + rand() * .5, out = [], at = 0, r, i;
+  for (r = 0; r < (twice ? 2 : 1); r++) {
+    for (i = 0; i < pulses; i++) {
+      out.push({ at: at, dur: .016, freq: freq, gain: gain });
+      at += .036;
+    }
+    at += .16;
+  }
+  return out;
+}

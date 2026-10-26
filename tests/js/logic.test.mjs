@@ -3570,6 +3570,17 @@ test("sound: the bird chirps while it is over the map, and the chirp and the win
     assert.ok(end < 1, "a chirp lasts under a second");
     notes.forEach((n) => assert.ok(n.f0 > 1000 && n.f1 > 1000 && n.dur > 0 && n.gain > 0 && n.gain <= 1));
   }
+  for (const r of [0, 0.29, 0.5, 0.999]) {
+    const gap = L.cricketGap(() => r);
+    assert.ok(gap >= 0.45 && gap <= 1.6, `cricket gap ${gap}`);
+    const pulses = plain(L.cricketChirp(() => r));
+    assert.ok(pulses.length >= 3 && pulses.length <= 8);
+    assert.equal(new Set(pulses.map((p) => p.freq)).size, 1, "one cricket per chirp");
+    assert.ok(L.CRICKETS.includes(pulses[0].freq));
+    const end = pulses[pulses.length - 1].at + pulses[pulses.length - 1].dur;
+    assert.ok(end < 0.5, "a chirp is short");
+    pulses.forEach((p) => assert.ok(p.dur > 0 && p.gain > 0 && p.gain <= 1));
+  }
   const layers = plain(L.TREE_WIND);
   assert.ok(layers.length >= 1);
   layers.forEach((layer) => {

@@ -111,6 +111,7 @@ function dnPaint(h) {
   if (fx.vis.sleep !== l.sleep) {      // the „z-z-z“ over the people in the beds (drawZzz)
     fx.vis.sleep = l.sleep;
     fx.layer.ownerSVGElement.classList.toggle("night", l.sleep);
+    setCrickets(l.sleep);
   }
   dnWrap(fx.layer, fx.vis.dark || fx.vis.darkRooms || fx.vis.dusk || fx.vis.lamp || fx.vis.fireflies, fx, "layer");
   dnWrap(fx.shadeLayer, fx.vis.boardShade, fx, "shadeLayer");
