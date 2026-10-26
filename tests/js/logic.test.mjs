@@ -3723,6 +3723,25 @@ test("BRIEFING_STEPS keep the station order", () => {
   assert.deepEqual(plain(L.BRIEFING_STEPS), ["pack", "water", "food", "program", "sleep"]);
 });
 
+test("sleepPlaces: beds per night with counts, mats marked, missing places, nights away skipped", () => {
+  const p = party({ leave: SAT });
+  const s = infoState([p], {
+    [THU]: { "konica-lower-mats-1": p.id, "konica-lower-mats-2": p.id },
+    [FRI]: { "left-double-1": p.id },
+    [SAT]: {},
+  });
+  assert.deepEqual(plain(L.sleepPlaces(s, p.id)), [
+    { night: THU, beds: [{ name: "Konica, dole · Matrace na zemi", count: 2, mat: true }], missing: 0 },
+    { night: FRI, beds: [{ name: "Izba vľavo · Manželská posteľ", count: 1, mat: false }], missing: 1 },
+  ]);
+  const none = infoState([p], {});
+  assert.deepEqual(plain(L.sleepPlaces(none, p.id)), [
+    { night: THU, beds: [], missing: 2 },
+    { night: FRI, beds: [], missing: 2 },
+  ]);
+  assert.deepEqual(plain(L.sleepPlaces(s, "p-nobody")), []);
+});
+
 test("needsMat and matPlaces: mats and cot beds only, each place once", () => {
   const p = party();
   const s = infoState([p], {

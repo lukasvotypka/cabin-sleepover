@@ -33,6 +33,27 @@ function matPlaces(state, partyId) {
   return out;
 }
 
+// Where the party sleeps, night by night, for the „Kde spíš“ box on the Chata slide: one row per night it is at
+// the cabin or holds a place, with its beds ("room · bed", the number of its places there, mats or cot) and
+// how many places it still misses. Empty without a known party.
+function sleepPlaces(state, partyId) {
+  var party = partyById(state, partyId);
+  if (!party || !state.layout) return [];
+  var out = [];
+  (state.event.nights || []).forEach(function (night) {
+    var held = (state.sleeping && state.sleeping[night]) || {}, beds = [];
+    state.layout.rooms.forEach(function (room) {
+      room.beds.forEach(function (bed) {
+        var count = bed.slots.filter(function (slot) { return held[slot] === partyId; }).length;
+        if (count) beds.push({ name: room.name + " · " + bed.name, count: count, mat: bed.kind === "mats" || bed.kind === "cot" });
+      });
+    });
+    if (!beds.length && !isPresent(party, night)) return;
+    out.push({ night: night, beds: beds, missing: missingPlaces(state, party, night) });
+  });
+  return out;
+}
+
 function needsMat(state, partyId) {
   return matPlaces(state, partyId).length > 0;
 }
@@ -215,7 +236,7 @@ function foodNotes(state) {
 function slideSignature(step, state, partyId) {
   var info = state && state.info;
   if (!info) return "";
-  if (step === "sleep") return JSON.stringify([info.sleep, info.sleep_intro, info.facilities, matPlaces(state, partyId)]);
+  if (step === "sleep") return JSON.stringify([info.sleep, info.sleep_intro, info.facilities, sleepPlaces(state, partyId)]);
   if (step === "food") return JSON.stringify([info.menu, info.bring, info.food_intro, info.food_plan, info.food_note, foodNotes(state), eventDays(state.event), foodRow(state), partyById(state, partyId) ? partyId : null]);
   return "";
 }

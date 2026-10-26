@@ -332,9 +332,31 @@ function slFacilities(box, title, mark, items, cls) {
   wrap.appendChild(ul);
 }
 
+// „Kde spíš“: my party's beds night by night, with the mat tip when it sleeps on mats or a cot.
+function slMyPlaces(box) {
+  var nights = sleepPlaces(app.state, app.myParty);
+  if (!nights.length) return;
+  var wrap = slAdd(box, "div", "yard-tip yard-mine");
+  wrap.appendChild(htmlEl("span", { "class": "yard-chip" }, "Kde spíš"));
+  var ul = htmlEl("ul");
+  var mat = false;
+  nights.forEach(function (n) {
+    var li = htmlEl("li");
+    var label = nightInfo(n.night);
+    li.appendChild(htmlEl("b", null, (label ? label.label : n.night) + ": "));
+    var parts = n.beds.map(function (b) { if (b.mat) mat = true; return b.name + (b.count > 1 ? " (" + b.count + ")" : ""); });
+    if (n.missing) parts.push(n.beds.length ? "ešte " + n.missing + " bez miesta" : "ešte nemáš miesto");
+    li.appendChild(document.createTextNode(parts.join(", ")));
+    ul.appendChild(li);
+  });
+  wrap.appendChild(ul);
+  if (mat) wrap.appendChild(htmlEl("p", null, "Na matraci a lehátku od zeme ťahá, pribaľ karimatku."));
+}
+
 function slSleep(box, info) {
   slHead(box, "5 · Chata", "Na čom sa spí");
   if (info.sleep_intro) slAdd(box, "p", null, info.sleep_intro);
+  slMyPlaces(box);
   var rows = slAdd(box, "div", "yard-rows");
   info.sleep.forEach(function (s) {
     var r = htmlEl("div", { "class": "yard-row" });
@@ -347,12 +369,6 @@ function slSleep(box, info) {
   var fac = facilityLists(info);
   if (fac.have.length) slFacilities(box, "Na chate je", "✓", fac.have, "yard-fac have");
   if (fac.missing.length) slFacilities(box, "Na chate nie je", "✗", fac.missing, "yard-fac missing");
-  var places = matPlaces(app.state, app.myParty);
-  if (places.length) {
-    var tip = slAdd(box, "div", "yard-tip");
-    tip.appendChild(htmlEl("span", { "class": "yard-chip" }, "Tvoje miesto"));
-    tip.appendChild(document.createTextNode(places.join(", ") + ". Od zeme ťahá, pribaľ karimatku."));
-  }
 }
 
 var SL_BUILDERS = { pack: slPack, water: slWater, food: slFood, program: slProgram, sleep: slSleep };
