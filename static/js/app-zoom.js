@@ -126,6 +126,7 @@ function setupZoom(host, svg, W, H) {
     app.view = app.view && old ? refitView(app.view, old, nb) : wholeView(nb);
     app.bounds = nb;
     drawGround(app.layers.ground, nb);
+    if (dn.fx) dnFitArea(dn.fx);
     applyView();
   }
 

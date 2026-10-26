@@ -5,6 +5,9 @@
 // Plain script: top-level names are shared with the other files, so everything here starts with `dn`.
 
 var DN_ROOM_INSET = 4;
+var DN_DARK_ALPHA = 1.1;      // lightAt gives at most 0.78; times this = 0.86 alpha outside
+var DN_ROOM_DARK = 0.42;      // the room floors get this share of it
+var DN_DUSK_ALPHA = 0.5;
 var DN_SIGN_GAP = 4;      // gap between night signposts, as drawNights uses it
 var DN_FIREFLIES = [[60, 250], [104, 300], [250, 450], [330, 430], [40, 380], [200, 230], [350, 250]];   // on the 380 x 496 grass
 var DN_SUN = ["....1..1....", ".1........1.", "....2222....", "...222222...", ".1222222221.", "..22222222..", "..22222222..", ".1222222221.", "...222222...", "....2222....", ".1........1.", "....1..1...."];
@@ -29,21 +32,22 @@ function dnNoon(night) {
 
 // Builds the light layer (between `walk` and `boards`) and the weak tint over the boards; called by ensureScene.
 function dnBuild(svg, layout, beforeNode, afterNode) {
-  var vb = layout.map.viewbox, big = { x: -2000, y: -2000, width: 4380, height: 4496 };
+  var vb = layout.map.viewbox;
   var g = svgEl(null, "g", { "aria-hidden": "true", "pointer-events": "none" });
   svg.insertBefore(g, beforeNode);
-  var defs = svgEl(g, "defs");
-  var mask = svgEl(defs, "mask", { id: "dnMask", maskUnits: "userSpaceOnUse", x: big.x, y: big.y, width: big.width, height: big.height });
-  svgEl(mask, "rect", { x: big.x, y: big.y, width: big.width, height: big.height, fill: "#fff" });
   var rooms = layout.rooms.map(function (r) { return r.rect; });
   var inset = DN_ROOM_INSET;
+  var fx = { rooms: rooms, layer: g, vis: {}, inset: inset };
+  // Plain alpha compositing only (no blending or effects: those repaint the whole svg on every
+  // pan or zoom frame, T-118). The dark tint has the room floors cut out as holes (evenodd); a second, weaker
+  // tint on the floors keeps rooms lighter, but not fully lit.
+  fx.dusk = svgEl(g, "rect", { fill: "#E8741E", opacity: 0 });
+  fx.dark = svgEl(g, "path", { fill: "#0B1636", "fill-rule": "evenodd", opacity: 0 });
+  fx.darkRooms = svgEl(g, "g", { fill: "#0B1636", opacity: 0 });
   rooms.forEach(function (r) {
-    svgEl(mask, "rect", { x: r[0] + inset, y: r[1] + inset, width: r[2] - 2 * inset, height: r[3] - 2 * inset, fill: "#5a5a5a" });
+    svgEl(fx.darkRooms, "rect", { x: r[0] + inset, y: r[1] + inset, width: r[2] - 2 * inset, height: r[3] - 2 * inset });
   });
-  var fx = { rooms: rooms, layer: g, vis: {} };
-  var blend = "mix-blend-mode:multiply";
-  fx.dusk = svgEl(g, "rect", { x: big.x, y: big.y, width: big.width, height: big.height, fill: "#F08A3C", style: blend, opacity: 0 });
-  fx.dark = svgEl(g, "rect", { x: big.x, y: big.y, width: big.width, height: big.height, fill: "#16224A", mask: "url(#dnMask)", style: blend, opacity: 0 });
+  dnFitArea(fx);
   fx.lamp = svgEl(g, "g", { opacity: 0 });
   rooms.forEach(function (r) {
     svgEl(fx.lamp, "rect", { x: r[0] + inset, y: r[1] + inset, width: r[2] - 2 * inset, height: r[3] - 2 * inset, fill: "#FFC76A", opacity: ".16" });
@@ -78,13 +82,15 @@ function dnBuild(svg, layout, beforeNode, afterNode) {
   });
   if (sc.nights) rects = rects.concat(signpostLayout(sc.nights, app.state.event.nights.length, DN_SIGN_GAP).boards);
   rects.forEach(function (r) {
-    svgEl(fx.boardShade, "rect", { x: r[0], y: r[1], width: r[2], height: r[3], fill: "#16224A", style: blend });
+    var n = svgEl(fx.boardShade, "rect", { x: r[0], y: r[1], width: r[2], height: r[3], fill: "#0B1636" });
+    if (r === sc.parties) fx.partyShade = n;
   });
-  // Nothing of the light layer is rendered at rest: hidden elements cost no blend, mask or animation (T-113).
-  [g, shade, fx.dusk, fx.dark, fx.lamp, fx.fireflies, fx.boardShade].forEach(function (n) { n.setAttribute("display", "none"); });
+  // Nothing of the light layer is rendered at rest: hidden elements cost no painting or animation (T-113).
+  [g, shade, fx.dusk, fx.dark, fx.darkRooms, fx.lamp, fx.fireflies, fx.boardShade].forEach(function (n) { n.setAttribute("display", "none"); });
   Array.prototype.forEach.call(fx.fireflies.children, function (c) { c.setAttribute("display", "none"); });
   fx.bird = svg.querySelector(".bird");      // the bird is drawn before dnBuild runs
   dn.fx = fx;
+  dnFitPartyShade();
   var nights = app.state.event.nights;
   if (dn.hour === null || nightAt(dn.hour, nights) !== app.night) dn.hour = dnNoon(app.night);
   dnBuildSlider(svg, layout, afterNode);
@@ -96,14 +102,36 @@ function dnPaint(h) {
   if (!fx || h === null) return;
   dnSliderPaint(h);
   var l = lightAt(h);
-  dnVis(fx, "dark", fx.dark, l.dark);
-  dnVis(fx, "dusk", fx.dusk, l.dusk);
+  dnVis(fx, "dark", fx.dark, l.dark * DN_DARK_ALPHA);
+  dnVis(fx, "darkRooms", fx.darkRooms, l.dark * DN_DARK_ALPHA * DN_ROOM_DARK);
+  dnVis(fx, "dusk", fx.dusk, l.dusk * DN_DUSK_ALPHA);
   dnVis(fx, "lamp", fx.lamp, l.lamp);
   dnVis(fx, "fireflies", fx.fireflies, l.fireflies);
   dnVis(fx, "boardShade", fx.boardShade, l.dark * 0.25);
-  dnWrap(fx.layer, fx.vis.dark || fx.vis.dusk || fx.vis.lamp || fx.vis.fireflies, fx, "layer");
+  dnWrap(fx.layer, fx.vis.dark || fx.vis.darkRooms || fx.vis.dusk || fx.vis.lamp || fx.vis.fireflies, fx, "layer");
   dnWrap(fx.shadeLayer, fx.vis.boardShade, fx, "shadeLayer");
   if (fx.bird) fx.bird.setAttribute("opacity", l.bird.toFixed(3));
+}
+
+// The party table is only as tall as its rows, so its shade follows the height drawPartyTable reports.
+function dnFitPartyShade(height) {
+  if (height !== undefined) dn.partyH = height;
+  var fx = dn.fx || null;
+  var n = fx ? fx.partyShade : null;
+  if (n && dn.partyH) n.setAttribute("height", dn.partyH);
+}
+
+// Sizes the tint to the ground the map can show (the same area as the grass); called again when the bounds change.
+function dnFitArea(fx) {
+  var a = app.bounds ? groundRect(app.bounds) : [-2000, -2000, 4380, 4496];
+  var x = a[0] - 2, y = a[1] - 2, w = a[2] + 4, h = a[3] + 4;
+  [["x", x], ["y", y], ["width", w], ["height", h]].forEach(function (kv) { fx.dusk.setAttribute(kv[0], kv[1]); });
+  var d = "M" + x + " " + y + "h" + w + "v" + h + "h" + -w + "z";
+  fx.rooms.forEach(function (r) {
+    var i = fx.inset;
+    d += "M" + (r[0] + i) + " " + (r[1] + i) + "h" + (r[2] - 2 * i) + "v" + (r[3] - 2 * i) + "h" + -(r[2] - 2 * i) + "z";
+  });
+  fx.dark.setAttribute("d", d);
 }
 
 // Sets the opacity and switches `display` only when the element crosses zero.

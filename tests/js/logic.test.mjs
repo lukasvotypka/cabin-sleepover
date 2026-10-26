@@ -4282,6 +4282,19 @@ test("daynight scene: hidden light elements get display none (T-113)", () => {
   assert.ok(src.includes('dnWrap(fx.shadeLayer'));
 });
 
+test("daynight light layer: plain alpha, no blend, mask, filter or clip-path (T-118)", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
+  for (const k of ["mix-blend-mode", "multiply", "mask", "Mask", "filter", "clip-path", "clipPath"]) assert.ok(!src.includes(k), k);
+  assert.ok(src.includes('"fill-rule": "evenodd"'));
+  assert.ok(src.includes("function dnFitArea(") && src.includes("groundRect(app.bounds)"));
+  const zoom = fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8");
+  assert.ok(zoom.includes("dnFitArea(dn.fx)"));
+  // The party table shade follows the drawn table height, not the configured rect.
+  assert.ok(src.includes("fx.partyShade") && src.includes("function dnFitPartyShade("));
+  const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
+  assert.ok(draw.includes("dnFitPartyShade(lay.height)"));
+});
+
 const fs2 = (x) => JSON.parse(JSON.stringify(x));
 test("daynight: slider range, nightAt, mapping, keys", () => {
   assert.deepEqual(fs2(L.sliderRange(DN_NIGHTS)), { min: 12, max: 84 });

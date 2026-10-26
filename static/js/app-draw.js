@@ -361,6 +361,7 @@ function drawPartyTable(parent, r, state) {
   var nights = state.event.nights, days = eventDays(state.event);
   var lay = partyTableLayout(r, rows.length, dayRows.length, nights.length, days.length);
   var g = svgEl(parent, "g");
+  dnFitPartyShade(lay.height);
   board(g, [r[0], r[1], r[2], lay.height], COLORS.paper, COLORS.woodDark);
   var innerX = r[0] + lay.pad, innerW = r[2] - 2 * lay.pad, size = lay.size, hh = lay.head;
   var night = lay.night, day = lay.day;
