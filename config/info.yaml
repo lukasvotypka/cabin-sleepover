@@ -22,6 +22,7 @@ pack:
   - { icon: hygiena, label: "Hygiena" }
   - { icon: celovka, label: "Čelovka" }
   - { icon: lieky, label: "Lieky" }
+  - { icon: stuple, label: "Štuple do uší" }
   - { icon: nabijacka, label: "Nabíjačka" }
   - { icon: kocka, label: "Hra alebo karty" }
 sleep_intro: "Spí sa v spacákoch na posteliach a matracoch."

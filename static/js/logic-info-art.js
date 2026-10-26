@@ -17,6 +17,7 @@ var INFO_SPRITES = {
   celovka:['............','..........y.','.........y..','.kkkkkkkk...','kEEEEEEEkyyy','kEeEEEEEkyyy','kEEEEEEEkyyy','.kkkkkkkk...','.........y..','..........y.','............','............'],
   hygiena:['............','....kkkk....','...k....k...','.kkkkkkkkkk.','kppppppppppk','kEEEEEEEEEEk','kppppppppppk','kpppwwwppppk','kppppppppppk','kppppppppppk','.kkkkkkkkkk.','............'],
   topanky:['............','............','..kkkk......','..knnk......','..knnk......','..knnk......','..knnkkkk...','..knnnnnnk..','..knnnnnnnk.','..kNNNNNNNk.','..kkkkkkkkk.','............'],
+  stuple:['............','..kkk.......','.kwyok......','.kyyok..kkk.','.kyyok.kwyok','.kyyok.kyyok','.kyyok.kyyok','.kyyok.kyyok','..kkk..kyyok','.......kyyok','........kkk.','............'],
   lieky:['............','....kkkk....','....k..k....','.kkkkkkkkkk.','kwwwwwwwwwwk','kwwwwrrwwwwk','kwwwwrrwwwwk','kwwrrrrrrwwk','kwwrrrrrrwwk','kwwwwrrwwwwk','kwwwwrrwwwwk','.kkkkkkkkkk.'],
   nabijacka:['....kkkk....','..kkkkkkkk..','..kEEEEEEk..','..kEllllEk..','..kEllllEk..','..kEEEEEEk..','..kEllllEk..','..kEllllEk..','..kEEEEEEk..','..kEllllEk..','..kEEEEEEk..','..kkkkkkkk..'],
   flasa:['....kkkk....','....kbbk....','...kkkkkk...','..kcccccck..','..kcwcccck..','..kcwcccck..','..kbbbbbbk..','..kbwwwwbk..','..kbbbbbbk..','..kcccccck..','..kcccccck..','...kkkkkk...'],

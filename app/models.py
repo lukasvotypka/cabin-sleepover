@@ -468,7 +468,7 @@ class PhoneVerifyRequest(_Model):
 # Icon names of the page's pixel sprites. The page draws them, the server only knows the names.
 INFO_ICONS = frozenset(
     "spacak vankus papuce mikina bunda topanky uterak hygiena celovka lieky nabijacka kocka plachta "
-    "karimatka flasa smerovnik lezenie lopta ohen lampion truhla hrniec".split()
+    "karimatka flasa smerovnik lezenie lopta ohen lampion truhla hrniec stuple".split()
 )
 
 def _check_icon(value: str) -> str:

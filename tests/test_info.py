@@ -28,14 +28,14 @@ def _app(tmp_path: Path, info: dict | None):
     return create_app(config_dir=_config(tmp_path, info), data_dir=tmp_path / "data", env=TEST_ENV)
 
 
-def test_icon_set_has_22_names():
-    assert len(INFO_ICONS) == 22
+def test_icon_set_has_23_names():
+    assert len(INFO_ICONS) == 23
 
 
 def test_sample_file_loads():
     info = load_info(SAMPLE, load_layout(ROOT / "config" / "cabin.yaml").event)
     assert info.water.drinkable is False
-    assert len(info.pack) == 12 and len(info.sleep) == 2 and info.menu is None and len(info.program) == 6
+    assert len(info.pack) == 13 and len(info.sleep) == 2 and info.menu is None and len(info.program) == 6
     assert all(p.when is None for p in info.program)
 
 
