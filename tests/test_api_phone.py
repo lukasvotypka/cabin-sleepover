@@ -1,5 +1,6 @@
 """Phone login endpoints (T-092): party_auth cookie, session, login start and verify, logout."""
 
+import logging
 from datetime import UTC, datetime
 
 import pytest
@@ -347,3 +348,173 @@ async def test_tampered_party_cookie_does_not_pass_the_write_check(gc, phone_app
     resp = await gc.post("/api/food", json={"party_id": party.id, "text": "x"})
     assert error_of(resp)["code"] == "login_required"
     assert snapshot(phone_app) == before
+
+
+# --- phone management (T-094) -----------------------------------------------------------------
+
+NEW_TYPED = "0911 222 333"
+NEW_PHONE = "+421911222333"
+
+
+async def add_plain(app, make_party):
+    party = make_party()
+    async with app.state.runtime.store.write(action="party-create", source="form", client_id=None) as tx:
+        tx.state.parties.append(party)
+    return party
+
+
+def stored(app, party_id):
+    return next(p for p in app.state.runtime.store.read().parties if p.id == party_id)
+
+
+async def set_phone(c, party_id, typed=NEW_TYPED, code=CODE):
+    assert (await c.post(f"/api/parties/{party_id}/phone/start", json={"phone": typed})).status_code == 200
+    return await c.post(f"/api/parties/{party_id}/phone/verify", json={"phone": typed, "code": code})
+
+
+async def test_unprotected_party_gets_a_number_after_the_code(gc, phone_app, make_party, sms):
+    from tests.api_helpers import audit_docs, backup_count
+
+    party = await add_plain(phone_app, make_party)
+    before = snapshot(phone_app)
+    resp = await gc.post(f"/api/parties/{party.id}/phone/start", json={"phone": NEW_TYPED})
+    assert resp.status_code == 200 and sms.started == [NEW_PHONE]
+    assert snapshot(phone_app) == before and stored(phone_app, party.id).phone is None
+
+    bad = await gc.post(f"/api/parties/{party.id}/phone/verify", json={"phone": NEW_TYPED, "code": "000000"})
+    assert bad.status_code == 401 and error_of(bad)["code"] == "bad_sms_code"
+    assert snapshot(phone_app) == before
+
+    rt = phone_app.state.runtime
+    _conn, gen = await _stream(rt)
+    resp = await gc.post(f"/api/parties/{party.id}/phone/verify", json={"phone": NEW_TYPED, "code": CODE})
+    assert resp.status_code == 200, resp.text
+    saved = stored(phone_app, party.id)
+    assert saved.phone == NEW_PHONE and saved.phone_set_at
+    version, backups, audits = snapshot(phone_app)
+    assert (version, backups, audits) == (before[0] + 1, before[1] + 1, before[2] + 1)
+    assert audit_docs(phone_app)[-1]["action"] == "phone_set"
+    assert audit_docs(phone_app)[-1]["phone_hint"] == "333"
+    assert backup_count(phone_app) == backups
+    assert "phone" not in str(resp.json()["state"]["parties"]) or "phone_hint" in str(resp.json()["state"]["parties"])
+    assert NEW_PHONE not in resp.text
+    event, data = await _frame(gen)
+    assert event == "state" and data["version"] == version
+    await gen.aclose()
+
+    # The same device is now verified at exactly phone_set_at.
+    assert (await gc.get("/api/session")).json()["verified"] == [party.id]
+    cookie = rt.party_cookies.load(gc.cookies.get(PARTY_COOKIE))
+    assert cookie[party.id] == datetime.fromisoformat(saved.phone_set_at).timestamp()
+    assert (await gc.post("/api/assign", json={"night": "2026-10-29", "slots": ["left-double-1"], "party_id": party.id})).status_code == 200
+
+
+async def _stream(rt):
+    conn = rt.hub.connect("sse", None)
+    gen = rt.hub.stream(conn, {"hello": 1})
+    await anext(gen)
+    return conn, gen
+
+
+async def _frame(gen):
+    import asyncio
+    import json
+
+    lines = (await asyncio.wait_for(anext(gen), 2.0)).strip().splitlines()
+    return lines[0].removeprefix("event: "), json.loads(lines[1].removeprefix("data: "))
+
+
+async def test_protected_party_needs_a_verified_device_or_admin(gc, phone_app, make_client, make_party, clock):
+    party = await add_party(phone_app, make_party, clock)
+    before = snapshot(phone_app)
+    calls = (
+        ("post", f"/api/parties/{party.id}/phone/start", {"phone": NEW_TYPED}),
+        ("post", f"/api/parties/{party.id}/phone/verify", {"phone": NEW_TYPED, "code": CODE}),
+        ("delete", f"/api/parties/{party.id}/phone", None),
+    )
+    for method, url, body in calls:
+        resp = await (gc.delete(url) if method == "delete" else gc.post(url, json=body))
+        assert resp.status_code == 403 and error_of(resp)["code"] == "login_required"
+    assert snapshot(phone_app) == before and stored(phone_app, party.id).phone == PHONE
+
+    async with make_client(phone_app) as admin:
+        await admin.post("/api/join", json={"code": "admin-test-code"})
+        assert (await set_phone(admin, party.id)).status_code == 200
+    assert stored(phone_app, party.id).phone == NEW_PHONE
+
+
+async def test_unknown_party_and_invalid_number(gc, phone_app, make_party):
+    resp = await gc.post("/api/parties/p-nope00/phone/start", json={"phone": NEW_TYPED})
+    assert resp.status_code == 404 and error_of(resp)["code"] == "unknown_party"
+    party = await add_plain(phone_app, make_party)
+    for path, body in (("start", {"phone": "12"}), ("verify", {"phone": "abc", "code": CODE})):
+        resp = await gc.post(f"/api/parties/{party.id}/phone/{path}", json=body)
+        assert resp.status_code == 422
+        assert error_of(resp)["code"] == "invalid" and error_of(resp)["params"]["field"] == "phone"
+
+
+async def test_changing_the_number_cancels_other_devices(gc, phone_app, make_client, make_party, clock):
+    party = await add_party(phone_app, make_party, clock)
+    async with make_client(phone_app) as b:
+        await b.post("/api/join", json={"code": "group-test-code"})
+        assert (await login(gc, party.id)).status_code == 200  # device A
+        assert (await login(b, party.id)).status_code == 200  # device B
+        clock.now += 30
+        assert (await set_phone(b, party.id)).status_code == 200
+        assert (await b.get("/api/session")).json()["verified"] == [party.id]
+    resp = await gc.delete(f"/api/parties/{party.id}/phone")
+    assert resp.status_code == 403 and error_of(resp)["code"] == "login_required"
+    assert (await gc.get("/api/session")).json()["verified"] == []
+
+
+async def test_remove_phone(gc, phone_app, make_client, make_party, clock):
+    from tests.api_helpers import audit_docs
+
+    party = await add_party(phone_app, make_party, clock)
+    async with make_client(phone_app) as admin:  # never verified the party
+        await admin.post("/api/join", json={"code": "admin-test-code"})
+        before = snapshot(phone_app)
+        resp = await admin.delete(f"/api/parties/{party.id}/phone")
+        assert resp.status_code == 200
+        saved = stored(phone_app, party.id)
+        assert saved.phone is None and saved.phone_set_at is None
+        assert snapshot(phone_app) == (before[0] + 1, before[1] + 1, before[2] + 1)
+        doc = audit_docs(phone_app)[-1]
+        assert doc["action"] == "phone_remove" and doc["phone_hint"] == "456"
+        again = snapshot(phone_app)
+        assert (await admin.delete(f"/api/parties/{party.id}/phone")).status_code == 200
+        assert snapshot(phone_app) == again  # no-op
+
+
+async def test_sms_off_blocks_start_and_verify_but_not_delete(make_app, make_client, make_party, clock):
+    app = make_app()
+    party = await add_party(app, make_party, clock)
+    async with make_client(app) as admin:
+        await admin.post("/api/join", json={"code": "admin-test-code"})
+        for path, body in (("start", {"phone": NEW_TYPED}), ("verify", {"phone": NEW_TYPED, "code": CODE})):
+            resp = await admin.post(f"/api/parties/{party.id}/phone/{path}", json=body)
+            assert resp.status_code == 503 and error_of(resp)["code"] == "sms_unavailable"
+        assert (await admin.delete(f"/api/parties/{party.id}/phone")).status_code == 200
+    assert stored(app, party.id).phone is None
+
+
+async def test_limits_and_no_full_number_in_audit_or_log(gc, phone_app, make_party, caplog):
+    caplog.set_level(logging.DEBUG)
+    party = await add_plain(phone_app, make_party)
+    assert (await gc.post(f"/api/parties/{party.id}/phone/start", json={"phone": NEW_TYPED})).status_code == 200
+    resp = await gc.post(f"/api/parties/{party.id}/phone/start", json={"phone": NEW_TYPED})
+    assert resp.status_code == 429 and error_of(resp)["params"]["retry_after"] > 0
+    for _ in range(5):
+        assert (await gc.post(f"/api/parties/{party.id}/phone/verify", json={"phone": NEW_TYPED, "code": "1"})).status_code == 401
+    resp = await gc.post(f"/api/parties/{party.id}/phone/verify", json={"phone": NEW_TYPED, "code": CODE})
+    assert resp.status_code == 429 and error_of(resp)["code"] == "rate_limited"
+    assert stored(phone_app, party.id).phone is None
+
+    # Another party, so the limits do not hide the success path; then grep the audit file and the log.
+    other = await add_plain(phone_app, make_party)
+    assert (await set_phone(gc, other.id, "0905 111 222")).status_code == 200
+    audit_text = phone_app.state.runtime.store.audit_path.read_text(encoding="utf-8")
+    assert "+421905111222" not in audit_text and "905111222" not in audit_text and "phone_hint" in audit_text
+    for number in (NEW_PHONE, "+421905111222", "911222333", "905111222"):
+        assert number not in audit_text
+        assert number not in caplog.text

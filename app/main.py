@@ -25,7 +25,7 @@ import tomllib
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import aclosing, asynccontextmanager, suppress
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -913,6 +913,64 @@ def create_app(
         response = ok_response(rt, state, verified=sorted(verified))
         set_party_cookie(response, verified)
         return response
+
+    # --- phone management: the number is saved only after a correct SMS code --------------------
+
+    def check_access(request: Request, state: State, party_id: str, auth: Auth) -> Party:
+        party = protected_party(state, party_id)
+        check_party_access(party, verified_parties(request, state), auth.is_admin)
+        return party
+
+    @app.post("/api/parties/{party_id}/phone/start", dependencies=[Limited])
+    async def phone_start(request: Request, party_id: PartyId, body: LoginStartRequest, auth: Group) -> JSONResponse:
+        state = rt.store.read()
+        party = check_access(request, state, party_id, auth)
+        number = normalize_phone(body.phone)
+        client = sms_client()
+        wait = rt.sms_limits.send(party.id, client_ip(request))
+        if wait:
+            raise rate_limited(wait)
+        await client.start(number)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/parties/{party_id}/phone/verify")
+    async def phone_verify(request: Request, party_id: PartyId, body: LoginVerifyRequest, auth: Group) -> JSONResponse:
+        state = rt.store.read()
+        party = check_access(request, state, party_id, auth)
+        number = normalize_phone(body.phone)
+        client = sms_client()
+        wait = rt.sms_limits.attempt(party.id)
+        if wait:
+            raise rate_limited(wait)
+        if not await client.check(number, body.code):
+            raise ApiError("bad_sms_code", "Wrong or expired code")
+        now = rt.party_cookies.now()
+        async with rt.store.write(
+            action="phone_set", source=audit_source(auth, "form"), client_id=client_id_of(request)
+        ) as tx:
+            party = check_access(request, tx.state, party_id, auth)  # re-check: it may have changed meanwhile
+            party.phone = number
+            party.phone_set_at = datetime.fromtimestamp(now, UTC).isoformat()
+            tx.audit(party=party.id, phone_hint=phone_hint(party))
+        verified = verified_parties(request, tx.state)
+        verified[party.id] = datetime.fromisoformat(party.phone_set_at).timestamp()
+        response = ok_response(rt, tx.state, verified=sorted(verified))
+        set_party_cookie(response, verified)
+        return response
+
+    @app.delete("/api/parties/{party_id}/phone", dependencies=[Limited])
+    async def phone_remove(request: Request, party_id: PartyId, auth: Group) -> JSONResponse:
+        async with rt.store.write(
+            action="phone_remove", source=audit_source(auth, "form"), client_id=client_id_of(request)
+        ) as tx:
+            party = check_access(request, tx.state, party_id, auth)
+            if party.phone is None:
+                tx.skip()
+            else:
+                tx.audit(party=party.id, phone_hint=phone_hint(party))
+                party.phone = None
+                party.phone_set_at = None
+        return ok_response(rt, tx.state)
 
     # --- write endpoints: thin handlers, the rules are in validate.py ------------------------
 
