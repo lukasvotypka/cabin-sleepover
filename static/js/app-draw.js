@@ -146,7 +146,7 @@ function drawBase(g, layout) {
     var r = room.rect;
     rect(g, r[0], r[1], r[2], r[3], COLORS.roomEdge);
     rect(g, r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8, room.floor);
-    addText(g, r[0] + 7, r[1] + 16, room.name, 11, COLORS.roomLabel, { maxWidth: r[2] - 14, minSize: 9 });
+    drawRoomSign(g, room);
   });
   layout.map.doors.forEach(function (d) {
     rect(g, d[0], d[1], d[2], d[3], doorFloorColor(layout, d) || COLORS.path);
@@ -154,6 +154,23 @@ function drawBase(g, layout) {
   layout.map.windows.forEach(function (w) { rect(g, w[0], w[1], w[2], w[3], COLORS.window); });
   drawHouses(g, layout);
   drawTree(g);
+}
+
+// The room name on a small wooden sign nailed to the wall, inside `roomLabelBand` (furniture stays out of it).
+// The scene font is monospace, so the width follows the number of letters (about 0.6 em each); a long name is
+// squeezed to the band.
+var ROOM_SIGN_SIZE = 8;
+function drawRoomSign(g, room) {
+  var band = roomLabelBand(room);
+  var w = Math.min(band[2], Math.ceil(room.name.length * ROOM_SIGN_SIZE * .6) + 12);
+  var x = band[0], y = band[1], h = band[3];
+  rect(g, x + 1, y + 1, w, h, COLORS.ink, { opacity: ".25" });                    // shadow on the floor
+  rect(g, x, y, w, h, COLORS.woodDark);
+  rect(g, x + 1, y + 1, w - 2, h - 2, COLORS.plank);
+  rect(g, x + 1, y + 1, w - 2, 1, COLORS.woodLight, { opacity: ".55" });
+  rect(g, x + 2, y + h / 2 - 1, 2, 2, COLORS.woodLight);                           // nails
+  rect(g, x + w - 4, y + h / 2 - 1, 2, 2, COLORS.woodLight);
+  addText(g, x + w / 2, y + 8.5, room.name, ROOM_SIGN_SIZE, COLORS.paper, { anchor: "middle", bold: true, maxWidth: w - 12 });
 }
 
 // The element below `root` with this data-key, or null.

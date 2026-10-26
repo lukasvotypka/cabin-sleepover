@@ -97,8 +97,8 @@ function chimneyRect(outline, chimneyX) {
   return [chimneyX, outline[1] - ROOF_ROWS * ROOF_ROW_H - CHIMNEY_RISE, CHIMNEY_W, CHIMNEY_H];
 }
 
-// The band of a room that its name occupies (text baseline at 16 units below the top of the room,
-// 11 px type: about 9 units of ascent and 2 of descent). Furniture must stay out of it.
+// The band of a room that its name sign occupies (`drawRoomSign`: 11 units high, 7 units in from the top left
+// corner of the room, at most the room width less 14). Furniture must stay out of it.
 function roomLabelBand(room) {
   var r = room.rect;
   return [r[0] + 7, r[1] + 7, r[2] - 14, 11];
