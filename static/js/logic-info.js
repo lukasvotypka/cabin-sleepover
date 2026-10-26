@@ -241,12 +241,23 @@ function slideSignature(step, state, partyId) {
   return "";
 }
 
+// The way to the cabin: {url, note} with url only when it is an https link (anything else is not linked), or null.
+function routeInfo(info) {
+  var r = info && info.route;
+  if (!r) return null;
+  var url = typeof r.maps_url === "string" && /^https:\/\/\S+$/.test(r.maps_url) ? r.maps_url : "";
+  var note = r.note ? String(r.note) : "";
+  return url || note ? { url: url, note: note } : null;
+}
+
 // The text for WhatsApp from the quick list (no HTML); the water line only when the tap water is not drinkable.
 // Each optional field adds its line only when set.
 function quickWhatsAppText(info, title) {
   if (!info) return "";
   var lines = ["*" + title + "*"];
   if (info.host_arrival) lines.push("🕓 " + info.host_arrival);
+  var route = routeInfo(info);
+  if (route) lines.push("📍 " + [route.note, route.url].filter(Boolean).join(" "));   // a bare URL, so WhatsApp links it
   if (info.water && info.water.drinkable === false) {
     lines.push("💧 Voda z kohútika nie je pitná, dones balenú (" + formatNumber(info.water.liters_per_day) + " l na človeka a deň).");
   }

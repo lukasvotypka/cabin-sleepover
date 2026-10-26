@@ -135,6 +135,15 @@ function slAdd(parent, tag, cls, text) {
   return slPop(el);
 }
 
+// The way to the cabin: the note and the „Otvoriť v Mapách“ link (a new tab; on a phone the Maps app). Shared with the quick list.
+function routeBlock(parent, route) {
+  var wrap = htmlEl("div", { "class": "route" });
+  if (route.note) wrap.appendChild(htmlEl("p", null, route.note));
+  if (route.url) wrap.appendChild(htmlEl("a", { "class": "route-btn", href: route.url, target: "_blank", rel: "noopener" }, "📍 Otvoriť v Mapách"));
+  parent.appendChild(wrap);
+  return wrap;
+}
+
 function slHead(box, kick, title) {
   slAdd(box, "p", "yard-kick", kick);
   var h = htmlEl("h2", { id: "advSlideTitle" }, title);
@@ -143,6 +152,11 @@ function slHead(box, kick, title) {
 
 function slPack(box, info) {
   slHead(box, "1 · Auto", "Zbaľ si");
+  var route = routeInfo(info);
+  if (route) {
+    var way = routeBlock(box, route);
+    way.insertBefore(htmlEl("b", null, "Cesta na chatu"), way.firstChild);
+  }
   if (info.pack_intro) slAdd(box, "p", null, info.pack_intro);
   var items = packItems(info, needsMat(app.state, app.myParty));
   var bar = slAdd(box, "div", "yard-packbar");
@@ -319,7 +333,8 @@ function slProgram(box, info) {
     q.appendChild(advIcon(p.icon));
     var t = htmlEl("div", { "class": "yard-t" });
     t.appendChild(htmlEl("b", null, p.title));
-    t.appendChild(htmlEl("span", null, p.when + (p.note ? " · " + p.note : "")));
+    var sub = [p.when, p.note].filter(Boolean).join(" · ");
+    if (sub) t.appendChild(htmlEl("span", null, sub));
     q.appendChild(t);
   });
 }
@@ -396,6 +411,8 @@ function slWelcome(side) {
   box.appendChild(htmlEl("p", { "class": "yard-kick" }, "Pred cestou"));
   box.appendChild(htmlEl("h2", null, "Vitaj na dvore"));
   box.appendChild(htmlEl("p", null, "Ťukni na zastávku na dvore alebo tu. Zaberie to asi minútu."));
+  var route = app.state && routeInfo(app.state.info);
+  if (route) routeBlock(box, route);
   var list = htmlEl("div", { "class": "yard-stlist" });
   ADV_STATIONS.forEach(function (st, i) {
     var b = htmlEl("div", { "class": "yard-st", role: "button", tabindex: "0", "data-step": st.step });

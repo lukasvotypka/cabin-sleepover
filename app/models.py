@@ -506,7 +506,20 @@ class InfoMenuDay(_Model):
 class InfoProgram(_Model):
     icon: InfoIcon
     title: Label
-    when: Label
+    when: Label | None = None
+    note: Label | None = None
+
+
+def _check_maps_url(value: str) -> str:
+    if not value.startswith("https://") or any(c.isspace() for c in value):
+        raise ValueError("must be an https:// link without spaces")
+    return value
+
+
+class InfoRoute(_Model):
+    """The way to the cabin: a map link (opened by the page, never fetched) and an optional note."""
+
+    maps_url: Annotated[str, StringConstraints(strict=True, strip_whitespace=True, max_length=300), AfterValidator(_check_maps_url)]
     note: Label | None = None
 
 
@@ -528,6 +541,7 @@ class Info(_Model):
     food_intro: Label | None = None
     food_note: Label | None = None
     host_arrival: Label | None = None
+    route: InfoRoute | None = None
     food_plan: list[Label] | None = None
     facilities: InfoFacilities | None = None
 

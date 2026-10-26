@@ -109,7 +109,7 @@ function qkFood(parent, info) {
 function qkProgram(parent, info) {
   var card = qkCard(parent, "Program");
   var ul = htmlEl("ul");
-  (info.program || []).forEach(function (p) { ul.appendChild(htmlEl("li", null, p.title + " (" + p.when + ")")); });
+  (info.program || []).forEach(function (p) { ul.appendChild(htmlEl("li", null, p.title + (p.when ? " (" + p.when + ")" : ""))); });
   card.appendChild(ul);
 }
 
@@ -145,6 +145,8 @@ function openQuickList() {
   recordStep("list");
   openPanel("Rýchly prehľad", function (body) {
     if (info.host_arrival) body.appendChild(htmlEl("p", { "class": "qk-host" }, info.host_arrival));
+    var route = routeInfo(info);
+    if (route) routeBlock(body, route);
     var grid = htmlEl("div", { "class": "qk-grid" });
     qkWater(grid, info);
     qkPack(grid, info);

@@ -558,6 +558,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .yard-chip { display: inline-block; margin-right: 4px; padding: 3px 6px; background: #4A2C1A; color: #FBF6EC; font: 700 11px ui-monospace, Menlo, monospace; }
 .yard-host { grid-column: 1 / -1; margin-top: 0; padding: 6px 10px; font-size: 14px; background: #F6DFB8; border-left: 6px solid #96540F; color: #2B1D14; }
 .yard-host[hidden] { display: none; }
+.yard-host { display: flex; align-items: center; gap: 8px; }
+.yard-host span { flex: 1 1 auto; }
+.yard-host-map {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; margin: -4px -6px -4px 0;
+  color: #2B1D14; background: #FFD54A; border: 3px solid #2B1D14; font-weight: 700; text-decoration: none; white-space: nowrap;
+}
+.route { margin: 0 0 12px; padding: 8px 10px; background: #F6DFB8; border-left: 6px solid #96540F; color: #2B1D14; font-size: 14.5px; }
+.route b { display: block; font-size: 16px; }
+.route p { margin: 0 0 8px; font-size: 14.5px; }
+.route-btn {
+  display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 14px;
+  color: #2B1D14; background: #FFD54A; border: 3px solid #2B1D14; font-weight: 700; text-decoration: none;
+}
+.route-btn:active, .yard-host-map:active { transform: translate(1px, 1px); }
 .yard-note { display: block; font-size: 11px; color: #6B5644; }
 .yard-plan { margin: 0 0 8px; padding-left: 20px; }
 .yard-fac { margin-top: 10px; padding: 8px 10px; background: #F4EBDB; border: 2px solid #DCC9AE; }
@@ -595,8 +609,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .food-sq { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: 2px solid #3A2A18; vertical-align: -1px; }
 .food-edit { margin-top: 8px; }
 .food-edit label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-.food-input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 6px 8px; font: inherit; }
-.food-btn { min-height: 44px; min-width: 44px; margin-top: 6px; padding: 6px 14px; font: inherit; font-weight: 700; }
+/* The slides stay light in dark mode, so the form sets its own colors instead of the system ones. */
+.food-input {
+  box-sizing: border-box; width: 100%; min-height: 44px; padding: 6px 8px; font: inherit;
+  color: #2B1D14; background: #FFFDF7; border: 3px solid #2B1D14; border-radius: 0; color-scheme: light;
+}
+.food-input:focus { outline: none; border-color: #5E6B24; }
+.food-btn {
+  min-height: 44px; min-width: 44px; margin-top: 6px; padding: 6px 14px; font: inherit; font-weight: 700;
+  color: #2B1D14; background: #FFD54A; border: 3px solid #2B1D14; border-radius: 0; cursor: pointer;
+}
+.food-btn:active { transform: translate(1px, 1px); }
+.food-btn:disabled { opacity: .6; }
 .food-msg { margin: 4px 0 0; font-size: 13.5px; }
 .yard-eat { margin-top: 10px; font-size: 14px; }
 .yard-eat-days { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }

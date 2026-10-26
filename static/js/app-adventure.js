@@ -175,8 +175,13 @@ function advBuild() {
   top.appendChild(board);
   view.appendChild(top);
   var host = htmlEl("div", { "class": "yard-host", hidden: "" });
+  var hostRoute = routeInfo(app.state.info);
   if (app.state.info && app.state.info.host_arrival) {
-    host.textContent = app.state.info.host_arrival;
+    host.appendChild(htmlEl("span", null, app.state.info.host_arrival));
+    host.hidden = false;
+  }
+  if (hostRoute && hostRoute.url) {
+    host.appendChild(htmlEl("a", { "class": "yard-host-map", href: hostRoute.url, target: "_blank", rel: "noopener" }, "📍 Mapa"));
     host.hidden = false;
   }
   top.appendChild(host);

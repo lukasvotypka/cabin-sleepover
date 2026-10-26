@@ -4482,3 +4482,20 @@ test("daynight: figureSwap", () => {
   assert.deepEqual(fs2(L.figureSwap(undefined, { a: "p1" })),
     { stay: [], leave: [], arrive: ["a"] });
 });
+
+test("routeInfo: https link only, note alone is enough, nothing without route", () => {
+  assert.equal(L.routeInfo(null), null);
+  assert.equal(L.routeInfo({ ...infoCfg }), null);
+  assert.equal(JSON.stringify(L.routeInfo({ route: { maps_url: "https://maps.app.goo.gl/x", note: "Cez Detvu." } })), JSON.stringify({ url: "https://maps.app.goo.gl/x", note: "Cez Detvu." }));
+  assert.equal(JSON.stringify(L.routeInfo({ route: { maps_url: "javascript:alert(1)", note: "Cez Detvu." } })), JSON.stringify({ url: "", note: "Cez Detvu." }));
+  assert.equal(L.routeInfo({ route: { maps_url: "http://x" } }), null);
+});
+
+test("quickWhatsAppText: the route line follows the arrival line, with a bare URL", () => {
+  const lines = L.quickWhatsAppText({
+    ...infoCfg, host_arrival: "Prídem o 17:00.", route: { maps_url: "https://maps.app.goo.gl/x", note: "Cez Detvu." },
+  }, "Chata").split("\n");
+  assert.equal(lines[1], "🕓 Prídem o 17:00.");
+  assert.equal(lines[2], "📍 Cez Detvu. https://maps.app.goo.gl/x");
+  assert.ok(!L.quickWhatsAppText(infoCfg, "Chata").includes("📍"));
+});

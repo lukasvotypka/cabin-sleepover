@@ -35,7 +35,8 @@ def test_icon_set_has_22_names():
 def test_sample_file_loads():
     info = load_info(SAMPLE, load_layout(ROOT / "config" / "cabin.yaml").event)
     assert info.water.drinkable is False
-    assert len(info.pack) == 12 and len(info.sleep) == 2 and info.menu is None and len(info.program) == 7
+    assert len(info.pack) == 12 and len(info.sleep) == 2 and info.menu is None and len(info.program) == 6
+    assert all(p.when is None for p in info.program)
 
 
 def test_missing_file_means_feature_off(tmp_path):
@@ -248,3 +249,15 @@ def test_bad_env_value_refuses_startup(tmp_path):
 def test_compose_turns_the_section_off_by_default():
     compose = yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8"))
     assert compose["services"]["cabin"]["environment"]["INFO_ENABLED"] == "${INFO_ENABLED:-false}"
+
+
+def test_route_is_optional_and_needs_an_https_link(tmp_path):
+    d = _sample()
+    d.pop("route", None)
+    assert _load(tmp_path, d).route is None
+    d["route"] = {"maps_url": "https://maps.app.goo.gl/x", "note": "Cez Detvu."}
+    assert _load(tmp_path, d).route.maps_url == "https://maps.app.goo.gl/x"
+    for bad in ("http://maps.app.goo.gl/x", "javascript:alert(1)", "https://a b"):
+        d["route"] = {"maps_url": bad}
+        with pytest.raises(ConfigError, match="route.maps_url"):
+            _load(tmp_path, d)

@@ -1,12 +1,15 @@
 # Guest info for the „Pred cestou“ section. Texts are organizer data (Slovak), like room names.
 # Icons come from a fixed set (see INFO_ICONS in app/models.py). Days are quoted ISO dates.
-# Optional: pack_intro, sleep_intro, food_intro, food_note, host_arrival, food_plan, facilities, menu, bring.
+# Optional: pack_intro, sleep_intro, food_intro, food_note, host_arrival, food_plan, facilities, menu, bring, route, and a program item's when and note.
 enabled: true            # false: the whole „Pred cestou“ section is hidden (board, yard, progress, „Čo kto donesie“)
 water:
   drinkable: false        # false: the page shows the warning that tap water is not drinkable
   liters_per_day: 2
   bottle_liters: 1.5
-host_arrival: "Lukáš príde na chatu okolo 16:00."
+host_arrival: "Lukáš príde na chatu okolo 17:00."
+route:                    # optional: the map link (https only) and a note on the way
+  maps_url: "https://maps.app.goo.gl/Ek35aVpJAqSyYfDf7"
+  note: "Choď cez Detvu, smer ‚Detva Stavanisko‘. Inak ťa navigácia môže poslať inou cestou."
 pack_intro: "Zbaľ si veci na tri noci v chate."
 pack:
   - { icon: spacak, label: "Spacák", note: "Nemáš? Daj vedieť, požičiame." }
@@ -34,10 +37,9 @@ food_plan:
   - "mäso upečené v piecke"
 food_note: "Obchod je 15 minút, netreba robiť nákup na 4 dni."
 program:
-  - { icon: smerovnik, title: "Túra na vyhliadku", when: "Pi doobeda", note: "pevné topánky" }
-  - { icon: lezenie, title: "Lezenie", when: "Pi poobede, pre veľkých aj malých" }
-  - { icon: lopta, title: "Loptové hry", when: "So doobeda na lúke" }
-  - { icon: ohen, title: "Opekačka a oheň", when: "So večer" }
-  - { icon: lampion, title: "Lampiónový sprievod", when: "So po zotmení", note: "vezmi lampión" }
-  - { icon: truhla, title: "Hľadanie pokladu", when: "Ne ráno, pre deti" }
-  - { icon: kocka, title: "Spoločenské hry", when: "každý večer" }
+  - { icon: smerovnik, title: "Túra na vyhliadku", note: "pevné topánky" }
+  - { icon: lezenie, title: "Lezenie", note: "pre veľkých aj malých" }
+  - { icon: lopta, title: "Loptové hry", note: "na lúke" }
+  - { icon: ohen, title: "Opekačka a oheň" }
+  - { icon: lampion, title: "Lampiónový sprievod", note: "organizuje Janka, vezmi lampión" }
+  - { icon: kocka, title: "Spoločenské hry" }
