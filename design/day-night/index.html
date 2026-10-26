@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Náhľad: deň a noc pri prepnutí noci</title>
+<!-- Design prototype only (never served by the app). build.py inlines the real scene SVGs, captured from a
+     running app for each night, and the app's CSS (bird, smoke, leaves keep moving). -->
+<style>
+/*APPCSS*/
+</style>
+<style>
+#scene { height: calc(100% - 0px); }
+#clock {
+  position: fixed; left: 50%; top: max(10px, env(safe-area-inset-top)); transform: translate(-50%, -8px);
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px;
+  background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 0 3px 0 #2E1F14;
+  font: 700 20px/1 ui-monospace, Menlo, Consolas, monospace; opacity: 0; pointer-events: none;
+  transition: opacity .35s, transform .35s; white-space: nowrap;
+}
+#clock.on { opacity: 1; transform: translate(-50%, 0); }
+#clock svg { width: 24px; height: 24px; shape-rendering: crispEdges; }
+#clock .strip { display: flex; gap: 2px; margin-left: 4px; }
+#clock .strip i { display: block; width: 6px; height: 14px; background: #D4A870; }
+#clock .strip i.night { background: #2F3B5C; }
+#clock .strip i.now { outline: 2px solid #B4472F; }
+#ctl {
+  position: fixed; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom));
+  background: #F4EBD0; border: 3px solid #5C4033; color: #2E1F14; padding: 8px 10px;
+  font: 14px/1.35 system-ui, sans-serif; box-shadow: 0 3px 0 #2E1F14;
+}
+#ctl b { font-size: 15px; }
+#ctl .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+#ctl button {
+  min-height: 40px; padding: 4px 10px; font: inherit; color: #2E1F14; background: #FFF8E4;
+  border: 2px solid #5C4033; border-radius: 0; cursor: pointer;
+}
+#ctl button[aria-pressed="true"] { background: #F2D58A; font-weight: 700; }
+#ctl.min .more { display: none; }
+#ctl .tog { position: absolute; right: 6px; top: 4px; min-height: 32px; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="clock" aria-hidden="true"><svg id="clockIcon" viewBox="0 0 12 12"></svg><span id="clockText">Št 12:00</span><span class="strip" id="strip"></span></div>
+<div id="ctl">
+  <button class="tog" type="button" id="tog">▾</button>
+  <b>Náhľad: ťukni na smerovník noci</b>
+  <div class="more">
+    <div>Čas prebehne od poludnia dňa, keď noc začína, po poludnie novej noci (Št → So = 48 h cez dve noci).</div>
+    <div class="row">
+      <span>Postavičky sa vymenia:</span>
+      <button type="button" data-swap="night" aria-pressed="true">v poslednej noci</button>
+      <button type="button" data-swap="now" aria-pressed="false">hneď</button>
+    </div>
+    <div class="row">
+      <span>Rýchlosť:</span>
+      <button type="button" data-speed="0.6" aria-pressed="false">rýchlo</button>
+      <button type="button" data-speed="1" aria-pressed="true">normálne</button>
+      <button type="button" data-speed="2" aria-pressed="false">pomaly</button>
+      <button type="button" id="rm" aria-pressed="false">bez pohybu</button>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+var SCENES = /*SCENES*/;
+var NIGHTS = ["2026-10-29", "2026-10-30", "2026-10-31"];
+var DAYS = ["Št", "Pi", "So", "Ne"];
+// From config/cabin.yaml (prototype only: the real code reads layout.rooms / map.windows / map.doors).
+var ROOMS = [[10, 26, 152, 70], [10, 96, 152, 80], [118, 268, 102, 124], [216, 268, 54, 124], [266, 268, 106, 124], [10, 406, 100, 62]];
+var WINDOWS = [[186, 268, 24, 4], [300, 268, 24, 4]];
+var DOORS = [[238, 388, 20, 4], [80, 172, 20, 6], [80, 406, 20, 4]];
+// Sun at the cabin around 30. 10. 2026 (CET, after the clock change on 25. 10.): sunrise ~6:40, sunset ~16:40.
+var SUNRISE = 6 + 40 / 60, SUNSET = 16 + 40 / 60, TWILIGHT = 1.2;
+
+// --- pure part (would go to logic-daynight.js and be tested in Node) ---
+function noonOf(night) { return NIGHTS.indexOf(night) * 24 + 12; }   // hours since Thu 00:00
+function smooth(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
+function darkness(h) {                                // 0 = full day, 1 = deep night
+  var t = ((h % 24) + 24) % 24;
+  if (t < 12) return 1 - smooth((t - (SUNRISE - TWILIGHT / 2)) / TWILIGHT);
+  return smooth((t - (SUNSET - TWILIGHT / 2)) / TWILIGHT);
+}
+function dusk(h) {                                    // orange glow around sunrise and sunset
+  var t = ((h % 24) + 24) % 24;
+  return Math.max(0, 1 - Math.min(Math.abs(t - SUNRISE), Math.abs(t - SUNSET)) / 1.1);
+}
+function clockLabel(h) {
+  var q = Math.floor(h * 4) / 4, day = Math.floor(q / 24), t = q - day * 24;
+  var hh = Math.floor(t), mm = Math.round((t - hh) * 60);
+  return DAYS[Math.max(0, Math.min(3, day))] + " " + (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+}
+function durationMs(fromH, toH) { return (900 + 1250 * Math.abs(toH - fromH) / 24) * speed; }
+function ease(x) { return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+
+// --- DOM part ---
+var NS = "http://www.w3.org/2000/svg";
+function el(parent, name, attrs) {
+  var n = document.createElementNS(NS, name);
+  Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+  if (parent) parent.appendChild(n);
+  return n;
+}
+var host = document.getElementById("scene"), svg, fx = {}, shownNight = NIGHTS[0];
+var hourNow = noonOf(NIGHTS[0]), anim = null, swapMode = "night", speed = 1, still = false;
+
+function showScene(night) {
+  shownNight = night;
+  host.innerHTML = SCENES[night];         // prototype only: captured SVG markup, no data from people goes in here
+  svg = host.querySelector("svg");
+  svg.setAttribute("viewBox", "-6 -4 392 504");
+  svg.setAttribute("preserveAspectRatio", "xMidYMin meet");
+  Array.prototype.forEach.call(svg.querySelectorAll('[data-key^="night-"]'), function (g) {
+    g.addEventListener("click", function () { goTo(g.getAttribute("data-key").slice(6)); });
+  });
+  buildOverlay();
+  paint(hourNow);
+}
+
+function buildOverlay() {
+  var defs = el(svg, "defs"), mask = el(defs, "mask", { id: "dnMask", maskUnits: "userSpaceOnUse", x: -2000, y: -2000, width: 4380, height: 4496 });
+  el(mask, "rect", { x: -2000, y: -2000, width: 4380, height: 4496, fill: "#fff" });
+  ROOMS.forEach(function (r) { el(mask, "rect", { x: r[0] + 4, y: r[1] + 4, width: r[2] - 8, height: r[3] - 8, fill: "#5a5a5a" }); });
+  var g = el(svg, "g", { "aria-hidden": "true", "pointer-events": "none" });
+  fx.dusk = el(g, "rect", { x: -2000, y: -2000, width: 4380, height: 4496, fill: "#F08A3C", style: "mix-blend-mode:multiply" });
+  fx.dark = el(g, "rect", { x: -2000, y: -2000, width: 4380, height: 4496, fill: "#16224A", mask: "url(#dnMask)", style: "mix-blend-mode:multiply" });
+  fx.lamp = el(g, "g", {});
+  ROOMS.forEach(function (r) { el(fx.lamp, "rect", { x: r[0] + 4, y: r[1] + 4, width: r[2] - 8, height: r[3] - 8, fill: "#FFC76A", opacity: ".16" }); });
+  WINDOWS.forEach(function (w) {
+    el(fx.lamp, "rect", { x: w[0] - 4, y: w[1] - 14, width: w[2] + 8, height: 14, fill: "#FFD27A", opacity: ".22" });
+    el(fx.lamp, "rect", { x: w[0] + 2, y: w[1] - 8, width: w[2] - 4, height: 8, fill: "#FFD27A", opacity: ".3" });
+    el(fx.lamp, "rect", { x: w[0], y: w[1], width: w[2], height: w[3], fill: "#FFE08A" });
+  });
+  DOORS.forEach(function (d) {
+    var below = d[2] > d[3];
+    el(fx.lamp, "rect", { x: d[0] - 2, y: d[1] + (below ? d[3] : 0), width: d[2] + 4, height: below ? 10 : d[3], fill: "#FFD27A", opacity: ".25" });
+  });
+  fx.fireflies = el(g, "g", {});
+  [[60, 250], [104, 300], [250, 450], [330, 430], [40, 380], [200, 230], [350, 250]].forEach(function (p, i) {
+    el(fx.fireflies, "rect", { x: p[0], y: p[1], width: 2, height: 2, fill: "#F6F2A0", "class": "ff", style: "animation-delay:-" + (i * .7) + "s" });
+  });
+  fx.bird = svg.querySelector(".bird");
+}
+
+function paint(h) {
+  var d = darkness(h), k = dusk(h);
+  fx.dark.setAttribute("opacity", (d * .78).toFixed(3));
+  fx.dusk.setAttribute("opacity", (k * .55 * (1 - d * .5)).toFixed(3));
+  fx.lamp.setAttribute("opacity", smooth((d - .25) / .5).toFixed(3));
+  fx.fireflies.setAttribute("opacity", smooth((d - .6) / .4).toFixed(3));
+  if (fx.bird) fx.bird.setAttribute("opacity", (1 - smooth(d / .6)).toFixed(3));
+  document.getElementById("clockText").textContent = clockLabel(h);
+  drawIcon(d > .5);
+  drawStrip(h);
+}
+
+// 12 x 12 pixel sun or moon for the clock
+var SUN = ["....1..1....", ".1........1.", "....2222....", "...222222...", ".1222222221.", "..22222222..", "..22222222..", ".1222222221.", "...222222...", "....2222....", ".1........1.", "....1..1...."];
+var MOON = ["............", "....3333....", "...33333....", "..3333......", "..333.......", ".3333.......", ".3333.......", "..333.......", "..3333......", "...33333....", "....3333....", "............"];
+var iconNight = null;
+function drawIcon(night) {
+  if (iconNight === night) return;
+  iconNight = night;
+  var ic = document.getElementById("clockIcon"), rows = night ? MOON : SUN, col = { 1: "#D69A2E", 2: "#FFD54A", 3: "#7A8FB8" };
+  ic.textContent = "";
+  rows.forEach(function (row, y) {
+    for (var x = 0; x < 12; x++) if (row[x] !== ".") el(ic, "rect", { x: x, y: y, width: 1, height: 1, fill: col[row[x]] });
+  });
+}
+// 3-hour cells from Thu 12:00 to Sun 12:00: day or night, the current one framed
+function drawStrip(h) {
+  var s = document.getElementById("strip");
+  if (!s.childNodes.length) for (var i = 0; i < 16; i++) s.appendChild(document.createElement("i"));
+  Array.prototype.forEach.call(s.childNodes, function (c, i) {
+    var mid = 12 + i * 3 + 1.5;
+    c.className = (darkness(mid) > .5 ? "night" : "") + (h >= 12 + i * 3 && h < 15 + i * 3 ? " now" : "");
+  });
+}
+
+var clockEl = document.getElementById("clock"), hideTimer = 0;
+function goTo(night) {
+  var target = noonOf(night);
+  if (anim) cancelAnimationFrame(anim.raf);
+  if (target === hourNow && !anim) return;
+  if (still) { hourNow = target; showScene(night); return; }
+  var from = hourNow, dir = target > from ? 1 : -1;
+  var swapAt = swapMode === "now" ? from : target - 12 * dir;       // midnight of the last night passed
+  if (swapMode === "now" || Math.abs(target - from) < 12) showScene(night);
+  var start = performance.now(), dur = durationMs(from, target);
+  clearTimeout(hideTimer);
+  clockEl.classList.add("on");
+  anim = { raf: 0 };
+  (function step(now) {
+    var p = Math.min(1, (now - start) / dur);
+    hourNow = from + (target - from) * ease(p);
+    if (shownNight !== night && (dir > 0 ? hourNow >= swapAt : hourNow <= swapAt)) showScene(night);
+    paint(hourNow);
+    if (p < 1) anim.raf = requestAnimationFrame(step);
+    else { anim = null; hideTimer = setTimeout(function () { clockEl.classList.remove("on"); }, 900); }
+  })(start);
+}
+
+// preview controls
+function group(attr, apply) {
+  Array.prototype.forEach.call(document.querySelectorAll("[" + attr + "]"), function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll("[" + attr + "]").forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+      apply(b.getAttribute(attr));
+    });
+  });
+}
+group("data-swap", function (v) { swapMode = v; });
+group("data-speed", function (v) { speed = parseFloat(v); });
+document.getElementById("rm").addEventListener("click", function () {
+  still = !still;
+  this.setAttribute("aria-pressed", still ? "true" : "false");
+});
+document.getElementById("tog").addEventListener("click", function () {
+  var c = document.getElementById("ctl"); c.classList.toggle("min"); this.textContent = c.classList.contains("min") ? "▴" : "▾";
+});
+var ffStyle = document.createElement("style");
+ffStyle.textContent = "#scene svg .ff{animation:ff 2.4s ease-in-out infinite}@keyframes ff{0%,100%{opacity:.15;transform:translate(0,0)}50%{opacity:1;transform:translate(3px,-4px)}}" +
+  "@media (prefers-reduced-motion: reduce){#scene svg .ff{animation:none}}";
+document.head.appendChild(ffStyle);
+showScene(NIGHTS[0]);
+// ?h=40.5 freezes the clock at that hour (hours since Thu 00:00), for screenshots
+var frozen = /[?&]h=([\d.]+)/.exec(location.search);
+if (frozen) { hourNow = parseFloat(frozen[1]); paint(hourNow); clockEl.classList.add("on"); document.getElementById("ctl").classList.add("min"); }
+</script>
+</body>
+</html>

@@ -261,6 +261,19 @@ Vychádza z `podklady/mapa-nahlad.html`: pohľad zhora, tráva, chodníky, konic
 - Každá posteľ a každý smerovník, ceduľa či ikona je prvok s `role="button"`, `tabindex="0"` a popisom pre čítačky (napr. „Manželská posteľ, izba vľavo, v sobotu Ivan a Eva, 0 voľných“).
 - Pre čítačky obrazovky je v stránke skrytý textový prehľad (izby, postele a mená pre zvolenú noc, termín, návod), aby sa dalo zistiť všetko aj bez kreslenia. Je to náhrada za samostatný zoznam.
 
+### Deň a noc pri prepnutí noci
+
+Požiadavka organizátora z 26. 10. 2026 (náhľad `design/day-night/`, rozbor v `design/day-night/README.md`). Keď kamarát ťukne na smerovník inej noci, v scéne ubehne čas: každá noc sa ukazuje na poludnie dňa, keď začína (Št → Pi = štvrtok 12:00), a prepnutie zo Št → Pi na So → Ne pretočí čas zo štvrtka 12:00 na sobotu 12:00 cez súmrak, noc a svitanie dvakrát. Späť (So → Št) beží čas dozadu.
+
+- Trvanie asi 0,9 s + 1,25 s za každých 24 hodín (jedna noc asi 2,2 s, dve noci asi 3,4 s), na začiatku a na konci pomalšie. Ťuknutie počas pretáčania pokračuje plynulo z aktuálneho času k novej noci.
+- Slnko okolo 30. 10.: východ asi 06:40, západ asi 16:40, súmrak asi 1,2 h. Pri západe a východe scéna zoranžovie, v noci stmavne do tmavomodrej. Izby ostanú jemne osvetlené, okná a dvere svietia (súradnice z `layout.rooms`, `map.windows`, `map.doors`), na tráve blikajú svetlušky, vták v noci neletí.
+- Smerovníky a tabuľka partií (vrstva tabúľ) ostanú čitateľné: stmavnú len mierne.
+- Počas pretáčania je hore malá drevená tabuľka s pixelovým slnkom alebo mesiacom, časom („Pi 03:00“) a pásikom deň/noc od štvrtka 12:00 po nedeľu 12:00. Po skončení sa asi o 0,9 s stratí. V pokoji sa neukazuje.
+- Zvýraznenie smerovníka sa zmení hneď. Postavičky novej noci sa ukážu o polnoci poslednej noci, cez ktorú čas prejde (ako keby šli ľudia spať); keď ubehne menej ako 12 h, hneď.
+- Pretáča sa len po ťuknutí na smerovník alebo na ceduľu „Ťukni sem“ v spodnej lište. Načítanie stránky, výber „Kto si?“ a zmeny naživo noc prepnú bez pretáčania.
+- S `prefers-reduced-motion` sa nič nepretáča, noc sa prepne hneď ako doteraz a svetlušky neblikajú.
+- Server sa nemení. Výpočty (svetlo podľa hodiny, popis času, trvanie, chvíľa výmeny postavičiek) sú čisté funkcie v `static/js/logic-daynight.js` s testami v Node.
+
 ### Ťuknutie na posteľ
 
 Otvorí sa spodný panel s názvom postele a izbou, obsadením pre všetky tri noci a akciami:
@@ -588,3 +601,4 @@ Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a n
 - [x] **Plán, nastavenia produkcie v súbore s premennými (T-069):** požiadavka organizátora z 25. 10. 2026, rozhodnutie podľa odporúčania (organizátor ho nechal na Claude). Nastavenia, ktoré sa líšia medzi produkciou a skúšobným serverom (zatiaľ `INFO_ENABLED`), sa na produkcii píšu do toho istého súboru ako tajomstvá, `/etc/cabin/secrets.env` (mimo projektu, `chmod 600`, `docker compose --env-file`), nie do `compose.yaml` a nie do `.env` vedľa neho. `compose.yaml` premennú iba odovzdá s poistkou `${INFO_ENABLED:-false}`. Dôvod: súbor už existuje, je mimo gitu aj priečinka projektu, takže ho `git pull` neprepíše a lokálny vývojový `.env` ho nemôže potichu prepísať. Zmena je len v dokumentácii (README časť 4, `.env.example`, `tests/manual.md`), kód sa nemení. Nasadenie na produkciu iba na výslovnú žiadosť organizátora.
 - [ ] **Prihlásenie telefónom (SMS):** rozhodnutie organizátora z 25. 10. 2026: Twilio Verify, chránia sa zápisy partie s číslom, cookie partií 30 dní. Predvolené hodnoty: domáca `0` = `+421`; číslo sa pridáva iba po overení SMS; v `state` iba posledné 3 číslice; limity 1 SMS/60 s a 5/h na partiu, 10/h na IP, 5 pokusov o kód za 10 min; bez premenných Twilia je pridanie čísla skryté a `SMS_FAKE=1` zapisuje kód do logu (skúšobný server); stratený telefón rieši organizátor admin cookie alebo úpravou `cabin-data.yaml`; zmena čísla zruší staré overenia.
 - [ ] **Vypínateľné overovanie (26. 10. 2026):** rozhodnutie organizátora: prepínač v admin paneli, vypnuté = číslo je len kontakt a partia nie je chránená. Predvolené: chýbajúce `phone_verify` = zapnuté; zapnúť sa dá iba so Twilio (alebo `SMS_FAKE`); pri vypnutom overovaní môže číslo ktokoľvek zmeniť, takže po zapnutí môže byť pri partii aj zlé číslo (opraví admin). Rozhodnutie organizátora z 26. 10. 2026: keď je overovanie zapnuté a SMS nefunguje (chýba Twilio alebo zlyhá), partie s číslom ostanú chránené a prihlásiť sa nedá; ochrana sa podľa dostupnosti SMS nevypína, rieši to admin vypnutím overovania.
+- [ ] **Deň a noc pri prepnutí noci (26. 10. 2026):** predvolené podľa rozboru: postavičky sa vymenia o polnoci poslednej prejdenej noci; smerovníky a tabuľka stmavnú len mierne; asi 2,2 s za noc; svetlušky áno, zvuky (sova, kohút) nie; tabuľka s časom iba počas pretáčania.
