@@ -192,6 +192,7 @@ function advBuild() {
   var slots = ADV_STATIONS.map(function (st) {
     var s = htmlEl("span"); s.appendChild(advIcon(st.icon)); prog.appendChild(s); return s;
   });
+  var count = htmlEl("span", { "class": "yard-count", "aria-hidden": "true" });
   var nextBtn = htmlEl("button", { "class": "yard-next", type: "button" });
   nextBtn.addEventListener("click", function () {
     if (adv.walking) return;
@@ -206,10 +207,10 @@ function advBuild() {
     else if (!nextStation(advVisited())) advEndPanel();
     else advGoTo(BRIEFING_STEPS.indexOf(nextStation(advVisited())));
   });
-  bar.appendChild(list); bar.appendChild(prog); bar.appendChild(nextBtn);
+  bar.appendChild(list); bar.appendChild(prog); bar.appendChild(count); bar.appendChild(nextBtn);
   view.appendChild(bar);
 
-  adv.els = { world: world, svg: svg, spots: spots, me: me, body: body, board: board, boardIcon: boardIcon, boardText: boardText, slide: slide, side: side, nextBtn: nextBtn, slots: slots, host: host };
+  adv.els = { world: world, svg: svg, spots: spots, me: me, body: body, board: board, boardIcon: boardIcon, boardText: boardText, slide: slide, side: side, nextBtn: nextBtn, slots: slots, count: count, host: host };
 }
 
 // --- state of the view ---
@@ -224,6 +225,7 @@ function advRefresh() {
     g.classList.toggle("done", visited.indexOf(BRIEFING_STEPS[i]) !== -1);
   });
   e.slots.forEach(function (s, i) { s.classList.toggle("got", visited.indexOf(BRIEFING_STEPS[i]) !== -1); s.title = ADV_STATIONS[i].label; });
+  e.count.textContent = BRIEFING_STEPS.filter(function (st) { return visited.indexOf(st) !== -1; }).length + " z " + BRIEFING_STEPS.length;
   var wide = advWide();
   e.slide.setAttribute("aria-modal", wide ? "false" : "true");
   e.nextBtn.textContent = adv.slide && !wide ? "‹ Späť na dvor" : next ? "Choď: " + ADV_STATIONS[nextIdx].label + " ›" : "Hotovo ›";
