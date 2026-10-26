@@ -10,40 +10,111 @@ function viewState() {
   return withPending(app.state, app.pending);
 }
 
-// Furniture of a bed by `kind`, ported from `furn()` of the approved preview.
+// Furniture of a bed by `kind`. The layout follows `furn()` of the approved preview, but every place gets a
+// pillow, a patchwork quilt with a folded edge and a shadow on the floor, so it reads as a bed even at 1x.
+// Everything stays inside `bed.rect` (plus the stove pipe), see `furnitureBounds`; only the shadow spills 2 units.
+var QUILT_BLUE = ["quiltBlue", "quiltBlueFold", "quiltBlueCheck"], QUILT_RED = ["quiltRed", "quiltRedFold", "quiltRedCheck"];
+
+function pillow(g, x, y, w) {
+  rect(g, x, y, w, 6, COLORS.pillowShade);
+  rect(g, x, y, w, 5, COLORS.pillow);
+}
+
+// One sleeping place: a sheet, a pillow at the head and a quilt over the lower part. `quilt` is [base, fold, check].
+function berth(g, x, y, w, h, quilt) {
+  rect(g, x, y, w, h, COLORS.sheet);
+  pillow(g, x + 2, y + 1, w - 4);
+  var qy = y + Math.max(11, Math.round(h * 0.42)), cx, cy, row;
+  rect(g, x, qy, w, y + h - qy, COLORS[quilt[0]]);
+  for (cy = qy + 2, row = 0; cy < y + h; cy += 3, row++) {
+    for (cx = x + (row % 2) * 3; cx < x + w; cx += 6) {
+      rect(g, cx, cy, Math.min(3, x + w - cx), Math.min(3, y + h - cy), COLORS[quilt[2]]);
+    }
+  }
+  rect(g, x, qy, w, 2, COLORS[quilt[1]]);
+}
+
+function shadow(g, x, y, w, h) {
+  rect(g, x + 2, y + 2, w, h, COLORS.furnShadow);
+}
+
 function drawFurniture(g, bed) {
-  var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3], i;
+  var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3], i, n;
   switch (bed.kind) {
     case "bed2":
     case "bed1":
+      shadow(g, x, y, w, h);
+      rect(g, x, y, w, h, COLORS.bedWood);
+      rect(g, x, y, w, 4, COLORS.bedWoodDark);              // headboard
+      rect(g, x, y + h - 2, w, 2, COLORS.bedWoodDark);      // footboard
+      berth(g, x + 2, y + 4, w - 4, h - 6, bed.kind === "bed2" ? QUILT_RED : QUILT_BLUE);
+      if (bed.kind === "bed2") {                            // two pillows side by side
+        rect(g, x + 2, y + 5, w - 4, 6, COLORS.sheet);
+        pillow(g, x + 3, y + 5, (w - 8) / 2);
+        pillow(g, x + w / 2 + 1, y + 5, (w - 8) / 2);
+      }
+      break;
     case "cot":
-      rect(g, x, y, w, h, COLORS.bedFrame);
-      rect(g, x + 2, y + 2, w - 4, h - 4, bed.kind === "cot" ? COLORS.cotFrame : COLORS.sheet);
-      rect(g, x + 3, y + 3, w - 6, 6, COLORS.sheetHead);
-      if (bed.kind !== "cot") rect(g, x + 2, y + h - 10, w - 4, 8, COLORS.sheetFoot);
+      shadow(g, x, y, w, h);
+      rect(g, x, y, w, h, COLORS.cotSteelDark);
+      rect(g, x + 1, y + 1, w - 2, h - 2, COLORS.cotCanvas);
+      rect(g, x + 1, y + 1, 1, h - 2, COLORS.cotCanvasLight);
+      for (i = y + 8; i < y + h - 2; i += 6) rect(g, x + 1, i, w - 2, 1, COLORS.cotSteelDark);      // crossbars
+      rect(g, x + 3, y + 2, w - 6, 5, COLORS.pillowShade);
+      rect(g, x + 3, y + 2, w - 6, 4, COLORS.pillow);
+      [[x, y], [x + w - 2, y], [x, y + h - 2], [x + w - 2, y + h - 2]].forEach(function (p) {      // legs
+        rect(g, p[0], p[1], 2, 2, COLORS.cotSteel);
+      });
       break;
     case "mats":
       for (i = 0; i < bed.slots.length; i++) {
-        rect(g, x + i * 46, y, 32, h, COLORS.mat);
-        rect(g, x + i * 46 + 2, y + 2, 28, h - 4, COLORS.matTop);
+        var mx = x + i * 46;
+        shadow(g, mx, y, 32, h);
+        rect(g, mx, y, 32, h, COLORS.matFoam);
+        rect(g, mx + 1, y + 1, 30, h - 2, COLORS.matFoamLight);
+        rect(g, mx + 3, y + 2, 26, 5, COLORS.pillowShade);
+        rect(g, mx + 3, y + 2, 26, 4, COLORS.pillow);
+        rect(g, mx + 2, y + 13, 28, h - 15, COLORS.bag);    // sleeping bag with a zip
+        rect(g, mx + 2, y + 13, 28, 2, COLORS.bagLight);
+        rect(g, mx + 15, y + 15, 1, h - 17, COLORS.bagDark);
       }
       break;
     case "bunk":
-      rect(g, x, y, w, h, COLORS.bunkDark);
-      rect(g, x + 2, y + 2, w - 4, 16, COLORS.bunkTop);
-      rect(g, x + 2, y + 22, w - 4, 18, COLORS.bunkLow);
-      rect(g, x, y + 19, w, 2, COLORS.bunkDark);
+      shadow(g, x, y, w, h);
+      rect(g, x, y, w, h, COLORS.bedWoodDark);
+      berth(g, x + 2, y + 2, w - 6, 17, QUILT_BLUE);
+      berth(g, x + 2, y + 23, w - 6, h - 25, QUILT_BLUE);
+      rect(g, x, y + 19, w, 4, COLORS.bedWood);             // rail between the bunks
+      rect(g, x, y, 2, 2, COLORS.bedWoodLight);
+      rect(g, x, y + h - 2, 2, 2, COLORS.bedWoodLight);
+      rect(g, x + w - 4, y + 2, 3, h - 4, COLORS.bedWoodLight);      // ladder on the right side
+      for (i = y + 5; i < y + h - 2; i += 4) rect(g, x + w - 4, i, 3, 1, COLORS.bedWoodDark);
       break;
     case "sofa":
     case "sofa1":
+      shadow(g, x, y, w, h);
       rect(g, x, y, w, h, COLORS.sofaDark);
-      rect(g, x + 4, y + 4, w - 8, h - 8, COLORS.sofaLight);
+      rect(g, x + 6, y + 4, w - 9, h - 8, COLORS.sofaLight);         // seat, the backrest is on the left
+      n = bed.slots.length;
+      for (i = 1; i < n; i++) rect(g, x + 6, y + 4 + i * (h - 8) / n, w - 9, 1, COLORS.sofaSeam);
+      for (i = 0; i < n; i++) {                             // a pillow per place
+        var py = y + 5 + i * (h - 8) / n;
+        rect(g, x + 9, py, w - 15, 5, COLORS.pillowShade);
+        rect(g, x + 9, py, w - 15, 4, COLORS.pillow);
+      }
       break;
     case "stove":
-      rect(g, x, y, w, h, COLORS.stoveDark);
-      rect(g, x + 2, y + 2, w - 4, h - 4, COLORS.stoveLight);
+      shadow(g, x, y, w, h);
+      rect(g, x, y, w, h, COLORS.stoveTileDark);
+      rect(g, x + 1, y + 1, w - 2, h - 2, COLORS.stoveTile);
+      for (i = x + 8; i < x + w; i += 8) rect(g, i, y + 1, 1, h - 2, COLORS.stoveTileLine);
+      for (i = y + 7; i < y + h; i += 7) rect(g, x + 1, i, w - 2, 1, COLORS.stoveTileLine);
+      rect(g, x + 4, y + 5, w - 8, h - 9, COLORS.stoveBlanket);       // a blanket on top
+      rect(g, x + 4, y + 5, w - 8, 2, COLORS.pillow);
+      rect(g, x + 4, y + h - 5, w - 8, 1, COLORS.stoveBlanketEdge);
       var pipe = stovePipeRect(bed);
       rect(g, pipe[0], pipe[1], pipe[2], pipe[3], COLORS.stovePipe);
+      rect(g, pipe[0] + 1, pipe[1] + 1, pipe[2] - 2, pipe[3] - 2, COLORS.stovePipeLight);
       break;
   }
 }
