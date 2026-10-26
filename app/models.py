@@ -440,6 +440,10 @@ class LoginVerifyRequest(_Model):
     code: Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=16)]
 
 
+class PhoneContactRequest(_Model):
+    phone: Annotated[str, StringConstraints(strict=True, max_length=40)]  # typed form, normalized by the server
+
+
 class LogoutRequest(_Model):
     party_id: PartyRef
 

@@ -594,3 +594,92 @@ async def test_switch_on_needs_sms_off_is_fine(make_app, make_client):
         resp = await admin.post("/api/admin/phone-verify", json={"on": True})
         assert resp.status_code == 503 and error_of(resp)["code"] == "sms_unavailable"
         assert snapshot(app) == before
+
+
+# --- number as contact only (T-101) -------------------------------------------------------
+
+
+async def test_contact_put_is_forbidden_while_verification_is_on(gc, phone_app, make_party):
+    party = await add_plain(phone_app, make_party)
+    before = snapshot(phone_app)
+    resp = await gc.put(f"/api/parties/{party.id}/phone", json={"phone": NEW_TYPED})
+    assert resp.status_code == 403 and error_of(resp)["code"] == "forbidden"
+    assert snapshot(phone_app) == before and stored(phone_app, party.id).phone is None
+
+
+async def test_contact_put_sets_the_number_and_commits(gc, phone_app, make_party, caplog):
+    from tests.api_helpers import audit_docs
+
+    caplog.set_level(logging.DEBUG)
+    await set_verify(phone_app, False)
+    party = await add_plain(phone_app, make_party)
+    rt = phone_app.state.runtime
+    conn, gen = await _stream(rt)
+    before = snapshot(phone_app)
+    resp = await gc.put(f"/api/parties/{party.id}/phone", json={"phone": NEW_TYPED})
+    assert resp.status_code == 200
+    assert PARTY_COOKIE not in resp.headers.get("set-cookie", "")
+    assert snapshot(phone_app) == (before[0] + 1, before[1] + 1, before[2] + 1)
+    item = next(p for p in resp.json()["state"]["parties"] if p["id"] == party.id)
+    assert item["phone_hint"] == "333" and "phone" not in item and NEW_PHONE not in resp.text
+    saved = stored(phone_app, party.id)
+    assert saved.phone == NEW_PHONE and saved.phone_set_at
+    doc = audit_docs(phone_app)[-1]
+    assert doc["action"] == "phone_set" and doc["party"] == party.id and doc["phone_hint"] == "333"
+    event, data = await _frame(gen)
+    assert event == "state"
+    audit_text = rt.store.audit_path.read_text(encoding="utf-8")
+    assert "911222333" not in audit_text and "911222333" not in caplog.text
+
+    # The same number again: no write.
+    set_at, version = saved.phone_set_at, snapshot(phone_app)
+    resp = await gc.put(f"/api/parties/{party.id}/phone", json={"phone": "+421 911 222 333"})
+    assert resp.status_code == 200
+    assert snapshot(phone_app) == version and stored(phone_app, party.id).phone_set_at == set_at
+
+
+async def test_contact_put_errors_and_signup_lock(gc, phone_app, make_party):
+    await set_verify(phone_app, False)
+    party = await add_plain(phone_app, make_party)
+    resp = await gc.put("/api/parties/p-nope00/phone", json={"phone": NEW_TYPED})
+    assert resp.status_code == 404 and error_of(resp)["code"] == "unknown_party"
+    resp = await gc.put(f"/api/parties/{party.id}/phone", json={"phone": "12"})
+    assert resp.status_code == 422
+    assert error_of(resp)["code"] == "invalid" and error_of(resp)["params"]["field"] == "phone"
+    async with phone_app.state.runtime.store.write(action="lock", source="admin", client_id=None) as tx:
+        tx.state.signup_open = False
+    assert (await gc.put(f"/api/parties/{party.id}/phone", json={"phone": NEW_TYPED})).status_code == 200
+
+
+async def test_contact_put_counts_toward_the_write_limit(gc, phone_app, make_party):
+    await set_verify(phone_app, False)
+    party = await add_plain(phone_app, make_party)
+    codes = [(await gc.put(f"/api/parties/{party.id}/phone", json={"phone": NEW_TYPED})).status_code for _ in range(31)]
+    assert codes[-1] == 429 and codes[0] == 200
+
+
+async def test_numbers_set_as_contact_are_protected_after_switch_on(gc, phone_app, make_client, make_party, clock):
+    await set_verify(phone_app, False)
+    party = await add_plain(phone_app, make_party)
+    # An old entry from before the contact-mode change.
+    await set_verify(phone_app, True)
+    await set_phone(gc, party.id)  # logs this device in
+    clock.advance(10)
+    await set_verify(phone_app, False)
+    assert (await gc.put(f"/api/parties/{party.id}/phone", json={"phone": "0905 111 222"})).status_code == 200
+    clock.advance(10)
+    other = await add_plain(phone_app, make_party)
+    assert (await gc.put(f"/api/parties/{other.id}/phone", json={"phone": NEW_TYPED})).status_code == 200
+    await set_verify(phone_app, True)
+    clock.advance(10)
+
+    body = {"party_id": other.id, "text": "no nuts"}
+    async with make_client(phone_app) as fresh:
+        await fresh.post("/api/join", json={"code": "group-test-code"})
+        resp = await fresh.post("/api/food", json=body)
+        assert resp.status_code == 403 and error_of(resp)["code"] == "login_required"
+        # Stale entry: this device logged in for `party` before its number changed.
+        resp = await gc.post("/api/food", json={"party_id": party.id, "text": "x"})
+        assert resp.status_code == 403 and error_of(resp)["code"] == "login_required"
+        assert (await login(fresh, other.id, NEW_TYPED)).status_code == 200
+        assert (await fresh.post("/api/food", json=body)).status_code == 200

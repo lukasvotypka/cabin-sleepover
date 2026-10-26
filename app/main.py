@@ -51,6 +51,7 @@ from app.models import (
     BriefingRequest,
     FoodRequest,
     LoginStartRequest,
+    PhoneContactRequest,
     LoginVerifyRequest,
     LogoutRequest,
     PlacesRequest,
@@ -961,6 +962,24 @@ def create_app(
         response = ok_response(rt, tx.state, verified=sorted(verified))
         set_party_cookie(response, verified)
         return response
+
+    @app.put("/api/parties/{party_id}/phone", dependencies=[Limited])
+    async def phone_contact(request: Request, party_id: PartyId, body: PhoneContactRequest, auth: Group) -> JSONResponse:
+        """Contact mode (verification off): any group device saves a number without SMS."""
+        async with rt.store.write(
+            action="phone_set", source=audit_source(auth, "form"), client_id=client_id_of(request)
+        ) as tx:
+            if tx.state.phone_verify:
+                raise ApiError("forbidden", "Verify the number by SMS while verification is on")
+            party = protected_party(tx.state, party_id)
+            number = normalize_phone(body.phone)
+            if party.phone == number:
+                tx.skip()
+            else:
+                party.phone = number
+                party.phone_set_at = datetime.fromtimestamp(rt.party_cookies.now(), UTC).isoformat()
+                tx.audit(party=party.id, phone_hint=phone_hint(party))
+        return ok_response(rt, tx.state)
 
     @app.delete("/api/parties/{party_id}/phone", dependencies=[Limited])
     async def phone_remove(request: Request, party_id: PartyId, auth: Group) -> JSONResponse:
