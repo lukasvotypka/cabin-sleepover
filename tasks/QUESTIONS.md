@@ -205,3 +205,19 @@ The exact accepted phone format and whether a `phone_mismatch` costs anything ar
 - **Default:** two parties may have the same number (one phone, several parties).
 - Affects: T-090, T-091, T-092, T-094.
 - **Answer:** open.
+
+## Q26. SMS endpoints while verification is off (26. 10. 2026)
+
+"Vypínateľné overovanie" does not say what `login/start`, `login/verify`, `phone/start` and `phone/verify` do while `phone_verify` is false.
+
+- **Default:** unchanged: they work when `sms_enabled` (a `phone/verify` then also adds the party to `party_auth`), and the page simply does not offer them in contact mode. `PUT …/phone` does not touch `party_auth`, so after switching on, only SMS logins count.
+- Affects: T-100, T-101.
+- **Answer:** open.
+
+## Q27. Page details of contact mode (26. 10. 2026)
+
+Not specified: whether the admin sees „Zapnúť overovanie cez SMS“ without Twilio, whether the create form gets the contact field, what happens when verification is switched on while someone has an unverified protected party chosen, and the `forbidden` race (admin turns verification on while someone saves a contact number).
+
+- **Default:** the button is always shown and the server's `503 sms_unavailable` is shown as its Slovak text; the contact field is only in the form of an existing party (like today's „Telefón“ section); the login panel for a now-protected chosen party opens at the next page load, meanwhile writes get `login_required` with its message; the race shows the generic `forbidden` text (rare, accepted).
+- Affects: T-103.
+- **Answer:** open.

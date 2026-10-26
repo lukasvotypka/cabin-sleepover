@@ -474,6 +474,16 @@ Rozhodnutie organizátora z 25. 10. 2026. Partia si môže pridať telefónne č
 - Akcie nad cudzou chránenou partiou (napr. ťuknutie na jej posteľ) stránka vopred neponúka; keď server vráti `login_required`, ukáže „Ivan a Eva si chránia zápis telefónom. Zmeniť ho môžu iba oni.“
 - Slovenské hlášky pre nové kódy sú v `static/js/logic-errors.js`. Čistá logika (normalizácia čísla na zobrazenie, stav panela prihlásenia, odpočet „Poslať znova“) je v `logic-*.js` a testovaná v Node.
 
+### Vypínateľné overovanie (prepínač v admin paneli)
+
+Rozhodnutie organizátora z 26. 10. 2026. Overovanie cez SMS sa dá vypnúť a zapnúť v admin paneli, bez reštartu servera.
+
+- **Stav** je `phone_verify` v `cabin-data.yaml` (ako `signup_open`), v `state` sa posiela ako `phone_verify`. Chýbajúca hodnota = zapnuté (doterajšie správanie).
+- **Prepínač:** `POST /api/admin/phone-verify {on}` (admin), bežná cesta zápisu (`version`, záloha, audit `phone_verify`, zmena príde všetkým naživo). V admin paneli tlačidlo „Vypnúť overovanie cez SMS“ / „Zapnúť overovanie cez SMS“. Zapnúť sa dá iba pri `sms_enabled`, inak `503 sms_unavailable`.
+- **Vypnuté = číslo je len kontakt.** Číslo sa uloží bez SMS (`PUT /api/parties/{id}/phone {phone}`, iba pri vypnutom overovaní, inak `403 forbidden`), zmeniť alebo odstrániť ho môže ktokoľvek s kódom skupiny. Partia s číslom **nie je chránená**: `check_party_access` pustí každého, „Kto si?“ neukáže zámok ani panel „Prihlás sa“. Číslo ani pri vypnutom overovaní nejde do `state`, SSE, auditu ani logov (iba `phone_hint`).
+- **Formulár pri vypnutom overovaní:** sekcia „Telefón“ je vidieť aj bez `sms_enabled`, s poľom na číslo a textom, že slúži organizátorovi ako kontakt. Bez overenia sa nič neposiela.
+- **Zapnuté** = doterajšie správanie: partie s číslom sú chránené a prihlasuje sa cez SMS. Čísla zadané pri vypnutom overovaní sa po zapnutí stanú chránenými; prihlásené zariadenia zostanú, iba ak sa prihlásili po poslednej zmene čísla.
+
 ## Fáza 2: zápis vlastnými slovami cez Claude API
 
 Voliteľné rozšírenie, stavia sa až keď fáza 1 funguje. Nad mapou pribudne pole „Napíš, kedy prídeš a kde chceš spať“. Kamarát napíše vetu, ako by ju písal do WhatsAppu, a na mape uvidí návrh, ktorý potvrdí jedným ťuknutím.
@@ -577,3 +587,4 @@ Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a n
 - [ ] **„Čo kto donesie“:** predvolene jeden text na partiu (najviac 120 znakov), upraviť ho môže ktokoľvek s kódom skupiny (ako ostatné údaje partie), vidia ho všetci.
 - [x] **Plán, nastavenia produkcie v súbore s premennými (T-069):** požiadavka organizátora z 25. 10. 2026, rozhodnutie podľa odporúčania (organizátor ho nechal na Claude). Nastavenia, ktoré sa líšia medzi produkciou a skúšobným serverom (zatiaľ `INFO_ENABLED`), sa na produkcii píšu do toho istého súboru ako tajomstvá, `/etc/cabin/secrets.env` (mimo projektu, `chmod 600`, `docker compose --env-file`), nie do `compose.yaml` a nie do `.env` vedľa neho. `compose.yaml` premennú iba odovzdá s poistkou `${INFO_ENABLED:-false}`. Dôvod: súbor už existuje, je mimo gitu aj priečinka projektu, takže ho `git pull` neprepíše a lokálny vývojový `.env` ho nemôže potichu prepísať. Zmena je len v dokumentácii (README časť 4, `.env.example`, `tests/manual.md`), kód sa nemení. Nasadenie na produkciu iba na výslovnú žiadosť organizátora.
 - [ ] **Prihlásenie telefónom (SMS):** rozhodnutie organizátora z 25. 10. 2026: Twilio Verify, chránia sa zápisy partie s číslom, cookie partií 30 dní. Predvolené hodnoty: domáca `0` = `+421`; číslo sa pridáva iba po overení SMS; v `state` iba posledné 3 číslice; limity 1 SMS/60 s a 5/h na partiu, 10/h na IP, 5 pokusov o kód za 10 min; bez premenných Twilia je pridanie čísla skryté a `SMS_FAKE=1` zapisuje kód do logu (skúšobný server); stratený telefón rieši organizátor admin cookie alebo úpravou `cabin-data.yaml`; zmena čísla zruší staré overenia.
+- [ ] **Vypínateľné overovanie (26. 10. 2026):** rozhodnutie organizátora: prepínač v admin paneli, vypnuté = číslo je len kontakt a partia nie je chránená. Predvolené: chýbajúce `phone_verify` = zapnuté; zapnúť sa dá iba so Twilio (alebo `SMS_FAKE`); pri vypnutom overovaní môže číslo ktokoľvek zmeniť, takže po zapnutí môže byť pri partii aj zlé číslo (opraví admin).
