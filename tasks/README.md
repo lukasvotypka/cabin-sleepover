@@ -36,6 +36,7 @@ File name: `T-001-short-slug.md` (3-digit number, ordered by intended build orde
 - **Phase:** 1 | 2
 - **Depends on:** T-000, … (or "none")
 - **Size:** S | M | L (L means it should probably be split)
+- **UX:** yes | no (yes = something people see or touch changes; `ux-designer` fills `## Design` first)
 
 ## Goal
 What and why, in 1–3 sentences. Cite the proposal section ("Dáta v YAML", "HTTP API", …).
@@ -48,6 +49,9 @@ Files to create or change.
 
 ## Notes for developer
 Pitfalls and decisions already made. Open decisions use the default from proposal.md.
+
+## Design
+(ux-designer fills this for `UX: yes` tasks before the developer starts; empty otherwise)
 
 ---
 ## Dev log

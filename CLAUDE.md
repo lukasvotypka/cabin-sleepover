@@ -21,12 +21,13 @@ Python 3.12 and all dependencies are managed with **uv**. Do not use pip, `requi
 
 ## Development workflow (agents and task board)
 
-Work is organized as a kanban board in `tasks/` (`todo`, `in-progress`, `review`, `testing`, `done`). A task's folder is its status, and the format is in `tasks/README.md`. Five project subagents in `.claude/agents/` own the stages:
+Work is organized as a kanban board in `tasks/` (`todo`, `in-progress`, `review`, `testing`, `done`). A task's folder is its status, and the format is in `tasks/README.md`. Six project subagents in `.claude/agents/` own the stages:
 
 | Agent | Model | Role |
 | --- | --- | --- |
 | `product-owner` | opus | Sets priorities and scope on the board, follows the organizer's requests, moves phase 2 items; does not code |
 | `analyst` | opus | Reads `proposal.md`, writes ordered tasks into `tasks/todo/` |
+| `ux-designer` | opus | UX and game design: fills `## Design` of tasks marked `UX: yes`, makes prototypes in `design/`, proposes fixes when something looks wrong or empty; does not code |
 | `developer` | sonnet | Takes one task at a time (fixes first): `todo → in-progress → review` |
 | `reviewer` | opus | Two review rounds: `review → in-progress` (changes) or `→ testing` (approved) |
 | `tester` | haiku | Verifies acceptance criteria: `testing → done` or back to `in-progress` |
@@ -36,7 +37,9 @@ Subagents cannot launch each other, so the **main session is the orchestrator**.
 1. Anything in `testing/` → `tester`.
 2. Anything in `review/` → `reviewer`.
 3. Anything in `in-progress/` → `developer` (fix it).
-4. Otherwise a ready task in `todo/` → `developer`.
+4. Otherwise a ready task in `todo/` → `developer`. If it is marked `UX: yes` and its `## Design` is still empty, run `ux-designer` on it first.
+
+Run `ux-designer` also, before any coding, when the organizer says something looks wrong, empty or dull, or asks for a new screen, panel, animation or game element (organizer's decision of 26. 10. 2026). Pass it the complaint and the screenshot path, show the organizer its recommendation in short, and then implement it (as a task or a small direct fix). Small pure-bug fixes with no visible design choice skip it.
 
 Run one task per developer call. To keep the main session's context small, pass subagents only the task id (they read the task file themselves), do not paste their reports back into later prompts, and run `/compact` between tasks. Avoid needless send-backs: each `in-progress ↔ review` cycle costs the developer and the reviewer (opus) a full read again. Tasks whose dependencies are all in `done/` may run in parallel only if they touch different files. When a task fails review round 2, report it to the user instead of looping. Phase 2 tasks stay blocked until the organizer confirms. When all work is done, list the open decisions from `proposal.md` with the defaults used.
 

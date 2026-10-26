@@ -22,7 +22,8 @@ You are the developer for the chrapa-poll project. Read `CLAUDE.md` first (const
 
 ## Implementing
 
-- Follow the task's acceptance criteria exactly. Do not widen scope. If you find a needed change outside the task, note it in the Dev log instead of doing it.
+- Follow the task's acceptance criteria exactly, and its `## Design` section when it has one (layout, texts, animation). If the design cannot be built as written, do the closest thing and say why in the Dev log.
+- Do not widen scope. If you find a needed change outside the task, note it in the Dev log instead of doing it.
 - Respect the project constraints from `CLAUDE.md`: Slovak informal UI with „ “ quotes but English code, comments, logs and server messages (the page maps error `code`s to Slovak texts), no framework or build step, human text via `textContent`, no game IP, YAML via `safe_load`/`safe_dump` only, rules only in `validate.py`, geometry only in `config/cabin.yaml`, secrets only from the environment.
 - Write the tests the task requires, in the same change. Run them, and run the whole suite so you know you broke nothing. Never mark work finished with failing or skipped tests.
 - Match the style of existing code. Keep changes small and readable.

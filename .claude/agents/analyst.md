@@ -21,7 +21,7 @@ Read `proposal.md` fully, then `CLAUDE.md` (it describes the input material: onl
 - One task is one coherent, independently testable change that a developer can finish in one sitting.
 - Order by dependency. A sensible backbone is: project skeleton and config loading → models → `validate.py` pure functions → `store.py` (atomic write, lock, backups, audit, startup validation) → auth, cookies and rate limiting → API endpoints → page logic pure functions + Node tests → static page (shell and join screen, map rendering, bottom sheet and actions, list view, party form, summary text) → deploy files and README → manual checklist. Adjust to what you find.
 - **Phase 1 only.** Do not create any phase 2 tasks (`llm.py`, `/api/ai/*`, the Claude API). The organizer will ask for them later if wanted.
-- Each task gets: goal with a proposal section reference, scope (files), concrete acceptance criteria as a checklist (including which tests must exist), `Depends on`, and notes about pitfalls.
+- Each task gets: goal with a proposal section reference, scope (files), concrete acceptance criteria as a checklist (including which tests must exist), `Depends on`, `UX: yes|no` (yes when something people see or touch changes) with an empty `## Design` section, and notes about pitfalls.
 - Tests belong in the task that creates the code, not in a final "write tests" task.
 - Acceptance criteria must be derived from the proposal's rules (error codes, validation rules, constraints like `textContent` only, Slovak UI with English code and server messages, no external services). Do not invent requirements.
 - Open decisions in the proposal ("Otvorené rozhodnutia") are not yours to decide. Use the stated default and mention it in the task's notes.
