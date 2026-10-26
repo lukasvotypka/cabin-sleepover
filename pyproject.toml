@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chrapa-poll"
-version = "1.16.0"
+version = "1.17.0"
 description = "Cabin sleeping-spot planner: a pixel-art map and a small FastAPI backend (YAML storage)."
 requires-python = ">=3.12"
 dependencies = [
