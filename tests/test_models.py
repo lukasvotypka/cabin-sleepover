@@ -24,8 +24,8 @@ from app.models import (
 from tests.conftest import APP_YAML, CABIN_YAML
 
 SCENE = {
-    "title": [176, 10, 196, 30],
-    "nights": [176, 46, 196, 58],
+    "title": [176, 4, 196, 28],
+    "nights": [176, 48, 196, 58],
     "notice": [24, 316, 44, 44],
     "locked": [16, 190, 62, 56],
     "letter": [128, 408, 44, 44],
@@ -34,6 +34,7 @@ SCENE = {
     "parties": [176, 112, 196, 136],
     "meadow": [112, 453, 124, 14],
     "briefing": [296, 408, 56, 56],
+    "time": [176, 34, 196, 12],
 }
 
 
@@ -111,7 +112,7 @@ def test_layout_dump_is_json_ready(layout):
 # --- errors in cabin.yaml ------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", sorted(set(SCENE) - {"briefing"}))
+@pytest.mark.parametrize("name", sorted(set(SCENE) - {"briefing", "time"}))
 def test_missing_scene_rect_names_it(layout_data, name):
     del layout_data["map"]["scene"][name]
     with pytest.raises(ConfigError) as exc:
@@ -122,6 +123,11 @@ def test_missing_scene_rect_names_it(layout_data, name):
 def test_briefing_rect_is_optional_with_a_default(layout_data):
     del layout_data["map"]["scene"]["briefing"]
     assert parse_layout(layout_data).map.scene.briefing == [296, 408, 56, 56]
+
+
+def test_time_rect_is_optional_with_a_default(layout_data):
+    del layout_data["map"]["scene"]["time"]
+    assert parse_layout(layout_data).map.scene.time == [176, 34, 196, 12]
 
 
 def test_scene_rect_must_have_four_ints(layout_data):

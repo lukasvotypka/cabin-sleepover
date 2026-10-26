@@ -154,6 +154,7 @@ class SceneRects(_Model):
     parties: Rect
     meadow: Rect
     briefing: Rect = [296, 408, 56, 56]  # "Pred cestou" board; optional, default here
+    time: Rect = [176, 34, 196, 12]  # time slider between title and signposts; optional, default here
 
 
 class MapLayout(_Model):

@@ -1,10 +1,11 @@
 "use strict";
 
-// App part: day and night light layer, the top time slider, the time-lapse and the figure swap at 06:00 (T-111, T-115).
+// App part: day and night light layer, the time slider in the scene, the time-lapse and the figure swap at 06:00 (T-111, T-115).
 // Pure parts (light curves, labels, durations) are in logic-daynight.js. Each frame only sets `opacity` attributes.
 // Plain script: top-level names are shared with the other files, so everything here starts with `dn`.
 
 var DN_ROOM_INSET = 4;
+var DN_SIGN_GAP = 4;      // gap between night signposts, as drawNights uses it
 var DN_FIREFLIES = [[60, 250], [104, 300], [250, 450], [330, 430], [40, 380], [200, 230], [350, 250]];   // on the 380 x 496 grass
 var DN_SUN = ["....1..1....", ".1........1.", "....2222....", "...222222...", ".1222222221.", "..22222222..", "..22222222..", ".1222222221.", "...222222...", "....2222....", ".1........1.", "....1..1...."];
 var DN_MOON = ["............", "....3333....", "...33333....", "..3333......", "..333.......", ".3333.......", ".3333.......", "..333.......", "..3333......", "...33333....", "....3333....", "............"];
@@ -17,7 +18,7 @@ var dn = {
   drag: null,        // {id, knob, off} while a finger or the mouse is down on the slider
   swap: null,        // {old, night, leave, arrive, start} for DN_SWAP_MS after the shown night changed
   swapTimer: 0,
-  barKey: null,
+  sl: null,          // the slider elements of the current svg
   iconNight: null
 };
 var DN_SWAP_MS = 500;
@@ -72,10 +73,10 @@ function dnBuild(svg, layout, beforeNode, afterNode) {
   // (not the gaps between them, the locked sign or the key, which may be absent).
   var sc = layout.map.scene, rects = [];
   Object.keys(sc).forEach(function (k) {
-    if (k === "meadow" || k === "locked" || k === "key" || k === "nights") return;
+    if (k === "meadow" || k === "locked" || k === "key" || k === "nights" || k === "time") return;
     rects.push(sc[k]);
   });
-  if (sc.nights) rects = rects.concat(signpostLayout(sc.nights, app.state.event.nights.length, 4).boards);
+  if (sc.nights) rects = rects.concat(signpostLayout(sc.nights, app.state.event.nights.length, DN_SIGN_GAP).boards);
   rects.forEach(function (r) {
     svgEl(fx.boardShade, "rect", { x: r[0], y: r[1], width: r[2], height: r[3], fill: "#16224A", style: blend });
   });
@@ -86,14 +87,14 @@ function dnBuild(svg, layout, beforeNode, afterNode) {
   dn.fx = fx;
   var nights = app.state.event.nights;
   if (dn.hour === null || nightAt(dn.hour, nights) !== app.night) dn.hour = dnNoon(app.night);
-  dnBuildBar();
+  dnBuildSlider(svg, layout, afterNode);
   dnPaint(dn.hour);
 }
 
 function dnPaint(h) {
   var fx = dn.fx;
   if (!fx || h === null) return;
-  dnBarPaint(h);
+  dnSliderPaint(h);
   var l = lightAt(h);
   dnVis(fx, "dark", fx.dark, l.dark);
   dnVis(fx, "dusk", fx.dusk, l.dusk);
@@ -129,97 +130,131 @@ function dnWrap(node, on, fx, key) {
 // puts the time on its noon, unless the time is already inside that night. Called by render().
 function dnSync() {
   if (!dn.fx || !app.state) return;
+  var sl = dn.sl;
+  if (sl && sl.key !== app.state.event.nights.join(",")) {
+    dnBuildSlider(sl.layer.ownerSVGElement, app.state.layout, sl.layer.nextSibling);
+    sl = dn.sl;
+  }
+  if (sl) { if (app.move) sl.layer.setAttribute("display", "none"); else sl.layer.removeAttribute("display"); }      // not in the move mode
   var h = dnNoon(app.night);
   if (h === null || (dn.hour !== null && nightAt(dn.hour, app.state.event.nights) === app.night)) return;
   dnCancelAnim();
   dn.hour = h;
   dnPaint(h);
 }
-// --- slider bar (in the HUD, built once; the scale depends on the nights) ---
+// --- slider (drawn in the scene at map.scene.time; its own persistent layer above the boards, so a redraw of the
+// boards never replaces the knob under a finger or the keyboard focus) ---
 
-function dnPct(h, nights) {
-  var r = sliderRange(nights);
-  return ((clampHour(h, nights) - r.min) / (r.max - r.min) * 100).toFixed(3) + "%";
-}
+var DN_KNOB_GRAB = 44;      // side of the square grab area around the knob, scene units
+var DN_TAG_W = 38, DN_TAG_H = 11;
 
-function dnBuildBar() {
-  var nights = app.state.event.nights, key = nights.join(","), strip = $("tsStrip"), knob = $("tsKnob");
-  if (dn.barKey === key) return;
-  var first = dn.barKey === null;
-  dn.barKey = key;
-  Array.prototype.slice.call(strip.querySelectorAll(".ts-dark, .ts-day")).forEach(function (n) { strip.removeChild(n); });
-  var r = sliderRange(nights);
+function dnBuildSlider(svg, layout, beforeNode) {
+  if (dn.sl && dn.sl.layer.parentNode) dn.sl.layer.parentNode.removeChild(dn.sl.layer);
+  dn.sl = null;
+  dn.drag = null;
+  var sc = layout.map.scene, nights = app.state.event.nights;
+  if (!sc.time || !sc.nights) return;
+  var r = sc.time, segs = sliderSegments(sc.nights, nights, DN_SIGN_GAP), cy = r[1] + r[3] / 2, range = sliderRange(nights);
+  var layer = svgEl(null, "g", { "class": "dn-slider", "data-nights": nights.join(","), style: "touch-action:none" });
+  svg.insertBefore(layer, beforeNode);
+  var rail = svgEl(layer, "g", { "aria-hidden": "true" });
+  rect(rail, r[0], cy - 4, r[2], 8, COLORS.woodDark);
+  rect(rail, r[0] + 1, cy - 3, r[2] - 2, 6, COLORS.woodLight);
   sliderDark(nights).forEach(function (d) {
-    var from = Math.max(r.min, d.from), to = Math.min(r.max, d.to);
-    var n = htmlEl("i", { "class": "ts-dark" });
-    n.style.left = dnPct(from, nights);
-    n.style.width = ((to - from) / (r.max - r.min) * 100).toFixed(3) + "%";
-    strip.insertBefore(n, knob);
+    var x0 = hourToSceneX(Math.max(range.min, d.from), segs), x1 = hourToSceneX(Math.min(range.max, d.to), segs);
+    if (x1 > x0) rect(rail, x0, cy - 2, x1 - x0, 4, COLORS.nightInk);
   });
-  sliderDays(nights).forEach(function (d) {
-    var n = htmlEl("span", { "class": "ts-day", "aria-hidden": "true" }, d.label);
-    n.style.left = dnPct((d.from + d.to) / 2, nights);
-    strip.insertBefore(n, knob);
-  });
-  knob.setAttribute("aria-valuemin", String(r.min));
-  knob.setAttribute("aria-valuemax", String(r.max));
-  if (first) dnBarEvents();
+  var tapTop = r[1] - 2;
+  var tap = rect(layer, r[0], tapTop, r[2], r[3] + 4, "transparent", { "class": "hit" });
+  var sl = svgEl(layer, "g", { role: "slider", tabindex: "0", "aria-label": "Čas", "data-key": "time" });
+  var knob = svgEl(sl, "g");
+  rect(knob, -7, cy - 7, 14, 14, COLORS.woodDark);
+  rect(knob, -6, cy - 6, 12, 12, COLORS.selected);
+  rect(knob, -DN_KNOB_GRAB / 2, cy - DN_KNOB_GRAB / 2, DN_KNOB_GRAB, DN_KNOB_GRAB, "transparent", { "class": "hit" });
+  var icon = svgEl(knob, "g", { "aria-hidden": "true" });
+  var tag = svgEl(sl, "g", { "aria-hidden": "true", "pointer-events": "none" });
+  rect(tag, 0, cy - DN_TAG_H / 2, DN_TAG_W, DN_TAG_H, COLORS.woodDark);
+  rect(tag, 1, cy - DN_TAG_H / 2 + 1, DN_TAG_W - 2, DN_TAG_H - 2, COLORS.paper);
+  var text = addText(tag, DN_TAG_W / 2, cy + 2.6, "", 7, COLORS.ink, { anchor: "middle", bold: true });
+  sl.setAttribute("aria-valuemin", String(range.min));
+  sl.setAttribute("aria-valuemax", String(range.max));
+  dn.sl = { layer: layer, sl: sl, knob: knob, icon: icon, tag: tag, text: text, label: null, segs: segs, rect: r, tap: tap, key: nights.join(",") };
+  dn.iconNight = null;
+  dnSliderEvents();
+  if (dn.hour !== null) dnSliderPaint(dn.hour);
 }
 
-function dnBarPaint(h) {
-  var nights = app.state.event.nights, knob = $("tsKnob");
-  $("tsText").textContent = clockLabel(h, nights);
-  knob.style.left = dnPct(h, nights);
-  knob.setAttribute("aria-valuenow", String(Math.round(h * 4) / 4));
-  knob.setAttribute("aria-valuetext", sliderValueText(h, nights));
+// Moves the knob and the tag and sets the texts; the tag flips to the left of the knob near the right end.
+function dnSliderPaint(h) {
+  var s = dn.sl;
+  if (!s || !app.state) return;
+  var nights = app.state.event.nights, x = hourToSceneX(h, s.segs), r = s.rect;
+  s.knob.setAttribute("transform", "translate(" + x.toFixed(2) + ",0)");
+  var tx = x + 11 + DN_TAG_W > r[0] + r[2] ? x - 11 - DN_TAG_W : x + 11;
+  s.tag.setAttribute("transform", "translate(" + tx.toFixed(2) + ",0)");
+  var label = clockLabel(h, nights);
+  if (label !== s.label) {
+    s.label = label;
+    s.text.textContent = label;
+    s.sl.setAttribute("aria-valuenow", String(Math.round(h * 4) / 4));
+    s.sl.setAttribute("aria-valuetext", sliderValueText(h, nights));
+  }
   var night = darkness(h) > 0.5;
   if (dn.iconNight === night) return;
   dn.iconNight = night;
-  var ic = $("tsIcon"), rows = night ? DN_MOON : DN_SUN;
-  clearNode(ic);
-  rows.forEach(function (row, y) {
-    for (var x = 0; x < 12; x++) {
-      if (row.charAt(x) !== ".") svgEl(ic, "rect", { x: x, y: y, width: 1, height: 1, fill: DN_ICON_COLORS[row.charAt(x)] });
-    }
-  });
+  clearNode(s.icon);
+  var cy = r[1] + r[3] / 2;
+  if (night) drawMoon(s.icon, -3, cy - 4); else drawSun(s.icon, -4, cy - 4);
 }
 
-// Drag the knob = move the time; tap on the strip = time-lapse to that hour; keys on the knob.
-function dnBarEvents() {
-  var track = $("tsTrack"), strip = $("tsStrip"), knob = $("tsKnob");
-  function nights() { return app.state.event.nights; }
-  function hourAt(clientX, off) {
-    var r = strip.getBoundingClientRect();
-    return xToHour(clientX - r.left + off, nights(), r.width || 1);
-  }
-  track.addEventListener("pointerdown", function (e) {
-    if (e.button > 0 || !app.state || dn.drag) return;
-    var onKnob = knob.contains(e.target), off = 0;
+// Scene x of a pointer event, right at any zoom.
+function dnSceneX(e) {
+  var m = dn.sl.layer.getScreenCTM(), svg = dn.sl.layer.ownerSVGElement;
+  if (!m || !svg) return null;
+  var p = svg.createSVGPoint();
+  p.x = e.clientX;
+  p.y = e.clientY;
+  return p.matrixTransform(m.inverse()).x;
+}
+
+// Drag the knob = move the time; tap on the rail = time-lapse to that hour; keys on the knob.
+function dnSliderEvents() {
+  var s = dn.sl, layer = s.layer;
+  function over() { return !app.state || app.move; }
+  layer.addEventListener("pointerdown", function (e) {
+    if (e.button > 0 || over() || dn.drag) return;
+    var x = dnSceneX(e);
+    if (x === null) return;
+    e.stopPropagation();      // not a map pan, not a tap on what lies under the slider
+    var onKnob = s.sl.contains(e.target), off = 0;
     if (onKnob) {
       dnCancelAnim();
-      var r = strip.getBoundingClientRect();
-      off = hourToX(dn.hour, nights(), r.width || 1) - (e.clientX - r.left);
+      off = hourToSceneX(dn.hour, s.segs) - x;
+      e.preventDefault();
     }
     dn.drag = { id: e.pointerId, knob: onKnob, off: off };
-    try { track.setPointerCapture(e.pointerId); } catch (err) { /* not capturable: window events are enough */ }
-    if (onKnob) e.preventDefault();
+    try { layer.setPointerCapture(e.pointerId); } catch (err) { /* not capturable: the layer still gets the events */ }
   });
-  track.addEventListener("pointermove", function (e) {
-    if (!dn.drag || dn.drag.id !== e.pointerId || !dn.drag.knob) return;
-    dnSetHour(hourAt(e.clientX, dn.drag.off));
+  layer.addEventListener("pointermove", function (e) {
+    var d = dn.drag;
+    if (!d || d.id !== e.pointerId || !d.knob) return;
+    var x = dnSceneX(e);
+    if (x !== null) dnSetHour(sceneXToHour(x + d.off, s.segs));
   });
-  track.addEventListener("pointerup", function (e) {
+  layer.addEventListener("pointerup", function (e) {
     var d = dn.drag;
     if (!d || d.id !== e.pointerId) return;
     dn.drag = null;
-    if (!d.knob) dnGoTo(hourAt(e.clientX, 0));
+    var x = dnSceneX(e);
+    if (!d.knob && x !== null && !over()) dnGoTo(sceneXToHour(x, s.segs));
   });
-  track.addEventListener("pointercancel", function () { dn.drag = null; });
-  knob.addEventListener("keydown", function (e) {
-    if (!app.state || e.altKey || e.ctrlKey || e.metaKey) return;
-    var h = sliderKey(e.key, dn.hour, nights());
+  layer.addEventListener("pointercancel", function () { dn.drag = null; });
+  s.sl.addEventListener("keydown", function (e) {
+    if (over() || e.altKey || e.ctrlKey || e.metaKey) return;
+    var h = sliderKey(e.key, dn.hour, app.state.event.nights);
     if (h === null) return;
     e.preventDefault();
+    e.stopPropagation();
     dnCancelAnim();
     dnSetHour(h);
   });

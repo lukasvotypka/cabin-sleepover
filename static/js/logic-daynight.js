@@ -74,14 +74,38 @@ function nightAt(h, nights) {
   return nights[Math.max(0, Math.min(nights.length - 1, i))];
 }
 
-function hourToX(h, nights, width) {
-  var r = sliderRange(nights);
-  return (clampHour(h, nights) - r.min) / (r.max - r.min) * width;
+// The slider scale follows the signposts: the x-range of signpost i holds the hours of night i (night 0 from the
+// first noon to 06:00, middle nights 06:00 to 06:00, the last night from 06:00 to the last noon). `nightsRect` is
+// map.scene.nights, `gap` the space between signposts. Returns [{x0, x1, h0, h1}, ...].
+function sliderSegments(nightsRect, nights, gap) {
+  var n = nights.length, r = sliderRange(nights);
+  return signpostLayout(nightsRect, n, gap).boards.map(function (b, i) {
+    return { x0: b[0], x1: b[0] + b[2], h0: i === 0 ? r.min : 24 * i + 6, h1: i === n - 1 ? r.max : 24 * (i + 1) + 6 };
+  });
 }
 
-function xToHour(x, nights, width) {
-  var r = sliderRange(nights);
-  return r.min + Math.max(0, Math.min(width, x)) / width * (r.max - r.min);
+// Scene x of an hour (clamped to the range); the 06:00 boundary belongs to the start of the next signpost.
+function hourToSceneX(h, segs) {
+  var last = segs[segs.length - 1];
+  if (h <= segs[0].h0) return segs[0].x0;
+  if (h >= last.h1) return last.x1;
+  for (var i = 0; i < segs.length; i++) {
+    var s = segs[i];
+    if (h < s.h1 || s === last) return s.x0 + (h - s.h0) / (s.h1 - s.h0) * (s.x1 - s.x0);
+  }
+  return last.x1;
+}
+
+// Hour at a scene x: inside a signpost linear, in a gap the 06:00 boundary, outside the rect clamped.
+function sceneXToHour(x, segs) {
+  var last = segs[segs.length - 1];
+  if (x <= segs[0].x0) return segs[0].h0;
+  if (x >= last.x1) return last.h1;
+  for (var i = 0; i < segs.length; i++) {
+    var s = segs[i];
+    if (x <= s.x1) return x < s.x0 ? s.h0 : s.h0 + (x - s.x0) / (s.x1 - s.x0) * (s.h1 - s.h0);
+  }
+  return last.h1;
 }
 
 // New hour for a key on the slider, or null for a key it does not use.

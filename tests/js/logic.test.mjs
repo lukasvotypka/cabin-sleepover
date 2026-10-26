@@ -4262,16 +4262,16 @@ test("daynight scene: script listed, no innerHTML, light layer between walk and 
   assert.ok(ens.indexOf("drawBird(") < ens.indexOf("dnBuild("));
 });
 
-test("daynight slider: markup, no clock board, no innerHTML, aria and keys wired (T-115)", () => {
-  assert.ok(pageFile.includes('role="slider"'));
+test("daynight slider: drawn in the scene, no HTML bar, aria and keys wired (T-117)", () => {
+  assert.ok(!pageFile.includes('id="time' + 'bar"') && !pageFile.includes("ts-knob"));
   assert.ok(!pageFile.includes('id="clo' + 'ck"'));
   const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
   assert.ok(!src.includes("innerHTML"));
-  for (const k of ["sliderKey(", "sliderValueText(", "figureSwap(", "nightAt(", "xToHour(", "aria-valuetext"]) assert.ok(src.includes(k), k);
+  for (const k of ["sliderKey(", "sliderValueText(", "figureSwap(", "nightAt(", "sceneXToHour(", "hourToSceneX(", "sliderSegments(",
+    "aria-valuetext", "getScreenCTM", "setPointerCapture", "scene.time", '"slider"']) assert.ok(src.includes(k), k);
   assert.ok(!src.includes("shownNight") && !src.includes("drawnNight"));
-  assert.ok(pageFile.includes("touch-action: none"));
   const hud = fs.readFileSync(path.join(root, "static", "js", "app-hud.js"), "utf8");
-  assert.ok(hud.includes('$("timebar")'));
+  assert.ok(!hud.includes("timebar"));
 });
 
 test("daynight scene: hidden light elements get display none (T-113)", () => {
@@ -4288,13 +4288,6 @@ test("daynight: slider range, nightAt, mapping, keys", () => {
   for (const [h, n] of [[12, 0], [29.99, 0], [30, 1], [53.99, 1], [54, 2], [78, 2], [84, 2], [3, 0]]) {
     assert.equal(L.nightAt(h, DN_NIGHTS), DN_NIGHTS[n], String(h));
   }
-  for (const h of [12, 20.5, 47, 84]) {
-    assert.ok(Math.abs(L.xToHour(L.hourToX(h, DN_NIGHTS, 300), DN_NIGHTS, 300) - h) < 1e-9);
-  }
-  assert.equal(L.hourToX(0, DN_NIGHTS, 300), 0);
-  assert.equal(L.hourToX(99, DN_NIGHTS, 300), 300);
-  assert.equal(L.xToHour(-5, DN_NIGHTS, 300), 12);
-  assert.equal(L.xToHour(999, DN_NIGHTS, 300), 84);
   assert.equal(L.sliderKey("ArrowRight", 20, DN_NIGHTS), 21);
   assert.equal(L.sliderKey("ArrowDown", 20, DN_NIGHTS), 19);
   assert.equal(L.sliderKey("PageUp", 20, DN_NIGHTS), 26);
@@ -4303,6 +4296,31 @@ test("daynight: slider range, nightAt, mapping, keys", () => {
   assert.equal(L.sliderKey("End", 20, DN_NIGHTS), 84);
   assert.equal(L.sliderKey("ArrowUp", 84, DN_NIGHTS), 84);
   assert.equal(L.sliderKey("a", 20, DN_NIGHTS), null);
+});
+
+test("daynight: slider segments follow the signposts", () => {
+  const segs = fs2(L.sliderSegments([176, 48, 196, 58], DN_NIGHTS, 4));
+  assert.equal(segs.length, 3);
+  const w = (196 - 8) / 3;
+  assert.deepEqual(fs2(segs.map((s) => [s.h0, s.h1])), [[12, 30], [30, 54], [54, 84]]);
+  assert.ok(Math.abs(segs[0].x0 - 176) < 1e-9 && Math.abs(segs[0].x1 - (176 + w)) < 1e-9);
+  assert.ok(Math.abs(segs[1].x0 - (176 + w + 4)) < 1e-9);
+  assert.ok(Math.abs(segs[2].x1 - 372) < 1e-9);
+  assert.equal(L.hourToSceneX(12, segs), 176);
+  assert.equal(L.hourToSceneX(84, segs), segs[2].x1);
+  assert.equal(L.hourToSceneX(0, segs), 176);
+  assert.equal(L.hourToSceneX(99, segs), segs[2].x1);
+  assert.ok(Math.abs(L.hourToSceneX(21, segs) - (176 + w / 2)) < 1e-9);
+  assert.equal(L.hourToSceneX(30, segs), segs[1].x0);      // 06:00 belongs to the next signpost
+  assert.equal(L.hourToSceneX(54, segs), segs[2].x0);
+  for (const h of [12, 20.5, 29.9, 30, 42, 53.9, 54, 70, 84]) {
+    assert.ok(Math.abs(L.sceneXToHour(L.hourToSceneX(h, segs), segs) - h) < 1e-9, String(h));
+  }
+  assert.equal(L.sceneXToHour(segs[0].x1 + 2, segs), 30);      // the gaps are the 06:00 boundaries
+  assert.equal(L.sceneXToHour(segs[1].x1 + 2, segs), 54);
+  assert.equal(L.sceneXToHour(100, segs), 12);
+  assert.equal(L.sceneXToHour(999, segs), 84);
+  for (const s of segs) assert.equal(L.nightAt(L.sceneXToHour((s.x0 + s.x1) / 2, segs), DN_NIGHTS), DN_NIGHTS[segs.indexOf(s)]);
 });
 
 test("daynight: slider texts and scale", () => {

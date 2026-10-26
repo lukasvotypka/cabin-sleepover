@@ -210,17 +210,17 @@ These are not defects, they are the developer's own choices that need a human op
 - [ ] **On again:** tap „Zapnúť overovanie cez SMS“. The party with a number now shows the lock and asks for login on the other device; its bed sheet shows no actions until logged in.
 - [ ] **On without Twilio:** on a server without the Twilio variables and without `SMS_FAKE`, the switch-on button shows the Slovak „SMS nie je dostupná“-style error and the state stays off.
 
-## 11. Day and night and the time slider (T-110, T-111, T-114, T-115)
+## 11. Day and night and the time slider (T-110, T-111, T-114, T-115, T-117)
 
 Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open decisions with defaults to judge while testing (proposal „Deň a noc pri prepnutí noci“): speed (about 2.2 s per night), the time stays where the finger released it, the page opens at noon of the chosen night, figures fade in place, mild dimming of signposts and the party table, fireflies yes, sounds no. Two defaults from the T-115 notes to judge as well: an instant switch („Kto si?“, SSE) keeps the hour if it lies in the new night, and figures on the meadow switch without a fade.
 
-- [ ] **Bar position:** the wooden time bar is always visible at the top left, left of „Úlohy“ (closed and open), does not cover it, is at least 44 px high, and the scene starts below it. On an iPhone with a notch (also landscape) it stays clear of the notch and the rounded corners.
-- [ ] **Move mode:** tapping „Presunúť“ on a booked bed („Ťukni na nové miesto“) hides the bar; closing move mode shows it again.
-- [ ] **Knob drag:** dragging the sun/moon knob moves the light and the time text smoothly with the finger, the map does not pan and the page does not scroll. Releasing keeps the time, also at night.
-- [ ] **Tap on the strip:** a tap runs the time-lapse to that hour; a second tap during the run retargets it smoothly, with no jump or flash.
+- [ ] **Slider position (T-117):** the wooden rail sits in the scene between the title board and the three signposts, as wide as the signposts, and pans and zooms with the map. „Úlohy“ and the scene top behave as before (no bar at the top left). The knob stands above the signpost of the shown night (Št → Pi from Thursday 12:00 to Friday 06:00, and so on); the gaps between signposts are the 06:00 boundaries.
+- [ ] **Move mode:** tapping „Presunúť“ on a booked bed („Ťukni na nové miesto“) hides the slider; closing move mode shows it again.
+- [ ] **Knob drag:** the knob (a 44 × 44 area, also over the bottom of the title board and the top of the signposts) follows the finger, the paper tag with the time („Pi 22:00“) moves with it and flips to the left of the knob near the right end, staying inside the rail. The map does not pan and the page does not scroll, also when zoomed in. Releasing keeps the time, also at night.
+- [ ] **Tap on the rail:** a tap on the rail (or just above it) runs the time-lapse to that hour; a second tap during the run retargets it smoothly, with no jump or flash.
 - [ ] **Crossing 06:00:** dragging across 06:00 switches the signpost highlight, the bottom HUD and an open panel to the new night. Figures that leave shift and fade, new ones fade in, figures in the same place stay. Št to So swaps twice. On Sunday morning nobody gets up. Going back works the same way.
 - [ ] **Signpost and „Ťukni sem“:** both run the time-lapse to noon of that night. Page load starts at noon of the chosen night.
-- [ ] **No time-lapse without a tap:** the „Kto si?“ pick and a change from a second phone (SSE) switch the night at once, and the bar follows. An SSE update during an animation does not show the new night early.
+- [ ] **No time-lapse without a tap:** the „Kto si?“ pick and a change from a second phone (SSE) switch the night at once, and the knob follows. An SSE update during an animation does not show the new night early.
 - [ ] **Readability at night:** signposts and the party table stay readable. Rooms, windows and doors glow, fireflies blink, no bird flies at night. Taps on beds and signposts still work at night.
 - [ ] **Multiply blend on iPhone Safari:** dusk is orange and night is navy, not grey or black. If not, the fallback is plain opacity (see T-111 notes).
 - [ ] **Screen reader:** VoiceOver and TalkBack read the slider value like „piatok 03:00, noc Št → Pi“. On desktop the arrows, Page Up/Down, Home and End move the time.
