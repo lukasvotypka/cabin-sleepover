@@ -393,10 +393,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .night.on .night-head { background: var(--surface2); border-left: 4px solid var(--moss); }
 .night-head:focus-visible, .slot-row .btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 .slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 10px; min-height: 36px; }
-.slot-row .who { flex: 1 1 140px; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
-.slot-row .swatch { flex: none; width: 14px; height: 14px; border: 2px solid rgba(0, 0, 0, .35); background: var(--muted); }
-.slot-row .swatch.free { background: transparent; border: 2px solid var(--muted); }
-.slot-row .tight { color: var(--amber); font-weight: 700; }
+.slot-row .place { flex: none; width: 64px; font-size: 13px; color: var(--muted); }
+.slot-row .who { flex: 1 1 120px; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.slot-row .who .name { font-weight: 700; }
+.slot-row .fig { flex: none; }
+.slot-row .free-tag { padding: 1px 10px; border: 1px dashed var(--muted); border-radius: 999px; font-size: 13px; color: var(--muted); }
+.slot-row .tight { color: var(--amber); font-weight: 700; font-size: 13px; }
+.slot-row .btn.take {
+  flex: 1 1 160px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; text-align: left;
+}
+.slot-row .take-who { font-weight: 400; overflow-wrap: anywhere; text-align: right; }
 .slot-row .confirm { flex: 1 1 100%; margin: 0; color: var(--ink); font-weight: 700; }
 .slot-row .btn { padding: 6px 12px; }
 .slot-row .btn.secondary { border-width: 2px; }
@@ -621,8 +627,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .adv-grid { grid-template-columns: repeat(5, 1fr); }
 }
 @media (prefers-color-scheme: dark) {
-  .party-row .swatch, .slot-row .swatch, .legend-row .swatch { border-color: rgba(241, 231, 217, .55); }
-  .slot-row .swatch.free { border-color: var(--muted); }
+  .party-row .swatch, .legend-row .swatch { border-color: rgba(241, 231, 217, .55); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

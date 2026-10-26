@@ -55,6 +55,7 @@ Items that are only a question for the organizer are at the end, in "Decisions t
 
 - [ ] **A couple fills a double bed with one tap:** „Zapísať nás sem“ on a double bed puts both people in with one tap (one figure per slot, the bed looks full).
 - [ ] **All nights:** a couple using „celý pobyt“ on a bed that is taken on one night: the free nights are written, the taken night is reported as skipped, and the second phone shows the same within about a second.
+- [ ] **Free place in the bed sheet:** open a double bed with one place free on the shown night while my party still misses a place: the free row is an outlined „Ľahnúť si sem „…““ button and one tap writes exactly that place (the figure walks there). On other nights, or when my party has enough places, the row shows only the dashed „voľné“ tag; nothing in the sheet looks like a checkbox. Occupied rows show the small figure in the party colour with its letter. Check on a 380 px phone in light and dark mode.
 - [ ] **Amber note:** when a party holds more places than it needs for a night, the amber note appears in the scene, and it disappears when the extra place is cleared.
 - [ ] **Move:** moving a booking for one night, and for all nights, both work. Afterwards the old place is free and the new one is held on the other phone as well.
 - [ ] **Move mode on a phone:** after the sheet closes the bar appears above the scene and the scene may jump down a little. The next tap still lands on the intended bed, and „Zrušiť“ and „Táto noc / Všetky noci“ are easy to hit.

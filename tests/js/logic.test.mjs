@@ -2927,6 +2927,38 @@ test("zzzDelay is fixed per slot, within 0 ... 2.9 s, and spread over the real s
   assert.ok(new Set(delays).size >= slots.length / 2, "most sleepers start at a different moment");
 });
 
+// --- bed sheet: a free place is a button that takes exactly that place (A+B) ---
+
+test("freeSlotTakes: only in the shown night, when writable and my party still misses a place", () => {
+  const p = party();      // 2 adults, Thu to Sun
+  const empty = stateWith([p]);
+  assert.equal(L.freeSlotTakes(empty, p, THU, THU, true), true);
+  assert.equal(L.freeSlotTakes(empty, p, FRI, THU, true), false, "another night: only the tag");
+  assert.equal(L.freeSlotTakes(empty, p, THU, THU, false), false, "signup locked");
+  assert.equal(L.freeSlotTakes(empty, null, THU, THU, true), true, "no party yet: the tap asks „Kto si?“");
+  const full = stateWith([p], { [THU]: hold(p.id, ["left-double-1", "left-double-2"]) });
+  assert.equal(L.freeSlotTakes(full, p, THU, THU, true), false, "enough places already");
+  const half = stateWith([p], { [THU]: hold(p.id, ["left-double-1"]) });
+  assert.equal(L.freeSlotTakes(half, p, THU, THU, true), true);
+  const late = party({ arrive: FRI });
+  assert.equal(L.freeSlotTakes(stateWith([late]), late, THU, THU, true), false, "not there that night");
+  const day = party({ arrive: null, leave: null, day_visits: [FRI] });
+  assert.equal(L.freeSlotTakes(stateWith([day]), day, THU, THU, true), false, "day-only visit");
+});
+
+test("takeSlotTexts: the button says what it does, the label names the place", () => {
+  assert.deepEqual(plain(L.takeSlotTexts(party(), "Miesto 2")),
+    { main: "Ľahnúť si sem", who: "„Ivan a Eva“", label: "Miesto 2, voľné. Ľahnúť si sem: zapíše „Ivan a Eva“ na toto miesto." });
+  assert.deepEqual(plain(L.takeSlotTexts(null, "")), { main: "Ľahnúť si sem", who: "", label: "Ľahnúť si sem." });
+});
+
+test("bed sheet: no checkbox-like squares, free places as a tag or a take button", () => {
+  assert.doesNotMatch(appSource, /"swatch" \+ \(who \? "" : " free"\)/);
+  assert.match(appSource, /"free-tag"/);
+  assert.match(appSource, /assignHere\(bed, false, \[slot\]\)/);
+  assert.doesNotMatch(html, /\.slot-row \.swatch/);
+});
+
 // --- bed tags: short names under the beds while zoomed in ---
 
 const tagBox = (t) => [t.x - (t.text.length * 2.5 + 4) / 2, t.y, t.text.length * 2.5 + 4, 6];

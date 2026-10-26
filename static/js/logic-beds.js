@@ -234,6 +234,25 @@ function slotsToTake(state, party, bed, night) {
   return free.slice(0, Math.min(want, free.length));
 }
 
+// Whether a free place row in the bed sheet is a button that writes my party on exactly that place: only in the
+// shown night, when writing is allowed, and when my party still misses a place there (or is not chosen yet: then
+// the tap asks „Kto si?“ first). Otherwise the row only shows the „voľné“ tag.
+function freeSlotTakes(state, party, night, shownNight, writable) {
+  if (!writable || night !== shownNight) return false;
+  if (!party) return true;
+  return isPresent(party, night) && missingPlaces(state, party, night) > 0;
+}
+
+// The texts of that button: {main, who, label}. `who` is the party name in quotes ("" without a party), `label`
+// the whole thing for screen readers, with the place.
+function takeSlotTexts(party, placeText) {
+  var who = party ? "„" + party.name + "“" : "";
+  return {
+    main: "Ľahnúť si sem", who: who,
+    label: (placeText ? placeText + ", voľné. " : "") + "Ľahnúť si sem" + (who ? ": zapíše " + who + " na toto miesto." : ".")
+  };
+}
+
 // The nights in which the party holds a slot (used by move with all nights), in event order.
 function holdingNights(state, partyId, slot) {
   return state.event.nights.filter(function (night) {

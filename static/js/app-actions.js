@@ -113,11 +113,12 @@ function myParty(st) {
   return partyById(st, app.myParty);
 }
 
-function assignHere(bed, stay) {
+// `only` (optional): exactly these slots, e.g. the one free place tapped in the bed sheet.
+function assignHere(bed, stay, only) {
   var st = viewState().state, party = myParty(st), night = app.night;
   if (!party) { closePanel(); openWho(); return; }
   if (!isPresent(party, night)) return;
-  var slots = slotsToTake(st, party, bed, night);
+  var slots = only ? only.filter(function (slot) { return isFreeSlot(st, slot, night); }) : slotsToTake(st, party, bed, night);
   if (!slots.length) return;
   var ops = [], nights = stay ? stayNights(st, party, slots) : [night];
   nights.forEach(function (n) {

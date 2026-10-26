@@ -21,16 +21,34 @@ function openBedSheet(room, bed) {
       if (node) node.focus({ preventScroll: true });
     }
 
+    // One place: „Miesto N“ as a quiet label, then the figure and name of who sleeps there, or for a free place
+    // the „voľné“ tag (no box that looks like a checkbox), or a button that takes exactly this place.
     function slotRow(st, slot, i, night) {
       var who = slotOccupant(st, slot, night), name = who ? (who.party ? who.party.name : UNKNOWN_PARTY) : "voľné";
-      var rowText = (bed.slots.length > 1 ? "Miesto " + (i + 1) + ": " : "") + name;
+      var place = bed.slots.length > 1 ? "Miesto " + (i + 1) : "";
+      var rowText = (place ? place + ": " : "") + name;
+      var tight = !who && bed.tight.indexOf(slot) !== -1;
       var row = htmlEl("div", { "class": "slot-row" });
+      if (place) row.appendChild(htmlEl("span", { "class": "place", "aria-hidden": "true" }, place));
+      var party = myParty(st);
+      if (!who && freeSlotTakes(st, party, night, app.night, canWrite(st, app.role))) {
+        var t = takeSlotTexts(party, place);
+        var take = button(t.main, "take-" + slot, function () { assignHere(bed, false, [slot]); }, true, t.label + (tight ? " Tesné miesto." : ""));
+        take.classList.add("take");
+        if (t.who) take.appendChild(htmlEl("small", { "class": "take-who" }, t.who));
+        row.appendChild(take);
+        if (tight) row.appendChild(htmlEl("span", { "class": "tight" }, "tesné"));
+        return row;
+      }
       var label = htmlEl("span", { "class": "who" });
-      var swatch = htmlEl("span", { "class": "swatch" + (who ? "" : " free"), "aria-hidden": "true" });
-      if (who && who.party) swatch.style.background = who.party.color;
-      label.appendChild(swatch);
-      label.appendChild(htmlEl("span", null, rowText));
-      if (!who && bed.tight.indexOf(slot) !== -1) label.appendChild(htmlEl("span", { "class": "tight" }, "(tesné)"));
+      label.appendChild(htmlEl("span", { "class": "sr-only" }, rowText));
+      if (who) {
+        label.appendChild(figureIcon(who.party ? who.party.color : COLORS.mat, who.party ? shirtChar(who.party.name) : null, who.kind));
+        label.appendChild(htmlEl("span", { "class": "name", "aria-hidden": "true" }, name));
+      } else {
+        label.appendChild(htmlEl("span", { "class": "free-tag", "aria-hidden": "true" }, "voľné"));
+        if (tight) label.appendChild(htmlEl("span", { "class": "tight", "aria-hidden": "true" }, "tesné"));
+      }
       row.appendChild(label);
       if (who && night === app.night && canWrite(st, app.role)) {
         if (who.party && !canEditParty(who.party, sessionVerified(), isAdmin(app.role), st.phone_verify)) {
@@ -233,6 +251,28 @@ function openWho(opts) {
     }
     panel.refresh();
   }, { returnKey: (opts && opts.returnKey) || "who", headTools: [soundToggle()] });
+}
+
+// The figure of the map (drawFigure) as a small icon, 1.5 CSS px per pixel: head, shirt in the party colour and
+// the shirt letter. Kids are smaller, as on the map.
+function figureIcon(color, ch, kind) {
+  var svg = svgEl(null, "svg", {
+    viewBox: "0 0 10 12", width: "15", height: "18", "shape-rendering": "crispEdges", "aria-hidden": "true", focusable: "false", "class": "fig"
+  });
+  if (kind === "kid") {
+    rect(svg, 1, 6, 8, 6, color);
+    rect(svg, 2, 3, 6, 4, COLORS.skin);
+  } else {
+    rect(svg, 0, 5, 10, 7, color);
+    rect(svg, 2, 0, 6, 5, COLORS.skin);
+    rect(svg, 3, 2, 1, 1, COLORS.eye);
+    rect(svg, 6, 2, 1, 1, COLORS.eye);
+  }
+  if (ch) {
+    var at = kind === "kid" ? shirtOrigin(0, 3, kind) : shirtOrigin(0, 0, kind);
+    svgEl(svg, "path", { d: glyphPath(ch, at[0], at[1]), fill: shirtInk(color) });
+  }
+  return svg;
 }
 
 // The shirt letter at 2 CSS px per pixel, for the legend swatch: the same mark as on the map.
