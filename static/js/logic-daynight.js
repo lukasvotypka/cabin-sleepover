@@ -45,13 +45,6 @@ function ease(x) {
   return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
 
-// The hour at which the figures swap to the new night's places: at once for a short trip, otherwise at the
-// midnight of the last night passed. Replaced by nightAt/figureSwap (see below); removed with its caller.
-function swapHour(fromH, toH) {
-  if (Math.abs(toH - fromH) < 12) return fromH;
-  return toH > fromH ? toH - 12 : toH + 12;
-}
-
 // Opacities the app sets per frame.
 function lightAt(h) {
   var d = darkness(h), k = dusk(h);

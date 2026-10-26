@@ -344,31 +344,31 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .bird { display: none; }
 }
 
-/* Day–night time-lapse (T-111): clock board at the top while the clock runs, blinking fireflies. */
-#clock {
-  position: fixed; left: 50%; top: max(10px, env(safe-area-inset-top)); transform: translate(-50%, -8px);
-  display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; z-index: 5;
-  background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 0 3px 0 #2E1F14;
-  font: 700 20px/1 ui-monospace, Menlo, Consolas, monospace; opacity: 0; pointer-events: none;
-  transition: opacity .35s, transform .35s; white-space: nowrap;
+/* Day–night (T-111, T-115): the time slider in the HUD (on the row of „Úlohy“), fireflies, figures getting up. */
+#moveBar:not([hidden]) ~ .hud .timebar { display: none; }      /* like „Úlohy“ */
+.timebar {
+  position: absolute; pointer-events: auto; top: calc(8px + env(safe-area-inset-top, 0px)); left: calc(8px + env(safe-area-inset-left, 0px));
+  right: calc(176px + env(safe-area-inset-right, 0px)); max-width: 420px; height: 44px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 4px; padding: 0 5px 0 2px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
 }
-#clock.on { opacity: 1; transform: translate(-50%, 0); }
-#clock svg { width: 24px; height: 24px; shape-rendering: crispEdges; }
-#clock .strip { display: flex; gap: 1px; margin-left: 4px; }
-#clock .strip i { display: block; width: 4px; height: 14px; background: #D4A870; }
-#clock .strip i.night { background: #2F3B5C; }
-#clock .strip i.now { outline: 2px solid #B4472F; }
-/* Narrow phones: top left, strip on its own row, so it stays clear of the „Úlohy“ button at the top right. */
-@media (max-width: 480px) {
-  #clock { left: 10px; transform: translate(0, -8px); flex-wrap: wrap; row-gap: 4px; max-width: calc(100vw - 190px); }
-  #clock.on { transform: translate(0, 0); }
-  #clock .strip { flex-basis: 100%; margin-left: 0; }
-}
+.ts-track { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ts-strip { position: absolute; left: 14px; right: 14px; top: 14px; height: 12px; background: #D4A870; outline: 1px solid #5C4033; }
+.ts-dark { position: absolute; top: 0; bottom: 0; background: #2F3B5C; }
+.ts-day { position: absolute; top: -13px; transform: translateX(-50%); font: 700 9px/12px ui-monospace, Menlo, Consolas, monospace; color: #5C4033; text-align: center; white-space: nowrap; pointer-events: none; }
+.ts-knob { position: absolute; top: calc(50% - 19px); width: 44px; height: 38px; margin-left: -22px; display: flex; align-items: center; justify-content: center; touch-action: none; cursor: grab; }
+.ts-knob:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
+.ts-knob svg { width: 24px; height: 24px; shape-rendering: crispEdges; pointer-events: none; }
+.ts-text { flex: none; min-width: 54px; text-align: right; font: 700 12px/1 ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; }
+#scene svg .dn-in { animation: dnIn .5s linear backwards; }
+#scene svg .dn-out { animation: dnOut .5s linear forwards; pointer-events: none; }
+@keyframes dnIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dnOut { from { opacity: 1; transform: translate(0, 0); } to { opacity: 0; transform: translate(0, -3px); } }
 #scene svg .dn-ff { animation: dnFirefly 2.4s ease-in-out infinite; }
 @keyframes dnFirefly { 0%, 100% { opacity: .15; transform: translate(0, 0); } 50% { opacity: 1; transform: translate(3px, -4px); } }
 @media (prefers-reduced-motion: reduce) {
   #scene svg .dn-ff { animation: none; }
-  #clock { display: none; }
+  #scene svg .dn-in, #scene svg .dn-out { animation: none; }
 }
 
 .movebar {
@@ -651,9 +651,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   <button id="moveCancel" class="btn secondary" type="button">Zrušiť</button>
 </div>
 <main id="scene" hidden></main>
-<div id="clock" aria-hidden="true"><svg id="clockIcon" viewBox="0 0 12 12"></svg><span id="clockText"></span><span class="strip" id="clockStrip"></span></div>
 <!-- HUD: fixed to the viewport (not part of the zoomable svg). Filled by app-hud.js; shown only with the map. -->
 <div id="hud" class="hud" role="group" aria-label="Úlohy a kto si" hidden>
+  <div id="timebar" class="timebar">
+    <div id="tsTrack" class="ts-track"><div id="tsStrip" class="ts-strip"><div id="tsKnob" class="ts-knob" role="slider" tabindex="0" aria-label="Čas"><svg id="tsIcon" viewBox="0 0 12 12" aria-hidden="true"></svg></div></div></div>
+    <span id="tsText" class="ts-text" aria-hidden="true"></span>
+  </div>
   <div id="quest" class="quest"></div>
   <button id="crest" class="crest" type="button" data-key="who"></button>
 </div>

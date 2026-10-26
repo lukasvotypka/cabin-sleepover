@@ -4224,7 +4224,7 @@ test("daynight: clockLabel", () => {
   assert.equal(L.clockLabel(27.6, DN_NIGHTS), "Pi 03:30");
 });
 
-test("daynight: durationMs, ease, swapHour", () => {
+test("daynight: durationMs, ease", () => {
   assert.equal(L.durationMs(12, 36), 2150);
   assert.equal(L.durationMs(12, 60), 3400);
   assert.equal(L.durationMs(60, 12), 3400);
@@ -4233,18 +4233,11 @@ test("daynight: durationMs, ease, swapHour", () => {
   near(L.ease(1), 1);
   let prev = -1;
   for (let x = 0; x <= 1; x += 0.01) { const e = L.ease(x); assert.ok(e >= prev); prev = e; }
-  assert.equal(L.swapHour(12, 36), 24);
-  assert.equal(L.swapHour(12, 60), 48);
-  assert.equal(L.swapHour(60, 12), 24);
-  assert.equal(L.swapHour(30, 36), 30);
 });
 
 test("daynight: retarget from a mid-animation hour uses the current hour", () => {
   const cur = 40.3;
   near(L.durationMs(cur, 12), 900 + 1250 * 28.3 / 24);
-  assert.equal(L.swapHour(cur, 12), 24);
-  assert.equal(L.swapHour(cur, 60), 48);
-  assert.equal(L.swapHour(cur, 36), cur);
 });
 
 test("daynight: lightAt at noon and midnight", () => {
@@ -4267,6 +4260,18 @@ test("daynight scene: script listed, no innerHTML, light layer between walk and 
   assert.ok(ens.indexOf("walk:") > -1 && ens.indexOf("walk:") < ens.indexOf("boards:"));
   assert.ok(ens.includes("dnBuild(svg, layout, app.layers.boards"));
   assert.ok(ens.indexOf("drawBird(") < ens.indexOf("dnBuild("));
+});
+
+test("daynight slider: markup, no clock board, no innerHTML, aria and keys wired (T-115)", () => {
+  assert.ok(pageFile.includes('role="slider"'));
+  assert.ok(!pageFile.includes('id="clo' + 'ck"'));
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
+  assert.ok(!src.includes("innerHTML"));
+  for (const k of ["sliderKey(", "sliderValueText(", "figureSwap(", "nightAt(", "xToHour(", "aria-valuetext"]) assert.ok(src.includes(k), k);
+  assert.ok(!src.includes("shownNight") && !src.includes("drawnNight"));
+  assert.ok(pageFile.includes("touch-action: none"));
+  const hud = fs.readFileSync(path.join(root, "static", "js", "app-hud.js"), "utf8");
+  assert.ok(hud.includes('$("timebar")'));
 });
 
 test("daynight scene: hidden light elements get display none (T-113)", () => {

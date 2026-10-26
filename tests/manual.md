@@ -224,3 +224,12 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **Clock board lifetime:** it disappears about 0.9 s after the end and is not shown at rest. Taps on beds and signposts still work at night.
 - [ ] **Clock board vs. HUD on a 360-390 px phone:** the „Úlohy“ button sits on top of the clock board and hides its right part (strip cells from about the second night on, including the framed current cell). Decide whether this is acceptable or the board needs a new place.
 - [ ] **Pan and zoom fps with the day-night layer at rest (T-113):** on a 380 px iPhone Safari (and Android Chrome) at noon, drag, pinch and zoom the map with one and two fingers for about 10 s: it moves smoothly, no visible lag compared with the night-free state. Headless Chrome at 8x CPU throttle showed no difference (median about 17 ms, p90 about 20 ms, layer hidden or forced), so the iOS gap from the organizer report is only checked here.
+
+### Top time slider (T-115)
+
+- [ ] **Bar position on a 360-390 px phone:** the wooden time bar sits top left, on the same row as „Úlohy“ (closed and open), does not overlap it and is at least 44 px high. On an iPhone with a notch (safari, landscape too) it stays clear of the notch and the rounded corners (`env(safe-area-inset-*)`).
+- [ ] **Knob drag with a finger (iPhone Safari, Android Chrome):** dragging the sun/moon knob moves the time and the light with the finger, the map does not pan, and the page does not scroll. Releasing at night keeps the night; the signposts and the bottom bar follow the night.
+- [ ] **Tap on the strip:** a tap runs the time-lapse to that hour, and a second tap during the run stops or retargets it smoothly.
+- [ ] **Figures at 06:00:** dragging across 06:00 (the strip position of the new day) swaps the figures once: leaving figures slide out and fade, arriving ones fade in, the rest stay as they are. Going back works the same way.
+- [ ] **Move mode hides the bar:** tapping „Presunúť“ on a booked bed hides the time bar; closing move mode shows it again.
+- [ ] **Two devices:** a change made on a second phone switches the night on this phone at once (no time-lapse) and the bar follows.

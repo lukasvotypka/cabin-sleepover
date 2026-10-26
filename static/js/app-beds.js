@@ -79,7 +79,7 @@ function drawBeds() {
 // places panel (T-034).
 function drawMeadow(parent, view) {
   var party = app.myParty ? partyById(view.state, app.myParty) : null;
-  var waiting = waitingFigures(view.state, party, drawnNight());
+  var waiting = waitingFigures(view.state, party, app.night);
   if (!waiting.length) return;
   var spot = meadowLayout(view.state.layout.map.scene.meadow, waiting.length);
   var g = svgEl(parent, "g");
@@ -97,7 +97,7 @@ function drawMeadow(parent, view) {
 }
 
 function drawBed(parent, layout, view, room, bed) {
-  var night = drawnNight(), st = view.state;
+  var night = app.night, st = view.state;
   var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3];
   var g = svgEl(parent, "g", { "class": "bed" });
   hitRect(g, bedHit(layout, bed, BED_HIT_GROW));      // first, so figures keep their hover titles
@@ -105,7 +105,13 @@ function drawBed(parent, layout, view, room, bed) {
   bed.slots.forEach(function (slot, i) {
     if (app.walking[night + "|" + slot]) return;      // its figure is still walking over from the meadow
     var pos = figurePosition(bed, i), who = slotOccupant(st, slot, night);
-    var sg = svgEl(g, "g", view.pending[night + "|" + slot] ? { "class": "pending" } : null);
+    var fx = dnSlotFx(night, slot), ghost = fx && fx.old ? slotOccupant(st, slot, fx.old) : null;
+    if (ghost) {      // the figure of the old night getting up
+      var gg = svgEl(g, "g", { "class": "dn-out", style: fx.style });
+      drawFigure(gg, pos[0], pos[1], ghost.party ? ghost.party.color : COLORS.mat, ghost.kind, ghost.party ? shirtChar(ghost.party.name) : null);
+    }
+    var cls = (view.pending[night + "|" + slot] ? "pending " : "") + (fx && fx.inn ? "dn-in" : "");
+    var sg = svgEl(g, "g", cls ? { "class": cls.trim(), style: fx && fx.inn ? fx.style : "" } : null);
     if (who) {
       var color = who.party ? who.party.color : COLORS.mat;
       if (who.party && who.party.id === app.myParty) {      // the yellow frame of my party
@@ -161,7 +167,7 @@ function watchLongPress(g, bed) {
 function showTip(bed) {
   var st = viewState().state, names = [];
   bed.slots.forEach(function (slot) {
-    var who = slotOccupant(st, slot, drawnNight());
+    var who = slotOccupant(st, slot, app.night);
     var name = who ? (who.party ? who.party.name : UNKNOWN_PARTY) : null;
     if (name && names.indexOf(name) === -1) names.push(name);
   });

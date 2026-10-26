@@ -19,13 +19,13 @@ function setMyParty(id) {
   if (changed && typeof advOnState === "function") advOnState();   // an open yard shows the new party's progress
 }
 
-// `opts.animate`: a user tap, so the scene shows the time passing (day–night time-lapse, app-daynight.js).
+// `opts.animate`: a user tap, so the scene shows the time passing to the noon of that night (app-daynight.js; the
+// shown night then follows the time). Without it the night changes at once and render() moves the time (dnSync).
 function selectNight(night, opts) {
   cancelWalks();
-  var prev = app.night;
+  if (opts && opts.animate && app.state && dnNoon(night) !== null) { dnGoTo(dnNoon(night)); return; }
+  dnCancelAnim();
   app.night = night;
-  if (opts && opts.animate) dnStart(prev, night);
-  else dnStop();
   render();
   if (app.panel && app.panel.refresh) app.panel.refresh();
 }
