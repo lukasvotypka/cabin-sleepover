@@ -18,6 +18,11 @@ services:
       # The „Pred cestou“ section (config/info.yaml) is off here unless INFO_ENABLED=true is set next to the secrets, in /etc/cabin/secrets.env.
       # Locally and on the trial server the variable is unset, so the file's `enabled` decides.
       INFO_ENABLED: ${INFO_ENABLED:-false}
+      # Phone login by SMS (Twilio Verify). Optional: without them phone login is off and the app still starts.
+      # SMS_FAKE is deliberately never passed on, so production cannot send fake codes.
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID:-}
     # Run as this UID:GID so the mounted ./data is writable. If the owner of ./data is not 1000, set CABIN_UID and
     # CABIN_GID in the shell next to the secrets.
     user: "${CABIN_UID:-1000}:${CABIN_GID:-1000}"

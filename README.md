@@ -62,6 +62,8 @@ Generate a good `SECRET_KEY` with:
 uv run python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
+Optional, for phone login by SMS (section 5, „Phone login“): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`. For development and the trial server only, `SMS_FAKE=1` writes the code to the log instead of sending an SMS (`SMS_FAKE_CODE`, default `123456`). Never set it in production.
+
 If a variable is missing or `SECRET_KEY` is too short, the app refuses to start and says exactly what is wrong. Changing `GROUP_CODE` and restarting logs everybody out (they have to enter the new code again).
 
 ## 3. Run it locally
@@ -221,6 +223,22 @@ grep -n -B3 -A12 'slot-id-here' /opt/chrapa-poll/data/audit.yaml
 ### Organizer tools (lock signup, export, delete a party)
 
 Open the page, tap „Si: …“ or „Kto si?“ and then „Mám admin kód“, and enter `ADMIN_CODE`. The panel then says „Si organizátor“ and a key icon appears on the map (next to the letter). The key opens „Admin“ with three tools: „Zamknúť zápis“ / „Otvoriť zápis“ (while locked, only the organizer can change places), „Stiahnuť dáta“ (downloads `cabin-data-<version>.yaml`) and „Zmazať partiu“ (pick a party, confirm, its places are freed). The admin cookie lasts 12 hours; after that the key disappears and you enter the code again.
+
+### Phone login (SMS)
+
+A party can add a phone number. A party with a number is protected: only a device that proved the number with an SMS code can change that party (the admin cookie bypasses it). Viewing stays open for everyone with the group code. Parties without a number work as before. The code is generated, sent and checked by Twilio Verify; the app only calls its REST API.
+
+Twilio setup:
+
+1. In the Twilio console create a Verify service (Verify > Services), channel SMS. Note its SID (`VA...`).
+2. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SERVICE_SID` next to the other secrets (`/etc/cabin/secrets.env` in production, `.env` locally). Restart the container.
+3. Check that the destination country (Slovakia) is enabled in the Twilio geo permissions.
+
+Without the three variables `sms_enabled` is false in `GET /api/session`, the page hides „add a number“ and the SMS endpoints answer `503 sms_unavailable`. Protected parties stay protected, and the admin can still remove a number. Without Twilio, `SMS_FAKE=1` gives a fake client that logs the code, for development and the trial server only.
+
+A lost phone: open the page with the admin code and remove the number (`DELETE /api/parties/{id}/phone`, available in the party form as „Odstrániť“), or stop the service, delete the `phone` and `phone_set_at` lines of that party in `data/cabin-data.yaml` and start it again.
+
+Privacy: the full number is stored only in `data/cabin-data.yaml`. It never appears in `/api/state`, the event stream, `audit.yaml` or the logs; they carry at most the last three digits (`phone_hint`).
 
 ## 6. Open decisions and the defaults used
 
