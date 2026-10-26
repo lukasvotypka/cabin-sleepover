@@ -17,7 +17,7 @@ Update the docs to the slider and 06:00 swap (proposal "Deň a noc pri prepnutí
   - dragging the knob moves light and time text smoothly and does not pan the map; release keeps the time (also at night); tap on the strip runs the time-lapse there;
   - crossing 06:00 switches the signpost highlight, bottom HUD and an open panel; figures that leave shift and fade, new ones fade in, same-place figures stay; Št → So swaps twice; Sunday morning nobody gets up;
   - signpost and „Ťukni sem“ go to noon; page load is at noon of the chosen night; „Kto si?“ and an SSE change from a second phone switch without a time-lapse;
-  - VoiceOver/TalkBack read the value like „piatok 03:00, noc Pi → So“; arrows, Page Up/Down, Home/End on desktop;
+  - VoiceOver/TalkBack read the value like „piatok 03:00, noc Št → Pi“; arrows, Page Up/Down, Home/End on desktop;
   - reduced motion: no time-lapse, no fade, fireflies still, drag works;
   - the open-decision defaults (time stays where released, noon after load, fade in place) and the two defaults from T-115 notes (instant switch keeps the hour if it is in the new night; meadow figures switch without fade), so the organizer can judge them.
 - [ ] `CLAUDE.md` bullet updated: fixed top time slider, nights change at 06:00 (last night clamped), figures swap with a fade at each 06:00, only signpost / „Ťukni sem“ / strip taps animate; no clock board.

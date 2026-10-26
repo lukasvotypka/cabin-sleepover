@@ -4276,3 +4276,54 @@ test("daynight scene: hidden light elements get display none (T-113)", () => {
   assert.ok(src.includes('dnWrap(fx.layer'));
   assert.ok(src.includes('dnWrap(fx.shadeLayer'));
 });
+
+const fs2 = (x) => JSON.parse(JSON.stringify(x));
+test("daynight: slider range, nightAt, mapping, keys", () => {
+  assert.deepEqual(fs2(L.sliderRange(DN_NIGHTS)), { min: 12, max: 84 });
+  for (const [h, n] of [[12, 0], [29.99, 0], [30, 1], [53.99, 1], [54, 2], [78, 2], [84, 2], [3, 0]]) {
+    assert.equal(L.nightAt(h, DN_NIGHTS), DN_NIGHTS[n], String(h));
+  }
+  for (const h of [12, 20.5, 47, 84]) {
+    assert.ok(Math.abs(L.xToHour(L.hourToX(h, DN_NIGHTS, 300), DN_NIGHTS, 300) - h) < 1e-9);
+  }
+  assert.equal(L.hourToX(0, DN_NIGHTS, 300), 0);
+  assert.equal(L.hourToX(99, DN_NIGHTS, 300), 300);
+  assert.equal(L.xToHour(-5, DN_NIGHTS, 300), 12);
+  assert.equal(L.xToHour(999, DN_NIGHTS, 300), 84);
+  assert.equal(L.sliderKey("ArrowRight", 20, DN_NIGHTS), 21);
+  assert.equal(L.sliderKey("ArrowDown", 20, DN_NIGHTS), 19);
+  assert.equal(L.sliderKey("PageUp", 20, DN_NIGHTS), 26);
+  assert.equal(L.sliderKey("PageDown", 14, DN_NIGHTS), 12);
+  assert.equal(L.sliderKey("Home", 20, DN_NIGHTS), 12);
+  assert.equal(L.sliderKey("End", 20, DN_NIGHTS), 84);
+  assert.equal(L.sliderKey("ArrowUp", 84, DN_NIGHTS), 84);
+  assert.equal(L.sliderKey("a", 20, DN_NIGHTS), null);
+});
+
+test("daynight: slider texts and scale", () => {
+  assert.equal(L.sliderValueText(27, DN_NIGHTS), "piatok 03:00, noc Št → Pi");
+  assert.equal(L.sliderValueText(12, DN_NIGHTS), "štvrtok 12:00, noc Št → Pi");
+  assert.equal(L.sliderValueText(80, DN_NIGHTS), "nedeľa 08:00, noc So → Ne");
+  assert.deepEqual(fs2(L.sliderDays(DN_NIGHTS)), [
+    { label: "Št", from: 12, to: 24 }, { label: "Pi", from: 24, to: 48 },
+    { label: "So", from: 48, to: 72 }, { label: "Ne", from: 72, to: 84 }]);
+  const dark = L.sliderDark(DN_NIGHTS);
+  assert.equal(dark.length, 3);
+  assert.ok(Math.abs(dark[0].from - 16.6667) < 1e-3 && Math.abs(dark[0].to - 30.6667) < 1e-3);
+  assert.ok(Math.abs(dark[2].from - (16 + 40 / 60 + 48)) < 1e-9);
+});
+
+test("daynight: figureSwap", () => {
+  assert.deepEqual(fs2(L.figureSwap({ a: "p1", b: "p2", c: "p3" }, { a: "p1", b: "p9", d: "p4" })),
+    { stay: ["a"], leave: ["b", "c"], arrive: ["b", "d"] });
+  assert.deepEqual(fs2(L.figureSwap({ a: "p1" }, {})),
+    { stay: [], leave: ["a"], arrive: [] });
+  assert.deepEqual(fs2(L.figureSwap({}, { a: "p1" })),
+    { stay: [], leave: [], arrive: ["a"] });
+  assert.deepEqual(fs2(L.figureSwap({}, {})),
+    { stay: [], leave: [], arrive: [] });
+  assert.deepEqual(fs2(L.figureSwap(undefined, undefined)),
+    { stay: [], leave: [], arrive: [] });
+  assert.deepEqual(fs2(L.figureSwap(undefined, { a: "p1" })),
+    { stay: [], leave: [], arrive: ["a"] });
+});
