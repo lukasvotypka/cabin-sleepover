@@ -617,13 +617,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .yard-end .btn { width: 100%; }
 
 @media (min-width: 900px) {
-  .yard-world { right: auto; width: 440px; border-right: 4px solid #2B1D14; }
-  .yard-top { right: auto; left: 10px; width: 420px; max-width: none; margin: 0; }
-  .yard-side { display: flex; left: 444px; }
+  /* The yard fills the height under the board (whole yard in view, no empty grass); the slide is a paper card on the grass. */
+  .adventure { --yw: clamp(440px, calc((100vh - 140px) * 380 / 600), 50vw); --card: 760px; }
+  .yard-world { top: 68px; right: auto; width: var(--yw); border-top: 4px solid #2B1D14; border-right: 4px solid #2B1D14; }
+  .yard-world svg { width: 100%; }
+  .yard-top { right: auto; left: 10px; width: calc(var(--yw) - 20px); max-width: 520px; margin: 0; }
+  .yard-side, .yard-slide {
+    left: calc(var(--yw) + 4px); background: none; border: 0;
+    padding: 10px max(24px, calc((100vw - var(--yw) - 4px - var(--card)) / 2)) 24px;
+  }
+  .yard-side { display: block; }
   .yard-side[hidden] { display: none; }
-  .yard-slide { left: 444px; }
+  .yard-side .yard-slide-body { max-width: none; padding: 20px 24px; background: #FBF6EC; border: 4px solid #2B1D14; box-shadow: 6px 6px 0 rgba(43, 29, 20, .35); }
+  .yard-slide { overflow: hidden; }
   .yard-slide .yard-back { display: none; }
-  .yard-pic { height: 36%; }
+  .yard-pic { height: auto; aspect-ratio: 380 / 170; max-height: 34%; border: 4px solid #2B1D14; border-bottom-color: #5C4033; }
+  .yard-slide .yard-text { flex: 0 1 auto; padding: 18px 24px 20px; background: #FBF6EC; border: 4px solid #2B1D14; border-top: 0; box-shadow: 6px 6px 0 rgba(43, 29, 20, .35); }
+  .yard-slide .yard-slide-body { max-width: none; }
   .yard-next { flex: 0 1 340px; margin-left: auto; }
   .yard-grid { grid-template-columns: repeat(5, 1fr); }
 }
