@@ -210,11 +210,16 @@ These are not defects, they are the developer's own choices that need a human op
 - [ ] **On again:** tap „Zapnúť overovanie cez SMS“. The party with a number now shows the lock and asks for login on the other device; its bed sheet shows no actions until logged in.
 - [ ] **On without Twilio:** on a server without the Twilio variables and without `SMS_FAKE`, the switch-on button shows the Slovak „SMS nie je dostupná“-style error and the state stays off.
 
-## 11. Day–night time-lapse (T-111)
+## 11. Day and night (T-110, T-111)
 
-- [ ] **Tap animation on a phone:** on iPhone Safari and Android Chrome, tap another night's signpost: the sky goes dusk and night, the fireflies appear, the bird disappears at night, and the clock board („Št 12:00“-style label with the sun or moon and the 3-hour strip) shows at the top and fades about 1 s after the end. Light and dark mode both look right, and the boards stay readable at night.
-- [ ] **Mix-blend on iPhone Safari:** the multiply rects (dusk and night tint) render correctly on iOS Safari. If they do not, the fallback is plain opacity (see T-111 notes).
-- [ ] **Clock board vs. HUD on a 360–390 px phone:** the „Úlohy“ button sits on top of the clock board and hides its right part (the strip cells from about the second night on, including the framed current cell). Check whether this is acceptable or the board needs a new place.
-- [ ] **Figures during the animation:** the beds keep the old night's figures until midnight of the last night passed (for a trip of one night, at once) and then walk to the new night's places; tapping another night mid-way continues from the current hour without a jump.
-- [ ] **Reduced motion (iOS and Android settings „Zmenšiť pohyb“ / „Remove animations“):** the night switches at once, no clock board, no fireflies or bird movement.
-- [ ] **Two devices:** device A taps a night while device B has the page open. Device B switches the night at once with no animation (only a user tap animates).
+Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open decisions with defaults to judge while testing (proposal „Deň a noc pri prepnutí noci“): speed (about 2.2 s per night), the swap moment of the figures (midnight of the last night passed), mild dimming of signposts and the party table, fireflies yes, sounds no, clock board only during the animation.
+
+- [ ] **Durations and direction:** tapping the Št signpost, then So: dusk, night and dawn run twice with the clock board („Št 12:00“ ... „So 12:00“), about 3.4 s. Št to Pi takes about 2.2 s. So to Št runs backwards.
+- [ ] **Highlight and figures:** the signpost highlight changes at once. The beds keep the old night's figures until midnight of the last night passed (for a trip of one night, at once), then the figures walk to the new night's places.
+- [ ] **Rapid taps:** tapping several signposts during the animation continues smoothly from the current hour, with no jump or flash.
+- [ ] **Readability at night:** signposts and the party table stay readable. Rooms, windows and doors glow, fireflies blink, no bird flies at night.
+- [ ] **Multiply blend on iPhone Safari:** dusk is orange and night is navy, not grey or black. If not, the fallback is plain opacity (see T-111 notes).
+- [ ] **No animation without a tap:** page load, the „Kto si?“ pick and a change from a second phone (SSE) switch the night without the time-lapse. An SSE update during the animation does not show the new night early.
+- [ ] **Reduced motion (iOS „Zmenšiť pohyb“, Android „Remove animations“):** the night switches at once, no clock board, fireflies stay still.
+- [ ] **Clock board lifetime:** it disappears about 0.9 s after the end and is not shown at rest. Taps on beds and signposts still work at night.
+- [ ] **Clock board vs. HUD on a 360-390 px phone:** the „Úlohy“ button sits on top of the clock board and hides its right part (strip cells from about the second night on, including the framed current cell). Decide whether this is acceptable or the board needs a new place.
