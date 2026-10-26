@@ -32,7 +32,7 @@ function openBedSheet(room, bed) {
       label.appendChild(htmlEl("span", null, rowText));
       if (!who && bed.tight.indexOf(slot) !== -1) label.appendChild(htmlEl("span", { "class": "tight" }, "(tesné)"));
       row.appendChild(label);
-      if (who && night === app.night) slotActions(row, st, slot, who, rowText);
+      if (who && night === app.night && canWrite(st, app.role)) slotActions(row, st, slot, who, rowText);
       return row;
     }
 
@@ -107,7 +107,8 @@ function openBedSheet(room, bed) {
       }
       body.appendChild(htmlEl("p", { "class": "sub" }, room.name));
       st.event.nights.forEach(function (night) { body.appendChild(nightSection(st, night)); });
-      addActions(st);
+      if (canWrite(st, app.role)) addActions(st);
+      else body.appendChild(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note));
     }
 
     panel.refresh = function () {
@@ -141,6 +142,8 @@ function openWho(opts) {
     body.appendChild(list);
     var actions = htmlEl("div", { "class": "actions" });
     body.appendChild(actions);
+    var adminLine = htmlEl("p", { "class": "admin-line" });
+    body.appendChild(adminLine);
     var vtext = versionLine(metaContent("app-version"), shownAssetVersion);
     if (vtext) body.appendChild(htmlEl("p", { "class": "version-line" }, vtext));
     var add = htmlEl("button", { "class": "btn", type: "button", "data-key": "add-party" }, "Pridať sa");
@@ -156,7 +159,22 @@ function openWho(opts) {
       openPartyForm(mine, { returnKey: "who" });
     });
     me.appendChild(edit);
-    actions.appendChild(add);
+    if (canWrite(app.state, app.role)) actions.appendChild(add);
+    else actions.appendChild(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note));
+    function fillAdminLine() {
+      clearNode(adminLine);
+      if (isAdmin(app.role)) {
+        adminLine.textContent = "Si organizátor";
+        return;
+      }
+      var link = htmlEl("button", { "class": "link-btn", type: "button", "data-key": "admin-code" }, "Mám admin kód");
+      link.addEventListener("click", function () {
+        closePanel();
+        showCodeScreen(true);
+      });
+      adminLine.appendChild(link);
+    }
+    fillAdminLine();
     panel.ageTicks = true;   // refreshed on a 304 too, so the „pred …“ texts stay current
     panel.refresh = function () {
       // A new state rebuilds the rows, so focus returns to the same party (or to the first button).

@@ -29,6 +29,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 
+import yaml
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
@@ -57,6 +58,7 @@ from app.models import (
     Party,
     PartyCreate,
     PartyUpdate,
+    SignupRequest,
     State,
     load_app_config,
     load_info,
@@ -1067,6 +1069,57 @@ def create_app(
                 changes=[{**e, "before": party.id, "after": None} for e in freed],
             )
         return ok_response(rt, tx.state, party=public_party(party), freed=freed)
+
+    # --- admin endpoints (the admin cookie is checked before the write limit) ---------------------
+
+    AdminOnly = Depends(require_admin)
+
+    @app.delete("/api/parties/{party_id}", dependencies=[AdminOnly, Limited])
+    async def delete_party(request: Request, party_id: PartyId) -> JSONResponse:
+        async with rt.store.write(action="party-delete", source="admin", client_id=client_id_of(request)) as tx:
+            party = find_party(tx.state, party_id)
+            before = party.model_dump()
+            changes = [
+                {"night": night, "slot": slot, "before": party_id, "after": None}
+                for night, by_slot in sorted(tx.state.sleeping.items())
+                for slot, holder in by_slot.items()
+                if holder == party_id
+            ]
+            for entry in changes:
+                release_slot(tx.state, entry["night"], entry["slot"])
+            tx.state.parties = [p for p in tx.state.parties if p.id != party_id]
+            tx.state.briefing.pop(party_id, None)  # the food note lives on the party and goes with it
+            tx.audit(
+                party=party_id,
+                nights=sorted({e["night"] for e in changes}),
+                slots=[e["slot"] for e in changes],
+                before=before,
+                after=None,
+                changes=changes,
+            )
+        rt.seen.forget(party_id, rt.known_ids)  # known_ids is already refreshed by the commit hook
+        return ok_response(rt, tx.state)
+
+    @app.post("/api/admin/signup", dependencies=[AdminOnly, Limited])
+    async def set_signup(request: Request, body: SignupRequest) -> JSONResponse:
+        async with rt.store.write(action="signup", source="admin", client_id=client_id_of(request)) as tx:
+            before = tx.state.signup_open
+            tx.state.signup_open = body.open
+            tx.audit(before=before, after=body.open)
+        return ok_response(rt, tx.state)
+
+    @app.get("/api/admin/export", dependencies=[AdminOnly])
+    async def export_data() -> Response:
+        data = rt.store.data_path.read_bytes()  # the file is replaced atomically, so this is a whole version
+        version = yaml.safe_load(data)["version"]
+        return Response(
+            data,
+            media_type="application/x-yaml; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="cabin-data-{version}.yaml"',
+                "Cache-Control": "no-store",
+            },
+        )
 
     # Only the static folder is served. data/, config/, files/ and .env are never mounted.
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
