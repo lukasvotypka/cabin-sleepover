@@ -468,7 +468,7 @@ Rozhodnutie organizátora z 25. 10. 2026. Partia si môže pridať telefónne č
 
 ### Stránka
 
-- **„Kto si?“:** pri chránenej partii je malý zámok. Ťuknutie na chránenú partiu, ktorú zariadenie nemá overenú, otvorí panel „Prihlás sa“: „Zadaj svoje telefónne číslo (končí na …456)“, tlačidlo „Poslať kód“, potom pole na 6-miestny kód (`inputmode="numeric"`, `autocomplete="one-time-code"`) a „Overiť“. Po úspechu sa partia vyberie ako *moja partia*. Odkaz „Poslať znova“ po 60 s.
+- **„Kto si?“:** chránená partia vyzerá v zozname ako ostatné, s časom „naposledy videná“ (rozhodnutie organizátora z 26. 10. 2026: zámok v zozname nemá pridanú hodnotu, T-099). Ťuknutie na chránenú partiu, ktorú zariadenie nemá overenú, otvorí panel „Prihlás sa“: „Zadaj svoje telefónne číslo (končí na …456)“, tlačidlo „Poslať kód“, potom pole na 6-miestny kód (`inputmode="numeric"`, `autocomplete="one-time-code"`) a „Overiť“. Po úspechu sa partia vyberie ako *moja partia*. Odkaz „Poslať znova“ po 60 s.
 - Keď je v `localStorage` vybraná chránená partia bez overenia (napr. číslo pribudlo neskôr alebo vypršala cookie), stránka po načítaní otvorí „Kto si?“ s panelom prihlásenia a „Si: …“ ukáže prázdny stav.
 - **Formulár partie:** sekcia „Telefón“: bez čísla „Pridať telefón (na prihlásenie)“, s číslom „Telefón končí na …456“ a tlačidlá „Zmeniť“ a „Odstrániť“. Zobrazí sa iba pri `sms_enabled`.
 - Akcie nad cudzou chránenou partiou (napr. ťuknutie na jej posteľ) stránka vopred neponúka; keď server vráti `login_required`, ukáže „Ivan a Eva si chránia zápis telefónom. Zmeniť ho môžu iba oni.“
