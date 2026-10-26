@@ -91,14 +91,14 @@ function advDrawYard(svg) {
   for (var k = 0; k < 14; k++) R(110, 30 + k * 8, 200, 8, k % 2 ? "#8E3424" : "#A04030");
   R(110, 82, 200, 6, "#6E2A1C");
   R(252, 44, 16, 16, "#5C4033");
-  for (var m = 0; m < 3; m++) R(256, 40, 8, 8, "#D9D2C6", "adv-smoke").style.setProperty("--d", m + "s");
+  for (var m = 0; m < 3; m++) R(256, 40, 8, 8, "#D9D2C6", "yard-smoke").style.setProperty("--d", m + "s");
   R(110, 142, 200, 16, "#8A6A4A"); R(200, 142, 20, 16, "#4A2C1A");
-  R(136, 146, 22, 8, "#FFD54A", "adv-glow"); R(262, 146, 22, 8, "#FFD54A", "adv-glow");
+  R(136, 146, 22, 8, "#FFD54A", "yard-glow"); R(262, 146, 22, 8, "#FFD54A", "yard-glow");
   // car from above with the backpack by the boot
   R(20, 444, 70, 42, "#2B1D14"); R(22, 446, 66, 38, "#3E6FB0");
   R(38, 450, 34, 30, "#2A4E80"); R(72, 450, 6, 30, "#9FD3F0"); R(32, 450, 4, 30, "#9FD3F0");
   [[18, 442], [78, 442], [18, 482], [78, 482]].forEach(function (w) { R(w[0], w[1], 14, 6, "#2B1D14"); });
-  advSprite(svg, "batoh", 88, 438, 2, "adv-bob");
+  advSprite(svg, "batoh", 88, 438, 2, "yard-bob");
   // well with a „do not drink“ sign
   R(280, 350, 44, 44, "#6F767B"); R(284, 354, 36, 36, "#9AA0A6"); R(290, 360, 24, 24, "#1E2A4A"); R(296, 366, 8, 6, "#3E6FB0");
   R(276, 368, 52, 6, "#5C4033");
@@ -107,11 +107,11 @@ function advDrawYard(svg) {
   // fire pit with stones, and two log benches
   R(36, 242, 64, 8, "#8A6A4A"); R(36, 318, 64, 8, "#8A6A4A");
   for (var s = 0; s < 12; s++) { var t = s / 12 * Math.PI * 2; R(64 + Math.cos(t) * 24, 280 + Math.sin(t) * 24, 8, 8, "#9AA0A6"); }
-  advSprite(svg, "ohen", 56, 268, 2, "adv-flame-a");
-  var flip = svgEl(svg, "g", { "class": "adv-flame-b", transform: "translate(136 0) scale(-1 1)" });
+  advSprite(svg, "ohen", 56, 268, 2, "yard-flame-a");
+  var flip = svgEl(svg, "g", { "class": "yard-flame-b", transform: "translate(136 0) scale(-1 1)" });
   advSprite(flip, "ohen", 56, 268, 2);
   // signpost towards the hills, with a lantern and a ball
-  advSprite(svg, "smerovnik", 304, 178, 3); R(356, 206, 2, 30, "#5C4033"); advSprite(svg, "lampion", 346, 204, 2, "adv-glow"); advSprite(svg, "lopta", 318, 236, 1);
+  advSprite(svg, "smerovnik", 304, 178, 3); R(356, 206, 2, 30, "#5C4033"); advSprite(svg, "lampion", 346, 204, 2, "yard-glow"); advSprite(svg, "lopta", 318, 236, 1);
 }
 
 function advReducedMotion() { return prefersReducedMotion(); }
@@ -122,24 +122,24 @@ function advWide() { return !!(window.matchMedia && window.matchMedia("(min-widt
 // --- building the view ---
 
 function advBuildStation(svg, st, i) {
-  var g = svgEl(svg, "g", { "class": "adv-spot", "data-step": st.step });
+  var g = svgEl(svg, "g", { "class": "yard-spot", "data-step": st.step });
   var bx = st.box[0], by = st.box[1], bw = st.box[2], bh = st.box[3], ax = st.anchor[0], ay = st.anchor[1];
-  svgEl(g, "rect", { x: bx - 4, y: by - 4, width: bw + 8, height: bh + 8, fill: "none", stroke: "#FFD54A", "stroke-width": 3, "stroke-dasharray": "6 4", "class": "adv-ring" });
+  svgEl(g, "rect", { x: bx - 4, y: by - 4, width: bw + 8, height: bh + 8, fill: "none", stroke: "#FFD54A", "stroke-width": 3, "stroke-dasharray": "6 4", "class": "yard-ring" });
   // small name plate; the big marker replaces it on the next stop
-  var nm = svgEl(g, "g", { "class": "adv-name" }), nw = st.label.length * 6 + 8;
+  var nm = svgEl(g, "g", { "class": "yard-name" }), nw = st.label.length * 6 + 8;
   advRect(nm, ax - nw / 2 - 1, ay - 15, nw + 2, 14, "#2B1D14"); advRect(nm, ax - nw / 2, ay - 14, nw, 12, "#FBF6EC");
   svgEl(nm, "text", { x: ax, y: ay - 5, "text-anchor": "middle", "font-size": 9, "font-weight": 700, "font-family": "ui-monospace,Menlo,monospace", fill: "#2B1D14" }, st.label);
-  var mk = svgEl(g, "g", { "class": "adv-marker" }), w = st.label.length * 7 + 12;
+  var mk = svgEl(g, "g", { "class": "yard-marker" }), w = st.label.length * 7 + 12;
   advRect(mk, ax - w / 2, ay - 44, w, 16, "#2B1D14");
   svgEl(mk, "text", { x: ax, y: ay - 32, "text-anchor": "middle", "font-size": 11, "font-weight": 700, "font-family": "ui-monospace,Menlo,monospace", fill: "#FFD54A" }, st.label);
-  var ar = svgEl(mk, "g", { "class": "adv-arrow" });
+  var ar = svgEl(mk, "g", { "class": "yard-arrow" });
   advRect(ar, ax - 7, ay - 26, 14, 6, "#2B1D14"); advRect(ar, ax - 5, ay - 24, 10, 3, "#FFD54A");
   advRect(ar, ax - 5, ay - 20, 10, 4, "#2B1D14"); advRect(ar, ax - 3, ay - 20, 6, 3, "#FFD54A");
   advRect(ar, ax - 3, ay - 16, 6, 4, "#2B1D14"); advRect(ar, ax - 1, ay - 16, 2, 2, "#FFD54A");
-  var ck = svgEl(g, "g", { "class": "adv-check" });
+  var ck = svgEl(g, "g", { "class": "yard-check" });
   advRect(ck, bx + bw - 10, by - 8, 18, 18, "#2B1D14"); advRect(ck, bx + bw - 8, by - 6, 14, 14, "#3F6E2C");
   svgEl(ck, "text", { x: bx + bw - 1, y: by + 6, "text-anchor": "middle", "font-size": 13, "font-weight": 900, fill: "#FBF6EC" }, "✓");
-  var hit = svgEl(g, "rect", { x: bx - 6, y: by - 46, width: bw + 12, height: bh + 52, fill: "transparent", role: "button", tabindex: 0, "class": "adv-hit" });
+  var hit = svgEl(g, "rect", { x: bx - 6, y: by - 46, width: bw + 12, height: bh + 52, fill: "transparent", role: "button", tabindex: 0, "class": "yard-hit" });
   hit.setAttribute("aria-label", st.label + ": " + st.about);
   var go = function (e) { e.stopPropagation(); advGoTo(i); };
   hit.addEventListener("click", go);
@@ -150,7 +150,7 @@ function advBuildStation(svg, st, i) {
 function advBuild() {
   var view = $("adventure");
   clearNode(view);
-  var world = htmlEl("div", { "class": "adv-world" });
+  var world = htmlEl("div", { "class": "yard-world" });
   var svg = svgEl(null, "svg", { viewBox: "0 0 " + ADV_W + " " + ADV_H, "shape-rendering": "crispEdges", role: "group", "aria-label": "Dvor pri chate" });
   world.appendChild(svg);
   advDrawYard(svg);
@@ -163,14 +163,14 @@ function advBuild() {
   world.addEventListener("click", function () { if (!adv.walking && adv.slide) advCloseSlide(); });
   view.appendChild(world);
 
-  var board = htmlEl("div", { "class": "adv-board", role: "status" });
-  var boardIcon = htmlEl("span", { "class": "adv-board-icon" });
+  var board = htmlEl("div", { "class": "yard-board", role: "status" });
+  var boardIcon = htmlEl("span", { "class": "yard-board-icon" });
   var boardText = htmlEl("span");
   board.appendChild(boardIcon); board.appendChild(boardText);
-  var top = htmlEl("div", { "class": "adv-top" });
+  var top = htmlEl("div", { "class": "yard-top" });
   top.appendChild(board);
   view.appendChild(top);
-  var host = htmlEl("div", { "class": "adv-host", hidden: "" });
+  var host = htmlEl("div", { "class": "yard-host", hidden: "" });
   if (app.state.info && app.state.info.host_arrival) {
     host.textContent = app.state.info.host_arrival;
     host.hidden = false;
@@ -178,21 +178,21 @@ function advBuild() {
   top.appendChild(host);
 
   // Desktop only (CSS): the welcome with the station list, beside the yard, while no slide is open.
-  var side = htmlEl("div", { "class": "adv-side" });
+  var side = htmlEl("div", { "class": "yard-side" });
   slWelcome(side);
   view.appendChild(side);
 
-  var slide = htmlEl("div", { "class": "adv-slide", role: "dialog", "aria-modal": "true", "aria-labelledby": "advSlideTitle", hidden: "" });
+  var slide = htmlEl("div", { "class": "yard-slide", role: "dialog", "aria-modal": "true", "aria-labelledby": "advSlideTitle", hidden: "" });
   view.appendChild(slide);
 
-  var bar = htmlEl("div", { "class": "adv-bar" });
-  var list = htmlEl("button", { "class": "adv-list", type: "button", "aria-label": "Rýchly zoznam" }, "☰");
+  var bar = htmlEl("div", { "class": "yard-bar" });
+  var list = htmlEl("button", { "class": "yard-list", type: "button", "aria-label": "Rýchly zoznam" }, "☰");
   list.addEventListener("click", advQuickList);
-  var prog = htmlEl("div", { "class": "adv-prog", "aria-hidden": "true" });
+  var prog = htmlEl("div", { "class": "yard-prog", "aria-hidden": "true" });
   var slots = ADV_STATIONS.map(function (st) {
     var s = htmlEl("span"); s.appendChild(advIcon(st.icon)); prog.appendChild(s); return s;
   });
-  var nextBtn = htmlEl("button", { "class": "adv-next", type: "button" });
+  var nextBtn = htmlEl("button", { "class": "yard-next", type: "button" });
   nextBtn.addEventListener("click", function () {
     if (adv.walking) return;
     if (adv.slide && advWide()) {         // desktop: the button leads on, the yard beside the slide stays usable
@@ -247,8 +247,8 @@ function advOnState() {
   var sig = slideSignature(adv.slide, app.state, app.myParty);
   if (sig === adv.slideSig) return;
   if (adv.slide === "food" && document.activeElement && document.activeElement.id === "foodNoteInput") return;   // keep the typed text
-  var slide = adv.els.slide, back = slide.querySelector(".adv-back");
-  var scroll = slide.querySelector(".adv-text");
+  var slide = adv.els.slide, back = slide.querySelector(".yard-back");
+  var scroll = slide.querySelector(".yard-text");
   var top = scroll ? scroll.scrollTop : 0;
   var hadFocus = slide.contains(document.activeElement);
   clearNode(slide);
@@ -256,7 +256,7 @@ function advOnState() {
   openStation(adv.slide, slide);
   adv.slideSig = sig;
   slide.classList.add("still");
-  scroll = slide.querySelector(".adv-text");
+  scroll = slide.querySelector(".yard-text");
   if (scroll) scroll.scrollTop = top;
   var h = slide.querySelector("h2");
   if (h && hadFocus) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
@@ -294,7 +294,7 @@ function advWalk(points, done) {
     return done();
   }
   adv.walking = true;
-  adv.els.body.classList.add("adv-bob");
+  adv.els.body.classList.add("yard-bob");
   advRefresh();
   var k = 0, last = performance.now();
   var step = function (now) {
@@ -308,7 +308,7 @@ function advWalk(points, done) {
     }
     advPlace(); advCamera(false);
     if (k < points.length) adv.frame = requestAnimationFrame(step);
-    else { adv.walking = false; adv.els.body.classList.remove("adv-bob"); done(); }
+    else { adv.walking = false; adv.els.body.classList.remove("yard-bob"); done(); }
   };
   adv.frame = requestAnimationFrame(step);
 }
@@ -325,7 +325,7 @@ function advOpenStation(i) {
   var slide = adv.els.slide;
   clearNode(slide);
   slide.hidden = false;
-  var back = htmlEl("button", { "class": "adv-back", type: "button" }, "‹ Dvor");
+  var back = htmlEl("button", { "class": "yard-back", type: "button" }, "‹ Dvor");
   back.addEventListener("click", function () { advCloseSlide(); });
   slide.appendChild(back);
   slide.classList.remove("still");
@@ -347,12 +347,12 @@ function advCloseSlide(silent) {
   var spot = adv.els.spots[adv.at];
   if (adv.finishPending) {
     adv.finishPending = false;
-    if (spot) spot.querySelector(".adv-hit").focus({ preventScroll: true });
+    if (spot) spot.querySelector(".yard-hit").focus({ preventScroll: true });
     advEndPanel();
     return;
   }
   advCamera(true);
-  if (spot) spot.querySelector(".adv-hit").focus({ preventScroll: true });
+  if (spot) spot.querySelector(".yard-hit").focus({ preventScroll: true });
 }
 
 function advQuickList() {
@@ -368,7 +368,7 @@ function advEndPanel() {
     list.addEventListener("click", advQuickList);
     var again = htmlEl("button", { "class": "btn secondary", type: "button" }, "Prejsť dvor znova");
     again.addEventListener("click", function () { closePanel(); advRestart(); });
-    var wrap = htmlEl("div", { "class": "adv-end" });
+    var wrap = htmlEl("div", { "class": "yard-end" });
     wrap.appendChild(map); wrap.appendChild(list); wrap.appendChild(again);
     body.appendChild(wrap);
   }, { center: true });
@@ -415,7 +415,7 @@ function openAdventure() {
     advCamera(false);
     var next = nextStation(advVisited());
     var spot = adv.els.spots[next ? BRIEFING_STEPS.indexOf(next) : 0];
-    spot.querySelector(".adv-hit").focus({ preventScroll: true });
+    spot.querySelector(".yard-hit").focus({ preventScroll: true });
   });
 }
 
