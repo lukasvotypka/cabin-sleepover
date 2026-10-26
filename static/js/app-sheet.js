@@ -187,8 +187,14 @@ function openWho(opts) {
         var seen = seenText((pres.last_seen || {})[party.id], serverNow(), (pres.online || []).indexOf(party.id) !== -1);
         row.appendChild(htmlEl("span", { "class": "seen" }, seen));
         row.setAttribute("aria-label", party.name + ", " + seen);
+        var locked = needsLogin(party, sessionVerified());
+        if (isProtected(party)) {
+          row.appendChild(htmlEl("span", { "class": "lock", "aria-hidden": "true" }, "🔒"));
+          row.setAttribute("aria-label", party.name + ", " + seen + ", chránené telefónom" + (locked ? "" : ", overené"));
+        }
         if (party.id === app.myParty) row.appendChild(htmlEl("span", { "class": "mark", "aria-hidden": "true" }, "✓"));
         row.addEventListener("click", function () {
+          if (locked) { closePanel(); openLogin(party, opts && opts.after ? { after: opts.after } : undefined); return; }
           setMyParty(party.id);
           app.night = defaultNightFor(party, app.state.event.nights);
           closePanel();

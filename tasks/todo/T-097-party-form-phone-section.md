@@ -19,6 +19,7 @@ Add, change and remove the number from the party form, and do not offer actions 
 - [ ] Node source checks for the new section (labels present, no `innerHTML` with human text); `node --test tests/js/` and `uv run pytest` pass; manual check with `SMS_FAKE=1` noted in the Dev log.
 
 ## Notes for developer
+- Added by the orchestrator after the T-096 review: no task had a logout. In the „Telefón“ section of a verified protected party add „Odhlásiť toto zariadenie“ → `POST /api/logout {party_id}`, then `loadSession()` (from `app-login.js`) and clear *moja partia* if it was this one. Also call `loadSession()` after phone add/change/remove. Add a Node or source test for it.
 - Reuse `logic-phone.js` (T-095); keep pure parts there.
 
 ---

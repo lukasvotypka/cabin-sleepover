@@ -4042,3 +4042,16 @@ test("Slovak texts for the phone login error codes", () => {
   assert.match(phone, /„0905 123 456“/);
   assert.notEqual(phone, L.errorText(err("invalid", { field: "name" })));
 });
+
+test("the login panel file avoids innerHTML, uses the right input attributes and is listed in index.html", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-login.js"), "utf8");
+  assert.ok(!/innerHTML/.test(src));
+  assert.match(src, /inputmode: "numeric"/);
+  assert.match(src, /autocomplete: "one-time-code"/);
+  assert.match(src, /"Poslať kód"/);
+  assert.match(src, /"Overiť"/);
+  assert.ok(scriptTags.includes("static/js/app-login.js"));
+  const sheet = fs.readFileSync(path.join(root, "static", "js", "app-sheet.js"), "utf8");
+  assert.match(sheet, /needsLogin\(party, sessionVerified\(\)\)/);
+  assert.match(sheet, /openLogin\(party/);
+});

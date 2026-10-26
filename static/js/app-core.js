@@ -78,6 +78,8 @@ var app = {
   night: null,
   nightSynced: false,  // set by the first applyState: only that one may take the night from the remembered party
   myParty: storage.get(KEYS.party),
+  session: null,       // {verified: [party_id], sms_enabled} from GET /api/session, null until loaded
+  loginPending: null,  // id of a remembered protected party whose login panel opens with „Kto si?“
   askWho: false,       // open „Kto si?“ once the next state has arrived
   introStart: 0,       // performance.now() when the intro clock started (page start, or the join)
   introTimer: null,    // the one pending timer that reveals the map
@@ -280,6 +282,7 @@ function applyState(state) {
   }
   if (app.night === null || state.event.nights.indexOf(app.night) === -1) app.night = state.event.nights[0];
   document.title = state.event.name;
+  if (!app.sessionAsked) { app.sessionAsked = true; loadSession(); }
   if (app.myParty && !partyById(state, app.myParty)) {
     forgetMyParty();
     app.askWho = true;
@@ -298,5 +301,7 @@ function applyState(state) {
 function openWhoIfAsked() {
   if (!app.askWho || splash.falling) return;      // during the fall „Kto si?“ waits; the end of the fall asks again
   app.askWho = false;
-  openWho();
+  var pending = app.loginPending && app.state ? partyById(app.state, app.loginPending) : null;
+  app.loginPending = null;
+  if (pending) openLogin(pending); else openWho();
 }
