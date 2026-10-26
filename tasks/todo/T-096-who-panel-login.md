@@ -1,7 +1,7 @@
-# T-079: „Kto si?“ lock and the „Prihlás sa“ panel
+# T-096: „Kto si?“ lock and the „Prihlás sa“ panel
 
 - **Phase:** 1
-- **Depends on:** T-075, T-078
+- **Depends on:** T-092, T-095
 - **Size:** M
 
 ## Goal

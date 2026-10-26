@@ -1,4 +1,4 @@
-# T-073: Phone on `Party`, phone normalization and `check_party_access`
+# T-090: Phone on `Party`, phone normalization and `check_party_access`
 
 - **Phase:** 1
 - **Depends on:** none
@@ -22,8 +22,8 @@ Data and pure rules for the phone login: proposal "Prihlásenie telefónom (SMS)
 - [x] `uv run pytest` passes.
 
 ## Notes for developer
-- Keep the rule only in `validate.py`; endpoints call it later (T-075 to T-077).
-- Compare verification time against `phone_set_at` with `>=`; T-077 sets both from the same timestamp.
+- Keep the rule only in `validate.py`; endpoints call it later (T-092 to T-094).
+- Compare verification time against `phone_set_at` with `>=`; T-094 sets both from the same timestamp.
 - Open decision "Prihlásenie telefónom": default home `0` = `+421`, state shows only 3 digits. Format details: `tasks/QUESTIONS.md` Q25.
 - T-009 (phase 2 export) would expose the phone in the YAML download; not in scope here.
 
@@ -35,18 +35,18 @@ Data and pure rules for the phone login: proposal "Prihlásenie telefónom (SMS)
 - Q25 default format used; `phone_hint` shows last 3 digits. PUT keeps phone since it only copies `PartyInput` fields.
 
 ## Review round 1
-Scope checked: `public_party`/`state_payload` in `app/main.py` (the SMS settings/runtime lines there are T-074), `Party.phone`/`phone_set_at` in `app/models.py`, phone section of `app/validate.py`, tests in the four test files.
+Scope checked: `public_party`/`state_payload` in `app/main.py` (the SMS settings/runtime lines there are T-091), `Party.phone`/`phone_set_at` in `app/models.py`, phone section of `app/validate.py`, tests in the four test files.
 
-Tests: task files 414 passed; full `uv run pytest` 665 passed (includes T-074 work in progress).
+Tests: task files 414 passed; full `uv run pytest` 665 passed (includes T-091 work in progress).
 
 All acceptance criteria met: the model regex and pair validator work and startup errors include the path and `parties[0]`. Normalization matches Q25. `check_party_access` uses `>=` and returns the right params, and `login_required` maps to 403. `state_payload` is shared by `/api/state`, the SSE initial frame and the commit hook, so the phone never goes out. The create/update responses use `public_party` too. `extra=forbid` rejects `phone` in the forms, and PUT keeps the stored values.
 
 **Blockers:** none.
 
 **Suggestions**
-- `app/models.py` `_check_iso_datetime` accepts naive timestamps. A hand-edited `phone_set_at` without an offset would be read as host-local time in `is_verified` (UTC in Docker). T-077 writes `now_iso()` with an offset, so this is fine in practice. A future task could require an offset for `phone_set_at`.
+- `app/models.py` `_check_iso_datetime` accepts naive timestamps. A hand-edited `phone_set_at` without an offset would be read as host-local time in `is_verified` (UTC in Docker). T-094 writes `now_iso()` with an offset, so this is fine in practice. A future task could require an offset for `phone_set_at`.
 - The E.164 pattern appears twice (`app/models.py` Party field and `app/validate.py` `_PHONE_RE`). It could be one shared constant in `models.py`.
-- `logic-errors.js` has no `login_required` entry yet. That is expected for T-075 to T-077; until then the generic fallback applies.
+- `logic-errors.js` has no `login_required` entry yet. That is expected for T-092 to T-094; until then the generic fallback applies.
 
 Verdict: APPROVED (round 2 skipped, no blockers)
 
@@ -57,7 +57,7 @@ Verdict: APPROVED (round 2 skipped, no blockers)
 Tester (round 1, 2026-10-25). Environment: `export PATH=/opt/homebrew/bin:$PATH` (uv and node live in Homebrew, not on the default PATH).
 
 Commands and results:
-- `uv run pytest -q` → 665 passed (includes T-074 work in progress, which is outside this task's scope).
+- `uv run pytest -q` → 665 passed (includes T-091 work in progress, which is outside this task's scope).
 - `node --test tests/js/` → 333 pass, 0 fail.
 - Independent probe `/tmp/t073probe/probe.py` (outside the repo, temp data dirs only) → 43 of 45 checks passed. The 2 "fails" were a bug in my probe (wrong epoch constant for `2026-10-25T10:00:00+02:00`, which is 1792915200); the code is correct, rechecked: exact time passes, `set_at - 1` fails, `set_at + 500` passes.
 - `/tmp/t073probe/audit.py` → confirms the audit leak below.
@@ -84,14 +84,14 @@ Spec rule failing (cited by the Goal, section "Telefónne číslo" of `proposal.
 - Where: `app/main.py` `create_party` and `update_party` pass `model_dump()` to `tx.audit`. Fix idea: dump with `exclude={"phone", "phone_set_at"}` and add `phone_hint`, the same way `public_party` does. Add a test that greps `audit.yaml` for the full number after a PUT on a protected party.
 
 Not a failure, notes for the developer:
-- `phone_set_at` accepts a naive timestamp without an offset (`2026-10-25T10:00:00`). A hand-edited file would then be compared in host-local time. The reviewer raised this too. Consider requiring an offset (T-077 writes offsets, so it is not urgent).
+- `phone_set_at` accepts a naive timestamp without an offset (`2026-10-25T10:00:00`). A hand-edited file would then be compared in host-local time. The reviewer raised this too. Consider requiring an offset (T-094 writes offsets, so it is not urgent).
 
 Verdict: all listed criteria pass, no regressions, but Bug 1 violates a rule that the task's Goal cites. Moved back to `in-progress`.
 
 ## Dev log (fix for test Bug 1)
 - Fixed: `create_party` and `update_party` in `app/main.py` now audit `public_party(party)` (no `phone`/`phone_set_at`, only `phone_hint`) for `before` and `after`. Test added to `test_party_forms_reject_a_phone_and_keep_the_stored_one` in `tests/test_api_access.py`: `audit.yaml` has no full number or `phone_set_at`, and has `phone_hint: '456'`.
 - Run: `uv run pytest` -> 667 passed.
-- Naive `phone_set_at` note: not changed (T-077 writes offsets); left as a follow-up.
+- Naive `phone_set_at` note: not changed (T-094 writes offsets); left as a follow-up.
 
 ## Review re-check
 Scope: tester Bug 1 fix only (`create_party`/`update_party` audit in `app/main.py`, new assertions in `tests/test_api_access.py`).
@@ -104,10 +104,10 @@ Scope: tester Bug 1 fix only (`create_party`/`update_party` audit in `app/main.p
 
 Verdict: APPROVED
 
-Tester (round 2, 2026-10-25, re-test after Bug 1 fix). Environment: `export PATH=/opt/homebrew/bin:$PATH`. Only T-073 criteria were checked; T-074 work in the same checkout was not tested.
+Tester (round 2, 2026-10-25, re-test after Bug 1 fix). Environment: `export PATH=/opt/homebrew/bin:$PATH`. Only T-090 criteria were checked; T-091 work in the same checkout was not tested.
 
 Commands and results:
-- `uv run pytest -q` → 667 passed (full suite, includes T-074 work in progress).
+- `uv run pytest -q` → 667 passed (full suite, includes T-091 work in progress).
 - `node --test tests/js/` → 333 pass, 0 fail.
 - `/tmp/t073probe/audit.py` (temp data dir, protected party, PUT rename) → `audit contains full number: False`, `contains 905123456: False`, audit has `phone_hint: '456'` only, no `phone_set_at`. Bug 1 is fixed. The full number still sits in `data/backups/` (a copy of the server-side data file, not the audit). That is expected and not a leak over HTTP.
 - `/tmp/t073probe/probe.py` → 43 of 45 checks passed. Both "fails" are the known probe error (wrong epoch constant). Rechecked directly against `check_party_access`: exact `phone_set_at` passes, `set_at - 1` gives `login_required`, `set_at + 500` passes, admin passes.
@@ -130,6 +130,6 @@ Failures: none.
 
 Not a failure, still open from round 1: `phone_set_at` accepts a naive timestamp without an offset. A hand-edited file would be compared in host-local time. Follow-up, not a criterion of this task.
 
-Manual checks: none needed for T-073 (backend only).
+Manual checks: none needed for T-090 (backend only).
 
 Verdict: all criteria pass, no regressions. Moved to `done/`.

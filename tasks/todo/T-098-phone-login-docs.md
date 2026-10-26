@@ -1,7 +1,7 @@
-# T-081: Phone login docs, env and manual checklist
+# T-098: Phone login docs, env and manual checklist
 
 - **Phase:** 1
-- **Depends on:** T-077
+- **Depends on:** T-094
 - **Size:** S
 
 ## Goal

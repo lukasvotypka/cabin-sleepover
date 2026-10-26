@@ -176,7 +176,7 @@ The offer shows „kým moja partia nemá všetko prejdené“, which is undefin
 "Prihlásenie telefónom" says the creating device may change the party until it has a number, but an unprotected party is open to everyone with the group code, so any device could add its own (verified) number to someone else's party and lock the real owners out.
 
 - **Default:** as written: `check_party_access` passes for an unprotected party, so any device may call `phone/start`/`phone/verify` on it. The organizer fixes abuse by removing the number with the admin cookie.
-- Affects: T-073, T-077.
+- Affects: T-090, T-094.
 - **Answer:** open.
 
 ## Q23. SMS endpoints while signup is locked (25. 10. 2026)
@@ -184,7 +184,7 @@ The offer shows „kým moja partia nemá všetko prejdené“, which is undefin
 The section does not say whether `login/*`, `logout`, `phone/*` and `DELETE …/phone` return `signup_closed` when `signup_open` is `false`.
 
 - **Default:** none of them checks `check_signup_open` (they manage access, not places, like `briefing` and `food`). The party writes they unlock still follow the lock.
-- Affects: T-075, T-077.
+- Affects: T-092, T-094.
 - **Answer:** open.
 
 ## Q24. What `GET /api/session` returns in `verified` (25. 10. 2026)
@@ -192,7 +192,7 @@ The section does not say whether `login/*`, `logout`, `phone/*` and `DELETE …/
 „iba partie, ktoré stále existujú a sú chránené alebo boli overené“ can be read two ways.
 
 - **Default:** the party ids from the `party_auth` cookie whose party still exists, still has a `phone`, and whose verification time is not older than its `phone_set_at`. Entries for deleted or no longer protected parties are dropped from the list (and from the cookie on the next re-issue).
-- Affects: T-075.
+- Affects: T-092.
 - **Answer:** open.
 
 ## Q25. Phone format details and limits for `login/start` mismatches (25. 10. 2026)
@@ -203,5 +203,5 @@ The exact accepted phone format and whether a `phone_mismatch` costs anything ar
 - **Default (mismatch):** a `phone_mismatch` counts as one attempt in the per-party code-attempt limit (5 per 10 min).
 - **Default (write limit):** `login/verify` and `phone/verify` do not count toward the 30 writes/min; `login/start`, `phone/start`, `DELETE …/phone` and `logout` do.
 - **Default:** two parties may have the same number (one phone, several parties).
-- Affects: T-073, T-074, T-075, T-077.
+- Affects: T-090, T-091, T-092, T-094.
 - **Answer:** open.

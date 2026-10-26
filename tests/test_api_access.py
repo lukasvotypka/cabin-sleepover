@@ -660,7 +660,7 @@ async def test_write_limit_needs_the_group_cookie_first(test_routes, client):
     assert error_of(resp)["code"] == "bad_code"
 
 
-# --- phone never leaves the server (T-073) -------------------------------------------
+# --- phone never leaves the server (T-090) -------------------------------------------
 
 PHONE = "+421905123456"
 

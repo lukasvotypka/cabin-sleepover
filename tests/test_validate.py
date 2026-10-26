@@ -727,7 +727,7 @@ def test_set_food_note(ivan):
     assert not v.set_food_note(ivan, "")
 
 
-# --- phone login (T-073) -----------------------------------------------------------
+# --- phone login (T-090) -----------------------------------------------------------
 
 
 @pytest.mark.parametrize(

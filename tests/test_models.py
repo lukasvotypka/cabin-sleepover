@@ -609,7 +609,7 @@ def test_party_input_color_is_optional_and_a_strict_hex(model):
             model(**BASE, color=bad)
 
 
-# --- phone on Party (T-073) ---------------------------------------------------------
+# --- phone on Party (T-090) ---------------------------------------------------------
 
 
 def test_party_phone_is_omitted_until_set(make_party):

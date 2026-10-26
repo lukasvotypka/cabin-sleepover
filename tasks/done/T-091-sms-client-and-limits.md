@@ -1,4 +1,4 @@
-# T-074: `app/sms.py` Twilio Verify client, fake client and SMS limits
+# T-091: `app/sms.py` Twilio Verify client, fake client and SMS limits
 
 - **Phase:** 1
 - **Depends on:** none
@@ -32,11 +32,11 @@ A swappable SMS verification client and the in-memory SMS limits: proposal "Prih
 - `app/main.py`: `Settings` gets `twilio`, `sms_fake`, `sms_fake_code`; `build_sms_client`; `Runtime.sms`, `sms_limits`, `sms_enabled`; `create_app(sms_client=...)`. Partial Twilio variables = off, with a warning naming the missing ones.
 - `httpx` moved to runtime deps (`uv add httpx`; pyproject.toml, uv.lock).
 - Tests: `tests/test_sms.py` (new), `tests/test_ratelimit.py`. Run: `uv run pytest tests/test_sms.py tests/test_ratelimit.py`, then `uv run pytest` -> 665 passed.
-- Follow-up: the Slovak text for `sms_unavailable` belongs in `logic-errors.js` (a later task). The suite also contains T-073's in-progress changes in the shared checkout.
+- Follow-up: the Slovak text for `sms_unavailable` belongs in `logic-errors.js` (a later task). The suite also contains T-090's in-progress changes in the shared checkout.
 
 ## Review round 1
 
-Tests: `uv run pytest tests/test_sms.py tests/test_ratelimit.py` 29 passed; full `uv run pytest` 665 passed (with Node on PATH). Only T-074 parts judged (the T-073 parts of `app/main.py`, `app/models.py` and `app/validate.py` are out of scope).
+Tests: `uv run pytest tests/test_sms.py tests/test_ratelimit.py` 29 passed; full `uv run pytest` 665 passed (with Node on PATH). Only T-091 parts judged (the T-090 parts of `app/main.py`, `app/models.py` and `app/validate.py` are out of scope).
 
 **Blocker**
 
@@ -46,7 +46,7 @@ Tests: `uv run pytest tests/test_sms.py tests/test_ratelimit.py` 29 passed; full
 
 - `check()` treats every 400 as a wrong code. That is fine for now. A comment noting that Twilio's 429/60202 ("max check attempts") falls under `SmsUnavailable` would help the endpoint task decide how to map it.
 - `Settings` is a plain dataclass, so its repr now includes the Twilio auth token, as it already did `secret_key`. Consider `field(repr=False)` for `twilio` (and the existing secrets) so an accidental `log.debug(settings)` cannot leak them.
-- `SmsLimits` returns seconds and does not raise. The criterion's "`rate_limited` with `params.retry_after`" is left to the endpoint task. That is acceptable since there are no endpoints yet, but make sure the T-075+ task file says so.
+- `SmsLimits` returns seconds and does not raise. The criterion's "`rate_limited` with `params.retry_after`" is left to the endpoint task. That is acceptable since there are no endpoints yet, but make sure the T-092+ task file says so.
 
 Verdict: CHANGES REQUESTED
 
@@ -54,7 +54,7 @@ Verdict: CHANGES REQUESTED
 - Blocker fixed: `_twilio_error(response, phone)` in `app/sms.py` replaces the phone (with and without `+`) by `mask_phone(phone)` in Twilio's message before logging. New caplog test `test_twilio_message_echoing_the_phone_is_redacted` (400 and 500) in `tests/test_sms.py`.
 - Suggestion 1 done: comment in `check()` that Twilio 429/60202 falls under `SmsUnavailable`; the endpoint task decides the mapping.
 - Suggestion 2 done: `Settings` secrets (`group_code`, `admin_code`, `secret_key`, `twilio`) use `field(repr=False)` in `app/main.py`.
-- Suggestion 3: `SmsLimits` returns seconds only; the endpoint tasks (T-075+) must raise `rate_limited` with `params.retry_after`. Needs a note in those task files (not mine to edit).
+- Suggestion 3: `SmsLimits` returns seconds only; the endpoint tasks (T-092+) must raise `rate_limited` with `params.retry_after`. Needs a note in those task files (not mine to edit).
 - Tests: `uv run pytest` -> 667 passed.
 
 ## Review round 2
@@ -65,13 +65,13 @@ Round-1 blocker: fixed. `_twilio_error(response, phone)` in `app/sms.py` masks t
 
 **Suggestion**
 - `_twilio_error` cuts the message to 200 characters before it masks the phone. If a number sat right at the cut, a partial number could survive. Masking before truncating would close that. It is unlikely with Twilio's short messages, so this is not a blocker.
-- Suggestion 3 from round 1 still applies: the endpoint task files (T-075+) must say that they raise `rate_limited` with `params.retry_after` from `SmsLimits`.
+- Suggestion 3 from round 1 still applies: the endpoint task files (T-092+) must say that they raise `rate_limited` with `params.retry_after` from `SmsLimits`.
 
 Verdict: APPROVED
 
 ## Test report
 
-Tester (round 1 of testing), 2026-10-25. Verdict: FAIL (one low-severity defect in `TwilioVerifyClient.check`). Only T-074 criteria judged; T-073 changes in the shared checkout not judged.
+Tester (round 1 of testing), 2026-10-25. Verdict: FAIL (one low-severity defect in `TwilioVerifyClient.check`). Only T-091 criteria judged; T-090 changes in the shared checkout not judged.
 
 ### Commands run
 - `uv run pytest -q` (PATH includes `/opt/homebrew/bin`; `uv` is not on the default shell PATH) → **667 passed** in 12.2 s (full suite, includes tests/test_sms.py and tests/test_ratelimit.py, and all tests in tasks/done).
@@ -87,7 +87,7 @@ Tester (round 1 of testing), 2026-10-25. Verdict: FAIL (one low-severity defect 
 | 3 | `FakeSmsClient` accepts only `SMS_FAKE_CODE` (default `123456`), logs code with masked phone | PASS | Probe: `123456` True, `123457`, empty, `123456 ` (trailing space) and full-width digits all False. Log: `FAKE SMS for ***456: code 123456`. |
 | 4 | Settings: 3× `TWILIO_*` → Twilio; `SMS_FAKE=1` → fake; else off; `create_app` injectable | PASS | Probe matrix: none/`SMS_FAKE=0`/`SMS_FAKE=false` off; `SMS_FAKE=1` fake (code 123456 or `SMS_FAKE_CODE`); full Twilio → Twilio; partial Twilio → off with warning naming the missing variable; partial Twilio + fake → fake. Injected client used. |
 | 5 | No log line or exception message holds a full phone or the auth token | PASS | Probe: Twilio messages echoing `+421905123456`, `421905123456` masked (`***456`); token never in log, and not in `repr(Settings)`. Caveat in note 2. |
-| 6 | Limits in `config/app.yaml` (1/60 s and 5/h per party, 10/h per IP, 5 attempts/10 min per party); exceeding gives `rate_limited` with `params.retry_after` (fake clock tests) | PASS with caveat | Probe: interval wait 50 s, party-hour block 3300 s, IP cap block at 11th send (2990 s), rejected sends consume no quota, attempts 5 allowed then 600 s. `rate_limited` 429 with `params.retry_after` verified through the app's handler (`/probe429` → 429 `{retry_after: 42}`). `SmsLimits` itself returns seconds; the endpoints (T-075, T-077) are where `rate_limited` is raised, as the task notes say. |
+| 6 | Limits in `config/app.yaml` (1/60 s and 5/h per party, 10/h per IP, 5 attempts/10 min per party); exceeding gives `rate_limited` with `params.retry_after` (fake clock tests) | PASS with caveat | Probe: interval wait 50 s, party-hour block 3300 s, IP cap block at 11th send (2990 s), rejected sends consume no quota, attempts 5 allowed then 600 s. `rate_limited` 429 with `params.retry_after` verified through the app's handler (`/probe429` → 429 `{retry_after: 42}`). `SmsLimits` itself returns seconds; the endpoints (T-092, T-094) are where `rate_limited` is raised, as the task notes say. |
 | 7 | `uv run pytest` passes | PASS | 667 passed. |
 
 ### Extra scenarios
@@ -105,7 +105,7 @@ Tester (round 1 of testing), 2026-10-25. Verdict: FAIL (one low-severity defect 
 - `_twilio_error` truncates to 200 characters before masking (already noted by the reviewer). Masking before truncation would be safer.
 
 ### Manual (not automated)
-- Real Twilio Verify send/check with a real phone and a real service: added to `tests/manual.md` (section 8 end, "Real SMS through Twilio Verify (T-074)").
+- Real Twilio Verify send/check with a real phone and a real service: added to `tests/manual.md` (section 8 end, "Real SMS through Twilio Verify (T-091)").
 
 ### Result
 Fail, so the task goes back to `in-progress` with bug 1. After the fix, re-run `uv run pytest tests/test_sms.py` and the list-body probe.
@@ -129,11 +129,11 @@ Verdict: APPROVED
 
 ### Test report, round 2 (tester, 2026-10-25)
 
-Re-test after the dev fix for test report 1 (non-object JSON body). Only T-074 criteria judged. T-078 (in progress, `static/js`) and the T-073 changes in the shared checkout are not judged.
+Re-test after the dev fix for test report 1 (non-object JSON body). Only T-091 criteria judged. T-095 (in progress, `static/js`) and the T-090 changes in the shared checkout are not judged.
 
 **Commands run** (`PATH=/opt/homebrew/bin:$PATH`)
 - `uv run pytest -q` → 672 passed in 11.8 s (includes all of `tasks/done/`, so no regressions).
-- `node --test tests/js/` → exit 0 (T-078 in progress touches `tests/js/logic.test.mjs`; not judged).
+- `node --test tests/js/` → exit 0 (T-095 in progress touches `tests/js/logic.test.mjs`; not judged).
 - Probe scripts `/tmp/t074probe/probe.py` and `probe2.py` (outside the repo, `httpx.MockTransport`, fake clock, no real Twilio, no real phone, no `data/`).
 
 **Acceptance criteria**
@@ -154,7 +154,7 @@ Re-test after the dev fix for test report 1 (non-object JSON body). Only T-074 c
 
 **Notes (not failures)**
 - A. `_twilio_error` masks only the E.164 form and the form without `+`. A spaced echo would leak in a log line. Low risk because `To` is sent as E.164. A digits-only comparison would close it.
-- B. The criterion says `rate_limited` with `params.retry_after`. `SmsLimits` gives seconds; the raise belongs to the endpoint tasks (T-075+). Same as round 1.
+- B. The criterion says `rate_limited` with `params.retry_after`. `SmsLimits` gives seconds; the raise belongs to the endpoint tasks (T-092+). Same as round 1.
 - C. Cosmetic: a 200 with non-object JSON logs "returned a body that is not JSON". The message is slightly off.
 
 **Manual** (already in `tests/manual.md` line 149): real Twilio send, check and wrong-token 503 with a real phone.

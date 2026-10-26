@@ -1,7 +1,7 @@
-# T-080: Party form „Telefón“ section and `login_required` on the map
+# T-097: Party form „Telefón“ section and `login_required` on the map
 
 - **Phase:** 1
-- **Depends on:** T-077, T-079
+- **Depends on:** T-094, T-096
 - **Size:** M
 
 ## Goal
@@ -19,7 +19,7 @@ Add, change and remove the number from the party form, and do not offer actions 
 - [ ] Node source checks for the new section (labels present, no `innerHTML` with human text); `node --test tests/js/` and `uv run pytest` pass; manual check with `SMS_FAKE=1` noted in the Dev log.
 
 ## Notes for developer
-- Reuse `logic-phone.js` (T-078); keep pure parts there.
+- Reuse `logic-phone.js` (T-095); keep pure parts there.
 
 ---
 ## Dev log

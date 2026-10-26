@@ -1,7 +1,7 @@
-# T-077: `phone/start`, `phone/verify` and `DELETE /api/parties/{id}/phone`
+# T-094: `phone/start`, `phone/verify` and `DELETE /api/parties/{id}/phone`
 
 - **Phase:** 1
-- **Depends on:** T-076
+- **Depends on:** T-093
 - **Size:** M
 
 ## Goal
@@ -18,11 +18,11 @@ Add, change and remove a party's number, saved only after a correct SMS code: pr
 - [ ] Changing the number invalidates the other devices' older entries for that party (test: device A verified, device B changes number, A gets `login_required`).
 - [ ] `DELETE /api/parties/{id}/phone`: removes `phone` and `phone_set_at`, version bump, backup, audit `phone_remove` with `phone_hint`; works with the admin cookie for a party the admin never verified; on a party without phone it is a no-op `200`.
 - [ ] `sms_enabled = false` → `phone/start` and `phone/verify` return `503 sms_unavailable`; `DELETE` still works.
-- [ ] SMS limits and code-attempt limit apply as in T-075; the full number appears nowhere in `audit.yaml` or the log (test greps both).
+- [ ] SMS limits and code-attempt limit apply as in T-092; the full number appears nowhere in `audit.yaml` or the log (test greps both).
 - [ ] `uv run pytest` passes.
 
 ## Notes for developer
-- `SmsLimits` (T-074) only returns wait seconds; the endpoint raises `429 rate_limited` with `params.retry_after` from them (same as T-075).
+- `SmsLimits` (T-091) only returns wait seconds; the endpoint raises `429 rate_limited` with `params.retry_after` from them (same as T-092).
 - Defaults in `tasks/QUESTIONS.md`: Q22, Q23 (no signup-lock check), Q25.
 - Open decision "Prihlásenie telefónom": number saved only after SMS; a changed number cancels old verifications.
 

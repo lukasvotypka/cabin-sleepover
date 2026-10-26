@@ -1,7 +1,7 @@
-# T-076: Enforce `login_required` on all party writes
+# T-093: Enforce `login_required` on all party writes
 
 - **Phase:** 1
-- **Depends on:** T-075
+- **Depends on:** T-092
 - **Size:** S
 
 ## Goal
@@ -21,7 +21,7 @@ Protected parties can be changed only from a verified device or with the admin c
 
 ## Notes for developer
 - Order of checks: keep existing `signup_closed` first, then `unknown_party`/`unknown_slot`, then `login_required`, then the slot rules.
-- Phone endpoints (T-077) do their own access check.
+- Phone endpoints (T-094) do their own access check.
 
 ---
 ## Dev log
