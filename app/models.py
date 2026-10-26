@@ -373,6 +373,7 @@ class State(_Model):
     version: Annotated[int, Field(strict=True, ge=0)]
     updated_at: IsoDateTime
     signup_open: bool = True
+    phone_verify: bool = True  # SMS login on; off = a phone is only a contact and parties are not protected
     parties: list[Party] = []
     sleeping: dict[str, dict[str, PartyId]] = {}  # night → slot → party id
     briefing: dict[PartyId, list[str]] = {}  # party id → "Pred cestou" steps gone through, canonical order
@@ -451,6 +452,10 @@ class FoodRequest(_Model):
 
 class SignupRequest(_Model):
     open: bool = Field(strict=True)
+
+
+class PhoneVerifyRequest(_Model):
+    on: bool = Field(strict=True)
 
 
 # --- guest info (config/info.yaml) -------------------------------------------

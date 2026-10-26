@@ -28,7 +28,7 @@ from app.models import ConfigError, State
 from app.store import StartupError
 from tests.conftest import ROOT, TEST_ENV
 
-STATE_KEYS = {"version", "updated_at", "signup_open", "event", "layout", "parties", "sleeping", "briefing", "presence", "asset_version", "info"}
+STATE_KEYS = {"version", "updated_at", "signup_open", "phone_verify", "event", "layout", "parties", "sleeping", "briefing", "presence", "asset_version", "info"}
 
 
 async def test_join_logs_are_emitted(client, caplog):

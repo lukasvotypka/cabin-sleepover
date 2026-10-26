@@ -531,7 +531,7 @@ async def test_data_file_is_readable_yaml_with_strings(store, data_dir, make_par
     assert all(isinstance(party[k], str) for k in ("arrive", "leave", "arrival_time", "created_at", "updated_at"))
     assert party["arrival_time"] == "18:00" and party["note"] == "Ďakujeme!\nDruhý riadok"
     assert list(loaded["sleeping"]) == [THU] and isinstance(next(iter(loaded["sleeping"])), str)
-    assert list(loaded) == ["version", "updated_at", "signup_open", "parties", "sleeping", "briefing"]  # key order kept
+    assert list(loaded) == ["version", "updated_at", "signup_open", "phone_verify", "parties", "sleeping", "briefing"]  # key order kept
 
 
 async def test_new_store_on_same_directory_sees_the_same_data(layout, data_dir, make_party):

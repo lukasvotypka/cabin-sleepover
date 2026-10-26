@@ -518,3 +518,79 @@ async def test_limits_and_no_full_number_in_audit_or_log(gc, phone_app, make_par
     for number in (NEW_PHONE, "+421905111222", "911222333", "905111222"):
         assert number not in audit_text
         assert number not in caplog.text
+
+
+# --- SMS verification switch (T-100) ------------------------------------------------------
+
+
+async def set_verify(app, on):
+    async with app.state.runtime.store.write(action="phone_verify", source="admin", client_id=None) as tx:
+        tx.state.phone_verify = on
+
+
+async def test_state_and_error_responses_carry_phone_verify(gc):
+    assert (await gc.get("/api/state")).json()["state"]["phone_verify"] is True
+    resp = await gc.post("/api/assign", json={"night": "2026-10-29", "slots": ["nope"], "party_id": "p-nope00"})
+    assert resp.status_code >= 400 and resp.json()["state"]["phone_verify"] is True
+
+
+async def test_verify_off_unprotects_a_party_with_a_phone(gc, phone_app, make_party, clock):
+    party = await protected_party_sleeping(phone_app, make_party, clock)
+    calls = [write_requests(party.id)[i] for i in (0, 1, 6)]  # update, assign, food
+    for method, url, body in calls:
+        resp = await getattr(gc, method)(url, json=body)
+        assert resp.status_code == 403 and error_of(resp)["code"] == "login_required"
+    await set_verify(phone_app, False)
+    for method, url, body in calls:
+        resp = await getattr(gc, method)(url, json=body)
+        assert resp.status_code == 200, (url, resp.text)
+    assert (await gc.delete(f"/api/parties/{party.id}/phone")).status_code == 200
+
+
+async def test_admin_switch_access_and_validation(gc, phone_app, make_client):
+    before = snapshot(phone_app)
+    resp = await gc.post("/api/admin/phone-verify", json={"on": False})
+    assert resp.status_code == 403 and error_of(resp)["code"] == "forbidden"
+    async with make_client(phone_app) as anon:
+        resp = await anon.post("/api/admin/phone-verify", json={"on": False})
+        assert resp.status_code == 401 and error_of(resp)["code"] == "bad_code"
+    async with make_client(phone_app) as admin:
+        await admin.post("/api/join", json={"code": "admin-test-code"})
+        for body in ({"on": "yes"}, {"on": 0}, {}, {"on": False, "x": 1}):
+            resp = await admin.post("/api/admin/phone-verify", json=body)
+            assert resp.status_code == 422 and error_of(resp)["code"] == "invalid", body
+    assert snapshot(phone_app) == before
+
+
+async def test_admin_switch_commits_audits_and_streams(gc, phone_app, make_client, caplog):
+    from tests.api_helpers import audit_docs
+
+    caplog.set_level(logging.DEBUG)
+    rt = phone_app.state.runtime
+    conn, gen = await _stream(rt)
+    before = snapshot(phone_app)
+    async with make_client(phone_app) as admin:
+        await admin.post("/api/join", json={"code": "admin-test-code"})
+        resp = await admin.post("/api/admin/phone-verify", json={"on": False})
+        assert resp.status_code == 200 and resp.json()["state"]["phone_verify"] is False
+        assert snapshot(phone_app) == (before[0] + 1, before[1] + 1, before[2] + 1)
+        doc = audit_docs(phone_app)[-1]
+        assert (doc["action"], doc["source"], doc["before"], doc["after"]) == ("phone_verify", "admin", True, False)
+        event, data = await _frame(gen)
+        assert event == "state" and data["phone_verify"] is False
+        # Back on works with the fake SMS client.
+        resp = await admin.post("/api/admin/phone-verify", json={"on": True})
+        assert resp.status_code == 200 and resp.json()["state"]["phone_verify"] is True
+    assert PHONE not in rt.store.audit_path.read_text(encoding="utf-8") and PHONE not in caplog.text
+
+
+async def test_switch_on_needs_sms_off_is_fine(make_app, make_client):
+    app = make_app()  # no SMS client
+    async with make_client(app) as admin:
+        await admin.post("/api/join", json={"code": "admin-test-code"})
+        resp = await admin.post("/api/admin/phone-verify", json={"on": False})
+        assert resp.status_code == 200
+        before = snapshot(app)
+        resp = await admin.post("/api/admin/phone-verify", json={"on": True})
+        assert resp.status_code == 503 and error_of(resp)["code"] == "sms_unavailable"
+        assert snapshot(app) == before

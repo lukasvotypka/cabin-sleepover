@@ -517,8 +517,9 @@ def phone_hint(party: Party) -> str | None:
     return party.phone[-3:] if party.phone else None
 
 
-def is_protected(party: Party) -> bool:
-    return party.phone is not None
+def is_protected(party: Party, phone_verify: bool = True) -> bool:
+    """A party with a phone is protected only while SMS verification is on."""
+    return phone_verify and party.phone is not None
 
 
 def is_verified(party: Party, verified: Mapping[str, float]) -> bool:
@@ -529,9 +530,11 @@ def is_verified(party: Party, verified: Mapping[str, float]) -> bool:
     return verified[party.id] >= set_at
 
 
-def check_party_access(party: Party, verified: Mapping[str, float], is_admin: bool) -> None:
+def check_party_access(
+    party: Party, verified: Mapping[str, float], is_admin: bool, phone_verify: bool = True
+) -> None:
     """A party with a phone may be changed only by a verified caller or the admin."""
-    if is_admin or not is_protected(party) or is_verified(party, verified):
+    if is_admin or not is_protected(party, phone_verify) or is_verified(party, verified):
         return
     raise RuleError(
         "login_required", "Party is protected by a phone number", {"party_id": party.id, "party_name": party.name}

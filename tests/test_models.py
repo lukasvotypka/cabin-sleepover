@@ -446,6 +446,7 @@ def test_state_from_proposal_example():
 def test_state_defaults_for_empty_file():
     state = State(version=0, updated_at="2026-10-21T10:00:00+02:00")
     assert state.parties == [] and state.sleeping == {} and state.signup_open is True
+    assert state.phone_verify is True  # a data file without the key loads as "on"
 
 
 def test_state_rejects_unquoted_timestamp():

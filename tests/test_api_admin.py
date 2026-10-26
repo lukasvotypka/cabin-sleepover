@@ -8,6 +8,7 @@ from tests.conftest import TEST_ENV
 ADMIN_REQUESTS = [
     ("delete", "/api/parties/p-abcdef", None),
     ("post", "/api/admin/signup", {"open": False}),
+    ("post", "/api/admin/phone-verify", {"on": False}),
     ("get", "/api/admin/export", None),
 ]
 

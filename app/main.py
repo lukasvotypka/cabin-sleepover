@@ -58,6 +58,7 @@ from app.models import (
     Party,
     PartyCreate,
     PartyUpdate,
+    PhoneVerifyRequest,
     SignupRequest,
     State,
     load_app_config,
@@ -326,6 +327,7 @@ def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
         "version": state.version,
         "updated_at": state.updated_at,
         "signup_open": state.signup_open,
+        "phone_verify": state.phone_verify,
         "event": rt.layout_json["event"],
         "layout": rt.layout_json,
         "info": rt.info_json,
@@ -432,7 +434,7 @@ def verified_parties(request: Request, state: State) -> dict[str, float]:
 
 def guard_party(request: Request, state: State, party_id: str, auth: Auth) -> None:
     """Raise `unknown_party` or `login_required` unless the caller may change this party (call under the lock)."""
-    check_party_access(find_party(state, party_id), verified_parties(request, state), auth.is_admin)
+    check_party_access(find_party(state, party_id), verified_parties(request, state), auth.is_admin, state.phone_verify)
 
 
 def require_admin(auth: Annotated[Auth, Depends(require_group)]) -> Auth:
@@ -920,7 +922,7 @@ def create_app(
 
     def check_access(request: Request, state: State, party_id: str, auth: Auth) -> Party:
         party = protected_party(state, party_id)
-        check_party_access(party, verified_parties(request, state), auth.is_admin)
+        check_party_access(party, verified_parties(request, state), auth.is_admin, state.phone_verify)
         return party
 
     @app.post("/api/parties/{party_id}/phone/start", dependencies=[Limited])
@@ -1179,6 +1181,16 @@ def create_app(
             before = tx.state.signup_open
             tx.state.signup_open = body.open
             tx.audit(before=before, after=body.open)
+        return ok_response(rt, tx.state)
+
+    @app.post("/api/admin/phone-verify", dependencies=[AdminOnly, Limited])
+    async def set_phone_verify(request: Request, body: PhoneVerifyRequest) -> JSONResponse:
+        if body.on and not rt.sms_enabled:
+            raise ApiError("sms_unavailable", "SMS verification is not configured")
+        async with rt.store.write(action="phone_verify", source="admin", client_id=client_id_of(request)) as tx:
+            before = tx.state.phone_verify
+            tx.state.phone_verify = body.on
+            tx.audit(before=before, after=body.on)
         return ok_response(rt, tx.state)
 
     @app.get("/api/admin/export", dependencies=[AdminOnly])

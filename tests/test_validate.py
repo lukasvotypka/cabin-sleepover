@@ -764,3 +764,15 @@ def test_check_party_access(make_party):
             v.check_party_access(protected, verified, False)
         assert exc.value.code == "login_required" and exc.value.status == 403
         assert exc.value.params == {"party_id": protected.id, "party_name": protected.name}
+
+
+def test_phone_verify_off_unprotects_parties_with_a_phone(make_party):
+    protected = make_party(phone="+421905123456", phone_set_at="2026-10-25T10:00:00+02:00")
+    assert v.is_protected(protected) and v.is_protected(protected, True)
+    assert not v.is_protected(protected, False) and not v.is_protected(make_party(), True)
+    for is_admin in (True, False):
+        v.check_party_access(protected, {}, is_admin, False)
+    v.check_party_access(protected, {protected.id: 0.0}, False, False)  # verified caller, flag off: still passes
+    with pytest.raises(RuleError):
+        v.check_party_access(protected, {}, False, True)
+    v.check_party_access(protected, {}, True, True)
