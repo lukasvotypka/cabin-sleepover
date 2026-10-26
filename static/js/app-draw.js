@@ -263,6 +263,7 @@ function drawLetter(parent, r) {
     rect(g, x + 25 - p[0], y + 3 + p[1], 4, 3, COLORS.woodDark);
   });
   rect(g, x + 13, y + 14, 6, 6, COLORS.red);                  // the seal
+  iconCaption(g, r[0] + r[2] / 2, y + 27, "Prehľad");
   hitRect(g, r);
   makeButton(g, "Prehľad na poslanie. Ťuknutím otvoríš text, ktorý môžeš poslať do WhatsAppu.", "letter", openSummary);
 }
@@ -278,6 +279,7 @@ function drawLegend(parent, r) {
     rect(g, x, ry, 6, 6, color);
     rect(g, x + 10, ry + 1, 16 + (i === 1 ? -4 : i === 2 ? -8 : 0), 4, COLORS.paper);
   });
+  iconCaption(g, r[0] + r[2] / 2, r[1] + r[3] + 1, "Kto je kto");
   hitRect(g, r);
   makeButton(g, "Kto je kto. Ťuknutím uvidíš všetkých a ich farby.", "legend", function () { openLegend("legend"); });
 }
@@ -326,11 +328,20 @@ function drawNights(parent, scene, state) {
   });
 }
 
+// A small name plate under an icon on the grass, centred at x, its top at y (8 units high). Decoration: the
+// button label of the icon says the same.
+function iconCaption(parent, x, y, text) {
+  var w = text.length * 3.6 + 6;
+  rect(parent, x - w / 2, y, w, 8, COLORS.woodDark, { "aria-hidden": "true" });
+  addText(parent, x, y + 6, text, 6, COLORS.paper, { anchor: "middle", bold: true }).setAttribute("aria-hidden", "true");
+}
+
 // The „?“ icon that opens „Návod“. The hit area is the whole `map.scene.notice` rect (44×44).
 function drawNotice(parent, r) {
   var g = svgEl(parent, "g");
   board(g, [r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8], COLORS.plank);
   addText(g, r[0] + r[2] / 2, r[1] + 30, "?", 22, COLORS.paper, { anchor: "middle", bold: true });
+  iconCaption(g, r[0] + r[2] / 2, r[1] + r[3] - 3, "Návod");
   hitRect(g, r);
   makeButton(g, "Návod. Ťuknutím ho otvoríš.", "notice", openNotice);
 }

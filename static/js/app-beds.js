@@ -136,6 +136,16 @@ function drawFigure(g, px, py, color, kind, ch) {
   }
 }
 
+// A free place: a blinking „+“ (amber on a tight place) with a dark edge, so it reads on a white pillow too.
+// It covers the same 8 x 8 box as the old square, at (px + 1, py + 2).
+function drawFreeMark(parent, px, py, tight) {
+  var g = svgEl(parent, "g", { "class": "free" });
+  rect(g, px + 3, py + 2, 4, 8, COLORS.ink);
+  rect(g, px + 1, py + 4, 8, 4, COLORS.ink);
+  rect(g, px + 4, py + 3, 2, 6, tight ? COLORS.tight : COLORS.white);
+  rect(g, px + 2, py + 5, 6, 2, tight ? COLORS.tight : COLORS.white);
+}
+
 function drawBeds() {
   var g = app.layers.beds, layout = app.state.layout;
   var view = viewState();
@@ -143,7 +153,22 @@ function drawBeds() {
   layout.rooms.forEach(function (room) {
     room.beds.forEach(function (bed) { drawBed(g, layout, view, room, bed); });
   });
+  drawBedTags(g, layout);
   drawMeadow(g, view);
+}
+
+// The short bed names under the beds. Hidden by CSS until the map is zoomed in (the `zoomed` class, app-zoom.js).
+function drawBedTags(parent, layout) {
+  var g = svgEl(parent, "g", { "class": "bed-tags", "aria-hidden": "true", "pointer-events": "none" });
+  layout.rooms.forEach(function (room) {
+    room.beds.forEach(function (bed) {
+      bedTags(bed).forEach(function (t) {
+        var w = t.text.length * 2.5 + 4;
+        rect(g, t.x - w / 2, t.y, w, 6, COLORS.woodDark, { opacity: ".85" });
+        addText(g, t.x, t.y + 4.6, t.text, 4.5, COLORS.paper, { anchor: "middle", bold: true });
+      });
+    });
+  });
 }
 
 // My party's people without a bed on the selected night, standing on the meadow. One button that opens the
@@ -191,9 +216,7 @@ function drawBed(parent, layout, view, room, bed) {
       svgEl(sg, "title", null, who.party ? who.party.name : UNKNOWN_PARTY);
       drawFigure(sg, pos[0], pos[1], color, who.kind, who.party ? shirtChar(who.party.name) : null);
     } else {
-      rect(sg, pos[0] + 1, pos[1] + 2, 8, 8, "none", {
-        "class": "free", stroke: bed.tight.indexOf(slot) !== -1 ? COLORS.tight : COLORS.white, "stroke-width": 2
-      });
+      drawFreeMark(sg, pos[0], pos[1], bed.tight.indexOf(slot) !== -1);
     }
   });
   if (app.selectedBed === bed.id) rect(g, x - 3, y - 3, w + 6, h + 6, "none", { stroke: COLORS.picked, "stroke-width": 2 });

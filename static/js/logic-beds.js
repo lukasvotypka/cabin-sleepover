@@ -18,6 +18,21 @@ function figurePositions(bed) {
   }
 }
 
+// Short names shown under the beds while the map is zoomed in (BED_TAGS_ZOOM): one per bed, one per mat.
+// Each tag is centred under the furniture: {x, y, text}, y is the top of the tag.
+var BED_TAG_TEXT = {
+  bed2: "manželská", bed1: "posteľ", cot: "lehátko", bunk: "poschodová", mats: "matrac",
+  sofa: "gauč pre 2", sofa1: "gauč", stove: "na peci"
+};
+function bedTags(bed) {
+  var r = bed.rect, text = BED_TAG_TEXT[bed.kind] || "posteľ", i, out = [];
+  if (bed.kind === "mats") {
+    for (i = 0; i < bed.slots.length; i++) out.push({ x: r[0] + i * 46 + 16, y: r[1] + r[3] + 1, text: text });
+    return out;
+  }
+  return [{ x: r[0] + r[2] / 2, y: r[1] + r[3] + 1, text: text }];
+}
+
 // The pipe of a stove: a small square on its right side, outside the stove body. It sticks out sideways
 // so that it never reaches up into the room name above the stove.
 function stovePipeRect(bed) {

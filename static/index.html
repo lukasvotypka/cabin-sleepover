@@ -202,12 +202,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 #scene svg .free { animation: blink 1.6s ease-in-out infinite; }
 #scene svg .pending { opacity: .5; }
+#scene svg .bed-tags { opacity: 0; transition: opacity .25s; }
+#scene svg.zoomed .bed-tags { opacity: 1; }
 #scene svg g.bed { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 #scene svg g.bed .ring { display: none; pointer-events: none; }
 #scene svg g.bed:focus-visible .ring { display: block; }
 #scene svg g.bed:focus-visible .hit { stroke: none; fill: rgba(58, 167, 224, .15); }
 @media (prefers-reduced-motion: reduce) {
   #scene svg .free, #scene svg .briefing-bang { animation: none; }
+  #scene svg .bed-tags { transition: none; }
 }
 
 /* --- HUD (fixed scene colors, never inverted in dark mode): quest log top right, crest bottom left.

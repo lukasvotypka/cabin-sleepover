@@ -2918,6 +2918,32 @@ test("the stove pipe sticks out sideways, not up into the room name", () => {
   assert.deepEqual(plain(L.furnitureBounds(bedById("konica-lower-mats"))), [24, 132, 124, 26]);
 });
 
+// --- bed tags: short names under the beds while zoomed in ---
+
+const tagBox = (t) => [t.x - (t.text.length * 2.5 + 4) / 2, t.y, t.text.length * 2.5 + 4, 6];
+
+test("bedTags puts one tag under each bed and one under each mat", () => {
+  assert.deepEqual(plain(L.bedTags(bedById("konica-lower-mats"))).map((t) => [t.x, t.text]), [[40, "matrac"], [86, "matrac"], [132, "matrac"]]);
+  const sofa = bedById("hallway-sofa");
+  assert.deepEqual(plain(L.bedTags(sofa)), [{ x: sofa.rect[0] + sofa.rect[2] / 2, y: sofa.rect[1] + sofa.rect[3] + 1, text: "gauč pre 2" }]);
+  assert.equal(L.bedTags({ kind: "hammock", rect: [0, 0, 10, 10], slots: ["a"] })[0].text, "posteľ");
+});
+
+test("bed tags stay on the room floor, clear of furniture, doors and each other", () => {
+  for (const room of realLayout.rooms) {
+    const [rx, ry, rw, rh] = room.rect;
+    const floor = [rx + 4, ry + 4, rw - 8, rh - 8];
+    const tags = room.beds.flatMap((b) => L.bedTags(b).map(tagBox));
+    tags.forEach((t, i) => {
+      assert.ok(t[0] >= floor[0] && t[1] >= floor[1] && t[0] + t[2] <= floor[0] + floor[2] && t[1] + t[3] <= floor[1] + floor[3],
+        `a tag sticks out of the floor of ${room.id}`);
+      for (const b of room.beds) assert.ok(!overlap(t, L.furnitureBounds(b)), `a tag in ${room.id} covers ${b.id}`);
+      for (const o of doors) assert.ok(!overlap(t, o), `a tag in ${room.id} covers a door`);
+      tags.slice(i + 1).forEach((u) => assert.ok(!overlap(t, u), `two tags in ${room.id} overlap`));
+    });
+  }
+});
+
 // --- roofs (T-029) ---
 
 const houseOf = (ids) => ({ id: "h", rooms: ids });

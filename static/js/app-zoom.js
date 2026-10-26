@@ -5,8 +5,11 @@
 
 // --- zoom and pan: only the svg viewBox changes, the scene stays crisp ---
 
+var BED_TAGS_ZOOM = 1.8;   // from this zoom on, the short bed names show under the beds
+
 function applyView() {
   app.svg.setAttribute("viewBox", viewBoxText(app.view));
+  app.svg.classList.toggle("zoomed", viewZoom(app.view, app.bounds) >= BED_TAGS_ZOOM);
   app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds);
 }
 

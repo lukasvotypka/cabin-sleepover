@@ -13,6 +13,7 @@ function drawKey(parent, r) {
   rect(g, x + 22, y + 12, 3, 6, COLORS.amberEdge);           // the teeth
   rect(g, x + 26, y + 12, 2, 4, COLORS.amberEdge);
   rect(g, x + 3, y + 3, 10, 2, COLORS.amber, { opacity: ".7" });
+  iconCaption(g, r[0] + r[2] / 2, r[1] + 37, "Admin");
   hitRect(g, r);
   makeButton(g, "Admin nástroje", "key", openAdmin);
 }
