@@ -73,6 +73,7 @@ from app.validate import (
     check_assign_stay,
     check_clear,
     check_move,
+    check_party_access,
     check_party_create,
     check_party_update,
     add_briefing_step,
@@ -425,6 +426,11 @@ def verified_parties(request: Request, state: State) -> dict[str, float]:
     entries = rt.party_cookies.load(request.cookies.get(PARTY_COOKIE))
     by_id = {p.id: p for p in state.parties}
     return {pid: at for pid, at in entries.items() if pid in by_id and is_verified(by_id[pid], {pid: at})}
+
+
+def guard_party(request: Request, state: State, party_id: str, auth: Auth) -> None:
+    """Raise `unknown_party` or `login_required` unless the caller may change this party (call under the lock)."""
+    check_party_access(find_party(state, party_id), verified_parties(request, state), auth.is_admin)
 
 
 def require_admin(auth: Annotated[Auth, Depends(require_group)]) -> Auth:
@@ -916,6 +922,7 @@ def create_app(
             action="assign", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
+            guard_party(request, tx.state, body.party_id, auth)
             slots = check_assign(tx.state, rt.layout, body.night, body.slots, body.party_id)
             for slot in slots:
                 tx.state.sleeping.setdefault(body.night, {})[slot] = body.party_id
@@ -929,6 +936,7 @@ def create_app(
             action="assign-stay", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
+            guard_party(request, tx.state, body.party_id, auth)
             plan = check_assign_stay(tx.state, rt.layout, body.slots, body.party_id)
             for night in plan.nights:
                 for slot in plan.slots:
@@ -953,6 +961,8 @@ def create_app(
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             holder = check_clear(tx.state, rt.layout, body.night, body.slot)
+            if holder is not None:
+                guard_party(request, tx.state, holder, auth)
             if holder is None:
                 tx.skip()  # already free: 200 without a write (Q5)
             else:
@@ -966,6 +976,7 @@ def create_app(
             action="move", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
+            guard_party(request, tx.state, body.party_id, auth)
             nights = check_move(tx.state, rt.layout, body.party_id, body.from_slot, body.to_slot, body.nights)
             for night in nights:
                 release_slot(tx.state, night, body.from_slot)
@@ -986,6 +997,7 @@ def create_app(
             action="places", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
+            guard_party(request, tx.state, body.party_id, auth)
             party = check_places(tx.state, rt.layout, body.party_id, body.night, body.places)
             before = party.places.get(body.night)
             set_places(party, body.night, body.places)
@@ -1001,6 +1013,7 @@ def create_app(
         async with rt.store.write(
             action="briefing", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
+            guard_party(request, tx.state, body.party_id, auth)
             party = check_briefing(tx.state, body.party_id, body.step)
             if not add_briefing_step(tx.state, party.id, body.step):
                 tx.skip()
@@ -1014,6 +1027,7 @@ def create_app(
         async with rt.store.write(
             action="food", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
+            guard_party(request, tx.state, body.party_id, auth)
             party, text = check_food(tx.state, body.party_id, body.text)
             before = party.food_note
             if not set_food_note(party, text):
@@ -1047,6 +1061,7 @@ def create_app(
             action="party-update", source=audit_source(auth, "form"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
+            guard_party(request, tx.state, party_id, auth)
             freed = check_party_update(tx.state, rt.layout, party_id, body)
             party = find_party(tx.state, party_id)
             before = public_party(party)

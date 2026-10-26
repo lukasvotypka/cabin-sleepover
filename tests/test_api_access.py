@@ -679,7 +679,8 @@ async def test_state_hides_the_phone_and_shows_a_hint(group_client, app, make_pa
     assert "phone" not in by_id[locked.id]
 
 
-async def test_party_forms_reject_a_phone_and_keep_the_stored_one(group_client, app, make_party):
+async def test_party_forms_reject_a_phone_and_keep_the_stored_one(group_client, admin_client, app, make_party):
+    # The party is protected, so the edit needs the admin cookie (T-093); the group client still cannot send a phone.
     from tests.api_helpers import party_body
 
     rt = app.state.runtime
@@ -688,9 +689,9 @@ async def test_party_forms_reject_a_phone_and_keep_the_stored_one(group_client, 
         tx.state.parties.append(locked)
     resp = await group_client.post("/api/parties", json=party_body("Nova", phone=PHONE))
     assert resp.status_code == 422 and resp.json()["error"]["code"] == "invalid"
-    resp = await group_client.put(f"/api/parties/{locked.id}", json=party_body("Zmena", phone="+421900000000"))
+    resp = await admin_client.put(f"/api/parties/{locked.id}", json=party_body("Zmena", phone="+421900000000"))
     assert resp.status_code == 422
-    resp = await group_client.put(f"/api/parties/{locked.id}", json=party_body("Zmena"))
+    resp = await admin_client.put(f"/api/parties/{locked.id}", json=party_body("Zmena"))
     assert resp.status_code == 200 and PHONE not in resp.text
     stored = rt.store.read().parties[0]
     assert stored.name == "Zmena" and stored.phone == PHONE and stored.phone_set_at == "2026-10-25T10:00:00+02:00"

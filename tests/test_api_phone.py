@@ -241,3 +241,109 @@ async def test_verify_is_not_counted_in_the_write_limit(gc, phone_app, make_part
         f"/api/parties/{party.id}/login/verify", json={"phone": TYPED, "code": CODE}, headers=headers
     )
     assert resp.status_code == 200
+
+
+# --- access rule on the party writes (T-093) ----------------------------------------------------
+
+from tests.api_helpers import A1, A2, FRI, OKNO, THU, party_body  # noqa: E402
+
+
+def write_requests(pid: str) -> list[tuple[str, str, dict]]:
+    return [
+        ("put", f"/api/parties/{pid}", party_body("Renamed")),
+        ("post", "/api/assign", {"night": FRI, "slots": [A2], "party_id": pid}),
+        ("post", "/api/assign-stay", {"slots": [OKNO], "party_id": pid}),
+        ("post", "/api/clear", {"night": THU, "slot": A1}),
+        ("post", "/api/move", {"party_id": pid, "from_slot": A1, "to_slot": A2, "nights": [THU]}),
+        ("post", "/api/places", {"party_id": pid, "night": THU, "places": 1}),
+        ("post", "/api/food", {"party_id": pid, "text": "no nuts"}),
+        ("post", "/api/briefing", {"party_id": pid, "step": "pack"}),
+    ]
+
+
+WRITE_IDS = ["update", "assign", "assign-stay", "clear", "move", "places", "food", "briefing"]
+
+
+async def protected_party_sleeping(app, make_party, clock):
+    party = await add_party(app, make_party, clock)
+    async with app.state.runtime.store.write(action="seed", source="form", client_id=None) as tx:
+        tx.state.sleeping.setdefault(THU, {})[A1] = party.id
+    return party
+
+
+@pytest.mark.parametrize("index", range(len(WRITE_IDS)), ids=WRITE_IDS)
+async def test_protected_party_writes_need_login(index, gc, phone_app, make_party, clock):
+    party = await protected_party_sleeping(phone_app, make_party, clock)
+    method, url, body = write_requests(party.id)[index]
+    before = snapshot(phone_app)
+    resp = await getattr(gc, method)(url, json=body)
+    assert resp.status_code == 403
+    error = error_of(resp)
+    assert error["code"] == "login_required"
+    assert error["params"] == {"party_id": party.id, "party_name": party.name}
+    assert "state" in resp.json()
+    assert snapshot(phone_app) == before
+
+    # The same request goes through once this device verified the party.
+    assert (await login(gc, party.id)).status_code == 200
+    resp = await getattr(gc, method)(url, json=body)
+    assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.parametrize("index", range(len(WRITE_IDS)), ids=WRITE_IDS)
+async def test_admin_needs_no_login(index, phone_app, make_client, make_party, clock):
+    party = await protected_party_sleeping(phone_app, make_party, clock)
+    method, url, body = write_requests(party.id)[index]
+    async with make_client(phone_app) as admin:
+        await admin.post("/api/join", json={"code": "admin-test-code"})
+        resp = await getattr(admin, method)(url, json=body)
+    assert resp.status_code == 200, resp.text
+
+
+async def test_login_older_than_the_number_is_rejected(gc, phone_app, make_party, clock):
+    party = await protected_party_sleeping(phone_app, make_party, clock)
+    await login(gc, party.id)
+    async with phone_app.state.runtime.store.write(action="phone", source="form", client_id=None) as tx:
+        tx.state.parties[0].phone_set_at = datetime.fromtimestamp(clock.now + 5, tz=UTC).isoformat()
+    clock.advance(10)
+    resp = await gc.post("/api/places", json={"party_id": party.id, "night": THU, "places": 1})
+    assert error_of(resp)["code"] == "login_required"
+
+
+async def test_login_of_another_party_does_not_help(gc, phone_app, make_party, clock):
+    one = await add_party(phone_app, make_party, clock)
+    two = await add_party(phone_app, make_party, clock, phone="+421905999888")
+    await login(gc, one.id)
+    resp = await gc.post("/api/food", json={"party_id": two.id, "text": "x"})
+    assert error_of(resp)["code"] == "login_required"
+
+
+async def test_unprotected_party_and_free_slot_behave_as_before(gc, phone_app, make_party, clock):
+    open_party = make_party()
+    async with phone_app.state.runtime.store.write(action="seed", source="form", client_id=None) as tx:
+        tx.state.parties.append(open_party)
+    assert (await gc.post("/api/food", json={"party_id": open_party.id, "text": "x"})).status_code == 200
+    await add_party(phone_app, make_party, clock)
+    before = snapshot(phone_app)
+    resp = await gc.post("/api/clear", json={"night": THU, "slot": A1})  # free slot: a no-op, even next to protected parties
+    assert resp.status_code == 200
+    assert snapshot(phone_app) == before
+    resp = await gc.post("/api/food", json={"party_id": "p-nobody", "text": "x"})
+    assert error_of(resp)["code"] == "unknown_party"
+
+
+async def test_login_required_comes_before_the_slot_rules(gc, phone_app, make_party, clock):
+    # Slot THU/A1 is held by a protected party; a second protected party without login asks for it.
+    await protected_party_sleeping(phone_app, make_party, clock)
+    other = await add_party(phone_app, make_party, clock, phone="+421905999888")
+    resp = await gc.post("/api/assign", json={"night": THU, "slots": [A1], "party_id": other.id})
+    assert error_of(resp)["code"] == "login_required"
+
+
+async def test_tampered_party_cookie_does_not_pass_the_write_check(gc, phone_app, make_party, clock):
+    party = await protected_party_sleeping(phone_app, make_party, clock)
+    gc.cookies.set(PARTY_COOKIE, "tampered.value")
+    before = snapshot(phone_app)
+    resp = await gc.post("/api/food", json={"party_id": party.id, "text": "x"})
+    assert error_of(resp)["code"] == "login_required"
+    assert snapshot(phone_app) == before
