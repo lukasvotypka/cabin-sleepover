@@ -105,10 +105,10 @@ function overnightParties(state) {
 
 // --- party table (the paper table under the night signposts) ---
 
-// Cell text from a nightTally: "–" absent; "2/3!" under; "4/3" over; "3/3" ok.
+// Cell text from a nightTally: "–" absent; "2/3" under; "4/3" over; "3/3" ok.
 function tableCellText(t) {
   if (t.kind === "absent") return "–";
-  return t.placed + "/" + t.needed + (t.kind === "under" ? "!" : "");
+  return t.placed + "/" + t.needed;
 }
 
 // One row per overnight party, in `state.parties` order; [] when there are none.

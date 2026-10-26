@@ -121,8 +121,10 @@ function renderHud() {
     var quest = $("quest"), crest = $("crest");
     clearNode(quest);
     drawQuest(quest, rows);
+    quest.hidden = !party;                       // nothing to do before „Kto si?“: the crest says it
     clearNode(crest);
     drawCrest(crest, party);
+    crest.classList.toggle("ask", !party);
   }, function () { return $("quest").querySelector(".quest-head"); });
   var h = hudHeight(), top = questBottom();
   renderUpdateSign();

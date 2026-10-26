@@ -410,7 +410,7 @@ function drawPartyTable(parent, r, state) {
   nights.forEach(function (n, i) {
     var info = nightInfo(n) || { label: n };
     if (n === app.night) rect(g, night.colX[i], night.headY, lay.colW, hh, COLORS.selected);
-    addText(g, night.colX[i] + lay.colW / 2, night.headY + 7.5, info.label, 6, COLORS.ink,
+    addText(g, night.colX[i] + lay.colW / 2, night.headY + 7.5, dayShort(n), 6, COLORS.ink,
       { anchor: "middle", bold: true, maxWidth: lay.colW - 2 });
   });
   rows.slice(0, night.rows).forEach(function (row, i) {

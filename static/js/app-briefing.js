@@ -24,12 +24,13 @@ function drawBriefing(parent, r, state) {
   board(g, [x, y + 6, w, 40], COLORS.plank);
   advSprite(g, "batoh", x + (w - 32) / 2, y + 10, 2);
   var count = briefingCount(state);
-  if (count) {
-    rect(g, x + w / 2 - 16, y + 46, 32, 12, COLORS.woodDark);
-    rect(g, x + w / 2 - 15, y + 47, 30, 10, COLORS.paper);
-    addText(g, x + w / 2, y + 55, count.done + "/" + count.total, 9, COLORS.ink, { anchor: "middle", bold: true, maxWidth: 28 });
+  iconCaption(g, x + w / 2, y + 48, "Pred cestou");
+  if (count) {                                                     // the count as a small badge on the board
+    rect(g, x - 2, y + 1, 24, 11, COLORS.woodDark);
+    rect(g, x - 1, y + 2, 22, 9, COLORS.paper);
+    addText(g, x + 10, y + 9, count.done + "/" + count.total, 7, COLORS.ink, { anchor: "middle", bold: true, maxWidth: 20 });
   }
-  if (!briefingDone(state, app.myParty)) {                         // the blinking „!“ bubble
+  if (partyById(state, app.myParty) && !briefingDone(state, app.myParty)) {                         // the blinking „!“ bubble
     var bang = svgEl(g, "g", { "class": "briefing-bang", "aria-hidden": "true" });
     rect(bang, x + w - 20, y, 18, 20, COLORS.woodDark);
     rect(bang, x + w - 18, y + 2, 14, 16, "#FFD54A");

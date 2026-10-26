@@ -280,6 +280,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   display: flex; align-items: flex-end; max-width: calc(100% - 140px);      /* leaves room for „Celá mapa“ beside it */
 }
+.quest[hidden] { display: none; }
+.crest.ask .crest-shield, .crest.ask .crest-plate { animation: crest-ask 1.2s steps(2) infinite; }
+@keyframes crest-ask { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .crest.ask .crest-shield, .crest.ask .crest-plate { animation: none; } }
 .crest-shield { flex: none; display: block; position: relative; z-index: 1; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, .3)); }
 .crest-plate {
   display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px; margin: 0 0 10px -8px; padding: 4px 12px 4px 14px;

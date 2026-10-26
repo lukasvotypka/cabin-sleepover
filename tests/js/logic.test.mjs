@@ -1170,7 +1170,7 @@ test("the party table clears the ? icon, the signposts, rooms, doors, windows an
 test("tableCellText: all four kinds, also 1/0 for a night outside the stay", () => {
   const t = (kind, placed, needed) => ({ night: THU, present: true, needed, placed, kind });
   assert.equal(L.tableCellText(t("ok", 3, 3)), "3/3");
-  assert.equal(L.tableCellText(t("under", 2, 3)), "2/3!");
+  assert.equal(L.tableCellText(t("under", 2, 3)), "2/3");
   assert.equal(L.tableCellText(t("over", 4, 3)), "4/3");
   assert.equal(L.tableCellText(t("absent", 0, 0)), "–");
   const p = party({ adults: 2, leave: FRI });
@@ -1203,7 +1203,7 @@ test("partyTableRows: state order, exact colour, mine, 14-character label, one c
   assert.equal(rows[0].label, "Ivan a Eva");
   assert.equal(rows[2].label, "<b>Eva</b>");   // markup stays literal text, only a label
   assert.deepEqual(rows[0].cells, [
-    { night: THU, kind: "under", text: "2/3!" }, { night: FRI, kind: "over", text: "4/3" }, { night: SAT, kind: "absent", text: "–" },
+    { night: THU, kind: "under", text: "2/3" }, { night: FRI, kind: "over", text: "4/3" }, { night: SAT, kind: "absent", text: "–" },
   ]);
   assert.ok(rows.every((r) => r.cells.map((c) => c.night).join() === [THU, FRI, SAT].join()));
   assert.deepEqual(plain(L.partyTableRows(stateWith([]), null)), []);
@@ -1334,8 +1334,8 @@ test("moreText: 1, 2-4 and 5+ forms", () => {
 
 test("legendNightsText: the same cell texts as the table, one part per night", () => {
   const [row] = L.partyTableRows(tableState(), null);
-  assert.equal(L.legendNightsText(row), "Št → Pi 2/3! · Pi → So 4/3 · So → Ne –");
-  assert.deepEqual(plain(L.legendNightParts(row)), ["Št → Pi 2/3!", "Pi → So 4/3", "So → Ne –"]);
+  assert.equal(L.legendNightsText(row), "Št → Pi 2/3 · Pi → So 4/3 · So → Ne –");
+  assert.deepEqual(plain(L.legendNightParts(row)), ["Št → Pi 2/3", "Pi → So 4/3", "So → Ne –"]);
 });
 
 test("partyTableSummary: every cell kind with the plural forms, (ty) only for my party", () => {

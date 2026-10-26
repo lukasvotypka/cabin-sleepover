@@ -37,8 +37,8 @@ var COLORS = {
   moon: "#7A8FB8", moonDark: "#3E4F7A", moonBand: "#D9DFEE", nightInk: "#2F3B5C", dayBand: "#F7E7B4", dayInk: "#7A4A0C",
   brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C", smokeLight: "#C9C9C9", smokeDark: "#A9A9A9"
 };
-// Signpost tally chip per kind: [edge, face, text] keys of COLORS (same meaning as the status board).
-var TALLY_COLORS = { under: ["redEdge", "red", "white"], over: ["amberEdge", "amber", "ink"], ok: ["greenEdge", "green", "white"] };
+// Signpost tally chip per kind: [edge, face, text] keys of COLORS (under = amber: still to do; over = red: too many).
+var TALLY_COLORS = { under: ["amberEdge", "amber", "ink"], over: ["redEdge", "red", "white"], ok: ["greenEdge", "green", "white"] };
 
 // --- browser storage that survives a blocked localStorage ---
 
