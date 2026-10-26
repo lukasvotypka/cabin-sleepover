@@ -108,6 +108,10 @@ function dnPaint(h) {
   dnVis(fx, "lamp", fx.lamp, l.lamp);
   dnVis(fx, "fireflies", fx.fireflies, l.fireflies);
   dnVis(fx, "boardShade", fx.boardShade, l.dark * 0.25);
+  if (fx.vis.sleep !== l.sleep) {      // the „z-z-z“ over the people in the beds (drawZzz)
+    fx.vis.sleep = l.sleep;
+    fx.layer.ownerSVGElement.classList.toggle("night", l.sleep);
+  }
   dnWrap(fx.layer, fx.vis.dark || fx.vis.darkRooms || fx.vis.dusk || fx.vis.lamp || fx.vis.fireflies, fx, "layer");
   dnWrap(fx.shadeLayer, fx.vis.boardShade, fx, "shadeLayer");
   if (fx.bird) fx.bird.setAttribute("opacity", l.bird.toFixed(3));

@@ -53,7 +53,8 @@ function lightAt(h) {
     dusk: k * .55 * (1 - d * .5),
     lamp: smooth((d - .25) / .5),
     fireflies: smooth((d - .6) / .4),
-    bird: 1 - smooth(d / .6)
+    bird: 1 - smooth(d / .6),
+    sleep: d >= .5      // people in the beds are asleep: the „z-z-z“ over them shows
   };
 }
 

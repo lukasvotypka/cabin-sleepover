@@ -355,8 +355,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @keyframes dnOut { from { opacity: 1; transform: translate(0, 0); } to { opacity: 0; transform: translate(0, -3px); } }
 #scene svg .dn-ff { animation: dnFirefly 2.4s ease-in-out infinite; }
 @keyframes dnFirefly { 0%, 100% { opacity: .15; transform: translate(0, 0); } 50% { opacity: 1; transform: translate(3px, -4px); } }
+#scene svg .zzz { display: none; }
+#scene svg.night .zzz { display: inline; animation: dnZzz 3s steps(6) infinite; }
+@keyframes dnZzz { 0% { opacity: 0; transform: translate(0, 2px); } 20%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(2px, -5px); } }
 @media (prefers-reduced-motion: reduce) {
   #scene svg .dn-ff { animation: none; }
+  #scene svg.night .zzz { animation: none; }
   #scene svg .dn-in, #scene svg .dn-out { animation: none; }
 }
 

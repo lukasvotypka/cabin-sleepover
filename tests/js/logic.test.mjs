@@ -2919,6 +2919,14 @@ test("the stove pipe sticks out sideways, not up into the room name", () => {
   assert.deepEqual(plain(L.furnitureBounds(bedById("konica-lower-mats"))), [24, 132, 124, 26]);
 });
 
+test("zzzDelay is fixed per slot, within 0 ... 2.9 s, and spread over the real slots", () => {
+  const slots = realLayout.rooms.flatMap((r) => r.beds.flatMap((b) => b.slots));
+  const delays = slots.map(L.zzzDelay);
+  assert.equal(L.zzzDelay("left-double-1"), L.zzzDelay("left-double-1"));
+  for (const d of delays) assert.ok(d >= 0 && d <= 2.9, String(d));
+  assert.ok(new Set(delays).size >= slots.length / 2, "most sleepers start at a different moment");
+});
+
 // --- bed tags: short names under the beds while zoomed in ---
 
 const tagBox = (t) => [t.x - (t.text.length * 2.5 + 4) / 2, t.y, t.text.length * 2.5 + 4, 6];
@@ -4269,8 +4277,10 @@ test("daynight: retarget from a mid-animation hour uses the current hour", () =>
 
 test("daynight: lightAt at noon and midnight", () => {
   const day = L.lightAt(12);
-  assert.deepEqual(plain(day), { dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1 });
+  assert.deepEqual(plain(day), { dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1, sleep: false });
   const night = L.lightAt(0);
+  assert.equal(night.sleep, true);
+  assert.equal(L.lightAt(15).sleep, false);
   near(night.dark, 0.78);
   near(night.lamp, 1);
   near(night.fireflies, 1);

@@ -18,6 +18,14 @@ function figurePositions(bed) {
   }
 }
 
+// The start delay of the „z-z-z“ over a sleeper, in seconds (0 ... 2.9): fixed per slot and spread out, so the
+// sleepers do not all breathe in step.
+function zzzDelay(slot) {
+  var sum = 0;
+  for (var i = 0; i < slot.length; i++) sum = (sum * 31 + slot.charCodeAt(i)) % 997;
+  return (sum % 30) / 10;
+}
+
 // Short names shown under the beds while the map is zoomed in (BED_TAGS_ZOOM): one per bed, one per mat.
 // Each tag is centred under the furniture: {x, y, text}, y is the top of the tag.
 var BED_TAG_TEXT = {

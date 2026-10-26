@@ -146,6 +146,14 @@ function drawFreeMark(parent, px, py, tight) {
   rect(g, px + 2, py + 5, 6, 2, tight ? COLORS.tight : COLORS.white);
 }
 
+// „z-z-z“ rising from the head of a figure in bed. Hidden by CSS unless the svg has the `night` class (dnPaint).
+function drawZzz(parent, px, py, slot) {
+  var g = svgEl(parent, "g", { "class": "zzz", "aria-hidden": "true", "pointer-events": "none", style: "animation-delay:-" + zzzDelay(slot) + "s" });
+  var d = glyphPath("Z", px + 9, py - 3) + glyphPath("Z", px + 13, py - 8);
+  svgEl(g, "path", { d: d, fill: COLORS.ink, transform: "translate(.6 .6)" });      // a dark edge, readable on a white pillow
+  svgEl(g, "path", { d: d, fill: COLORS.white });
+}
+
 function drawBeds() {
   var g = app.layers.beds, layout = app.state.layout;
   var view = viewState();
@@ -215,6 +223,7 @@ function drawBed(parent, layout, view, room, bed) {
       }
       svgEl(sg, "title", null, who.party ? who.party.name : UNKNOWN_PARTY);
       drawFigure(sg, pos[0], pos[1], color, who.kind, who.party ? shirtChar(who.party.name) : null);
+      drawZzz(sg, pos[0], pos[1], slot);
     } else {
       drawFreeMark(sg, pos[0], pos[1], bed.tight.indexOf(slot) !== -1);
     }
