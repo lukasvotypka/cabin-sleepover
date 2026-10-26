@@ -24,6 +24,8 @@ ERROR_STATUS: dict[str, int] = {
     "bad_code": 401,
     "forbidden": 403,
     "login_required": 403,
+    "phone_mismatch": 403,
+    "bad_sms_code": 401,
     "signup_closed": 403,
     "slot_taken": 409,
     "not_present": 409,
@@ -489,7 +491,7 @@ def raise_places_to_placed(state: State, party: Party, night: str) -> None:
         set_places(party, night, placed)
 
 
-# --- phone login (T-073) -------------------------------------------------------
+# --- phone login (T-090) -------------------------------------------------------
 
 _PHONE_RE = re.compile(r"^\+[1-9][0-9]{7,14}$")
 

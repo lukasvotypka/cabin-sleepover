@@ -49,6 +49,9 @@ from app.models import (
     MoveRequest,
     BriefingRequest,
     FoodRequest,
+    LoginStartRequest,
+    LoginVerifyRequest,
+    LogoutRequest,
     PlacesRequest,
     PartyId,
     Party,
@@ -79,6 +82,8 @@ from app.validate import (
     check_signup_open,
     adjust_places,
     find_party,
+    is_verified,
+    normalize_phone,
     raise_places_to_placed,
     phone_hint,
     set_food_note,
@@ -90,6 +95,8 @@ log = logging.getLogger("chrapa.app")
 ROOT = Path(__file__).resolve().parent.parent
 GROUP_COOKIE = "cabin_group"
 ADMIN_COOKIE = "cabin_admin"
+PARTY_COOKIE = "party_auth"
+PARTY_COOKIE_MAX_AGE = 30 * 24 * 3600
 COOKIE_MAX_AGE = {"group": 30 * 24 * 3600, "admin": 12 * 3600}  # seconds
 COOKIE_CLOCK_SKEW = 60  # tolerated seconds of a cookie "from the future" (clock set back)
 CLIENT_ID_MAX_LEN = 64
@@ -200,6 +207,38 @@ class CookieSigner:
         return -COOKIE_CLOCK_SKEW <= age <= COOKIE_MAX_AGE[role]
 
 
+class PartyAuthSigner:
+    """The `party_auth` cookie: `{party_id: verified_at}` for every party this device proved by SMS."""
+
+    def __init__(self, secret_key: str, clock: Callable[[], float] = time.time):
+        self._clock = clock
+        self._serializer = URLSafeSerializer(secret_key, salt="chrapa-poll/party_auth")
+
+    def now(self) -> float:
+        return self._clock()
+
+    def issue(self, verified: Mapping[str, float]) -> str:
+        return self._serializer.dumps({"verified": dict(verified)})
+
+    def load(self, token: str | None) -> dict[str, float]:
+        """The valid entries of a cookie. Tampered, malformed or expired ones give nothing."""
+        if not token:
+            return {}
+        try:
+            payload = self._serializer.loads(token)
+        except BadSignature:
+            return {}
+        entries = payload.get("verified") if isinstance(payload, dict) else None
+        if not isinstance(entries, dict):
+            return {}
+        now = self._clock()
+        result: dict[str, float] = {}
+        for party_id, at in entries.items():
+            if isinstance(at, (int, float)) and not isinstance(at, bool) and -COOKIE_CLOCK_SKEW <= now - at <= PARTY_COOKIE_MAX_AGE:
+                result[party_id] = float(at)
+        return result
+
+
 @dataclass
 class Runtime:
     """Everything a request needs. Lives in `app.state.runtime`."""
@@ -209,6 +248,7 @@ class Runtime:
     app_config: AppConfig
     store: Store
     cookies: CookieSigner
+    party_cookies: PartyAuthSigner
     join_limiter: SlidingWindowLimiter
     write_limiter: SlidingWindowLimiter
     sms_limits: SmsLimits
@@ -377,6 +417,14 @@ def require_group(request: Request) -> Auth:
         rt.seen.record(party_id, rt.known_ids, polled=party_id not in rt.connected)
         rt.request_presence_check()
     return auth
+
+
+def verified_parties(request: Request, state: State) -> dict[str, float]:
+    """Parties this device proved by SMS: in the cookie, still existing, protected and not older than the number."""
+    rt = get_runtime(request)
+    entries = rt.party_cookies.load(request.cookies.get(PARTY_COOKIE))
+    by_id = {p.id: p for p in state.parties}
+    return {pid: at for pid, at in entries.items() if pid in by_id and is_verified(by_id[pid], {pid: at})}
 
 
 def require_admin(auth: Annotated[Auth, Depends(require_group)]) -> Auth:
@@ -580,6 +628,7 @@ def create_app(
         cookies=CookieSigner(
             settings.secret_key, {"group": settings.group_code, "admin": settings.admin_code}, clock
         ),
+        party_cookies=PartyAuthSigner(settings.secret_key, clock),
         join_limiter=SlidingWindowLimiter(CODE_ATTEMPTS_PER_MINUTE, clock=monotonic),
         write_limiter=SlidingWindowLimiter(app_config.limits.writes_per_client_minute, clock=monotonic),
         sms_limits=SmsLimits(app_config.limits, clock=monotonic),
@@ -768,10 +817,98 @@ def create_app(
             background=BackgroundTask(hub.release, conn),  # a stream that never started would leak its slot
         )
 
-    # --- write endpoints: thin handlers, the rules are in validate.py ------------------------
-
     Group = Annotated[Auth, Depends(require_group)]
     Limited = Depends(enforce_write_limit)
+
+    # --- phone login: no state change, so no version bump, backup or audit ----------------------
+
+    def rate_limited(wait: int) -> ApiError:
+        return ApiError(
+            "rate_limited", "Too many SMS requests", {"retry_after": wait}, headers={"Retry-After": str(wait)}
+        )
+
+    def sms_client() -> SmsClient:
+        if rt.sms is None:
+            raise ApiError("sms_unavailable", "SMS verification is not configured")
+        return rt.sms
+
+    def protected_party(state: State, party_id: str) -> Party:
+        party = next((p for p in state.parties if p.id == party_id), None)
+        if party is None:
+            raise ApiError("unknown_party", "No such party")
+        return party
+
+    def phone_matches(party: Party, typed: str) -> bool:
+        """Both numbers are normalized; the comparison is constant-time. A party without a number never matches."""
+        number = normalize_phone(typed)  # first, so a malformed number is `invalid` for every party
+        return party.phone is not None and secrets.compare_digest(party.phone.encode(), number.encode())
+
+    def set_party_cookie(response: Response, verified: Mapping[str, float]) -> None:
+        if verified:
+            response.set_cookie(
+                PARTY_COOKIE,
+                rt.party_cookies.issue(verified),
+                max_age=PARTY_COOKIE_MAX_AGE,
+                path="/",
+                secure=True,
+                httponly=True,
+                samesite="lax",
+            )
+        else:
+            response.delete_cookie(PARTY_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
+
+    @app.get("/api/session")
+    async def session(request: Request, _auth: Annotated[Auth, Depends(require_group)]) -> JSONResponse:
+        verified = verified_parties(request, rt.store.read())
+        return JSONResponse({"ok": True, "verified": sorted(verified), "sms_enabled": rt.sms_enabled})
+
+    @app.post("/api/parties/{party_id}/login/start", dependencies=[Limited])
+    async def login_start(request: Request, party_id: PartyId, body: LoginStartRequest, auth: Group) -> JSONResponse:
+        client = sms_client()
+        state = rt.store.read()
+        party = protected_party(state, party_id)
+        if not phone_matches(party, body.phone):
+            # A wrong number costs a code attempt, so the hint cannot be used to guess the rest of the number.
+            wait = rt.sms_limits.attempt(party.id)
+            if wait:
+                raise rate_limited(wait)
+            raise ApiError("phone_mismatch", "Phone number does not match the party")
+        wait = rt.sms_limits.send(party.id, client_ip(request))
+        if wait:
+            raise rate_limited(wait)
+        await client.start(party.phone)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/parties/{party_id}/login/verify")
+    async def login_verify(
+        request: Request, party_id: PartyId, body: LoginVerifyRequest, auth: Group
+    ) -> JSONResponse:
+        client = sms_client()  # not counted in the write limit: the code attempts have their own
+        state = rt.store.read()
+        party = protected_party(state, party_id)
+        wait = rt.sms_limits.attempt(party.id)
+        if wait:
+            raise rate_limited(wait)
+        if not phone_matches(party, body.phone):
+            raise ApiError("phone_mismatch", "Phone number does not match the party")
+        if not await client.check(party.phone, body.code):
+            raise ApiError("bad_sms_code", "Wrong or expired code")
+        verified = verified_parties(request, state)
+        verified[party.id] = rt.party_cookies.now()
+        response = ok_response(rt, state, verified=sorted(verified))
+        set_party_cookie(response, verified)
+        return response
+
+    @app.post("/api/logout", dependencies=[Limited])
+    async def logout(request: Request, body: LogoutRequest, auth: Group) -> JSONResponse:
+        state = rt.store.read()
+        verified = verified_parties(request, state)
+        verified.pop(body.party_id, None)
+        response = ok_response(rt, state, verified=sorted(verified))
+        set_party_cookie(response, verified)
+        return response
+
+    # --- write endpoints: thin handlers, the rules are in validate.py ------------------------
 
     @app.post("/api/assign", dependencies=[Limited])
     async def assign(request: Request, body: AssignRequest, auth: Group) -> JSONResponse:

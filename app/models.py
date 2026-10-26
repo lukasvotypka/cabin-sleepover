@@ -343,7 +343,7 @@ class Party(PartyInput):
     places: dict[NightRef, Annotated[int, Field(strict=True, ge=1)]] = {}
     # "Čo kto donesie": one free text, stored only when set (not part of the form input)
     food_note: Annotated[str, Field(strict=True, min_length=1, max_length=FOOD_NOTE_MAX)] | None = None
-    # Phone login (T-073): E.164 number and the time it was set; both or neither, stored only when set.
+    # Phone login (T-090): E.164 number and the time it was set; both or neither, stored only when set.
     # Never part of the form input and never sent to the page (`state_payload` sends `phone_hint`).
     phone: Annotated[str, Field(strict=True, pattern=r"^\+[1-9][0-9]{7,14}$")] | None = None
     phone_set_at: IsoDateTime | None = None
@@ -428,6 +428,19 @@ class PlacesRequest(_Model):
 class BriefingRequest(_Model):
     party_id: PartyRef
     step: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=32)]
+
+
+class LoginStartRequest(_Model):
+    phone: Annotated[str, StringConstraints(strict=True, max_length=40)]  # typed form, normalized by the server
+
+
+class LoginVerifyRequest(_Model):
+    phone: Annotated[str, StringConstraints(strict=True, max_length=40)]
+    code: Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=16)]
+
+
+class LogoutRequest(_Model):
+    party_id: PartyRef
 
 
 class FoodRequest(_Model):
