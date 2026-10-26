@@ -40,7 +40,7 @@ function dnBuild(svg, layout, beforeNode, afterNode) {
   rooms.forEach(function (r) {
     svgEl(mask, "rect", { x: r[0] + inset, y: r[1] + inset, width: r[2] - 2 * inset, height: r[3] - 2 * inset, fill: "#5a5a5a" });
   });
-  var fx = { rooms: rooms };
+  var fx = { rooms: rooms, layer: g, vis: {} };
   var blend = "mix-blend-mode:multiply";
   fx.dusk = svgEl(g, "rect", { x: big.x, y: big.y, width: big.width, height: big.height, fill: "#F08A3C", style: blend, opacity: 0 });
   fx.dark = svgEl(g, "rect", { x: big.x, y: big.y, width: big.width, height: big.height, fill: "#16224A", mask: "url(#dnMask)", style: blend, opacity: 0 });
@@ -67,6 +67,7 @@ function dnBuild(svg, layout, beforeNode, afterNode) {
   // A separate, weaker tint over the boards so they stay readable at night.
   var shade = svgEl(null, "g", { "aria-hidden": "true", "pointer-events": "none" });
   svg.insertBefore(shade, afterNode);
+  fx.shadeLayer = shade;
   fx.boardShade = svgEl(shade, "g", { opacity: 0 });
   // Only boards that are always drawn: the table, the help sign and one rect per night signpost
   // (not the gaps between them, the locked sign or the key, which may be absent).
@@ -79,6 +80,9 @@ function dnBuild(svg, layout, beforeNode, afterNode) {
   rects.forEach(function (r) {
     svgEl(fx.boardShade, "rect", { x: r[0], y: r[1], width: r[2], height: r[3], fill: "#16224A", style: blend });
   });
+  // Nothing of the light layer is rendered at rest: hidden elements cost no blend, mask or animation (T-113).
+  [g, shade, fx.dusk, fx.dark, fx.lamp, fx.fireflies, fx.boardShade].forEach(function (n) { n.setAttribute("display", "none"); });
+  Array.prototype.forEach.call(fx.fireflies.children, function (c) { c.setAttribute("display", "none"); });
   fx.bird = svg.querySelector(".bird");      // the bird is drawn before dnBuild runs
   dn.fx = fx;
   dn.hour = dn.anim ? dn.hour : dnNoon(app.night);
@@ -89,13 +93,35 @@ function dnPaint(h) {
   var fx = dn.fx;
   if (!fx || h === null) return;
   var l = lightAt(h);
-  fx.dark.setAttribute("opacity", l.dark.toFixed(3));
-  fx.dusk.setAttribute("opacity", l.dusk.toFixed(3));
-  fx.lamp.setAttribute("opacity", l.lamp.toFixed(3));
-  fx.fireflies.setAttribute("opacity", l.fireflies.toFixed(3));
-  fx.boardShade.setAttribute("opacity", (l.dark * 0.25).toFixed(3));
+  dnVis(fx, "dark", fx.dark, l.dark);
+  dnVis(fx, "dusk", fx.dusk, l.dusk);
+  dnVis(fx, "lamp", fx.lamp, l.lamp);
+  dnVis(fx, "fireflies", fx.fireflies, l.fireflies);
+  dnVis(fx, "boardShade", fx.boardShade, l.dark * 0.25);
+  dnWrap(fx.layer, fx.vis.dark || fx.vis.dusk || fx.vis.lamp || fx.vis.fireflies, fx, "layer");
+  dnWrap(fx.shadeLayer, fx.vis.boardShade, fx, "shadeLayer");
   if (fx.bird) fx.bird.setAttribute("opacity", l.bird.toFixed(3));
   if (dn.anim) dnPaintClock(h);
+}
+
+// Sets the opacity and switches `display` only when the element crosses zero.
+function dnVis(fx, key, node, opacity) {
+  var on = opacity >= 0.002;
+  node.setAttribute("opacity", opacity.toFixed(3));
+  if (fx.vis[key] === on) return;
+  fx.vis[key] = on;
+  if (on) node.removeAttribute("display"); else node.setAttribute("display", "none");
+  // Chrome keeps CSS animations running under a hidden ancestor, so hide each firefly itself too.
+  if (key === "fireflies") Array.prototype.forEach.call(node.children, function (c) {
+    if (on) c.removeAttribute("display"); else c.setAttribute("display", "none");
+  });
+}
+
+function dnWrap(node, on, fx, key) {
+  on = !!on;
+  if (fx.vis[key] === on) return;
+  fx.vis[key] = on;
+  if (on) node.removeAttribute("display"); else node.setAttribute("display", "none");
 }
 
 // At rest the light follows the night chosen by any means (login, create, SSE): called by render().

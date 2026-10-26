@@ -4268,3 +4268,11 @@ test("daynight scene: script listed, no innerHTML, light layer between walk and 
   assert.ok(ens.includes("dnBuild(svg, layout, app.layers.boards"));
   assert.ok(ens.indexOf("drawBird(") < ens.indexOf("dnBuild("));
 });
+
+test("daynight scene: hidden light elements get display none (T-113)", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
+  assert.ok(src.includes("function dnVis("));
+  assert.ok(src.includes('n.setAttribute("display", "none")'));
+  assert.ok(src.includes('dnWrap(fx.layer'));
+  assert.ok(src.includes('dnWrap(fx.shadeLayer'));
+});
