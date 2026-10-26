@@ -3943,3 +3943,102 @@ test("errorText: food note reasons have their own Slovak text", () => {
   assert.match(ctrl, /znaky/);
   assert.notEqual(tooLong, ctrl);
 });
+
+// --- phone login (logic-phone.js, logic-errors.js) ---
+
+test("isProtected / needsLogin / canEditParty", () => {
+  const open = { id: "p-a" }, locked = { id: "p-b", phone_hint: "456" };
+  assert.equal(L.isProtected(open), false);
+  assert.equal(L.isProtected(locked), true);
+  assert.equal(L.isProtected(null), false);
+  assert.equal(L.needsLogin(open, []), false);
+  assert.equal(L.needsLogin(locked, []), true);
+  assert.equal(L.needsLogin(locked, ["p-b"]), false);
+  assert.equal(L.canEditParty(open, [], false), true);
+  assert.equal(L.canEditParty(locked, [], false), false);
+  assert.equal(L.canEditParty(locked, ["p-b"], false), true);
+  assert.equal(L.canEditParty(locked, [], true), true);
+  assert.equal(L.canEditParty(null, [], true), false);
+});
+
+test("phoneHintText and phone normalization for display", () => {
+  assert.equal(L.phoneHintText({ phone_hint: "456" }), "…456");
+  assert.equal(L.phoneHintText({}), "");
+  for (const raw of ["0905 123 456", "0905-123-456", "00421905123456", "+421 905 123 456"]) {
+    assert.equal(L.normalizePhoneInput(raw), "+421905123456", raw);
+  }
+  for (const raw of ["", "abc", "+12", "+4219051234567890123", null]) assert.equal(L.normalizePhoneInput(raw), null, String(raw));
+  assert.equal(L.formatPhoneDisplay("0905123456"), "+421 905 123 456");
+  assert.equal(L.formatPhoneDisplay("+49 30 123456"), "+4930123456");
+  assert.equal(L.formatPhoneDisplay(" abc "), "abc");
+});
+
+test("login code accepts exactly 6 digits", () => {
+  assert.equal(L.isLoginCode("123456"), true);
+  assert.equal(L.isLoginCode("12345"), false);
+  assert.equal(L.isLoginCode("1234567"), false);
+  assert.equal(L.isLoginCode("12345a"), false);
+  assert.equal(L.cleanLoginCode("12 34-56 78"), "123456");
+});
+
+test("login reducer goes phone -> code -> done and keeps the server error", () => {
+  let s = L.loginInitial();
+  assert.equal(s.step, "phone");
+  assert.equal(L.canSendLoginCode(s), false);
+  s = L.loginReduce(s, { type: "phone", value: "0905 123 456" });
+  assert.equal(L.canSendLoginCode(s), true);
+  s = L.loginReduce(s, { type: "send" });
+  assert.equal(s.busy, true);
+  assert.equal(L.canSendLoginCode(s), false);
+  let failed = L.loginReduce(s, { type: "failed", error: { code: "phone_mismatch" } });
+  assert.equal(failed.busy, false);
+  assert.equal(failed.step, "phone");
+  assert.equal(failed.error.code, "phone_mismatch");
+  assert.equal(L.loginReduce(failed, { type: "phone", value: "0905 123 457" }).error, null);
+  s = L.loginReduce(s, { type: "sent", at: 1000 });
+  assert.equal(s.step, "code");
+  assert.equal(s.sentAt, 1000);
+  s = L.loginReduce(s, { type: "code", value: "12a3456789" });
+  assert.equal(s.code, "123456");
+  assert.equal(L.canVerifyLoginCode(s), true);
+  assert.equal(L.loginReduce(L.loginReduce(s, { type: "code", value: "123" }), { type: "verify" }).busy, false);
+  s = L.loginReduce(s, { type: "verify" });
+  assert.equal(s.busy, true);
+  failed = L.loginReduce(s, { type: "failed", error: { code: "bad_sms_code" } });
+  assert.equal(failed.step, "code");
+  assert.equal(failed.error.code, "bad_sms_code");
+  s = L.loginReduce(s, { type: "verified" });
+  assert.equal(s.step, "done");
+  assert.equal(s.busy, false);
+  assert.equal(L.loginReduce(L.loginReduce(L.loginInitial(), { type: "sent", at: 1 }), { type: "back" }).step, "phone");
+  assert.equal(L.loginReduce(L.loginInitial(), { type: "failed", error: null }).error.code, "unknown");
+});
+
+test("resendSecondsLeft counts down from 60 to 0", () => {
+  assert.equal(L.resendSecondsLeft(1000, 1000), 60);
+  assert.equal(L.resendSecondsLeft(1000, 1500), 60);
+  assert.equal(L.resendSecondsLeft(1000, 1000 + 15000), 45);
+  assert.equal(L.resendSecondsLeft(1000, 1000 + 59001), 1);
+  assert.equal(L.resendSecondsLeft(1000, 1000 + 60000), 0);
+  assert.equal(L.resendSecondsLeft(1000, 1000 + 90000), 0);
+  assert.equal(L.resendSecondsLeft(null, 5), 0);
+  const s = L.loginReduce(L.loginInitial(), { type: "sent", at: 0 });
+  assert.equal(L.canResend(s, 30000), false);
+  assert.equal(L.canResend(s, 60000), true);
+});
+
+test("Slovak texts for the phone login error codes", () => {
+  assert.equal(L.errorText(err("login_required", { party_name: "Ivan a Eva" })),
+    "Ivan a Eva si chránia zápis telefónom. Zmeniť ho môžu iba oni.");
+  for (const code of ["phone_mismatch", "bad_sms_code", "sms_unavailable"]) {
+    const text = L.errorText(err(code));
+    assert.notEqual(text, L.errorText(err("no_such_code")), code);
+    assert.ok(text.length > 10);
+  }
+  assert.doesNotMatch(L.errorText(err("login_required")), /parti/i);
+  assert.doesNotMatch(L.errorText(err("phone_mismatch")), /parti/i);
+  assert.match(L.errorText(err("rate_limited", { retry_after: 45 })), /45 s/);
+  const phone = L.errorText(err("invalid", { field: "phone" }));
+  assert.match(phone, /„0905 123 456“/);
+  assert.notEqual(phone, L.errorText(err("invalid", { field: "name" })));
+});

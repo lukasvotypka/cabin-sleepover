@@ -25,7 +25,7 @@ var FIELD_NAMES = {
   name: "meno", adults: "počet dospelých", kids: "počet detí", kids_in_parents_bed: "deti spiace s rodičmi",
   arrive: "príchod", day_visits: "dni návštevy", leave: "odchod", arrival_time: "čas príchodu", note: "poznámka", color: "farba",
   night: "noc", nights: "noci", slot: "miesto", slots: "miesta", from_slot: "miesto", to_slot: "miesto",
-  party_id: "výber, kto si", code: "kód"
+  party_id: "výber, kto si", code: "kód", phone: "telefónne číslo"
 };
 
 function paramText(params, key) {
@@ -82,7 +82,22 @@ var ERROR_TEXTS = {
   unknown_party: function () {
     return "Toto meno sme nenašli. Vyber znova, kto si.";
   },
+  login_required: function (p, state) {
+    var who = partyNameFrom(p, state);
+    if (!who) return "Tento zápis je chránený telefónom. Zmeniť ho môže iba ten, kto overil číslo.";
+    return who + " si chránia zápis telefónom. Zmeniť ho môžu iba oni.";
+  },
+  phone_mismatch: function () {
+    return "Toto číslo nesedí s uloženým číslom. Skús to znova.";
+  },
+  bad_sms_code: function () {
+    return "Kód nesedí alebo mu vypršala platnosť. Skontroluj ho, alebo si pošli nový.";
+  },
+  sms_unavailable: function () {
+    return "SMS sa teraz nedá poslať. Skús to o chvíľu, alebo napíš organizátorovi.";
+  },
   invalid: function (p) {
+    if (paramText(p, "field") === "phone") return "Telefónne číslo nesedí. Napíš ho napríklad ako „0905 123 456“ alebo „+421 905 123 456“.";
     if (REASON_TEXTS.hasOwnProperty(paramText(p, "reason"))) return REASON_TEXTS[paramText(p, "reason")];
     var field = FIELD_NAMES.hasOwnProperty(paramText(p, "field")) ? FIELD_NAMES[paramText(p, "field")] : "";
     return field ? "Skontroluj pole „" + field + "“." : "Niečo v zadaní nesedí, skontroluj ho.";
