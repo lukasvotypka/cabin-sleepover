@@ -75,7 +75,10 @@ function drawQuest(host, rows) {
   host.appendChild(head);
   if (!open) return;
   var list = htmlEl("div", { "class": "quest-list" });
+  var writable = canWrite(app.state, app.role);
   rows.forEach(function (row) {
+    // Rows that change places become plain text while signup is closed.
+    if (!writable && (row.action === "places" || row.action === "undo")) row = Object.assign({}, row, { action: null });
     var here = row.night && row.night === app.night;
     var cls = "quest-row q-" + row.kind + (here ? " here" : "");
     var node = row.action

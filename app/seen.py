@@ -150,6 +150,16 @@ class SeenTracker:
             if now - self.written.get(party_id, float("-inf")) >= PERSIST_INTERVAL:
                 self._persist(known_ids, party_id, now)
 
+    def forget(self, party_id: str, known_ids: Collection[str]) -> None:
+        """Drop a deleted party's times (memory and file). `known_ids` must already be without it."""
+        with self._lock:
+            had = self.seen.pop(party_id, None) is not None
+            for table in (self.polled, self.stream_closed, self.written):
+                table.pop(party_id, None)
+            if had:
+                self._persist(known_ids, party_id, self.clock())
+                self.written.pop(party_id, None)
+
     def last_stream_closed(self, party_id: str) -> None:
         """The party's last stream closed: it stays online for STREAM_GRACE only. Its plain requests (boot load, writes) were made by the page that
         had the stream, so they must not keep it online for the polling window after the tab is gone."""

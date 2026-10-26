@@ -24,7 +24,7 @@ WRITES = [
 
 
 async def lock_signup(app):
-    """Close signup directly in the store: the admin endpoint for it is a later phase."""
+    """Close signup directly in the store, so the test needs no admin cookie."""
     async with app.state.runtime.store.write(action="signup", source="admin", client_id=None) as tx:
         tx.state.signup_open = False
 

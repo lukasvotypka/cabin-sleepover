@@ -46,12 +46,45 @@ function waitText(seconds) {
   return s < 60 ? s + " s" : Math.ceil(s / 60) + " min";
 }
 
+// The only place the page decides that it is the organizer.
+function isAdmin(role) {
+  return role === "admin";
+}
+
+// Whether this role may change places: signup is open, or the role is the organizer (T-075).
+// A state without `signup_open` counts as open.
+function canWrite(state, role) {
+  return !state || state.signup_open !== false || isAdmin(role);
+}
+
+var LOCKED_TEXTS = {
+  sign: "Zápis je zatvorený",
+  note: "Zápis je zatvorený, zmeny už nejdú uložiť.",
+  summary: "Zápis je zatvorený, miesta sa dajú len prezerať."
+};
+
+// Texts of the admin panel (T-076). The button flips the lock by the current `signup_open`.
+function signupToggleLabel(signupOpen) {
+  return signupOpen === false ? "Otvoriť zápis" : "Zamknúť zápis";
+}
+
+function deleteConfirmText(name) {
+  return "Naozaj zmazať „" + name + "“? Uvoľnia sa všetky jej miesta.";
+}
+
+// The role to keep after a response: a 403 `forbidden` means the 12 h admin cookie is gone, so the
+// role falls back to `group`. Any other answer leaves the role as it is.
+function roleAfterResponse(role, status, error) {
+  if (status === 403 && error && error.code === "forbidden") return "group";
+  return role;
+}
+
 var ERROR_TEXTS = {
   bad_code: function () {
     return "Kód nesedí, skús ho zadať znova.";
   },
   forbidden: function () {
-    return "Toto môže robiť len organizátor.";
+    return "Na toto treba admin kód.";
   },
   signup_closed: function () {
     return "Zápis je zatvorený, miesta sa dajú len prezerať.";

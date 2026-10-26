@@ -217,6 +217,15 @@ function openPartyForm(party, opts) {
     row.appendChild(cancel);
     form.appendChild(row);
     body.appendChild(form);
+    if (!canWrite(app.state, app.role)) {
+      // Signup is closed: show the party, but nothing can be saved.
+      form.insertBefore(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note), form.firstChild);
+      Array.prototype.forEach.call(form.querySelectorAll("input, select, textarea, button"), function (el) {
+        if (el !== cancel) el.disabled = true;
+      });
+      save.hidden = true;
+      cancel.textContent = "Zavrieť";
+    }
 
     function readPayload() {
       var raw = {};

@@ -2507,7 +2507,7 @@ test("page: the intro constants are used by name, with no magic numbers in the i
 
 test("page: the code screen stops the fall and the join replays the splash once", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
-  const code = app.match(/function showCodeScreen\(\) \{[\s\S]*?\n  \}\n/)[0];
+  const code = app.match(/function showCodeScreen\(voluntary\) \{[\s\S]*?\n  \}\n/)[0];
   assert.match(code, /clearTimeout\(app\.introTimer\)/);
   assert.match(code, /hideBoot\(\);/);
   const hide = app.match(/function hideBoot\(\) \{[\s\S]*?\n  \}\n/)[0];
@@ -3518,7 +3518,7 @@ test("intro zoom: the app wires it to the splash, stops on input and skips reduc
 
 test("intro zoom: the code screen (a 401) ends the intro, so the map is never stuck at 2x", () => {
   // The fall's end timer is cancelled by hideBoot(), so finishSplash() never runs after a 401 during the fall.
-  const showCodeSource = appSource.match(/function showCodeScreen\(\) \{[\s\S]*?\n\}\n/)[0];
+  const showCodeSource = appSource.match(/function showCodeScreen\(voluntary\) \{[\s\S]*?\n\}\n/)[0];
   assert.match(showCodeSource, /hideBoot\(\);\n  stopIntroZoom\(\);/);
 });
 
@@ -4054,4 +4054,59 @@ test("the login panel file avoids innerHTML, uses the right input attributes and
   const sheet = fs.readFileSync(path.join(root, "static", "js", "app-sheet.js"), "utf8");
   assert.match(sheet, /needsLogin\(party, sessionVerified\(\)\)/);
   assert.match(sheet, /openLogin\(party/);
+});
+
+// --- admin role (T-074) ---
+
+test("isAdmin is true only for the admin role", () => {
+  assert.equal(L.isAdmin("admin"), true);
+  assert.equal(L.isAdmin("group"), false);
+  assert.equal(L.isAdmin(null), false);
+  assert.equal(L.isAdmin(undefined), false);
+});
+
+test("roleAfterResponse drops to group on 403 forbidden only", () => {
+  assert.equal(L.roleAfterResponse("admin", 403, { code: "forbidden" }), "group");
+  assert.equal(L.roleAfterResponse("admin", 403, { code: "signup_closed" }), "admin");
+  assert.equal(L.roleAfterResponse("admin", 409, { code: "slot_taken" }), "admin");
+  assert.equal(L.roleAfterResponse("admin", 200, null), "admin");
+  assert.equal(L.roleAfterResponse("group", 403, { code: "forbidden" }), "group");
+});
+
+test("forbidden and signup_closed have Slovak texts", () => {
+  assert.equal(L.errorText({ code: "forbidden" }, null), "Na toto treba admin kód.");
+  assert.notEqual(L.errorText({ code: "signup_closed" }, null), L.errorText({ code: "nope" }, null));
+});
+
+// --- admin panel texts (T-076) ---
+
+test("signupToggleLabel flips by signup_open and deleteConfirmText names the party", () => {
+  assert.equal(L.signupToggleLabel(true), "Zamknúť zápis");
+  assert.equal(L.signupToggleLabel(false), "Otvoriť zápis");
+  assert.equal(L.deleteConfirmText("Novákovci"), "Naozaj zmazať „Novákovci“? Uvoľnia sa všetky jej miesta.");
+});
+
+test("the key icon is drawn only for the admin and is a labelled button", () => {
+  assert.match(appSource, /if \(isAdmin\(app\.role\)\) drawKey\(g, scene\.key\)/);
+  assert.match(appSource, /makeButton\(g, "Admin nástroje", "key", openAdmin\)/);
+});
+
+test("canWrite: open signup or admin may write, a closed signup lets only the admin write", () => {
+  assert.equal(L.canWrite({ signup_open: true }, "group"), true);
+  assert.equal(L.canWrite({ signup_open: true }, "admin"), true);
+  assert.equal(L.canWrite({ signup_open: false }, "admin"), true);
+  assert.equal(L.canWrite({ signup_open: false }, "group"), false);
+  assert.equal(L.canWrite({}, "group"), true);
+});
+
+test("page source: every panel that changes places is gated by canWrite while signup is locked", () => {
+  const fn = (name) => {
+    const i = appSource.indexOf(`function ${name}(`);
+    assert.ok(i >= 0, name);
+    return appSource.slice(i, appSource.indexOf("\n}\n", i));
+  };
+  for (const name of ["openPlacesPanel", "openPlacesUndoPanel", "sendPlaces"]) {
+    assert.match(fn(name), /canWrite\(/, name);
+  }
+  assert.match(fn("openWho"), /canWrite\(app\.state, app\.role\)\) actions\.appendChild\(add\)/);
 });

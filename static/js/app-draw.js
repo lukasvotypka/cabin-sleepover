@@ -195,6 +195,7 @@ function renderSummary() {
   clearNode(host);
   host.appendChild(htmlEl("h2", null, h.title));
   host.appendChild(htmlEl("p", null, h.dates));
+  if (app.state.signup_open === false) host.appendChild(htmlEl("p", null, LOCKED_TEXTS.summary));
   host.appendChild(htmlEl("p", null, "Návod: " + h.instructions.join(" ")));
   host.appendChild(htmlEl("h3", null, h.night));
   h.rooms.forEach(function (room) {
@@ -235,7 +236,19 @@ function drawBoards() {
   drawPartyTable(g, scene.parties, state);
   drawLetter(g, scene.letter);
   drawLegend(g, scene.legend);
+  if (isAdmin(app.role)) drawKey(g, scene.key);
+  if (state.signup_open === false && scene.locked) drawLocked(g, scene.locked);
   if (state.info && scene.briefing) drawBriefing(g, scene.briefing, state);
+}
+
+// The „Zápis je zatvorený“ sign, shown to everyone while signup is locked. Position: `map.scene.locked`.
+function drawLocked(parent, r) {
+  var g = svgEl(parent, "g", { role: "img", "aria-label": LOCKED_TEXTS.sign });
+  rect(g, r[0] + r[2] / 2 - 2, r[1] + r[3] - 10, 4, 10, COLORS.woodDark);       // the post
+  board(g, [r[0], r[1], r[2], r[3] - 8], COLORS.plank);
+  addText(g, r[0] + r[2] / 2, r[1] + 20, "Zápis", 11, COLORS.paper, { anchor: "middle", bold: true });
+  addText(g, r[0] + r[2] / 2, r[1] + 34, "je zatvo-", 9, COLORS.paper, { anchor: "middle" });
+  addText(g, r[0] + r[2] / 2, r[1] + 44, "rený", 9, COLORS.paper, { anchor: "middle" });
 }
 
 // The letter icon opens „Prehľad na poslanie“. The hit area is the whole `map.scene.letter` rect.
