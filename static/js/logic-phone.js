@@ -6,8 +6,9 @@ var RESEND_SECONDS = 60;
 var LOGIN_CODE_LENGTH = 6;
 
 // A party with a phone is protected; the server tells it only by `phone_hint`.
-function isProtected(party) {
-  return !!party && typeof party.phone_hint === "string" && party.phone_hint !== "";
+// `verifyOn` is `state.phone_verify`: only an explicit false turns protection off (contact mode).
+function isProtected(party, verifyOn) {
+  return verifyOn !== false && !!party && typeof party.phone_hint === "string" && party.phone_hint !== "";
 }
 
 // `verifiedIds` is the list of party ids from GET /api/session.
@@ -15,12 +16,12 @@ function isVerifiedParty(party, verifiedIds) {
   return !!party && Array.isArray(verifiedIds) && verifiedIds.indexOf(party.id) >= 0;
 }
 
-function needsLogin(party, verifiedIds) {
-  return isProtected(party) && !isVerifiedParty(party, verifiedIds);
+function needsLogin(party, verifiedIds, verifyOn) {
+  return isProtected(party, verifyOn) && !isVerifiedParty(party, verifiedIds);
 }
 
-function canEditParty(party, verifiedIds, isAdmin) {
-  return !!party && (isAdmin === true || !needsLogin(party, verifiedIds));
+function canEditParty(party, verifiedIds, isAdmin, verifyOn) {
+  return !!party && (isAdmin === true || !needsLogin(party, verifiedIds, verifyOn));
 }
 
 function phoneHintText(party) {
@@ -134,11 +135,23 @@ function canResend(state, now) {
 
 // What the section shows for a party that is being edited. Only with `sms_enabled`; with a number it
 // offers „Zmeniť“ and „Odstrániť“, and „Odhlásiť toto zariadenie“ when this device has verified the party.
-function phoneSectionInfo(party, smsEnabled, verifiedIds) {
-  if (!party || smsEnabled !== true) return { visible: false };
-  var has = isProtected(party);
+// With `verifyOn === false` (contact mode) it is shown even without `sms_enabled`: the number is only a contact.
+function phoneSectionInfo(party, smsEnabled, verifiedIds, verifyOn) {
+  if (!party) return { visible: false };
+  var has = typeof party.phone_hint === "string" && party.phone_hint !== "";
+  if (verifyOn === false) {
+    return {
+      visible: true,
+      mode: "contact",
+      hasPhone: has,
+      text: has ? "Kontaktné číslo končí na " + phoneHintText(party) : "Pridať kontaktné číslo",
+      canLogout: false
+    };
+  }
+  if (smsEnabled !== true) return { visible: false };
   return {
     visible: true,
+    mode: "verify",
     hasPhone: has,
     text: has ? "Telefón končí na " + phoneHintText(party) : "Pridať telefón (na prihlásenie)",
     canLogout: has && isVerifiedParty(party, verifiedIds)
@@ -154,5 +167,8 @@ var PHONE_TEXTS = {
   removeAsk: "Naozaj odstrániť telefón? Partiu potom môže meniť každý, kto má kód skupiny.",
   removed: "Telefón je odstránený.",
   added: "Telefón je uložený.",
+  contactAddIntro: "Zadaj telefónne číslo. Slúži organizátorovi ako kontakt, žiadna SMS sa neposiela.",
+  contactChangeIntro: "Zadaj nové telefónne číslo. Slúži organizátorovi ako kontakt, žiadna SMS sa neposiela.",
+  contactRemoveAsk: "Naozaj odstrániť telefón? Organizátor ho už nebude mať ako kontakt.",
   loggedOut: "Toto zariadenie je odhlásené."
 };

@@ -4143,3 +4143,39 @@ test("party form phone section: labels present, logout and removal wired, no inn
   assert.match(form, /canEditParty\(party, sessionVerified\(\), isAdmin\(app\.role\)\)/);
   assert.match(readScripts("app-sheet"), /canEditParty\(who\.party, sessionVerified\(\)/);
 });
+
+// --- switchable phone verification (T-102) ---
+
+test("isProtected, needsLogin, canEditParty: only an explicit false turns protection off", () => {
+  const locked = { id: "p-b", phone_hint: "456" };
+  for (const on of [true, undefined]) {
+    assert.equal(L.isProtected(locked, on), true);
+    assert.equal(L.needsLogin(locked, [], on), true);
+    assert.equal(L.canEditParty(locked, [], false, on), false);
+  }
+  assert.equal(L.isProtected(locked, false), false);
+  assert.equal(L.needsLogin(locked, [], false), false);
+  assert.equal(L.canEditParty(locked, [], false, false), true);
+  assert.equal(L.canEditParty(locked, [], true, true), true);
+});
+
+test("phoneSectionInfo contact mode", () => {
+  const open = { id: "p-a" }, locked = { id: "p-b", phone_hint: "456" };
+  for (const sms of [true, false, undefined]) {
+    const add = L.phoneSectionInfo(open, sms, [], false);
+    assert.deepEqual([add.visible, add.mode, add.hasPhone, add.canLogout], [true, "contact", false, false]);
+    const has = L.phoneSectionInfo(locked, sms, ["p-b"], false);
+    assert.deepEqual([has.visible, has.mode, has.hasPhone, has.canLogout], [true, "contact", true, false]);
+    assert.match(has.text, /…456/);
+  }
+  assert.equal(L.phoneSectionInfo(open, false, [], true).visible, false);
+  assert.equal(L.phoneSectionInfo(open, true, [], undefined).mode, "verify");
+  assert.match(L.PHONE_TEXTS.contactAddIntro, /kontakt/);
+  assert.doesNotMatch(L.PHONE_TEXTS.contactRemoveAsk, /každý/);
+});
+
+test("phoneVerifyToggleLabel", () => {
+  assert.equal(L.phoneVerifyToggleLabel(true), "Vypnúť overovanie cez SMS");
+  assert.equal(L.phoneVerifyToggleLabel(undefined), "Vypnúť overovanie cez SMS");
+  assert.equal(L.phoneVerifyToggleLabel(false), "Zapnúť overovanie cez SMS");
+});

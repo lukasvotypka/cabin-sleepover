@@ -68,6 +68,10 @@ function signupToggleLabel(signupOpen) {
   return signupOpen === false ? "Otvoriť zápis" : "Zamknúť zápis";
 }
 
+function phoneVerifyToggleLabel(on) {
+  return on === false ? "Zapnúť overovanie cez SMS" : "Vypnúť overovanie cez SMS";
+}
+
 function deleteConfirmText(name) {
   return "Naozaj zmazať „" + name + "“? Uvoľnia sa všetky jej miesta.";
 }
