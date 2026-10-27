@@ -810,7 +810,9 @@ function isoLoop(now) {
   }
   if (me.dirty && now - me.last >= ISO_FRAME_MS && !me.renderer.getContext().isContextLost()) {      // the lost event may still be on its way
     me.last = now;
+    var started = isoFps.on ? performance.now() : 0;      // the fps meter (app-fps.js)
     me.renderer.render(me.scene, me.camera);
+    if (isoFps.on) isoFpsSample(started);
     me.dirty = false;
   }
   if (moving || me.dirty) me.raf = requestAnimationFrame(isoLoop);

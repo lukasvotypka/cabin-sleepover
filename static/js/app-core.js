@@ -11,7 +11,7 @@ var CREST_CHIPS_MAX = 6;   // online chips under „Si: …“ (what fits at 380
 // so the next poll can run. Without it a hung poll blocked all later ones and the page stayed stale.
 var POLL_TIMEOUT_MS = 10000;
 var WRITE_TIMEOUT_MS = 20000;
-var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound" };
+var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound", fps: "cabin.fps" };
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
 var LONG_PRESS_MS = 500;
 var TOAST_MS = 6000;

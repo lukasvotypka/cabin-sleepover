@@ -5112,3 +5112,21 @@ test("iso: the sun moves in steps, once per tick, and not while still", () => {
   assert.match(appSource, /me\.sunClock === me\.clock/);
   assert.match(appSource, /isoSunStep\(me\);\s*isoPeopleTick\(me\)/);
 });
+
+test("fps meter: off by default, ?fps=1 / ?fps=0, stats and text", () => {
+  assert.equal(L.fpsSetting("", null), false);
+  assert.equal(L.fpsSetting("?fps=1", null), true);
+  assert.equal(L.fpsSetting("?a=2&fps=1", null), true);
+  assert.equal(L.fpsSetting("?fps=0", "1"), false);
+  assert.equal(L.fpsSetting("", "1"), true);
+  assert.equal(L.fpsSetting("?fps=10", null), false);
+  const s = L.fpsStats([{ at: 0, ms: 50 }, { at: 1000, ms: 2 }, { at: 1500, ms: 4 }], 2500, 2000);
+  assert.equal(s.fps, 1);
+  assert.equal(s.ms, 3);
+  assert.equal(s.worst, 4);
+  assert.deepEqual(plain(L.fpsStats([], 100, 2000)), { fps: 0, ms: 0, worst: 0 });
+  assert.equal(L.fpsText({ fps: 7.6, ms: 3.21, worst: 9.06 }, 1.5), "3D 8 fps · cpu 3.2 ms (max 9.1) · px 1.5");
+  const meter = fs.readFileSync(path.join(root, "static", "js", "app-fps.js"), "utf8");
+  assert.match(meter, /if \(!isoFps\.on\) return;/, "the meter is only built when switched on");
+  assert.match(html, /\.fps-meter \{[^}]*pointer-events: none;/);
+});

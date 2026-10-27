@@ -598,3 +598,27 @@ function isoFirefly(clock, i) {
   var on = (clock + i * 370) % 1800 < 600, hop = Math.floor(clock / 500);
   return { on: on, dx: Math.round(isoNoise(i * 17 + hop, 51) * 2 - 1), dy: Math.round(isoNoise(i * 19 + hop, 53) * 2 - 1) };
 }
+
+// --- fps meter (developer aid, off for everyone by default) ---
+
+// On with `?fps=1` in the page address (remembered on this device), off again with `?fps=0`. `stored` is the
+// remembered value ("1" or null).
+function fpsSetting(search, stored) {
+  var m = /[?&]fps=([01])(?:&|$)/.exec(search || "");
+  return m ? m[1] === "1" : stored === "1";
+}
+
+// Renders per second and render time over the last `windowMs` ms. `samples` are [{at, ms}] (when a render
+// started, how long it took). Returns {fps, ms, worst}; ms and worst are 0 without samples.
+function fpsStats(samples, now, windowMs) {
+  var recent = samples.filter(function (s) { return now - s.at <= windowMs && s.at <= now; });
+  var total = 0, worst = 0;
+  recent.forEach(function (s) { total += s.ms; worst = Math.max(worst, s.ms); });
+  return { fps: recent.length * 1000 / windowMs, ms: recent.length ? total / recent.length : 0, worst: worst };
+}
+
+// The meter's line, e.g. "3D 8 fps · cpu 3.2 ms (max 9.1) · px 1.5". The time is the CPU side of a render (the GPU
+// works on after `render()` returns), so it is a lower bound of the real frame cost.
+function fpsText(stats, pixelRatio) {
+  return "3D " + Math.round(stats.fps) + " fps · cpu " + stats.ms.toFixed(1) + " ms (max " + stats.worst.toFixed(1) + ") · px " + pixelRatio;
+}
