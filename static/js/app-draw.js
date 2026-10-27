@@ -119,6 +119,7 @@ function render() {
   renderHud();
   renderSummary();
   renderMoveBar();
+  syncTurnBar();
 }
 
 // The visually hidden text summary for screen readers: the same data as the map, for the selected night.

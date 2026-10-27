@@ -321,3 +321,9 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 ## 21. Four view angles (T-143)
 - [ ] **Four angles on a phone (T-143):** on a 380-390 px iPhone Safari and Android Chrome, with the test hook `setViewAngle(135)`, `225`, `315` (or after T-144 the buttons), check at each angle: the 3D map and the svg line up (beds and signposts sit on their tap areas), every bed opens its own bed, the boards are readable, and the shadows fall up and to the right on screen. Tap the roof of „Letná kuchynka“ at 135 with all houses closed: the kitchen opens, not „Izba vľavo“ (T-143 test report, bug 1, until fixed).
 - [ ] **Angle after reload (T-143):** set another angle, reload the page on the phone: the map shows the same angle; an unknown stored value falls back to the south-east view.
+
+## 22. Turn buttons and swing (T-144)
+- [ ] **Swing on a real phone (T-144):** on iPhone Safari and Android Chrome, tap ⟳ and ⟲ (the arrows at the bottom right): the map swings about half a second through the four angles without stutter, the svg overlay fades out and back in (no flash of the flat map), and a double tap turns two quarters.
+- [ ] **Reduced motion on a device (T-144):** with „Reduce motion“ on in the phone settings, one tap switches the angle at once, with no swing and no fade.
+- [ ] **Buttons on a phone with a notch (T-144):** the pair sits at the bottom right, beside the crest and above the home bar; „Celá mapa“ sits one row above the pair when the map is zoomed. Both have a 44 px touch target and the pressed look (2 px shift) on touch.
+- [ ] **Shadows at each angle at noon (T-143/T-144 design check):** at noon, a screenshot from each of the four angles shows the shadows falling up and to the right, as at 45°.

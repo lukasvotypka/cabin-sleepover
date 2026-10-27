@@ -444,6 +444,19 @@ function isoPosts(b, room, outline, open, closed, azimuth) {
   });
 }
 
+// Places the camera for a projection basis: with a slight perspective it looks at the middle of the plan from distance D
+// (the frustum is set by isoSync), otherwise it sits ISO_CAMERA_DIST away on the view axis.
+function isoPose(camera, basis) {
+  camera.up.set(-basis.s * basis.sp, basis.cp, -basis.c * basis.sp);
+  if (basis.D) {
+    camera.position.set(basis.tx + basis.s * basis.cp * basis.D, basis.sp * basis.D, basis.ty + basis.c * basis.cp * basis.D);
+    camera.lookAt(basis.tx, 0, basis.ty);
+  } else {
+    camera.position.set(basis.s * basis.cp * ISO_CAMERA_DIST, basis.sp * ISO_CAMERA_DIST, basis.c * basis.cp * ISO_CAMERA_DIST);
+    camera.lookAt(0, 0, 0);
+  }
+}
+
 // Builds the WebGL world into `host` (before the svg). Returns false when WebGL is not available.
 function isoBuild(host, layout, sc) {
   isoDispose();
@@ -468,17 +481,8 @@ function isoBuild(host, layout, sc) {
   var scene = new THREE.Scene();
   var vb = layout.map.viewbox, cx = vb[0] / 2, cy = vb[1] / 2;
   var basis = sc.basis, camera;
-  if (basis.D) {      // slight perspective: the camera looks at the middle of the plan from distance D (the frustum is set by isoSync)
-    camera = new THREE.PerspectiveCamera(30, 1, 100, basis.D + 4000);
-    camera.up.set(-basis.s * basis.sp, basis.cp, -basis.c * basis.sp);
-    camera.position.set(basis.tx + basis.s * basis.cp * basis.D, basis.sp * basis.D, basis.ty + basis.c * basis.cp * basis.D);
-    camera.lookAt(basis.tx, 0, basis.ty);
-  } else {
-    camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 10, 8000);
-    camera.up.set(-basis.s * basis.sp, basis.cp, -basis.c * basis.sp);
-    camera.position.set(basis.s * basis.cp * ISO_CAMERA_DIST, basis.sp * ISO_CAMERA_DIST, basis.c * basis.cp * ISO_CAMERA_DIST);
-    camera.lookAt(0, 0, 0);
-  }
+  camera = basis.D ? new THREE.PerspectiveCamera(30, 1, 100, basis.D + 4000) : new THREE.OrthographicCamera(-1, 1, 1, -1, 10, 8000);
+  isoPose(camera, basis);
 
   // light: sky and ground, and a low sun (24 degrees) 20 degrees west of south, so long shadows fall north-north-east, beside the objects and away from the beds
   var hemi = new THREE.HemisphereLight("#FFF4DC", "#5A6A30", 0.9);
@@ -673,8 +677,10 @@ function isoSync() {
     iso3.w = w;
     iso3.h = h;
   }
-  var v = app.view, s = Math.min(w / v.w, h / v.h), vw = w / s, vh = h / s;
-  var vx = v.x - (vw - v.w) / 2, vy = v.y - (vh - v.h) / 2, sc = app.iso, cam = iso3.camera;
+  var sw = app.swing && app.swing.scene ? app.swing : null;      // while the map turns, the camera follows the swing (app-turn.js)
+  var v = sw ? sw.view : app.view, s = Math.min(w / v.w, h / v.h), vw = w / s, vh = h / s;
+  var vx = v.x - (vw - v.w) / 2, vy = v.y - (vh - v.h) / 2, sc = sw ? sw.scene : app.iso, cam = iso3.camera;
+  if (sw) isoPose(cam, sc.basis);
   var l = vx - sc.ox, r = vx + vw - sc.ox, t = sc.oy - vy, b = sc.oy - (vy + vh);
   if (sc.basis.D) {      // the crop of the full scene frame as an off-centre frustum (the principal point is at ox, oy), like the svg viewBox crop
     var n = cam.near / sc.basis.D;
@@ -813,7 +819,8 @@ function isoSunStep(me) {
   if (got && !still && me.sunClock === me.clock) return;      // already moved on this tick; the next tick picks it up
   me.sunDrawn = { az: want.az, elev: want.elev };
   me.sunClock = me.clock;
-  var az = isoSunAzimuth(want.az, me.sc.azimuth) * Math.PI / 180, el = want.elev * Math.PI / 180, t = me.sun.target.position;
+  // Not isoSunAzimuth(): it snaps the view azimuth through isoAngle, but during a swing the sun must follow the unsnapped azimuth.
+  var az = (want.az + ((app.swing && app.swing.scene ? app.swing.az : isoAngle(me.sc.azimuth)) - 45)) * Math.PI / 180, el = want.elev * Math.PI / 180, t = me.sun.target.position;
   me.sun.position.set(t.x + 600 * Math.cos(el) * Math.sin(az), 600 * Math.sin(el), t.z + 600 * Math.cos(el) * Math.cos(az));
   me.renderer.shadowMap.needsUpdate = true;
   me.shadowDraws = (me.shadowDraws || 0) + 1;

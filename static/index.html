@@ -76,6 +76,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font: 700 12px/1.2 ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; cursor: pointer; touch-action: manipulation;      /* as the HUD */
 }
 .zoom-reset:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+.zoom-reset.above { bottom: calc(18px + 44px + 8px + env(safe-area-inset-bottom, 0px)); }      /* one row up while the turn buttons show (T-144) */
+/* The turn buttons (T-144): in the crest's row at the bottom right, like „Celá mapa“ (fixed scene colors, never inverted). */
+.turn-bar { position: fixed; z-index: 5; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 4px; }
+.turn-bar[hidden], .movebar:not([hidden]) ~ .turn-bar, #panelRoot:not(:empty) ~ .turn-bar { display: none; }
+.turn-btn {
+  width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  background: #F4EBD0; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
+}
+.turn-btn svg { width: 24px; height: 24px; display: block; shape-rendering: crispEdges; }
+.turn-btn:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+.turn-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0, 0, 0, .28); }      /* press feedback: no tween */
+#scene.swinging svg { opacity: 0; pointer-events: none; }      /* the overlay hides during the swing and fades back in two steps */
+#scene.swinging.swing-half svg { opacity: .5; }
 #scene svg text { font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; user-select: none; -webkit-user-select: none; }
 #scene svg g[role="button"] { cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
 #scene svg .hit { fill: transparent; }
@@ -710,6 +723,9 @@ section.night.on .night-head { background: var(--surface2); border-left: 4px sol
 
 <div id="adventure" class="adventure" role="region" aria-label="Pred cestou" hidden></div>
 <div id="panelRoot"></div>
+<!-- The pair of turn buttons (app-turn.js, T-144): scene UI in fixed colors; hidden by CSS under panels and the move bar -->
+<div id="turnBar" class="turn-bar" role="group" aria-label="Otočenie mapy" hidden></div>
+<p id="turnStatus" class="sr-only" role="status" aria-live="polite"></p>
 
 <script src="static/vendor/three.min.js?v=r158"></script>
 <script src="static/js/logic-model.js?v=__ASSET_VERSION__"></script>

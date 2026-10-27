@@ -39,7 +39,10 @@ var ISO_ICON_CELLS = [["notice", 0, 0], ["legend", 1, 0], ["letter", 0, 1], ["br
 // The camera azimuths the map can be turned to: from the south-east (the default), north-east, north-west and
 // south-west. +90 turns the map clockwise on screen.
 var ISO_ANGLES = [45, 135, 225, 315];
-var ISO_ANGLE_NAMES = { 45: "juhovýchodu", 135: "severovýchodu", 225: "severozápadu", 315: "juhozápadu" };
+var ISO_ANGLE_NAMES = { 45: "z juhovýchodu", 135: "zo severovýchodu", 225: "zo severozápadu", 315: "z juhozápadu" };      // with the preposition: Slovak needs „zo“ before „severo…“
+
+// The screen reader text for the view angle, e.g. „Pohľad zo severozápadu“.
+function isoAngleText(angle) { return "Pohľad " + ISO_ANGLE_NAMES[isoAngle(angle)]; }
 var ISO_NOON_SUN_AZ = -20;      // degrees from the camera axis at 45: the noon sun, shadows beside the objects (T-136)
 
 // A stored or given angle as one of ISO_ANGLES; anything else is 45.
@@ -52,6 +55,26 @@ function isoAngle(v) {
 function isoTurnAngle(angle, steps) {
   var i = ISO_ANGLES.indexOf(isoAngle(angle));
   return ISO_ANGLES[(((i + steps) % 4) + 4) % 4];
+}
+
+// The swing between two angles (T-144): ease-in-out of the progress 0..1.
+function isoEase(p) {
+  p = Math.max(0, Math.min(1, p));
+  return p * p * (3 - 2 * p);
+}
+
+// The camera azimuth part-way through a swing of `steps` quarter turns from angle `from` (unwrapped, so 315 to 45 goes on to 405).
+function isoSwingAzimuth(from, steps, p) {
+  return isoAngle(from) + 90 * steps * isoEase(p);
+}
+
+// The view of an in-between scene `mid` while the map turns from scene `from`: the old view keeps its place and size relative to
+// the content (the board block and the rooms, isoContentRect), so a map at rest stays centred through the swing.
+function isoSwingView(from, mid, oldView, layout) {
+  var a = isoContentRect(from, layout), b = isoContentRect(mid, layout), f = b[2] / a[2];
+  var cx = (oldView.x + oldView.w / 2 - a[0]) / a[2], cy = (oldView.y + oldView.h / 2 - a[1]) / a[3];
+  var w = oldView.w * f, h = oldView.h * f;
+  return { x: b[0] + cx * b[2] - w / 2, y: b[1] + cy * b[3] - h / 2, w: w, h: h };
 }
 
 // The sun's azimuth for a view: `az` is the sun path's value (degrees from south at the default view), turned with the view so that

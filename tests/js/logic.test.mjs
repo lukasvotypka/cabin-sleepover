@@ -5478,3 +5478,40 @@ test("iso houses: at every angle a visible point of a closed house resolves to t
   });
   assert.ok(checked > 1000, "enough points were checked");
 });
+
+test("turn swing: the azimuth eases from the start angle to the target through the shortest, unwrapped way", () => {
+  assert.equal(L.isoEase(0), 0);
+  assert.equal(L.isoEase(1), 1);
+  assert.equal(L.isoEase(0.5), 0.5);
+  assert.ok(L.isoEase(0.1) < 0.1 && L.isoEase(0.9) > 0.9, "ease-in-out");
+  assert.equal(L.isoSwingAzimuth(45, 1, 0), 45);
+  assert.equal(L.isoSwingAzimuth(45, 1, 1), 135);
+  assert.equal(L.isoSwingAzimuth(45, -1, 1), -45);
+  assert.equal(L.isoSwingAzimuth(315, 1, 1), 405);
+  assert.equal(L.isoSwingAzimuth(135, 2, 0.5), 225);
+});
+
+test("turn swing: the in-between view equals the old view at the start, and a map at rest stays inside the scene", () => {
+  const vw = 380, vh = 740, s = isoSceneAt(45), c = plain(L.isoContentRect(s, isoLayout));
+  const b = L.fitBounds(vw, vh, s.W, s.H, {}), rest = plain(L.restView(b, s.W, s.H, vw, vh, c));
+  const same = plain(L.isoSwingView(s, s, rest, isoLayout));
+  ["x", "y", "w", "h"].forEach((k) => assert.ok(Math.abs(same[k] - rest[k]) < 1e-6, k));
+  const mid = plain(L.isoSwingView(s, isoSceneAt(90), rest, isoLayout));
+  assert.ok(mid.w > 0 && mid.h > 0 && Math.abs(mid.w / mid.h - rest.w / rest.h) < 1e-6);
+});
+
+test("turn buttons: the page has the pair, its texts, the keys and the reduced-motion switch", () => {
+  const turn = fs.readFileSync(path.join(root, "static", "js", "app-turn.js"), "utf8");
+  assert.ok(pageFile.includes('id="turnBar"') && pageFile.includes('id="turnStatus"'));
+  assert.ok(turn.includes("Otočiť mapu doľava") && turn.includes("Otočiť mapu doprava"));
+  assert.ok(turn.includes('"q"') && turn.includes('"e"'));
+  assert.ok(/prefersReducedMotion\(\)[^]*turnViewAngle\(steps\)/.test(turn), "reduced motion turns at once");
+  assert.ok(pageFile.includes(".zoom-reset.above"), "„Celá mapa“ moves up one row");
+});
+
+test("view angle: the screen reader text uses the right Slovak preposition for all four angles", () => {
+  assert.equal(L.isoAngleText(45), "Pohľad z juhovýchodu");
+  assert.equal(L.isoAngleText(135), "Pohľad zo severovýchodu");
+  assert.equal(L.isoAngleText(225), "Pohľad zo severozápadu");
+  assert.equal(L.isoAngleText(315), "Pohľad z juhozápadu");
+});
