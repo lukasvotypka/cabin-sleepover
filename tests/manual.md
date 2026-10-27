@@ -291,3 +291,13 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **VoiceOver on closed houses (T-137):** a bed of a closed house is announced with the same label as on an open house (bed name, then „Ťuknutím otvoríš.“, as at HEAD). A double tap opens its sheet, and the house opens too. The ridge sign is not read as a button.
 - [ ] **Desktop hover (T-137):** with a mouse over a closed roof, the roof brightens and the cursor is a pointer. Click opens and zooms the house.
 - [ ] **Dark mode (T-137):** the roofs, walls and ridge signs keep their colours, and the panels follow the dark palette.
+
+## 15. People as 3D figures (T-138)
+
+- [ ] **Figures on a real GPU (T-138):** on a 380 px iPhone Safari and Android Chrome, with the party table filled, the people sit in their beds by day (upright, legs under the quilt) and lie under a party-coloured quilt at night. Each figure has its party colour and its shirt letter readable on the chest. Kids are visibly smaller. Check at the rest zoom and zoomed in 4x (the letter stays crisp, no shimmer while panning).
+- [ ] **My party ring (T-138):** the yellow frame blinks around my figures on the bed top; a pending figure of my party shows the frame at half strength. Reduced motion: the frame stays steady.
+- [ ] **Pending, rejection and 06:00 (T-138):** a tap on a free bed pops the figure in, it is semi-transparent until the server answers, and a rejection shakes it and removes it with the Slovak reason. Dragging across 06:00 fades leaving figures out and arriving ones in, in visible steps.
+- [ ] **Walk and meadow in 3D (T-138):** the meadow waiters stand with a dark blob under the feet and hop now and then; a tap on a bed makes one of them walk along the path through the house door and up onto the bed, about 1.5 s, and it stays opaque. Check that the door opens first.
+- [ ] **Move mode lift (T-138):** the picked figure rises and bobs; on drop it pops in on the new bed.
+- [ ] **No-WebGL device (T-138):** in a browser without WebGL (or with hardware acceleration off) the page shows the flat ground and the old svg sprites, and taps still work.
+- [ ] **Battery and heat (T-138):** leave the map open with my party chosen for 5 minutes on a phone; the page stays responsive, and when the tab is hidden nothing is drawn (no heat, no animation).

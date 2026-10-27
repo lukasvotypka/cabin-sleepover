@@ -540,6 +540,7 @@ function isoBuild(host, layout, sc) {
       clearNode(app.layers.base);
       drawGround(app.layers.ground, app.bounds);
       drawBase(app.layers.base, layout);
+      if (app.state) renderBeds();      // the svg sprites take over
     }
   });
   canvas.addEventListener("webglcontextrestored", function () {
@@ -723,6 +724,7 @@ function isoLight(l) {
   });
   me.life.smoke.forEach(function (s) { s.mat.color.set(p.smoke); });
   isoMove(me);
+  isoPeoplePose(me);
   isoDirty();
 }
 
@@ -784,6 +786,7 @@ function isoLoop(now) {
       me.tickAt = now;
       isoHousesTick(me);
       isoMove(me);
+      isoPeopleTick(me);
       me.dirty = true;
     }
   }

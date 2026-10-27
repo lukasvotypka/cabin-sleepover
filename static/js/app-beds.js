@@ -55,12 +55,18 @@ function drawBeds() {
   }
   drawRoomPlates(g, layout);
   drawFeatureTreeHit(g);
-  var rooms = {};
-  isoBedsBackToFront(app.iso, layout).forEach(function (e) { rooms[e.bed.id] = e; drawBed(g, layout, view, e.room, e.bed); });
+  var rooms = {}, drawn = [];
+  isoPeopleBegin();      // the 3D dolls of the open rooms (app-iso-people.js)
+  isoBedsBackToFront(app.iso, layout).forEach(function (e) {
+    rooms[e.bed.id] = e;
+    if (!roomClosed(layout, e.room.id)) drawn.push(e.room.id);
+    drawBed(g, layout, view, e.room, e.bed);
+  });
   drawBedHits(g, layout, rooms);
   drawHouseHits(g, view);
   drawBedTags(g, layout);
   drawMeadow(g, view);
+  isoPeopleEnd(app.night + "|" + app.layoutKey + "|" + drawn.sort().join(","));
 }
 
 // The tap areas of all beds, drawn over every bed: padding first, then furniture, then figures (isoHitRegions), so a
@@ -162,9 +168,14 @@ function drawMeadow(parent, view) {
   var g = svgEl(parent, "g");
   var ch = shirtChar(party.name);
   svgEl(g, "polygon", { points: pointsText(isoMeadowHit(sc, view.state.layout, meadow, waiting.length)), "class": "hit" });
-  spot.cells.map(function (cell, i) { return { cell: cell, kind: waiting[i].kind, v: isoPoint(sc, cell[0] + 5, cell[1] + 7, 0)[1] }; })
+  spot.cells.map(function (cell, i) { return { cell: cell, kind: waiting[i].kind, i: i, v: isoPoint(sc, cell[0] + 5, cell[1] + 7, 0)[1] }; })
     .sort(function (a, b) { return a.v - b.v; })
     .forEach(function (e) {
+      if (isoPeopleSpecs) {      // a 3D doll standing on the meadow
+        isoPeopleAdd({ key: "w|" + e.i, kind: e.kind, color: party.color, ch: ch, x: e.cell[0] + 5, z: e.cell[1] + 7, h: 0, pose: "stand", scale: 1,
+          pending: false, mine: false, lift: false, fade: null, hop: { index: e.i, count: spot.cells.length } });
+        return;
+      }
       var fg = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, e.cell, 0)) });
       drawFootShadow(fg);
       drawFigure(fg, 0, 0, party.color, e.kind, ch);
@@ -198,7 +209,10 @@ function drawBed(parent, layout, view, room, bed) {
     var who = slotOccupant(st, slot, night);
     var fx = dnSlotFx(night, slot), ghost = fx && fx.old ? slotOccupant(st, slot, fx.old) : null;
     var og = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, figurePosition(bed, i), isoSlotHeight(bed, i))) });
-    if (ghost) {      // the figure of the old night getting up
+    var three = !!isoPeopleSpecs, pend = !!view.pending[night + "|" + slot];
+    if (ghost && three) {      // the figure of the old night getting up, faded out in 3D
+      isoPeopleAdd(isoBedSpec(bed, i, ghost, { key: "g|" + night + "|" + slot, fade: { dir: -1, start: dn.swap.start } }));
+    } else if (ghost) {      // the figure of the old night getting up
       var gg = svgEl(og, "g", { "class": "dn-out", style: fx.style });
       drawFootShadow(gg);
       drawFigure(gg, 0, 0, ghost.party ? ghost.party.color : COLORS.mat, ghost.kind, ghost.party ? shirtChar(ghost.party.name) : null);
@@ -206,14 +220,17 @@ function drawBed(parent, layout, view, room, bed) {
     }
     var cls = (view.pending[night + "|" + slot] ? "pending " : "") + (fx && fx.inn ? "dn-in" : "");
     var sg = svgEl(og, "g", cls ? { "class": cls.trim(), style: fx && fx.inn ? fx.style : "" } : null);
-    drawFootShadow(sg);
+    if (!three) drawFootShadow(sg);
     if (who) {
-      var color = who.party ? who.party.color : COLORS.mat;
-      if (who.party && who.party.id === app.myParty) {      // the yellow frame of my party
-        rect(sg, -1, -1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });
+      var color = who.party ? who.party.color : COLORS.mat, mine = !!(who.party && who.party.id === app.myParty);
+      if (three) {
+        isoPeopleAdd(isoBedSpec(bed, i, who, { key: night + "|" + slot + "|" + (who.party ? who.party.id : "?") + "|" + who.kind, pending: pend, mine: mine,
+          lift: !!(app.move && app.move.fromSlot === slot), fade: fx && fx.inn ? { dir: 1, start: dn.swap.start } : null }));
+      } else {
+        if (mine) rect(sg, -1, -1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });      // the yellow frame of my party
+        drawFigure(sg, 0, 0, color, who.kind, who.party ? shirtChar(who.party.name) : null);
+        drawQuilt(sg, who.kind, quilt);
       }
-      drawFigure(sg, 0, 0, color, who.kind, who.party ? shirtChar(who.party.name) : null);
-      drawQuilt(sg, who.kind, quilt);
       drawZzz(sg, 0, 0, slot);
     } else {
       drawFreeMark(sg, 0, 0, bed.tight.indexOf(slot) !== -1);

@@ -2728,8 +2728,10 @@ test("page: the walk layer is hidden from readers and pointers, sits above the b
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(app, /walk: svgEl\(svg, "g", \{ "aria-hidden": "true", "pointer-events": "none" \}\),\s+boards:/);
   assert.match(app, /beds: svgEl\(svg, "g"\),\s+walk:/);
-  assert.match(app, /walkProgress\(elapsed, WALK_MS\)/);
-  assert.match(app, /isoWalkFigure\(app\.iso, item\.from, item\.to, t, isoWalkHeight\(elapsed, WALK_MS, item\.h\)\)/);
+  assert.match(app, /walkProgress\(elapsed, walk\.ms\)/);
+  assert.match(app, /walk\.ms: |ms: three \? ISO_PEOPLE\.walkMs : WALK_MS/);
+  assert.match(app, /isoWalkFigure\(app\.iso, item\.from, item\.to, t, hop\)/);
+  assert.match(app, /isoWalkHeight\(elapsed, walk\.ms, item\.h\)/);
   assert.match(app, /if \(app\.walking\[night \+ "\|" \+ slot\]\) return;/);
   assert.doesNotMatch(app, /\b3000\b/);
   assert.doesNotMatch(app, /innerHTML/);
@@ -5001,4 +5003,85 @@ test("houses open: the page hides beds of closed houses and taps open them; no h
   assert.match(appSource, /openHouse\(e\.house\.id, true\)/);
   assert.match(pageFile, /static\/js\/logic-iso-roof\.js\?v=__ASSET_VERSION__/);
   assert.match(pageFile, /static\/js\/app-houses\.js\?v=__ASSET_VERSION__/);
+});
+
+// --- people as 3D dolls (T-138, logic-iso-people.js) ---
+
+test("dolls: layout by pose, kid smaller, nothing under the floor, the letter sits on the chest or the quilt", () => {
+  for (const pose of ["stand", "sit", "lie"]) {
+    const adult = L.isoFigureLayout("adult", pose), kid = L.isoFigureLayout("kid", pose);
+    assert.equal(adult.parts.length, kid.parts.length);
+    adult.parts.forEach((p) => assert.ok(p.y >= 0 && p.w > 0 && p.h > 0 && p.d > 0, pose + " " + p.c));
+    kid.parts.forEach((p, i) => assert.ok(Math.abs(p.h - adult.parts[i].h * 0.72) < 1e-9));
+  }
+  const top = (lay) => Math.max(...lay.parts.map((p) => p.y + p.h));
+  assert.ok(top(L.isoFigureLayout("adult", "stand")) > top(L.isoFigureLayout("adult", "sit")), "standing is taller than sitting");
+  assert.ok(top(L.isoFigureLayout("adult", "lie")) < 5, "lying is low");
+  assert.deepEqual(L.isoFigureLayout("adult", "stand").parts.filter((p) => p.c === "legs").length, 1);
+  assert.equal(L.isoFigureLayout("adult", "sit").parts.filter((p) => p.c === "legs").length, 0, "legs are under the quilt when sitting");
+  assert.equal(L.isoFigureLayout("adult", "lie").parts.filter((p) => p.c === "quilt").length, 1);
+  assert.equal(L.isoFigureLayout("adult", "lie").letter.flat, true);
+  assert.equal(L.isoFigureLayout("adult", "sit").letter.flat, false);
+  const lie = L.isoFigureLayout("adult", "lie").parts;       // the head is north (smaller z) of the quilt
+  assert.ok(lie.find((p) => p.c === "skin").z < lie.find((p) => p.c === "quilt").z);
+});
+
+test("dolls: colours, sit scale under a bunk berth, pop, fade and the other tick steps", () => {
+  const c = L.isoFigureColors("#808080");
+  assert.equal(c.body, "#808080");
+  assert.notEqual(c.legs, c.body);
+  assert.notEqual(c.quilt, c.body);
+  const bunk = { kind: "bunk" }, bed = { kind: "bed2" };
+  assert.equal(L.isoSitScale(bed, 1, "adult", 1.35), 1);
+  assert.equal(L.isoSitScale(bunk, 0, "adult", 3), 1, "the upper berth has room");
+  assert.equal(L.isoSitScale(bunk, 1, "adult", 3), 0.85, "a doll too tall for the lower berth shrinks");
+  assert.equal(L.isoSitScale(bunk, 1, "adult", 1.35), 1);
+  assert.deepEqual([0, 1, 2, 3, -1].map(L.isoPopScale), [0.4, 1.15, 1, 1, 1]);
+  assert.deepEqual([0, 125, 250, 375, 500].map((t) => L.isoFadeAlpha(1, t)), [0.25, 0.5, 0.75, 1, 1]);
+  assert.deepEqual([0, 125, 250, 375, 500].map((t) => L.isoFadeAlpha(-1, t)), [0.75, 0.5, 0.25, 0, 0]);
+  assert.equal(L.isoQuarter(0.6), 0.5);
+  assert.deepEqual([0, 1, 2, 3].map(L.isoLiftOffset), [3, 4, 3, 4]);
+  // exactly one waiter of three hops in the first two ticks of each period, and none in between
+  for (let round = 0; round < 6; round++) {
+    const at = (t) => [0, 1, 2].map((i) => L.isoWaiterHop(round * 32 + t, i, 3)).reduce((a, b) => a + b, 0);
+    assert.equal(at(0), 1);
+    assert.equal(at(1), 1);
+    assert.equal(at(2), 0);
+    assert.equal(at(17), 0);
+  }
+  assert.equal(L.isoWaiterHop(0, 0, 0), 0);
+});
+
+test("dolls: the walk goes through the door of the house, hops once per tick and ends exactly on the bed", () => {
+  const layout = { rooms: [{ id: "a", rect: [0, 0, 50, 50], beds: [{ id: "b1", slots: ["s1", "s2"] }] }, { id: "c", rect: [100, 0, 50, 50], beds: [{ id: "b2", slots: ["s3"] }] }],
+    houses: [{ id: "h1", rooms: ["a"] }, { id: "h2", rooms: ["c"] }], map: { doors: [[48, 20, 4, 10], [98, 20, 4, 10]] } };
+  assert.equal(L.isoBedOfSlot(layout, "s3").room.id, "c");
+  assert.equal(L.isoBedOfSlot(layout, "zz"), null);
+  assert.deepEqual(plain(L.isoWalkDoor(layout, layout.rooms[0], [200, 200])), [50, 25]);
+  assert.deepEqual(plain(L.isoWalkDoor(layout, layout.rooms[1], [0, 0])), [100, 25]);
+  assert.equal(L.isoWalkDoor({ rooms: layout.rooms, houses: layout.houses, map: {} }, layout.rooms[0], [0, 0]), null);
+  const pts = L.isoWalkPoints([200, 200], [50, 25], [10, 10]);
+  assert.deepEqual(plain(pts), [[200, 200], [45, 18], [10, 10]]);
+  const ms = 1600, first = L.isoWalkSample(pts, 0, ms), end = L.isoWalkSample(pts, ms, ms);
+  assert.deepEqual(plain(first.pos), [200, 200]);
+  assert.deepEqual(plain(end), { pos: [10, 10], bob: 0 });
+  let prev = first.pos, bobs = 0, passed = false;
+  for (let t = 0; t < ms; t += 125) {
+    const s = L.isoWalkSample(pts, t, ms);
+    if (Math.abs(s.pos[0] - 45) <= 14 && Math.abs(s.pos[1] - 18) <= 14) passed = true;
+    bobs += s.bob;
+    prev = s.pos;
+  }
+  assert.ok(passed, "passes near the door");
+  assert.equal(bobs, 6, "a bob on every second hop");
+  assert.deepEqual(plain(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 800, 1600).pos), [4, 3]);
+});
+
+test("dolls: the page draws them in 3D, keeps the svg sprites as the fallback and lists the files", () => {
+  assert.match(pageFile, /static\/js\/logic-iso-people\.js\?v=__ASSET_VERSION__/);
+  assert.match(pageFile, /static\/js\/app-iso-people\.js\?v=__ASSET_VERSION__/);
+  assert.match(appSource, /isoPeopleBegin\(\);/);
+  assert.match(appSource, /isoPeopleEnd\(/);
+  assert.match(appSource, /drawFigure\(sg, 0, 0, color/, "the svg sprite stays for the no-WebGL fallback");
+  assert.match(appSource, /isoPeopleTick\(me\)/);
 });

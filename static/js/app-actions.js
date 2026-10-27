@@ -33,15 +33,22 @@ function runWrite(path, body, ops) {
 // Returns the walk (null when nobody walks) so that a rejected write can cancel just this one.
 function startWalk(list, party, night) {
   if (!list.length) return null;
-  var walk = { start: performance.now(), items: [] };
-  var ch = shirtChar(party.name);
+  var three = isoActive(), walk = { start: performance.now(), items: [], ms: three ? ISO_PEOPLE.walkMs : WALK_MS };
+  var ch = shirtChar(party.name), layout = app.state.layout;
   list.forEach(function (w) {
-    var key = night + "|" + w.slot;
-    var node = svgEl(app.layers.walk, "g", { transform: isoFigureTransform(isoWalkFigure(app.iso, w.from, w.to, 0, 0)) });
-    drawFootShadow(node);
-    drawFigure(node, 0, 0, w.color, w.kind, ch);      // opaque all the way, even while the write is unconfirmed
+    var key = night + "|" + w.slot, item = { key: key, node: null, fig: null, from: w.from, to: w.to, h: w.h };
+    if (three) {      // a 3D doll hopping over the meadow, through the door of the house, to the bed (the house opens meanwhile)
+      var at = isoBedOfSlot(layout, w.slot);
+      item.points = isoWalkPoints(w.from, at ? isoWalkDoor(layout, at.room, w.from) : null, w.to);
+      item.fig = isoWalkerAdd(w, ch);
+    }
+    if (!item.fig) {
+      item.node = svgEl(app.layers.walk, "g", { transform: isoFigureTransform(isoWalkFigure(app.iso, w.from, w.to, 0, 0)) });
+      drawFootShadow(item.node);
+      drawFigure(item.node, 0, 0, w.color, w.kind, ch);      // opaque all the way, even while the write is unconfirmed
+    }
     app.walking[key] = true;
-    walk.items.push({ key: key, node: node, from: w.from, to: w.to, h: w.h });
+    walk.items.push(item);
   });
   app.walks.push(walk);
   if (!app.walkFrame) app.walkFrame = requestAnimationFrame(stepWalks);
@@ -54,15 +61,21 @@ function stepWalks(now) {
   var landed = false;
   app.walks = app.walks.filter(function (walk) {
     var elapsed = now - walk.start;
-    if (elapsed >= WALK_MS) {
+    if (elapsed >= walk.ms) {
       dropWalk(walk);
       landed = true;
       return false;
     }
-    var t = walkProgress(elapsed, WALK_MS);
+    var t = walkProgress(elapsed, walk.ms);
     walk.items.forEach(function (item) {
+      var hop = isoWalkHeight(elapsed, walk.ms, item.h);
+      if (item.fig) {      // one hop per tick with a bob; the height hops up onto the bed at the end
+        var smp = isoWalkSample(item.points, elapsed, walk.ms);
+        isoWalkerSet(item.fig, smp.pos, hop || smp.bob);
+        return;
+      }
       // projected each frame; the height stays 0 on the floor and hops up onto the bed at the end (isoWalkHeight)
-      var f = isoWalkFigure(app.iso, item.from, item.to, t, isoWalkHeight(elapsed, WALK_MS, item.h));
+      var f = isoWalkFigure(app.iso, item.from, item.to, t, hop);
       item.node.setAttribute("transform", isoFigureTransform(f));
     });
     return true;
@@ -75,7 +88,8 @@ function stepWalks(now) {
 // Removes the walkers of one walk and shows their slots again (the caller redraws the beds).
 function dropWalk(walk) {
   walk.items.forEach(function (item) {
-    if (item.node.parentNode) item.node.parentNode.removeChild(item.node);
+    if (item.fig) isoWalkerRemove(item.fig);
+    else if (item.node.parentNode) item.node.parentNode.removeChild(item.node);
     delete app.walking[item.key];
   });
 }
@@ -176,12 +190,14 @@ function startMove(slot) {
   app.move = { partyId: app.myParty, fromSlot: slot, all: false };
   closePanel();
   renderMoveBar();
+  renderBeds();      // the picked figure lifts in 3D
   $("moveThis").focus({ preventScroll: true });
 }
 
 function cancelMove() {
   app.move = null;
   renderMoveBar();
+  renderBeds();
 }
 
 function moveTo(bed) {
