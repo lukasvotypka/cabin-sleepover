@@ -4352,9 +4352,9 @@ test("daynight: clockLabel", () => {
 });
 
 test("daynight: durationMs, ease", () => {
-  assert.equal(L.durationMs(12, 36), 2150);
-  assert.equal(L.durationMs(12, 60), 3400);
-  assert.equal(L.durationMs(60, 12), 3400);
+  assert.equal(L.durationMs(12, 36), 6500);
+  assert.equal(L.durationMs(12, 60), 11500);
+  assert.equal(L.durationMs(60, 12), 11500);
   near(L.ease(0), 0);
   near(L.ease(0.5), 0.5);
   near(L.ease(1), 1);
@@ -4364,7 +4364,7 @@ test("daynight: durationMs, ease", () => {
 
 test("daynight: retarget from a mid-animation hour uses the current hour", () => {
   const cur = 40.3;
-  near(L.durationMs(cur, 12), 900 + 1250 * 28.3 / 24);
+  near(L.durationMs(cur, 12), 1500 + 5000 * 28.3 / 24);
 });
 
 test("daynight: lightAt at noon and midnight", () => {

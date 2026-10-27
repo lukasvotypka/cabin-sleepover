@@ -36,8 +36,9 @@ function clockLabel(h, nights) {
   return (first ? dayShort(addDays(first, day)) : "") + " " + (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
 }
 
+// About 6.5 s for one day (organizer's request of 27. 10. 2026: a slower day change after a signpost tap).
 function durationMs(fromH, toH) {
-  return 900 + 1250 * Math.abs(toH - fromH) / 24;
+  return 1500 + 5000 * Math.abs(toH - fromH) / 24;
 }
 
 // Ease-in-out cubic.
