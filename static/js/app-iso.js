@@ -23,6 +23,8 @@ var ISO_C = {
 };
 var ISO_PINE_MAX = 1.2;       // a taller pine would reach above the headroom the scene reserves under the boards
 var iso3 = null;
+var isoQuality = isoQualityStart();      // the automatic quality (logic-iso.js); kept across rebuilds of the world
+var isoQualityExtraMs = 0;               // test hook: added to every measured frame interval to force slow frames
 var ISO_FEATURE_TREE = 1.5;      // size of the big tree that sways when tapped
 
 // --- a box builder: every static box of the world goes into one geometry with vertex colours (one draw call) ---
@@ -45,29 +47,70 @@ function IsoBoxes() {
   this.col = [];
   this.idx = [];
   this.colors = {};
+  this.boxes = [];      // boxes waiting for flush(): their faces are built once all boxes are known
 }
 
-// A box over the plan rect (x, y, w, d) from height h0 to h1, in map units. `color` is a CSS colour.
-IsoBoxes.prototype.box = function (x, y, w, d, h0, h1, color) {
+// A box over the plan rect (x, y, w, d) from height h0 to h1, in map units. `color` is a CSS colour. `hidden` (optional)
+// lists indices of ISO_FACES that touch another box and are never seen, so they are not built (crowns, stacked parts);
+// `topColor` (optional) paints the top face in another colour.
+IsoBoxes.prototype.box = function (x, y, w, d, h0, h1, color, hidden, topColor) {
   if (!(w > 0 && d > 0 && h1 > h0)) return;
-  var c = this.colors[color] || (this.colors[color] = new THREE.Color(color));
-  var self = this;
-  ISO_FACES.forEach(function (face, f) {
-    // the side faces are cut into flat bands near the ground (baked ambient occlusion); the top is never darkened
-    var bands = f === 0 ? [{ a: h0, b: h1, shade: 1 }] : isoAoBands(h0, h1);
-    bands.forEach(function (band) {
-      var base = self.pos.length / 3;
-      face[1].forEach(function (k) {
-        self.pos.push(x + k[0] * w, f === 0 ? h0 + k[1] * (h1 - h0) : (k[1] ? band.b : band.a), y + k[2] * d);
-        self.nor.push(face[0][0], face[0][1], face[0][2]);
-        self.col.push(c.r * band.shade, c.g * band.shade, c.b * band.shade);
+  this.boxes.push({ x: x, y: y, w: w, d: d, h0: h0, h1: h1, color: color, hidden: hidden, top: topColor });
+};
+
+// Builds the faces of the boxes added so far, without those another box covers (stacked or touching boxes, a trunk inside
+// a crown): they are never seen, and the shell of every box stays closed where it is seen. Runs once per box, on geometry().
+IsoBoxes.prototype.flush = function () {
+  var list = this.boxes, self = this;
+  this.boxes = [];
+  var grid = {}, CELL = 32;
+  function cells(b, fn) {
+    for (var gx = Math.floor((b.x - 1e-4) / CELL); gx <= Math.floor((b.x + b.w + 1e-4) / CELL); gx++)
+      for (var gy = Math.floor((b.y - 1e-4) / CELL); gy <= Math.floor((b.y + b.d + 1e-4) / CELL); gy++) fn(gx + "," + gy);
+  }
+  list.forEach(function (b) { cells(b, function (k) { (grid[k] || (grid[k] = [])).push(b); }); });
+  var E = 1e-4;
+  list.forEach(function (b) {
+    var near = [], seen = [];
+    cells(b, function (k) { (grid[k] || []).forEach(function (o) { if (o !== b && seen.indexOf(o) < 0) { seen.push(o); near.push(o); } }); });
+    for (var f = 0; f < ISO_FACES.length; f++) {
+      if (b.hidden && b.hidden.indexOf(f) >= 0) continue;
+      // the face's plane position p on its axis, and the rect it covers on the other two axes (x, y, height)
+      var nx = ISO_FACES[f][0][0], ny = ISO_FACES[f][0][2], nh = ISO_FACES[f][0][1];
+      var covered = near.some(function (o) {
+        var lo, hi, p, inside;
+        if (nh) { p = b.h1; lo = o.h0; hi = o.h1; inside = o.x <= b.x + E && o.x + o.w >= b.x + b.w - E && o.y <= b.y + E && o.y + o.d >= b.y + b.d - E; }
+        else if (nx) { p = nx > 0 ? b.x + b.w : b.x; lo = o.x; hi = o.x + o.w; inside = o.y <= b.y + E && o.y + o.d >= b.y + b.d - E && o.h0 <= b.h0 + E && o.h1 >= b.h1 - E; }
+        else { p = ny > 0 ? b.y + b.d : b.y; lo = o.y; hi = o.y + o.d; inside = o.x <= b.x + E && o.x + o.w >= b.x + b.w - E && o.h0 <= b.h0 + E && o.h1 >= b.h1 - E; }
+        if (!inside) return false;
+        var n = nh || nx || ny;
+        return lo < p - E && hi > p + E || (n > 0 ? Math.abs(lo - p) < E : Math.abs(hi - p) < E) && hi - lo > 0;
       });
-      self.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      if (!covered) self.face(f, b.x, b.y, b.w, b.d, b.h0, b.h1, f === 0 && b.top ? b.top : b.color);
+    }
+  });
+};
+
+// One face `f` (an index of ISO_FACES) of the box over (x, y, w, d, h0, h1); box() builds the visible ones, the crowns
+// build merged runs of equal faces.
+IsoBoxes.prototype.face = function (f, x, y, w, d, h0, h1, color) {
+  var c = this.colors[color] || (this.colors[color] = new THREE.Color(color));
+  var self = this, face = ISO_FACES[f];
+  // the side faces are cut into flat bands near the ground (baked ambient occlusion); the top is never darkened
+  var bands = f === 0 ? [{ a: h0, b: h1, shade: 1 }] : isoAoBands(h0, h1);
+  bands.forEach(function (band) {
+    var base = self.pos.length / 3;
+    face[1].forEach(function (k) {
+      self.pos.push(x + k[0] * w, f === 0 ? h0 + k[1] * (h1 - h0) : (k[1] ? band.b : band.a), y + k[2] * d);
+      self.nor.push(face[0][0], face[0][1], face[0][2]);
+      self.col.push(c.r * band.shade, c.g * band.shade, c.b * band.shade);
     });
+    self.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   });
 };
 
 IsoBoxes.prototype.geometry = function () {
+  this.flush();
   var g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
   g.setAttribute("normal", new THREE.Float32BufferAttribute(this.nor, 3));
@@ -272,24 +315,50 @@ function isoLeafTree(b, x, y, s) {
     return dx * dx + dy * dy + dz * dz <= 1 + (isoNoise(i * 7 + x, j * 13 + k * 3 + y) - 0.5) * 0.35;
   }
   for (i = -n; i <= n; i++) for (j = -n; j <= n; j++) for (k = -n; k <= n; k++) if (inside(i, j, k)) filled[i + "," + j + "," + k] = 1;
-  for (i = -n; i <= n; i++) for (j = -n; j <= n; j++) for (k = -n; k <= n; k++) {
-    if (!filled[i + "," + j + "," + k]) continue;
-    if (filled[(i + 1) + "," + j + "," + k] && filled[i + "," + (j + 1) + "," + k] && filled[i + "," + j + "," + (k + 1)] &&
-      filled[(i - 1) + "," + j + "," + k] && filled[i + "," + (j - 1) + "," + k]) continue;      // hidden inside the crown
+  function has(i, j, k) { return filled[i + "," + j + "," + k]; }
+  // faces shared with a neighbouring cell are never seen: only the outside ones are built, and equally coloured
+  // neighbours in one plane share one rectangle (greedy merge)
+  var DIRS = [[0, 0, 0, 1], [1, 1, 0, 0], [2, -1, 0, 0], [3, 0, 1, 0], [4, 0, -1, 0]];      // face index, then the neighbour offset
+  function colorAt(i, j, k) {
     var f = (k + n) / (2 * n), noise = isoNoise(i * 3 + j * 5 + x, k * 7 + y);
-    var color = f > 0.62 ? COLORS.leafOchre : f > 0.3 ? COLORS.leafRust : COLORS.leafRed;
-    if (noise < 0.12) color = COLORS.leafOchre; else if (noise > 0.93) color = ISO_C.leafGreen;
-    b.box(cx + i * cell - cell / 2, cy + j * cell - cell / 2, cell, cell, cz + k * cell, cz + (k + 1) * cell, color);
+    if (noise < 0.12) return COLORS.leafOchre;
+    if (noise > 0.93) return ISO_C.leafGreen;
+    return f > 0.62 ? COLORS.leafOchre : f > 0.3 ? COLORS.leafRust : COLORS.leafRed;
   }
+  DIRS.forEach(function (d) {
+    var f = d[0], top = f === 0, side = f === 1 || f === 2;
+    // (l, u, v): the layer along the face normal and the two axes in the face; at(l, u, v) maps back to (i, j, k)
+    function at(l, u, v) { return top ? [u, v, l] : side ? [l, u, v] : [u, l, v]; }
+    function shown(l, u, v) {
+      var c = at(l, u, v);
+      return has(c[0], c[1], c[2]) && !has(c[0] + d[1], c[1] + d[2], c[2] + d[3]);
+    }
+    for (var l = -n; l <= n; l++) {
+      var done = {};
+      for (var v = -n; v <= n; v++) for (var u = -n; u <= n; u++) {
+        if (done[u + "," + v] || !shown(l, u, v)) continue;
+        var c0 = at(l, u, v), color = colorAt(c0[0], c0[1], c0[2]), w = 1, h = 1, ok = true;
+        function same(uu, vv) { var c = at(l, uu, vv); return !done[uu + "," + vv] && shown(l, uu, vv) && colorAt(c[0], c[1], c[2]) === color; }
+        while (u + w <= n && same(u + w, v)) w++;
+        while (ok && v + h <= n) {
+          for (var q = 0; q < w; q++) if (!same(u + q, v + h)) { ok = false; break; }
+          if (ok) h++;
+        }
+        for (var qv = 0; qv < h; qv++) for (var qu = 0; qu < w; qu++) done[(u + qu) + "," + (v + qv)] = 1;
+        // the box that spans the merged cells: u and v span w and h cells along the face's axes
+        var span = top ? [w, h, 1] : side ? [1, w, h] : [w, 1, h];
+        b.face(f, cx + c0[0] * cell - cell / 2, cy + c0[1] * cell - cell / 2, span[0] * cell, span[1] * cell, cz + c0[2] * cell, cz + (c0[2] + span[2]) * cell, color);
+      }
+    }
+  });
 }
 
 function isoPine(b, x, y, s) {
-  b.box(x - 1.5 * s, y - 1.5 * s, 3 * s, 3 * s, 0, 8 * s, ISO_C.trunk);
+  b.box(x - 1.5 * s, y - 1.5 * s, 3 * s, 3 * s, 0, 6.5 * s, ISO_C.trunk);      // ends inside the lowest tier
   var tiers = [[14, 6, 13], [11, 12, 19], [8, 18, 25], [5, 24, 31], [2.4, 30, 35]];
   tiers.forEach(function (t, i) {
     var half = t[0] * s;
-    b.box(x - half, y - half, 2 * half, 2 * half, t[1] * s, t[2] * s, i % 2 ? ISO_C.pine : ISO_C.pineDark);
-    b.box(x - half + 1, y - half + 1, 2 * half - 2, 2 * half - 2, t[2] * s, t[2] * s + 0.6, ISO_C.pineLight);
+    b.box(x - half, y - half, 2 * half, 2 * half, t[1] * s, t[2] * s, i % 2 ? ISO_C.pine : ISO_C.pineDark, null, ISO_C.pineLight);      // the top is lit (replaces a thin slab)
   });
 }
 
@@ -385,10 +454,10 @@ function isoBuild(host, layout, sc) {
     return false;
   }
   renderer.useLegacyLights = true;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, ISO_PIXEL_RATIO_MAX));
+  renderer.setPixelRatio(isoQualityRatio());
   renderer.setClearColor(COLORS.grass);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = ISO_QUALITY[isoQuality.level].soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
   var canvas = renderer.domElement;
   canvas.className = "iso-canvas";
@@ -523,6 +592,7 @@ function isoBuild(host, layout, sc) {
   pivot.add(crown);
   scene.add(pivot);
   var glassMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color("#FFD27A"), emissiveIntensity: 0 });      // lit by the lamps at night
+  glass.flush();
   if (glass.pos.length) scene.add(glass.mesh(glassMat));
 
   var me = iso3 = { renderer: renderer, scene: scene, camera: camera, host: host, w: 0, h: 0, dirty: true, last: 0, raf: 0, lost: false,
@@ -782,6 +852,34 @@ function isoDirty() {
   isoWake();
 }
 
+function isoQualityRatio() {
+  return Math.min(window.devicePixelRatio || 1, ISO_PIXEL_RATIO_MAX, ISO_QUALITY[isoQuality.level].px);
+}
+
+// Applies the current quality level to the renderer (pixel ratio, shadow filter).
+function isoQualityApply(me) {
+  var q = ISO_QUALITY[isoQuality.level], r = me.renderer;
+  r.setPixelRatio(isoQualityRatio());
+  r.setSize(me.w, me.h, false);
+  var type = q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+  if (r.shadowMap.type !== type) {
+    r.shadowMap.type = type;
+    me.scene.traverse(function (o) { if (o.material) [].concat(o.material).forEach(function (m) { m.needsUpdate = true; }); });
+  }
+  r.shadowMap.needsUpdate = true;
+  me.dirty = true;
+}
+
+// Feeds the time since the previous drawn frame into the automatic quality; only while things move (a still picture
+// is drawn rarely, which is no sign of slowness).
+function isoQualityFrame(me, now, moving) {
+  var ms = moving && me.lastDraw ? now - me.lastDraw + isoQualityExtraMs : 0;
+  me.lastDraw = now;
+  var r = isoQualityStep(isoQuality, ms);
+  isoQuality = r.state;
+  if (r.change) isoQualityApply(me);
+}
+
 // Starts the frame loop if it sleeps; it stops by itself when nothing moves, nothing changed or the tab is hidden.
 function isoWake() {
   if (!iso3 || iso3.raf || document.hidden) return;
@@ -811,6 +909,7 @@ function isoLoop(now) {
   }
   if (me.dirty && now - me.last >= ISO_FRAME_MS - 4 && !me.renderer.getContext().isContextLost()) {      // the lost event may still be on its way
     me.last = now;
+    isoQualityFrame(me, now, moving);
     var started = isoFps.on ? performance.now() : 0;      // the fps meter (app-fps.js)
     if (isoFps.on) isoFpsGpuBegin(me.renderer.getContext());
     me.renderer.render(me.scene, me.camera);

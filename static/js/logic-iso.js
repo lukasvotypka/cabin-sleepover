@@ -624,11 +624,47 @@ function fpsStats(samples, now, windowMs) {
 // The meter's line, e.g. "3D 30 fps · cpu 1.2 ms (max 3.1) · gpu 2.0 ms · 140 calls · 52k tris · px 1.5". The cpu time is the
 // CPU side of a render (the GPU works on after `render()` returns). `gpu` is {ms (null = no timer query), calls, tris}
 // or omitted.
-function fpsText(stats, pixelRatio, gpu) {
+function fpsText(stats, pixelRatio, gpu, quality) {
   var s = "3D " + Math.round(stats.fps) + " fps · cpu " + stats.ms.toFixed(1) + " ms (max " + stats.worst.toFixed(1) + ")";
   if (gpu) {
     s += " · gpu " + (gpu.ms == null ? "?" : gpu.ms.toFixed(1) + " ms") + " · " + gpu.calls + " calls · " +
       (gpu.tris >= 10000 ? Math.round(gpu.tris / 1000) + "k" : gpu.tris) + " tris";
   }
-  return s + " · px " + pixelRatio;
+  s += " · px " + pixelRatio;
+  if (quality) s += " · q" + quality.level + (quality.soft ? "" : " hard");
+  return s;
+}
+
+// --- automatic quality (T-142) ---
+
+// The steps from the finest picture down: WebGL pixels per CSS pixel (at most the device's), then soft shadows -> hard.
+var ISO_QUALITY = [{ px: 1.5, soft: true }, { px: 1.25, soft: true }, { px: 1, soft: true }, { px: 1, soft: false }];
+var ISO_QUALITY_BUDGET_MS = 40;         // a frame interval above this is slow (the 30 fps budget is 33 ms, with some slack)
+var ISO_QUALITY_SLOW_MS = 2000;         // this long in a row over budget steps the quality down
+var ISO_QUALITY_GOOD_MS = 20000;        // this long in a row within budget (doubling after each step down, up to 8x) steps it up
+var ISO_QUALITY_GAP_MS = 400;           // an interval longer than this is a pause (idle, hidden tab), not a slow frame
+
+function isoQualityStart() {
+  return { level: 0, slow: 0, good: 0, upAfter: ISO_QUALITY_GOOD_MS };
+}
+
+// Pure decision, one call per drawn frame while things move. `ms` is the time since the previous drawn frame.
+// Returns {state, change}: change is -1 (a step down), +1 (a step up) or 0; state is a new object.
+function isoQualityStep(state, ms) {
+  var s = { level: state.level, slow: state.slow, good: state.good, upAfter: state.upAfter };
+  if (!(ms > 0) || ms > ISO_QUALITY_GAP_MS) { s.slow = 0; s.good = 0; return { state: s, change: 0 }; }      // a pause breaks both streaks
+  if (ms > ISO_QUALITY_BUDGET_MS) { s.slow += ms; s.good = 0; } else { s.good += ms; s.slow = 0; }
+  if (s.slow >= ISO_QUALITY_SLOW_MS && s.level < ISO_QUALITY.length - 1) {
+    s.level++;
+    s.slow = 0;
+    s.upAfter = Math.min(s.upAfter * 2, ISO_QUALITY_GOOD_MS * 8);      // each failed climb makes the next one wait longer: no flapping
+    return { state: s, change: -1 };
+  }
+  if (s.slow >= ISO_QUALITY_SLOW_MS) s.slow = 0;
+  if (s.good >= s.upAfter && s.level > 0) {
+    s.level--;
+    s.good = 0;
+    return { state: s, change: 1 };
+  }
+  return { state: s, change: 0 };
 }

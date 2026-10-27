@@ -4794,7 +4794,7 @@ test("app-iso: listed in the page with the asset version, builds with textConten
   assert.match(src, /shadow\.camera\.far = 1600;\s*sun\.shadow\.camera\.updateProjectionMatrix\(\)/, "three does not refresh the shadow frustum itself (T-136)");
   assert.ok(!src.includes("shadow.radius"), "radius is ignored by PCFSoftShadowMap");
   for (const k of ["isoBuild(", "isoDispose(", "isoSync(", "isoLoop(", "document.hidden", "webglcontextlost", "webglcontextrestored",
-    "shadowMap.autoUpdate = false", "PCFSoftShadowMap", "antialias: true", "LinearFilter", "Math.min(window.devicePixelRatio || 1, ISO_PIXEL_RATIO_MAX)", "isoAvailable()"]) assert.ok(src.includes(k), k);
+    "shadowMap.autoUpdate = false", "PCFSoftShadowMap", "antialias: true", "LinearFilter", "Math.min(window.devicePixelRatio || 1, ISO_PIXEL_RATIO_MAX, ISO_QUALITY[isoQuality.level].px)", "isoAvailable()"]) assert.ok(src.includes(k), k);
   const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
   assert.ok(scene.indexOf("isoBuild(") < scene.indexOf('svgEl(host, "svg"'), "the canvas goes under the svg");
   const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
@@ -5175,4 +5175,72 @@ test("fps meter: off by default, ?fps=1 / ?fps=0, stats and text", () => {
   const meter = fs.readFileSync(path.join(root, "static", "js", "app-fps.js"), "utf8");
   assert.match(meter, /if \(!isoFps\.on\) return;/, "the meter is only built when switched on");
   assert.match(html, /\.fps-meter \{[^}]*pointer-events: none;/);
+});
+
+// --- automatic quality and lighter geometry (T-142) ---
+
+function runQuality(state, ms, seconds) {
+  let changes = [];
+  for (let t = 0; t < seconds * 1000; t += ms) {
+    const r = L.isoQualityStep(state, ms);
+    state = r.state;
+    if (r.change) changes.push([Math.round(t), r.change, state.level]);
+  }
+  return { state, changes };
+}
+
+test("quality: slow frames for about 2 s step down, one level at a time, down to the last level", () => {
+  let r = runQuality(L.isoQualityStart(), 60, 1.9);
+  assert.equal(r.state.level, 0);
+  r = runQuality(L.isoQualityStart(), 60, 2.2);
+  assert.equal(r.state.level, 1);
+  r = runQuality(L.isoQualityStart(), 60, 30);
+  assert.equal(r.state.level, L.ISO_QUALITY.length - 1, "it stops at the lowest level");
+  assert.deepEqual(plain(L.ISO_QUALITY.map((q) => [q.px, q.soft])), [[1.5, true], [1.25, true], [1, true], [1, false]]);
+});
+
+test("quality: good frames and pauses do not step down, and a good frame breaks the slow streak", () => {
+  assert.equal(runQuality(L.isoQualityStart(), 33, 10).state.level, 0);
+  let s = L.isoQualityStart();
+  for (let i = 0; i < 100; i++) s = L.isoQualityStep(s, i % 10 === 9 ? 60 : 33).state;      // a slow frame now and then
+  assert.equal(s.level, 0);
+  s = L.isoQualityStart();
+  for (let i = 0; i < 100; i++) s = L.isoQualityStep(s, 5000).state;      // long pauses (hidden tab, idle) are not slowness
+  assert.equal(s.level, 0);
+  assert.equal(L.isoQualityStep(s, 0).change, 0);
+});
+
+test("quality: steps back up only after a long good stretch, and waits longer after each step down (no flapping)", () => {
+  let r = runQuality(L.isoQualityStart(), 60, 2.2);
+  assert.equal(r.state.level, 1);
+  assert.equal(r.state.upAfter, 2 * L.ISO_QUALITY_GOOD_MS, "the first step down already doubles the wait");
+  assert.equal(runQuality(r.state, 33, 39).state.level, 1, "39 s of good frames is not enough");
+  const up = runQuality(r.state, 33, 41);
+  assert.equal(up.state.level, 0);
+  assert.deepEqual(plain(up.changes.map((c) => c[1])), [1]);
+  // slow again right away: down again, and now the climb needs twice as long
+  const down = runQuality(up.state, 60, 2.2);
+  assert.equal(down.state.level, 1);
+  assert.ok(down.state.upAfter > r.state.upAfter);
+  assert.equal(runQuality(down.state, 33, 79).state.level, 1);
+  assert.equal(runQuality(down.state, 33, 85).state.level, 0);
+  // a bounded wait: never more than 8x the base
+  let s = L.isoQualityStart();
+  for (let i = 0; i < 10; i++) { s = runQuality(s, 60, 2.2).state; s = runQuality(s, 33, 200).state; }
+  assert.ok(s.upAfter <= L.ISO_QUALITY_GOOD_MS * 8);
+});
+
+test("quality: the meter shows the level; the loop feeds frame intervals only while things move", () => {
+  const st = { fps: 30, ms: 1, worst: 2 };
+  assert.equal(L.fpsText(st, 1, null, { level: 2, soft: true }), "3D 30 fps · cpu 1.0 ms (max 2.0) · px 1 · q2");
+  assert.equal(L.fpsText(st, 1, null, { level: 3, soft: false }), "3D 30 fps · cpu 1.0 ms (max 2.0) · px 1 · q3 hard");
+  const iso = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.match(iso, /isoQualityFrame\(me, now, moving\)/);
+  assert.match(iso, /PCFShadowMap/);
+});
+
+test("static mesh: boxes drop faces another box covers, and the crown builds merged outside faces", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.match(src, /IsoBoxes\.prototype\.flush/);
+  assert.match(src, /greedy merge/);
 });

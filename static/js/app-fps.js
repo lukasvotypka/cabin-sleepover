@@ -59,7 +59,7 @@ function isoFpsShow() {
   if (!isoFps.node) return;
   var ratio = iso3 ? iso3.renderer.getPixelRatio() : 0;
   isoFps.node.textContent = iso3 && !iso3.lost ? fpsText(fpsStats(isoFps.samples, performance.now(), ISO_FPS_WINDOW_MS), Math.round(ratio * 100) / 100,
-    { ms: isoFps.gpuMs, calls: isoFps.calls, tris: isoFps.tris }) : "3D off";
+    { ms: isoFps.gpuMs, calls: isoFps.calls, tris: isoFps.tris }, { level: isoQuality.level, soft: ISO_QUALITY[isoQuality.level].soft }) : "3D off";
 }
 
 isoFpsInit();
