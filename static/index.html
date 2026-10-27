@@ -303,41 +303,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .crest:active, .quest-row:active { transform: none; }
 }
 
-/* --- roofs and chimneys (T-029): the smoke of the three chimneys. Each puff starts at the top of its chimney, rises
-   about 24 px, drifts sideways by --dx and fades out; three puffs per chimney on staggered delays, one loop of 8.7 s.
-   Hidden until its delay has passed. Covered by the global reduced-motion rule below (the puffs stay invisible). */
-#scene svg .roofs { pointer-events: none; }
-#scene svg .smokepuff { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: smokeRise 8.7s linear infinite; }
-@keyframes smokeRise {
-  0% { opacity: 0; transform: translate(0px, 0px); }
-  10% { opacity: .85; }
-  55% { opacity: .55; }
-  100% { opacity: 0; transform: translate(var(--dx, 3px), -24px); }
-}
-
-/* --- nature decor: a tree on the left edge whose six leaves each drift down in turn, and a bird that
-   occasionally crosses the map (drawn in the svg, so it pans and zooms with the land). Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
-   colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
-#scene svg .tree { pointer-events: none; transform-box: fill-box; transform-origin: 50% 100%; }
-/* A tap on the tree blows wind through it (the sound is in app-sound.js): the crown sways for a moment. */
+/* --- nature decor: a bird that occasionally crosses the map (drawn in the svg, so it pans and zooms with the land). Purely
+   cosmetic (organizer request, 23. 10. 2026), fixed scene colors, never inverted in dark mode. Covered by the
+   reduced-motion rule below. The tree, smoke, leaves and fireflies live in the 3D world (app-iso.js). */
+/* A tap on the big tree of the 3D world blows wind through it (the sound is in app-sound.js, the sway in app-iso.js). */
 #scene svg .tree-hit { pointer-events: all; cursor: pointer; }
-#scene svg .tree.rustle { animation: treeSway .7s ease-out; }
-@keyframes treeSway {
-  0%, 100% { transform: rotate(0deg); }
-  20% { transform: rotate(2.5deg); }
-  45% { transform: rotate(-2deg); }
-  70% { transform: rotate(1deg); }
-}
-#scene svg .shedleaf { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: leafDrop var(--dur) linear var(--delay) infinite; }
-@keyframes leafDrop {
-  0% { opacity: 0; transform: translate(0px, 0px) rotate(0deg); }
-  6% { opacity: 1; }
-  25% { transform: translate(calc(var(--dx) * .9), calc(var(--fall) * .25)) rotate(calc(var(--rot) * .3)); }
-  50% { transform: translate(calc(var(--dx) * -.2), calc(var(--fall) * .5)) rotate(calc(var(--rot) * -.5)); }
-  75% { transform: translate(calc(var(--dx) * .7), calc(var(--fall) * .78)) rotate(calc(var(--rot) * .8)); }
-  90% { opacity: 1; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
-  100% { opacity: 0; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
-}
 #scene svg .bird { pointer-events: none; animation: birdFly 28s linear infinite; }
 #scene svg .bird-frame-a, #scene svg .bird-frame-b { animation: birdFlap .5s linear infinite; }
 #scene svg .bird-frame-b { opacity: 0; animation-delay: .25s; }
@@ -352,21 +322,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .bird { display: none; }
 }
 
-/* Day–night (T-111, T-117): the time slider in the scene, fireflies, figures getting up. */
+/* Day–night (T-111, T-117): the time slider in the scene, figures getting up. */
 #scene svg .dn-slider { touch-action: none; }
 #scene svg .dn-slider [role="slider"] { cursor: grab; outline: none; -webkit-tap-highlight-color: transparent; }
 #scene svg .dn-in { animation: dnIn .5s linear backwards; }
 #scene svg .dn-out { animation: dnOut .5s linear forwards; pointer-events: none; }
 @keyframes dnIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dnOut { from { opacity: 1; transform: translate(0, 0); } to { opacity: 0; transform: translate(0, -3px); } }
-#scene svg .dn-ff { animation: dnFirefly 2.4s ease-in-out infinite; }
-@keyframes dnFirefly { 0%, 100% { opacity: .15; transform: translate(0, 0); } 50% { opacity: 1; transform: translate(3px, -4px); } }
 #scene svg .zzz, #scene svg .quilt { display: none; }
 #scene svg.night .quilt { display: inline; }
 #scene svg.night .zzz { display: inline; animation: dnZzz 3s steps(6) infinite; }
 @keyframes dnZzz { 0% { opacity: 0; transform: translate(0, 2px); } 20%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(2px, -5px); } }
 @media (prefers-reduced-motion: reduce) {
-  #scene svg .dn-ff { animation: none; }
   #scene svg.night .zzz { animation: none; }
   #scene svg .dn-in, #scene svg .dn-out { animation: none; }
 }

@@ -466,3 +466,65 @@ function isoBedTags(scene, bed) {
     return { x: front[0], y: front[1] + 2, text: t.text };
   });
 }
+
+// --- day, night and life in the 3D world (T-134): light colours and the cycles of the moving parts ---
+
+// Blends two "#RRGGBB" colours linearly; t 0 gives `a`, 1 gives `b`.
+function isoMix(a, b, t) {
+  t = Math.max(0, Math.min(1, t));
+  var out = "#";
+  for (var i = 1; i < 7; i += 2) {
+    var v = Math.round(parseInt(a.substr(i, 2), 16) * (1 - t) + parseInt(b.substr(i, 2), 16) * t);
+    out += (v < 16 ? "0" : "") + v.toString(16);
+  }
+  return out.toUpperCase();
+}
+
+// The lights of the 3D world for `l` = lightAt(h): sky/ground and sun colours and intensities. Day, then the orange
+// dusk (by l.dusk), then the blue night (by l.d). The sun keeps its place: only colour and strength change.
+function isoLightParams(l) {
+  var k = Math.min(1, l.dusk / 0.55), d = l.d;
+  return {
+    sky: isoMix(isoMix("#FFF4DC", "#F2B07A", k), "#3A4A7A", d),
+    ground: isoMix("#5A6A30", "#1A2030", d),
+    glow: isoMix("#000000", "#1B2A48", d),      // the grass is green, so blue light alone would leave it black: a little blue of its own
+    hemi: 0.9 - 0.45 * d,
+    sun: isoMix(isoMix("#FFFFFF", "#FF9A4A", k), "#8FA8E0", d),
+    sunPower: 0.9 - 0.6 * d,
+    smoke: isoMix("#C9C2B6", "#8FA8E0", d * 0.6)
+  };
+}
+
+var ISO_TICK_MS = 125;                       // the one shared tick of everything that moves: 8 steps a second
+var ISO_FLICKER = [1, 0.85, 1.1, 0.9];       // the campfire light, one entry per tick
+var ISO_FLAME_FRAMES = [[5, 4, 2.5], [6, 5, 3.5], [5.5, 4.5, 3]];      // heights of the outer, middle and core flame per frame
+var ISO_SMOKE_RISE = 18;
+var ISO_SMOKE_MS = 3000;
+
+// The frame (0..2) of the flames at `clock` ms: one every 160 ms.
+function isoFlameFrame(clock) {
+  return Math.floor(clock / 160) % 3;
+}
+
+function isoFlicker(clock) {
+  return ISO_FLICKER[Math.floor(clock / ISO_TICK_MS) % ISO_FLICKER.length];
+}
+
+// A puff of chimney smoke: 6 jumps up (18 units) over 3 s, growing from 3 to 5 units and fading from 0.6 to 0; `n` (0..2) staggers by 1 s.
+function isoSmoke(clock, n) {
+  var age = ((clock + n * 1000) % ISO_SMOKE_MS) / ISO_SMOKE_MS, step = Math.min(5, Math.floor(age * 6));
+  return { rise: (step + 1) * ISO_SMOKE_RISE / 6, size: 3 + 2 * step / 5, opacity: 0.6 * (1 - (step + 1) / 6) };
+}
+
+// A falling leaf `i` of height `top`: falls in 4 to 6 s, jumps up to 2 units sideways every 400 ms, then starts again.
+function isoLeaf(clock, i, top) {
+  var dur = 4000 + isoNoise(i, 41) * 2000, age = (clock + i * 1700) % dur, steps = Math.floor(age / 400), dx = 0, j;
+  for (j = 0; j <= steps; j++) dx += (isoNoise(i * 31 + j, 43) - 0.5) * 4;
+  return { y: top * (1 - age / dur), dx: Math.max(-6, Math.min(6, dx)) };
+}
+
+// A firefly `i`: on for 0.6 s, off for 1.2 s, hopping 1 unit every 500 ms.
+function isoFirefly(clock, i) {
+  var on = (clock + i * 370) % 1800 < 600, hop = Math.floor(clock / 500);
+  return { on: on, dx: Math.round(isoNoise(i * 17 + hop, 51) * 2 - 1), dy: Math.round(isoNoise(i * 19 + hop, 53) * 2 - 1) };
+}

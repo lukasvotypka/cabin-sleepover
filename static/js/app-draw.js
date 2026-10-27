@@ -21,59 +21,6 @@ function drawGround(g, bounds) {
   r.setAttribute("height", gr[3]);
 }
 
-// A decorative autumn tree on the left edge. Its crown (x -20 to 14, y 184 to 222) sits below the upper house
-// rooms (which end at y 176) and left of the „Zápis je zatvorený“ sign (x 16), a strip that no room, board or path
-// in config/cabin.yaml reaches: pure decor, not derived from the layout, so it stays clear of every bed, board and
-// tap target however cabin.yaml is edited. On a phone (map x 0 to 380) the left half of the crown is off the map;
-// on a wider screen or a panned map it shows whole. Six leaves drift down from the crown in turn, and a few lie
-// under it; `prefers-reduced-motion` stops the fall (the global rule near the end of the style sheet).
-var TREE_CROWN = { cx: -3, cy: 203, rx: 17, ry: 19, cell: 2 };
-var TREE_FALLEN = 12;
-var TREE_FALLING = 6;
-// A deterministic pseudo-random number in [0, 1), so the tree looks the same on every draw and every device.
-function treeNoise(i, seed) {
-  var v = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
-  return v - Math.floor(v);
-}
-function drawTree(g) {
-  var t = svgEl(g, "g", { "aria-hidden": "true", "class": "tree" });
-  var c = TREE_CROWN, leafColors = [COLORS.leafOchre, COLORS.leafRust, COLORS.leafRed], x, y, i;
-  rect(t, -6, 218, 6, 34, COLORS.woodDark);         // trunk and two branches
-  rect(t, -8, 248, 10, 4, COLORS.woodDark);
-  rect(t, -10, 212, 4, 6, COLORS.woodDark);
-  rect(t, 0, 210, 4, 8, COLORS.woodDark);
-  // crown: a bumpy ellipse of 2 x 2 cells, ochre on top, rust in the middle, red below, with speckles
-  for (y = c.cy - c.ry; y < c.cy + c.ry; y += c.cell) {
-    for (x = c.cx - c.rx; x < c.cx + c.rx; x += c.cell) {
-      var dx = (x + 1 - c.cx) / c.rx, dy = (y + 1 - c.cy) / c.ry;
-      if (dx * dx + dy * dy > 1 + (treeNoise(x, y) - .5) * .22) continue;
-      var f = (y - (c.cy - c.ry)) / (2 * c.ry), n = treeNoise(x * 3, y * 7);
-      var color = f < .34 ? COLORS.leafOchre : f < .68 ? COLORS.leafRust : COLORS.leafRed;
-      if (n < .16) color = f < .34 ? COLORS.leafRust : f < .68 ? (n < .08 ? COLORS.leafOchre : COLORS.leafRed) : COLORS.leafRust;
-      else if (n > .93) color = COLORS.leafOchre;
-      rect(t, x, y, c.cell, c.cell, color);
-    }
-  }
-  for (x = c.cx - 12; x < c.cx + 12; x += c.cell) {  // darker underside
-    if (treeNoise(x, 5) < .6) rect(t, x, c.cy + c.ry - 2, c.cell, 2, COLORS.redEdge);
-  }
-  for (i = 0; i < TREE_FALLEN; i++) {                // leaves on the grass under the tree
-    rect(t, -24 + i * 2.8 + treeNoise(i, 2) * 3, 250 + treeNoise(i, 3) * 14, 3, 3, leafColors[i % 3]);
-  }
-  for (i = 0; i < TREE_FALLING; i++) {               // falling leaves: start in the crown, sway down 26 to 56 px
-    var size = i % 4 === 0 ? 4 : 3;
-    var vars = "--dx:" + ((treeNoise(i, 13) - .5) * 16).toFixed(1) + "px;--fall:" + (26 + treeNoise(i, 14) * 30).toFixed(0) +
-      "px;--rot:" + ((treeNoise(i, 17) - .5) * 160).toFixed(0) + "deg;--dur:" + (11 + treeNoise(i, 15) * 8).toFixed(1) +
-      "s;--delay:" + (-treeNoise(i, 16) * 19).toFixed(1) + "s";
-    rect(t, c.cx - 14 + treeNoise(i, 11) * 28, c.cy - 6 + treeNoise(i, 12) * 20, size, size, leafColors[i % 3],
-      { "class": "shedleaf", style: vars });
-  }
-  // The tap target (crown and trunk, a little larger than both): wind blows through the crown (app-sound.js). Decor, so it
-  // stays aria-hidden and out of the Tab order; it ends at x 16, where the „Zápis je zatvorený“ sign starts.
-  rect(t, c.cx - c.rx - 4, c.cy - c.ry - 4, 2 * c.rx + 6, 252 - (c.cy - c.ry) + 4, "transparent", { "class": "tree-hit" })
-    .addEventListener("click", function () { rustleTree(t); });
-}
-
 // A decorative bird that crosses the map every 28 s (see `.bird` in the style sheet). It is drawn in the svg
 // in map units, so it stays over the land when the map is panned or zoomed. It flies from just left of the map
 // to just right of it along `BIRD.y`, over everything, in its own aria-hidden layer that ignores taps. Two frames
@@ -95,50 +42,6 @@ function drawBird(g, layout) {
   BIRD_FRAMES.forEach(function (frame, k) {
     var f = svgEl(bird, "g", { "class": k === 0 ? "bird-frame-a" : "bird-frame-b" });
     frame.forEach(function (r) { rect(f, x0 + r[0] * c, y + r[1] * c, r[2] * c, c, COLORS.ink); });
-  });
-}
-
-// Roofs and chimneys (T-029, organizer request 24. 10. 2026): purely cosmetic and derived from `layout.houses`
-// and the room rects, so they follow the layout. `houseOutline` and `roofRows` are in the logic script. The roof
-// is drawn over the top wall of its house (the rooms start right below it); everything is aria-hidden and ignores taps.
-function drawRoof(g, outline, roof) {
-  var rows = roofRows(outline), top = rows[rows.length - 1];
-  rows.forEach(function (row) {
-    var face = row.i % 2 === 0 ? roof.face : roof.dark, joint = row.i % 2 === 0 ? roof.dark : roof.face, jx;
-    rect(g, row.x, row.y, row.w, ROOF_ROW_H, face);
-    for (jx = row.x + 4 + (row.i % 2) * 4; jx < row.x + row.w - 2; jx += 8) rect(g, jx, row.y, 1, ROOF_ROW_H, joint);
-    rect(g, row.x, row.y, 2, ROOF_ROW_H, roof.dark);                          // darker side edges
-    rect(g, row.x + row.w - 2, row.y, 2, ROOF_ROW_H, roof.dark);
-  });
-  rect(g, top.x, top.y, top.w, ROOF_ROW_H, roof.ridge);                       // ridge cap
-}
-
-// Brick chimney with a lighter cap, and three grey puffs that rise, drift and fade (see `.smokepuff`). `n` is
-// the number of the chimney: it shifts the delays so that the chimneys do not puff in sync.
-var SMOKE_PUFFS = [
-  { dx: 3, size: 3, light: true, delay: 0 },
-  { dx: 5, size: 2, light: false, delay: 2.9 },
-  { dx: 2, size: 3, light: false, delay: 5.8 }
-];
-function drawChimney(g, outline, chimneyX, n) {
-  var c = chimneyRect(outline, chimneyX);
-  rect(g, c[0], c[1] + 2, c[2], c[3] - 2, COLORS.brick);
-  rect(g, c[0], c[1] + 6, c[2], 1, COLORS.brickMortar);
-  rect(g, c[0] - 1, c[1], c[2] + 2, 2, COLORS.brickLight);
-  SMOKE_PUFFS.forEach(function (p) {
-    var delay = (p.delay + n * 2.3).toFixed(1);
-    rect(g, c[0] + 2, c[1] - p.size - 1, p.size, p.size, p.light ? COLORS.smokeLight : COLORS.smokeDark,
-      { "class": "smokepuff", style: "--dx:" + p.dx + "px;animation-delay:" + delay + "s;" });
-  });
-}
-
-function drawHouses(g, layout) {
-  var group = svgEl(g, "g", { "aria-hidden": "true", "class": "roofs" });
-  (layout.houses || []).forEach(function (house, n) {
-    var outline = houseOutline(house, layout.rooms);
-    if (!outline) return;
-    drawRoof(group, outline, house.roof);
-    drawChimney(group, outline, house.chimney, n);
   });
 }
 
@@ -274,7 +177,7 @@ function blockShadow(parent, r) {
   rect(parent, r[0] + 2, r[1] + 2, r[2], r[3], "#2E1F14", { opacity: ".25", "aria-hidden": "true" });
 }
 
-// The „Zápis je zatvorený“ sign, shown to everyone while signup is locked. Position: `map.scene.locked`.
+// The „Zápis je zatvorený“ sign, shown to everyone while signup is locked. Position: the locked cell of the icon grid (isoScene).
 function drawLocked(parent, r) {
   var g = svgEl(parent, "g", { role: "img", "aria-label": LOCKED_TEXTS.sign });
   blockShadow(g, [r[0], r[1], r[2], r[3] - 8]);
@@ -285,7 +188,7 @@ function drawLocked(parent, r) {
   addText(g, r[0] + r[2] / 2, r[1] + 44, "rený", 9, COLORS.paper, { anchor: "middle" });
 }
 
-// The letter icon opens „Prehľad na poslanie“. The hit area is the whole `map.scene.letter` rect.
+// The letter icon opens „Prehľad na poslanie“. The hit area is the whole letter cell of the icon grid (isoScene).
 function drawLetter(parent, r) {
   var g = svgEl(parent, "g");
   var x = r[0] + (r[2] - 32) / 2, y = r[1] + (r[3] - 24) / 2;
@@ -303,7 +206,7 @@ function drawLetter(parent, r) {
 }
 
 // The „Kto je kto“ sign: a small board with three colour squares, each next to a paper line. The squares are
-// decoration (the first three palette colours), not party data. The hit area is the whole `map.scene.legend` rect.
+// decoration (the first three palette colours), not party data. The hit area is the whole legend cell of the icon grid (isoScene).
 function drawLegend(parent, r) {
   var g = svgEl(parent, "g");
   blockShadow(g, r);
@@ -373,7 +276,7 @@ function iconCaption(parent, x, y, text) {
   addText(parent, x, y + 6, text, 6, COLORS.paper, { anchor: "middle", bold: true }).setAttribute("aria-hidden", "true");
 }
 
-// The „?“ icon that opens „Návod“. The hit area is the whole `map.scene.notice` rect (44×44).
+// The „?“ icon that opens „Návod“. The hit area is the whole notice cell of the icon grid (isoScene), 44×44.
 function drawNotice(parent, r) {
   var g = svgEl(parent, "g");
   blockShadow(g, [r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8]);

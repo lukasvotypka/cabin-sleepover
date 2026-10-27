@@ -261,3 +261,11 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **Move by thumb (T-133):** on a phone, tap your party's bed, „Presunúť“, then tap a free bed: the figure walks or moves to it, the move bar goes away and the new place shows in the sheet at once. A bunk top move shows the right berth.
 - [ ] **06:00 fade on devices (T-133):** drag the time knob across 06:00 (or tap the next night's signpost on the iPhone and Android): figures that leave fade out, new ones fade in, figures in the same place stay put. With reduced motion (iOS „Zmenšiť pohyb“, Android „Remove animations“) there is no fade and the figures change at once.
 - [ ] **Walk onto the bunk top (T-133):** on a phone, a figure walking from the meadow to the top berth climbs up in small steps at the end of the walk, not in one jump, and lands on the berth.
+
+## 16. Day, night and life in the 3D map (T-134)
+
+- [ ] **Time-lapse on iPhone Safari and Android Chrome (T-134):** tap a night signpost: the light changes from day through orange dusk to blue night and back at dawn. At night every room glows warm, the windows and doors light the ground outside, the grass is dark blue (not black), and the campfire is brighter. No flat rectangle shows over the world, and the figures, names and boards stay readable.
+- [ ] **Moving details (T-134):** by day, smoke rises from the chimneys in small steps and a few leaves fall near the cabins; at night the leaves are gone and fireflies blink at the forest edge, never over the signs. The campfire flickers. Tapping the big tree makes its crown sway in steps.
+- [ ] **Smoothness on a phone (T-134):** the map pans and zooms smoothly while the details move, and the phone does not get warm after a minute on the map.
+- [ ] **Reduced motion (T-134):** with iOS „Zmenšiť pohyb“ or Android „Remove animations“ on, nothing moves (no smoke, leaves or sway; the fire stands still); moving the time slider still changes the light and glow at once.
+- [ ] **Hidden tab (T-134):** switch to another app or tab for a minute and come back: the map is correct at once, the smoke and fire go on from where they were, and the phone did no work while hidden (no heat or battery drain).

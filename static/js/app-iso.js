@@ -7,6 +7,8 @@
 // uses the same projection as logic-iso.js, and isoSync() points it at the svg's viewBox after every zoom or pan, so
 // both layers always line up. Without WebGL the svg draws flat floors instead (drawBase) and the app still works.
 // Roofs are left off (cutaway); a house keeps its roof colours on the cap log of its tall walls.
+// The day-night slider lights this world (isoLight) and a little life moves in it: campfire, chimney smoke, falling leaves,
+// fireflies (isoBuildLife, isoTick); everything moving steps on one shared 8 fps tick and sleeps while the tab is hidden.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 var ISO_PIXEL_RATIO = 1;      // one WebGL pixel per CSS pixel: slightly chunky on a phone, which suits the pixel style
@@ -288,6 +290,7 @@ function isoFreeSpot(layout, candidates, clear) {
   return null;
 }
 
+// The stones, logs and seats of the campfire; its flames move and are built by isoBuildLife.
 function isoCampfire(b, x, y) {
   for (var i = 0; i < 8; i++) {
     var a = i / 8 * Math.PI * 2;
@@ -295,9 +298,6 @@ function isoCampfire(b, x, y) {
   }
   b.box(x - 4, y - 1, 8, 2, 0, 2.5, ISO_C.fireLog);
   b.box(x - 1, y - 4, 2, 8, 1, 3.5, ISO_C.fireLog);
-  [["#FF7A1A", 4, 2, 5.5], ["#FFC23A", 2.6, 5.5, 9], ["#FFF1A0", 1.4, 9, 11.5]].forEach(function (f) {      // three stacked flames (static here)
-    b.box(x - f[1] / 2, y - f[1] / 2, f[1], f[1], f[2], f[3], f[0]);
-  });
   [[-18, -4, 6, 14], [14, -6, 6, 14], [-6, 15, 14, 5]].forEach(function (s) {      // log seats around it
     b.box(x + s[0], y + s[1], s[2], s[3], 0, 4, COLORS.wood);
     b.box(x + s[0], y + s[1], s[2], s[3], 4, 4.6, COLORS.woodLight);
@@ -370,7 +370,8 @@ function isoBuild(host, layout, sc) {
   camera.lookAt(0, 0, 0);
 
   // light: sky and ground, and the sun high in the south-east (about 55 degrees), so shadows fall north-west
-  scene.add(new THREE.HemisphereLight("#FFF4DC", "#5A6A30", 0.9));
+  var hemi = new THREE.HemisphereLight("#FFF4DC", "#5A6A30", 0.9);
+  scene.add(hemi);
   var sun = new THREE.DirectionalLight("#FFFFFF", 0.9);
   sun.position.set(cx + 210, 420, cy + 210);
   sun.target.position.set(cx, 0, cy);
@@ -385,14 +386,14 @@ function isoBuild(host, layout, sc) {
   scene.add(sun.target);
 
   // the grass covers far more than any pan or zoom can show, so no blank background ever appears
-  var ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshLambertMaterial({ map: isoGrassTexture() }));
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshLambertMaterial({ map: isoGrassTexture(), emissive: new THREE.Color("#000000") }));
   ground.material.map.repeat.set(6000 / 64, 6000 / 64);
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(cx, 0, cy);
   ground.receiveShadow = true;
   scene.add(ground);
 
-  var b = new IsoBoxes(), glass = new IsoBoxes(), i;
+  var b = new IsoBoxes(), glass = new IsoBoxes(), chimneys = [], i;
   (layout.map.paths || []).forEach(function (p, n) {
     b.box(p[0], p[1], p[2], p[3], 0, 0.5, COLORS.path);
     for (i = 0; i < p[2] * p[3] / 90; i++) {
@@ -416,7 +417,10 @@ function isoBuild(host, layout, sc) {
     (layout.map.doors || []).forEach(function (d) {
       if (rooms.some(function (r) { return rectsOverlap(d, r.rect); })) b.box(d[0], d[1], d[2], d[3], 0, 1.1, doorFloorColor(layout, d) || COLORS.path);
     });
-    if (typeof house.chimney === "number") isoChimney(b, outline, house.chimney);
+    if (typeof house.chimney === "number") {
+      isoChimney(b, outline, house.chimney);
+      chimneys.push([house.chimney + 3, outline[1] - 3 + 3.5, ISO.wallH + 11.5]);      // where the smoke starts
+    }
   });
   (layout.map.windows || []).forEach(function (w) { isoWindow(b, glass, w); });
 
@@ -430,11 +434,12 @@ function isoBuild(host, layout, sc) {
   if (fireSpot) isoCampfire(b, fireSpot[0], fireSpot[1]);
   var keep = [[treeSpot[0] - 20, treeSpot[1] - 20, 40, 40]];
   if (fireSpot) keep.push([fireSpot[0] - 30, fireSpot[1] - 30, 60, 60]);
-  isoTrees(layout, { keepOut: keep, count: 70 }).forEach(function (t) {
+  var forest = isoTrees(layout, { keepOut: keep, count: 70 }), edge = isoTrees(layout, { keepOut: keep, count: 40, clear: 12, rim: 40 });
+  forest.forEach(function (t) {
     if (underBoards(t, 45)) return;
     if (t.kind === "pine") isoPine(b, t.x, t.y, Math.min(t.size, ISO_PINE_MAX)); else isoLeafTree(b, t.x, t.y, t.size);
   });
-  isoTrees(layout, { keepOut: keep, count: 40, clear: 12, rim: 40 }).forEach(function (t, n) {
+  edge.forEach(function (t, n) {
     if (underBoards(t, 8)) return;
     if (n % 3 === 0) isoRock(b, t.x, t.y, t.size * 0.8);
     else if (n % 3 === 1) isoBush(b, t.x, t.y, t.size * 0.8, n % 2 === 0);
@@ -448,10 +453,14 @@ function isoBuild(host, layout, sc) {
   crown.position.set(-treeSpot[0], 0, -treeSpot[1]);
   pivot.add(crown);
   scene.add(pivot);
-  if (glass.pos.length) scene.add(glass.mesh(new THREE.MeshLambertMaterial({ vertexColors: true })));
+  var glassMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color("#FFD27A"), emissiveIntensity: 0 });      // lit by the lamps at night
+  if (glass.pos.length) scene.add(glass.mesh(glassMat));
 
   var me = iso3 = { renderer: renderer, scene: scene, camera: camera, host: host, w: 0, h: 0, dirty: true, last: 0, raf: 0, lost: false,
+    hemi: hemi, sun: sun, glass: glassMat, groundMat: ground.material, sc: sc, worldTop: worldTop, clock: 0, tickAt: 0, light: null,
     tree: { x: treeSpot[0], y: treeSpot[1], size: ISO_FEATURE_TREE, pivot: pivot, timer: 0 } };
+  isoBuildLife(me, layout, { chimneys: chimneys, fire: fireSpot, leafTrees: forest.filter(function (t) { return t.kind === "leaf" && !underBoards(t, 45); }),
+    edge: edge.filter(function (t) { return !underBoards(t, 10); }) });
   canvas.addEventListener("webglcontextlost", function (e) {
     e.preventDefault();      // the browser may give the context back
     if (iso3 !== me) return;      // a late event of a disposed world
@@ -471,7 +480,8 @@ function isoBuild(host, layout, sc) {
   });
   renderer.shadowMap.needsUpdate = true;
   isoSync();
-  iso3.raf = requestAnimationFrame(isoLoop);
+  isoLight(isoLastLight || lightAt(12));
+  isoWake();
   return true;
 }
 
@@ -482,10 +492,10 @@ function isoRustle() {
   var start = performance.now();
   cancelAnimationFrame(t.timer);
   (function sway(now) {
-    var p = Math.min(1, (now - start) / 700), a = Math.sin(p * Math.PI * 5) * 0.06 * (1 - p);
+    var p = Math.min(1, Math.floor((now - start) / 90) * 90 / 700), a = Math.sin(p * Math.PI * 5) * 0.06 * (1 - p);      // 90 ms steps
     t.pivot.rotation.z = a;
     t.pivot.rotation.x = a * 0.6;
-    iso3.dirty = true;
+    isoDirty();
     if (p < 1 && iso3 && iso3.tree === t) t.timer = requestAnimationFrame(sway);
   })(start);
 }
@@ -525,16 +535,193 @@ function isoSync() {
   cam.top = sc.oy - vy;
   cam.bottom = sc.oy - (vy + vh);
   cam.updateProjectionMatrix();
-  iso3.dirty = true;
+  isoDirty();
 }
 
-// Draws when the view changed (isoSync) or something moved, at most every ISO_FRAME_MS, never while the page is hidden.
-function isoLoop(now) {
-  if (!iso3) return;
-  iso3.raf = requestAnimationFrame(isoLoop);
-  if (document.hidden || iso3.lost || !iso3.dirty || now - iso3.last < ISO_FRAME_MS) return;
-  if (iso3.renderer.getContext().isContextLost()) return;      // the lost event may still be on its way
-  iso3.last = now;
-  iso3.renderer.render(iso3.scene, iso3.camera);
-  iso3.dirty = false;
+// --- light, life and the frame loop ---
+
+var isoLastLight = null;      // the last lightAt() result, so a rebuilt world starts with the right light
+
+function isoMat(color, opacity) {
+  return new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: opacity || 0, blending: THREE.AdditiveBlending, depthWrite: false, visible: false });
 }
+
+// A flat additive quad on the plan rect (x, y, w, d) at height h.
+function isoQuad(x, y, w, d, h, mat) {
+  var m = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), mat);
+  m.position.set(x + w / 2, h, y + d / 2);
+  return m;
+}
+
+// The side of a window or door that faces the outside: away from the centre of the room it belongs to.
+function isoOutside(layout, r) {
+  var room = layout.rooms.filter(function (q) { return rectsOverlap(r, q.rect); })[0], along = r[2] >= r[3];
+  var c = room ? (along ? room.rect[1] + room.rect[3] / 2 : room.rect[0] + room.rect[2] / 2) : -Infinity;
+  return (along ? r[1] + r[3] / 2 : r[0] + r[2] / 2) >= c ? 1 : -1;
+}
+
+// A spill of light of `depth` units on the ground, outside a window or a door.
+function isoSpill(layout, r, depth, mat) {
+  var along = r[2] >= r[3], s = isoOutside(layout, r);
+  if (along) return isoQuad(r[0], s > 0 ? r[1] + r[3] : r[1] - depth, r[2], depth, 0.9, mat);
+  return isoQuad(s > 0 ? r[0] + r[2] : r[0] - depth, r[1], depth, r[3], 0.9, mat);
+}
+
+// The lamps and the moving parts. They are cheap: additive quads (no real lights, except the campfire's), plain
+// boxes, and no shadows. `ctx` has the chimney tops, the campfire spot and the trees to take leaves and fireflies from.
+function isoBuildLife(me, layout, ctx) {
+  var scene = me.scene, unit = new THREE.BoxGeometry(1, 1, 1), L = me.life = { mats: {}, flames: [], smoke: [], leaves: [], flies: [] };
+  var m = L.mats;
+  m.room = isoMat("#FFC76A"); m.window = isoMat("#FFD27A"); m.door = isoMat("#FFD27A"); m.ring = isoMat("#FFB060");
+  layout.rooms.forEach(function (r) {
+    var q = r.rect;
+    scene.add(isoQuad(q[0] + 4, q[1] + 4, q[2] - 8, q[3] - 8, ISO.lowWall - 0.5, m.room));
+  });
+  (layout.map.windows || []).forEach(function (w) { scene.add(isoSpill(layout, w, 6, m.window)); });
+  (layout.map.doors || []).forEach(function (d) { scene.add(isoSpill(layout, d, 10, m.door)); });
+
+  if (ctx.fire) {      // the campfire: three flames, the one point light and a ring of light on the ground
+    var fx = ctx.fire[0], fy = ctx.fire[1];
+    L.flames = [["#E8741E", 4], ["#FFB43A", 2.6], ["#FFE08A", 1.4]].map(function (f) {
+      var mesh = new THREE.Mesh(unit, new THREE.MeshBasicMaterial({ color: f[0] }));
+      mesh.scale.x = mesh.scale.z = f[1];
+      mesh.position.set(fx, 2, fy);
+      scene.add(mesh);
+      return mesh;
+    });
+    L.fire = new THREE.PointLight("#FF8A3A", 0.3, 70);
+    L.fire.position.set(fx, 8, fy);
+    scene.add(L.fire);
+    scene.add(new THREE.Mesh(new THREE.CircleGeometry(18, 24).rotateX(-Math.PI / 2), m.ring).translateX(fx).translateY(0.9).translateZ(fy));
+  }
+
+  (ctx.chimneys || []).forEach(function (c) {      // chimney smoke: 3 puffs each
+    for (var n = 0; n < 3; n++) {
+      var mat = new THREE.MeshBasicMaterial({ color: "#C9C2B6", transparent: true, opacity: 0, depthWrite: false });
+      var mesh = new THREE.Mesh(unit, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      L.smoke.push({ mesh: mesh, mat: mat, c: c, n: n });
+    }
+  });
+
+  var near = ctx.leafTrees.map(function (t) {      // leaves fall from the leaf trees nearest to the cabins
+    var best = Infinity;
+    layout.rooms.forEach(function (r) { best = Math.min(best, Math.abs(t.x - r.rect[0] - r.rect[2] / 2) + Math.abs(t.y - r.rect[1] - r.rect[3] / 2)); });
+    return { t: t, d: best };
+  }).sort(function (a, b) { return a.d - b.d; });
+  var leafColors = [COLORS.leafOchre, COLORS.leafRust, COLORS.leafRed];
+  for (var i = 0; i < 6 && near.length; i++) {
+    var tr = near[i % near.length].t;
+    var leaf = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 1.5), new THREE.MeshBasicMaterial({ color: leafColors[i % 3] }));
+    leaf.visible = false;
+    scene.add(leaf);
+    L.leaves.push({ mesh: leaf, x: tr.x + (isoNoise(i, 61) - 0.5) * 12 * tr.size, y: tr.y + (isoNoise(i, 62) - 0.5) * 12 * tr.size, top: 18 * tr.size });
+  }
+
+  m.fly = new THREE.MeshBasicMaterial({ color: "#F6F2A0", transparent: true, opacity: 0, depthWrite: false });
+  ctx.edge.slice(0, 12).forEach(function (t, k) {      // fireflies at the forest and meadow edges (never under the boards)
+    var fly = new THREE.Mesh(unit, m.fly);
+    fly.visible = false;
+    scene.add(fly);
+    L.flies.push({ mesh: fly, x: t.x + (isoNoise(k, 63) - 0.5) * 16, y: t.y + (isoNoise(k, 64) - 0.5) * 16, z: 3 + isoNoise(k, 65) * 5 });
+  });
+}
+
+// Lights the world for `l` = lightAt(h) (called by dnPaint on every slider step; there is no tween).
+function isoLight(l) {
+  isoLastLight = l;
+  var me = iso3;
+  if (!me || me.lost) return;
+  var p = isoLightParams(l), m = me.life.mats;
+  me.light = l;
+  me.hemi.color.set(p.sky);
+  me.hemi.groundColor.set(p.ground);
+  me.hemi.intensity = p.hemi;
+  me.groundMat.emissive.set(p.glow);
+  me.sun.color.set(p.sun);
+  me.sun.intensity = p.sunPower;
+  me.glass.emissiveIntensity = l.lamp;
+  [["room", 0.4], ["window", 0.25], ["door", 0.25], ["ring", 0.3]].forEach(function (e) {
+    m[e[0]].opacity = e[1] * l.lamp;
+    m[e[0]].visible = l.lamp > 0.002;
+  });
+  me.life.smoke.forEach(function (s) { s.mat.color.set(p.smoke); });
+  isoMove(me);
+  isoDirty();
+}
+
+// Puts every moving part where `me.clock` says (or at rest with reduced motion); called by each tick and by isoLight.
+function isoMove(me) {
+  var L = me.life, l = me.light, still = prefersReducedMotion(), t = still ? 0 : me.clock, sc = me.sc;
+  if (!l) return;
+  var frame = still ? 1 : isoFlameFrame(t);
+  L.flames.forEach(function (f, k) {
+    f.scale.y = ISO_FLAME_FRAMES[frame][k];
+    f.position.y = 2 + f.scale.y / 2;
+  });
+  if (L.fire) L.fire.intensity = (0.3 + 1.3 * l.lamp) * (still ? 1 : isoFlicker(t));
+  L.smoke.forEach(function (s) {
+    var q = isoSmoke(t, s.n), y = s.c[2] + q.rise;
+    s.mesh.visible = !still && q.opacity > 0.01 && isoPoint(sc, s.c[0], s.c[1], y)[1] >= me.worldTop;      // never over the boards
+    s.mesh.scale.set(q.size, q.size, q.size);
+    s.mesh.position.set(s.c[0], y, s.c[1]);
+    s.mat.opacity = q.opacity;
+  });
+  var fall = !still && l.d <= 0.6;
+  L.leaves.forEach(function (lf, i) {
+    var q = isoLeaf(t, i, lf.top);
+    lf.mesh.visible = fall;
+    lf.mesh.position.set(lf.x + q.dx, Math.max(0.6, q.y), lf.y);
+  });
+  L.mats.fly.opacity = l.fireflies;
+  L.flies.forEach(function (f, i) {
+    var q = still ? { on: true, dx: 0, dy: 0 } : isoFirefly(t, i);
+    f.mesh.visible = l.fireflies > 0.002 && q.on;
+    f.mesh.position.set(f.x + q.dx, f.z, f.y + q.dy);
+  });
+}
+
+function isoDirty() {
+  if (!iso3) return;
+  iso3.dirty = true;
+  isoWake();
+}
+
+// Starts the frame loop if it sleeps; it stops by itself when nothing moves, nothing changed or the tab is hidden.
+function isoWake() {
+  if (!iso3 || iso3.raf || document.hidden) return;
+  iso3.raf = requestAnimationFrame(isoLoop);
+}
+
+// Draws when the view changed (isoSync), the light changed or something moved, at most every ISO_FRAME_MS, and never
+// while the page is hidden. Moving parts step on one tick of ISO_TICK_MS, driven by the frame time alone (no timers).
+function isoLoop(now) {
+  var me = iso3;
+  if (!me) return;
+  me.raf = 0;
+  if (document.hidden || me.lost) return;      // isoWake runs again when the page is shown
+  var moving = !prefersReducedMotion();
+  if (moving) {
+    if (!me.tickAt) me.tickAt = now;
+    if (now - me.tickAt >= ISO_TICK_MS) {
+      me.clock += Math.min(now - me.tickAt, 2 * ISO_TICK_MS);      // after a pause the cycles go on where they were
+      me.tickAt = now;
+      isoMove(me);
+      me.dirty = true;
+    }
+  }
+  if (me.dirty && now - me.last >= ISO_FRAME_MS && !me.renderer.getContext().isContextLost()) {      // the lost event may still be on its way
+    me.last = now;
+    me.renderer.render(me.scene, me.camera);
+    me.dirty = false;
+  }
+  if (moving || me.dirty) me.raf = requestAnimationFrame(isoLoop);
+}
+
+document.addEventListener("visibilitychange", function () {
+  if (!iso3) return;
+  iso3.tickAt = 0;      // no catching up for the time spent hidden
+  iso3.dirty = true;
+  isoWake();
+});

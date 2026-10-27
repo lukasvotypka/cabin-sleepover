@@ -49,6 +49,7 @@ function ease(x) {
 function lightAt(h) {
   var d = darkness(h), k = dusk(h);
   return {
+    d: d,               // the raw darkness 0..1, for the 3D light (isoLightParams)
     dark: d * .78,
     dusk: k * .55 * (1 - d * .5),
     lamp: smooth((d - .25) / .5),

@@ -6,7 +6,7 @@
 
 var briefingUi = { offerClosed: false, sending: {} };   // offerClosed: hidden until the next page load
 
-// --- the board in the scene (map.scene.briefing) ---
+// --- the board in the scene (the briefing cell of the icon grid, isoScene) ---
 
 function briefingLabel(state) {
   var count = briefingCount(state), mine = briefingDone(state, app.myParty);

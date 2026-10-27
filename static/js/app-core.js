@@ -12,7 +12,6 @@ var CREST_CHIPS_MAX = 6;   // online chips under „Si: …“ (what fits at 380
 var POLL_TIMEOUT_MS = 10000;
 var WRITE_TIMEOUT_MS = 20000;
 var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound" };
-var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
 var LONG_PRESS_MS = 500;
 var TOAST_MS = 6000;
@@ -35,7 +34,7 @@ var COLORS = {
   stoveTileDark: "#7D7264", stoveBlanket: "#C9D8EA", stoveBlanketEdge: "#9DB5D4", stovePipeLight: "#8A8A8A",
   tight: "#E0A33A", picked: "#3AA7E0",
   moon: "#7A8FB8", moonDark: "#3E4F7A", moonBand: "#D9DFEE", nightInk: "#2F3B5C", dayBand: "#F7E7B4", dayInk: "#7A4A0C",
-  brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C", smokeLight: "#C9C9C9", smokeDark: "#A9A9A9"
+  brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C"
 };
 // Signpost tally chip per kind: [edge, face, text] keys of COLORS (under = amber: still to do; over = red: too many).
 var TALLY_COLORS = { under: ["amberEdge", "amber", "ink"], over: ["redEdge", "red", "white"], ok: ["greenEdge", "green", "white"] };

@@ -49,7 +49,7 @@ function stovePipeRect(bed) {
 }
 
 // The box that the furniture of a bed really covers, in map units: the union, on all four sides, of
-// the bed rect, every mat (mats are spaced 46 apart and 32 wide, see `drawFurniture`) and the stove
+// the bed rect, every mat (mats are spaced 46 apart and 32 wide, see `isoFurniture`) and the stove
 // pipe. The hit area and the figures use `bed.rect` itself.
 function furnitureBounds(bed) {
   var r = bed.rect, parts = [r], i;
@@ -200,13 +200,6 @@ function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) 
     out.push({ slot: slot, from: from, to: figurePosition(bed, at), h: isoSlotHeight(bed, at), kind: who.kind, color: party.color });
   });
   return out;
-}
-
-var MEADOW_HIT_H = 44;   // touch target height in scene units
-// Hit rect of the meadow button: starts at the meadow top (below the letter and key icons) and is 44 units tall,
-// taller than the meadow itself, so no other scene board may sit within it (tests/test_map_layout.py checks this).
-function meadowHitRect(meadow) {
-  return [meadow[0], meadow[1] - 1, meadow[2], MEADOW_HIT_H];
 }
 
 // Screen-reader label of the meadow group, "" for 0.

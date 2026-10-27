@@ -3,7 +3,7 @@
 // App part: the organizer's key icon and admin panel (T-076): lock signup, download the data, delete a party.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
-// The key icon, drawn only for the admin role. The hit area is the whole `map.scene.key` rect.
+// The key icon, drawn only for the admin role. The hit area is the whole key cell of the icon grid (isoScene).
 function drawKey(parent, r) {
   var g = svgEl(parent, "g");
   var x = r[0] + (r[2] - 28) / 2, y = r[1] + (r[3] - 28) / 2;

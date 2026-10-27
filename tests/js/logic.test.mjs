@@ -1655,25 +1655,6 @@ test("a far neighbour does not stretch the signpost hit area, and a room is neve
   assert.deepEqual(plain(L.nightsHit(close, 8)), [176, 38, 196, 69]);   // stops 3 units above the room
 });
 
-test("bed hit areas contain the bed, never overlap each other or a scene board", () => {
-  const all = realLayout.rooms.flatMap((r) => r.beds);
-  const hits = all.map((b) => [b, L.bedHit(realLayout, b, 8)]);
-  hits.forEach(([b, hit]) => {
-    assert.ok(hit[0] <= b.rect[0] && hit[1] <= b.rect[1] && hit[0] + hit[2] >= b.rect[0] + b.rect[2] && hit[1] + hit[3] >= b.rect[1] + b.rect[3], b.id);
-    assert.ok(hit[2] <= b.rect[2] + 16 && hit[3] <= b.rect[3] + 16, `${b.id} grew by more than the cap`);
-    Object.values(scene).forEach((r) => assert.ok(!overlap(hit, r), `${b.id} overlaps a scene board`));
-  });
-  for (let i = 0; i < hits.length; i++) {
-    for (let j = i + 1; j < hits.length; j++) assert.ok(!overlap(hits[i][1], hits[j][1]), `${hits[i][0].id} overlaps ${hits[j][0].id}`);
-  }
-});
-
-test("a bed hit area follows the bed rect from the config", () => {
-  assert.deepEqual(plain(L.bedHit(realLayout, bedById("left-window"), 8)), [179, 212, 39, 50]);   // half the gap to its neighbours
-  const moved = { ...realLayout, rooms: realLayout.rooms.map((r) => ({ ...r, beds: r.beds.map((b) => (b.id === "left-window" ? { ...b, rect: [20, 312, 24, 34] } : b)) })) };
-  assert.deepEqual(plain(L.bedHit(moved, moved.rooms[2].beds[1], 8)), [12, 308, 40, 41]);   // stops at the legend sign above and at half the gap to a bed below
-});
-
 test("diagonal neighbours do not get overlapping hit areas", () => {
   const caps = { up: 8, down: 8, left: 8, right: 8 };
   const a = [0, 0, 20, 20], b = [24, 30, 20, 20];      // 4 apart across, 10 apart down
@@ -3200,12 +3181,6 @@ test("placesUndoInfo: texts per weekday and plural, null without override", () =
   assert.equal(L.placesUndoInfo(stateWith([p]), null, THU), null);
 });
 
-test("meadowHitRect: 44 units tall from the meadow top, as wide as the meadow", () => {
-  const m = realLayout.map.scene.meadow;
-  assert.deepEqual(plain(L.meadowHitRect(m)), [m[0], m[1] - 1, m[2], 44]);
-  assert.deepEqual(plain(L.meadowHitRect([112, 397, 124, 14])), [112, 396, 124, 44]);   // real config: starts below the icons (end at 396)
-});
-
 test("meadowButtonLabel: singular address and plurals", () => {
   assert.equal(L.meadowButtonLabel(1), "1 z vás ešte nemá posteľ. Ťuknutím otvoríš možnosti.");
   assert.equal(L.meadowButtonLabel(2), "2 z vás ešte nemajú posteľ. Ťuknutím otvoríš možnosti.");
@@ -3671,7 +3646,8 @@ test("sound: the bird chirps while it is over the map, and the chirp and the win
 test("sound: the bird chirps per flight and a tap on the tree blows wind through it", () => {
   assert.match(appSource, /bird\.addEventListener\("animationiteration", onBirdFlight\)/);
   assert.match(appSource, /e\.animationName !== "birdFly"/);
-  assert.match(appSource, /"tree-hit"[\s\S]*?rustleTree\(t\)/);
+  assert.match(appSource, /"tree-hit"[\s\S]*?rustleTree\(\); isoRustle\(\)/);
+  assert.doesNotMatch(appSource, /classList\.add\("rustle"\)/);
   assert.match(html, /#scene svg \.tree-hit \{ pointer-events: all;/);
 });
 
@@ -4381,10 +4357,11 @@ test("daynight: retarget from a mid-animation hour uses the current hour", () =>
 
 test("daynight: lightAt at noon and midnight", () => {
   const day = L.lightAt(12);
-  assert.deepEqual(plain(day), { dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1, sleep: false });
+  assert.deepEqual(plain(day), { d: 0, dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1, sleep: false });
   const night = L.lightAt(0);
   assert.equal(night.sleep, true);
   assert.equal(L.lightAt(15).sleep, false);
+  near(night.d, 1);
   near(night.dark, 0.78);
   near(night.lamp, 1);
   near(night.fireflies, 1);
@@ -4415,25 +4392,80 @@ test("daynight slider: drawn in the scene, no HTML bar, aria and keys wired (T-1
   assert.ok(!hud.includes("timebar"));
 });
 
-test("daynight scene: hidden light elements get display none (T-113)", () => {
+test("daynight scene: the board shade hides at rest and the world is lit in 3D (T-113, T-134)", () => {
   const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
   assert.ok(src.includes("function dnVis("));
   assert.ok(src.includes('n.setAttribute("display", "none")'));
-  assert.ok(src.includes('dnWrap(fx.layer'));
   assert.ok(src.includes('dnWrap(fx.shadeLayer'));
-});
-
-test("daynight light layer: plain alpha, no blend, mask, filter or clip-path (T-118)", () => {
-  const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
-  for (const k of ["mix-blend-mode", "multiply", "mask", "Mask", "filter", "clip-path", "clipPath"]) assert.ok(!src.includes(k), k);
-  assert.ok(src.includes('"fill-rule": "evenodd"'));
-  assert.ok(src.includes("function dnFitArea(") && src.includes("groundRect(app.bounds)"));
+  assert.ok(src.includes("isoLight(l)"));
+  for (const k of ["fx.dusk", "fx.dark", "fx.darkRooms", "fx.lamp", "fx.fireflies", "dnFitArea", "DN_FIREFLIES", "evenodd"]) assert.ok(!src.includes(k), k);
   const zoom = fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8");
-  assert.ok(zoom.includes("dnFitArea(dn.fx)"));
+  assert.ok(!zoom.includes("dnFitArea"));
+  assert.ok(!html.includes("dnFirefly") && !html.includes(".dn-ff"));
   // The party table shade follows the drawn table height, not the configured rect.
   assert.ok(src.includes("fx.partyShade") && src.includes("function dnFitPartyShade("));
   const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
   assert.ok(draw.includes("dnFitPartyShade(lay.height)"));
+});
+
+test("iso light: day, dusk and night colours and strengths (T-134)", () => {
+  const day = plain(L.isoLightParams(L.lightAt(12)));
+  assert.deepEqual(day, { sky: "#FFF4DC", ground: "#5A6A30", glow: "#000000", hemi: 0.9, sun: "#FFFFFF", sunPower: 0.9, smoke: "#C9C2B6" });
+  const night = plain(L.isoLightParams(L.lightAt(0)));
+  assert.equal(night.sky, "#3A4A7A");
+  assert.equal(night.ground, "#1A2030");
+  assert.equal(night.glow, "#1B2A48");
+  assert.equal(night.sun, "#8FA8E0");
+  near(night.hemi, 0.45);
+  near(night.sunPower, 0.3);
+  const dusk = plain(L.isoLightParams({ ...L.lightAt(12), dusk: 0.55 }));
+  assert.equal(dusk.sky, "#F2B07A");
+  assert.equal(dusk.sun, "#FF9A4A");
+  assert.equal(L.isoMix("#000000", "#FFFFFF", 0.5), "#808080");
+  assert.equal(L.isoMix("#102030", "#102030", 7), "#102030");
+});
+
+test("iso life: flames, flicker, smoke, leaves and fireflies cycle in steps (T-134)", () => {
+  assert.deepEqual([0, 159, 160, 320, 480].map(L.isoFlameFrame), [0, 0, 1, 2, 0]);
+  assert.deepEqual([0, 125, 250, 375, 500].map(L.isoFlicker), [1, 0.85, 1.1, 0.9, 1]);
+  const puff = (t, n) => plain(L.isoSmoke(t, n));
+  assert.equal(puff(0, 0).rise, 3);
+  assert.equal(puff(2999, 0).rise, 18);
+  assert.equal(puff(2999, 0).opacity, 0);
+  near(puff(0, 0).opacity, 0.5);
+  assert.equal(puff(0, 1).rise, puff(1000, 0).rise);      // staggered by one second
+  near(puff(0, 0).size, 3);
+  assert.ok(puff(2000, 0).size > 3 && puff(2999, 0).size <= 5);
+  for (let t = 0; t < 12000; t += 125) {
+    const lf = L.isoLeaf(t, 2, 20);
+    assert.ok(lf.y >= 0 && lf.y <= 20 && Math.abs(lf.dx) <= 6);
+  }
+  assert.deepEqual(plain(L.isoLeaf(0, 0, 20)), plain(L.isoLeaf(0, 0, 20)));
+  let on = 0;
+  for (let t = 0; t < 1800; t += 100) if (L.isoFirefly(t, 0).on) on++;
+  assert.equal(on, 6);      // on for 0.6 s of every 1.8 s
+  const f = L.isoFirefly(1234, 3);
+  assert.ok(Math.abs(f.dx) <= 1 && Math.abs(f.dy) <= 1);
+  assert.deepEqual(plain(L.isoFirefly(10, 3)), plain(L.isoFirefly(400, 3)));      // one hop per 500 ms
+});
+
+test("iso app: the frame loop is driven by rAF only, sleeps while hidden, and reduced motion does not animate (T-134)", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.ok(!src.includes("setInterval") && !src.includes("setTimeout"));
+  assert.match(src, /function isoLoop\(now\)[\s\S]*?document\.hidden/);
+  assert.match(src, /document\.addEventListener\("visibilitychange"/);
+  assert.match(src, /var moving = !prefersReducedMotion\(\)/);
+  assert.match(src, /still = prefersReducedMotion\(\)/);
+  assert.match(src, /Math\.floor\(\(now - start\) \/ 90\) \* 90/);      // the tree sways in 90 ms steps
+  assert.equal((src.match(/new THREE\.PointLight/g) || []).length, 1);      // the campfire only
+  assert.ok(!/castShadow\s*=\s*true/.test(src.slice(src.indexOf("function isoBuildLife"))));
+});
+
+test("cleanup (T-134): the flat svg furniture, tree, roof and smoke are gone", () => {
+  for (const k of ["function drawFurniture", "function drawTree", "function drawRoof", "function drawChimney", "function drawHouses", "bedHit(", "BED_HIT_GROW", "meadowHitRect", "smokepuff", "shedleaf"]) {
+    assert.ok(!appSource.includes(k) && !logicSource.includes(k) && !pageFile.includes(k), k);
+  }
+  assert.match(appSource, /"class": "bed-hits", "aria-hidden": "true"/);
 });
 
 const fs2 = (x) => JSON.parse(JSON.stringify(x));
@@ -4802,5 +4834,5 @@ test("iso beds: the page draws beds as polygons with the old classes and the qui
   assert.match(appSource, /transform: isoFigureTransform\(isoFigure\(sc, figurePosition\(bed, i\), isoSlotHeight\(bed, i\)\)\)/);
   assert.match(pageFile, /#scene svg\.night \.quilt \{ display: inline; \}/);
   assert.match(pageFile, /#scene svg \.zzz, #scene svg \.quilt \{ display: none; \}/);
-  assert.match(appSource, /rustleTree\(e\.currentTarget\); isoRustle\(\)/);
+  assert.match(appSource, /rustleTree\(\); isoRustle\(\)/);
 });

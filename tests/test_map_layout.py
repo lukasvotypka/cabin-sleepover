@@ -120,25 +120,6 @@ def test_scene_boards_stay_clear_of_rooms_and_each_other():
             assert not _overlap(boards[a], boards[b]), f"{a} overlaps {b}"
 
 
-MEADOW_CHECK = r"""
-const vm = require("node:vm");
-const input = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-const L = vm.createContext({});
-vm.runInContext(input.logic, L);
-const overlap = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
-const { map } = input.layout;
-const hit = Array.from(L.meadowHitRect(map.scene.meadow));
-const problems = [];
-if (hit[1] + hit[3] > map.viewbox[1]) problems.push("the meadow hit area reaches past the viewbox");
-Object.entries(map.scene).forEach(([k, v]) => { if (k !== "meadow" && overlap(hit, v)) problems.push(`the meadow hit area overlaps scene ${k}`); });
-process.stdout.write(JSON.stringify(problems));
-"""
-
-
-def test_meadow_hit_area_stays_clear_of_other_scene_boards():
-    assert _run_node(MEADOW_CHECK) == []
-
-
 def _overlap(a, b):
     return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
 
