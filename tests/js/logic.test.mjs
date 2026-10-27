@@ -90,6 +90,14 @@ test("event date text survives missing or broken data", () => {
   assert.equal(L.eventDateText({ arrive_days: ["nonsense"], leave_days: ["2026-11-01"] }), "");
 });
 
+test("short event term drops the month and year the two ends share", () => {
+  assert.equal(L.eventTermShort(event), "29. 10. – 1. 11. 2026");
+  assert.equal(L.eventTermShort({ arrive_days: ["2026-11-05", "2026-11-06"], leave_days: ["2026-11-06", "2026-11-08"] }), "5. – 8. 11. 2026");
+  assert.equal(L.eventTermShort({ arrive_days: ["2026-12-30"], leave_days: ["2027-01-02"] }), "30. 12. 2026 – 2. 1. 2027");
+  assert.equal(L.eventTermShort({ arrive_days: ["nonsense"], leave_days: ["2026-11-01"] }), "");
+  assert.equal(L.eventTermShort(null), "");
+});
+
 test("title board label is the name and the full term, or just the name", () => {
   assert.equal(L.titleLabel(event), "Chata 29. 10. – 1. 11., 29. 10. (štvrtok) – 1. 11. 2026 (nedeľa)");
   assert.equal(L.titleLabel({ name: "Chata", arrive_days: ["nonsense"], leave_days: ["2026-11-01"] }), "Chata");

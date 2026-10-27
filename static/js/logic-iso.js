@@ -201,7 +201,7 @@ function isoAnchorTransform(scene, a) {
 // The two upright signs of the village (T-146): the notice board and the title gate. They stand on a ground point of the plan
 // (`map.scene.board`, `map.scene.gate`) and always face the camera, so they are drawn flat on the scene, `size` units big,
 // with the bottom middle on the projected point.
-var ISO_SIGNS = { board: { w: 130, h: 82 }, gate: { w: 150, h: 56 } };
+var ISO_SIGNS = { board: { w: 130, h: 82 }, gate: { w: 150, h: 66 } };
 
 // The scene rect [x, y, w, h] of a sign: "board" or "gate".
 function isoSignBox(scene, layout, which) {

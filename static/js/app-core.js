@@ -303,7 +303,7 @@ function applyState(state) {
     if (remembered) app.night = defaultNightFor(remembered, state.event.nights);
   }
   if (app.night === null || state.event.nights.indexOf(app.night) === -1) app.night = state.event.nights[0];
-  document.title = state.event.name;
+  document.title = state.event.name + (eventTermShort(state.event) ? " · " + eventTermShort(state.event) : "");
   if (!app.sessionAsked) { app.sessionAsked = true; loadSession(); }
   if (app.myParty && !partyById(state, app.myParty)) {
     forgetMyParty();

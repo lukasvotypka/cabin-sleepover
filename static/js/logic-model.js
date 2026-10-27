@@ -69,6 +69,16 @@ function eventDateText(event) {
     last.d + ". " + last.m + ". " + last.y + " (" + DAY_NAMES[last.dow] + ")";
 }
 
+// "5. – 8. 11. 2026" (same month), "29. 10. – 1. 11. 2026" (same year), "30. 12. 2026 – 2. 1. 2027", from the first
+// arrive day and the last leave day; "" when the dates cannot be built. The visible term on the gate and in the tab title.
+function eventTermShort(event) {
+  var first = event && event.arrive_days && parseIso(event.arrive_days[0]);
+  var last = event && event.leave_days && parseIso(event.leave_days[event.leave_days.length - 1]);
+  if (!first || !last) return "";
+  var start = first.y !== last.y ? first.d + ". " + first.m + ". " + first.y : first.m !== last.m ? first.d + ". " + first.m + "." : first.d + ".";
+  return start + " – " + last.d + ". " + last.m + ". " + last.y;
+}
+
 // Screen-reader label of the title board: "<name>, <eventDateText>", or just "<name>" when the dates
 // cannot be built.
 function titleLabel(event) {

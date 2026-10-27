@@ -37,9 +37,10 @@ function polygon(g, pts, fill) {
   return svgEl(g, "polygon", { points: pts.map(function (p) { return p.join(","); }).join(" "), fill: fill });
 }
 
-// The title gate: two posts and a sign with the event name. Taps pass through it to what stands behind.
+// The title gate: two posts and a sign with the event name and, under it, the term. Taps pass through it to what stands behind.
 function drawGate(parent, box, state) {
-  var k = Math.min(box[2] / 192, box[3] / 70);
+  var term = eventTermShort(state.event), top = term ? -82 : -70;
+  var k = Math.min(box[2] / 192, box[3] / -top);
   var g = svgEl(parent, "g", { role: "img", "aria-label": titleLabel(state.event), "pointer-events": "none",
     transform: "translate(" + round3(box[0] + box[2] / 2) + " " + round3(box[1] + box[3]) + ") scale(" + round3(k) + ")" });
   var at = state.layout.map.scene.gate;
@@ -47,10 +48,11 @@ function drawGate(parent, box, state) {
   svgEl(g, "ellipse", { cx: 0, cy: 1, rx: 92, ry: 4, fill: "#2E1F14", opacity: ".3" });
   rect(g, -84, -46, 6, 46, COLORS.bedWoodDark);
   rect(g, 78, -46, 6, 46, COLORS.bedWoodDark);
-  rect(g, -96, -70, 192, 24, COLORS.plank, { stroke: COLORS.bedWoodDark, "stroke-width": 2 });
-  rect(g, -90, -64, 3, 3, COLORS.woodLight);
-  rect(g, 87, -64, 3, 3, COLORS.woodLight);
-  addText(g, 0, -54, state.event.name, 10, COLORS.paper, { anchor: "middle", bold: true, maxWidth: 170 });
+  rect(g, -96, top, 192, -46 - top, COLORS.plank, { stroke: COLORS.bedWoodDark, "stroke-width": 2 });
+  rect(g, -90, top + 6, 3, 3, COLORS.woodLight);
+  rect(g, 87, top + 6, 3, 3, COLORS.woodLight);
+  addText(g, 0, term ? -66 : -54, state.event.name, 10, COLORS.paper, { anchor: "middle", bold: true, maxWidth: 170 });
+  if (term) addText(g, 0, -52, term, 8, COLORS.paper, { anchor: "middle", maxWidth: 170 });
 }
 
 // The notice board: a wooden frame with a small roof and two posts, a header plate and two pinned stamps.
