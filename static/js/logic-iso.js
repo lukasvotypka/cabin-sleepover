@@ -799,3 +799,18 @@ function isoQualityStep(state, ms) {
   }
   return { state: s, change: 0 };
 }
+
+// Labels near the screen centre (T-150): room signs, bed tags and free-place „+“ are shown fully in a soft oval around the point
+// the camera follows and fade out towards the edges in pixel steps. Radii are in half-viewport units: full at r0, gone at r1.
+var ISO_LABEL_RADII = { room: [0.45, 0.95], bed: [0.30, 0.70] };
+
+// The opacity (0, .25, .5, .75 or 1) of a label of `kind` ("room" or "bed") at `pt` [x, y]. `view` is {x, y, w, h}: the part of
+// the scene on screen (same units as `pt`), centred on the point the camera follows. `zoomRel` is the zoom over the rest zoom.
+function labelOpacity(pt, view, zoomRel, kind) {
+  var r = ISO_LABEL_RADII[kind] || ISO_LABEL_RADII.bed;
+  var widen = Math.min(1.7, Math.max(1, 1 + (zoomRel - 1.6) / 2));
+  var dx = (pt[0] - (view.x + view.w / 2)) / (view.w / 2), dy = (pt[1] - (view.y + view.h / 2)) / (view.h / 2);
+  var d = Math.sqrt(dx * dx + dy * dy), r0 = r[0] * widen, r1 = r[1] * widen;
+  var v = d <= r0 ? 1 : d >= r1 ? 0 : (r1 - d) / (r1 - r0);
+  return Math.round(v * 4) / 4;
+}

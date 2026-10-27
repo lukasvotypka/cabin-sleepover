@@ -218,6 +218,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 #scene svg .pending { opacity: .5; }
 #scene svg .bed-tags { opacity: 0; transition: opacity .25s; }
+#scene svg .fade-label { transition: opacity .16s steps(2); }
 #scene svg.zoomed .bed-tags { opacity: 1; }
 #scene svg g.bed, #scene svg g.bed-hits { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 #scene svg g.bed .ring { display: none; pointer-events: none; }
@@ -226,6 +227,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   #scene svg .briefing-bang { animation: none; }
   #scene svg .bed-tags { transition: none; }
+  #scene svg .fade-label { transition: none; }
 }
 
 /* --- HUD (fixed scene colors, never inverted in dark mode): night stamps and time rail on top, quest log below them on the right, „Si: …“ and the tools at the bottom.

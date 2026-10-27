@@ -5753,3 +5753,22 @@ test("persp setting: the address sets it, empty or out of range clears it, the s
   assert.equal(L.perspSetting("?persp=0.5", "0.3"), 0.35);
   assert.equal(L.perspSetting("", "abc"), 0.35);
 });
+
+test("labelOpacity: a lantern around the screen centre in pixel steps (T-150)", () => {
+  const view = { x: 0, y: 0, w: 400, h: 600 }, at = (dx, dy) => [200 + dx * 200, 300 + dy * 300];
+  assert.equal(L.labelOpacity(at(0, 0), view, 1.6, "room"), 1);
+  assert.equal(L.labelOpacity(at(0, 0), view, 1.6, "bed"), 1);
+  for (const kind of ["room", "bed"]) {
+    assert.equal(L.labelOpacity([-500, -500], view, 1.6, kind), 0);
+    assert.equal(L.labelOpacity(at(1, 1), view, 1.6, kind), 0);
+    let last = 1;
+    for (let d = 0; d <= 1.2; d += 0.05) {
+      const o = L.labelOpacity(at(d, 0), view, 1.6, kind);
+      assert.ok(o <= last, "monotone " + kind + " " + d);
+      assert.ok([0, .25, .5, .75, 1].includes(o));
+      last = o;
+    }
+  }
+  assert.ok(L.labelOpacity(at(0.6, 0), view, 1.6, "room") > L.labelOpacity(at(0.6, 0), view, 1.6, "bed"));
+  assert.ok(L.labelOpacity(at(0.6, 0), view, 3, "bed") > L.labelOpacity(at(0.6, 0), view, 1.6, "bed"));
+});

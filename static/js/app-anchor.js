@@ -15,6 +15,8 @@ var isoAnchorsKey = "";      // the centre the nodes were last moved for
 function isoAnchorsReset(layer) {
   isoAnchors = layer ? isoAnchors.filter(function (r) { return r.layer !== layer; }) : [];
   isoPolys = layer ? isoPolys.filter(function (r) { return r.layer !== layer; }) : [];
+  isoLabels = layer ? isoLabels.filter(function (r) { return r.layer !== layer; }) : [];
+  isoLabelsKey = "";
   isoAnchorsKey = "";
 }
 
@@ -46,6 +48,48 @@ function isoAnchorsUpdate() {
     r.node.setAttribute("transform", isoAnchorTransform(sc, r.a) + (r.base ? " " + r.base : ""));
   });
 }
+
+// --- labels that fade away from the screen centre (T-150) ---
+var isoLabels = [];       // [{layer, node, kind, x, y, h, ids, full, v}]: `ids` are the bed ids whose focus keeps the label full
+var isoLabelsKey = "";
+var isoRestZoomKey = "", isoRestZoom = 1;
+
+// Registers `node` as a fading label of `kind` ("room" or "bed") at the plan point (x, y, h). `full` keeps it fully shown
+// (a pending write), `ids` lists the beds whose keyboard focus or open sheet does the same.
+function isoLabel(layer, node, kind, x, y, h, ids, full) {
+  node.classList.add("fade-label");
+  isoLabels.push({ layer: layer, node: node, kind: kind, x: x, y: y, h: h || 0, ids: ids || [], full: !!full, v: 1 });
+  return node;
+}
+
+function isoLabelsRestZoom() {
+  var key = app.bounds.w + "," + (app.viewportPx || []).join("x");
+  if (key !== isoRestZoomKey) { isoRestZoomKey = key; isoRestZoom = viewZoom(appRestView(app.bounds), app.bounds); }
+  return isoRestZoom;
+}
+
+// Sets each label's opacity from its screen point. Runs on every view change; writes only when the stepped value changed.
+function isoLabelsUpdate(force) {
+  var sc = app.iso, v = app.view;
+  if (!sc || !v || !app.bounds || !isoLabels.length) return;
+  var px = app.viewportPx || [0, 0], s = px[0] > 0 && px[1] > 0 ? Math.min(px[0] / v.w, px[1] / v.h) : 0;
+  var view = s ? { x: v.x - (px[0] / s - v.w) / 2, y: v.y - (px[1] / s - v.h) / 2, w: px[0] / s, h: px[1] / s } : v;
+  var rel = viewZoom(v, app.bounds) / isoLabelsRestZoom();
+  var ae = document.activeElement, key = ae && ae.getAttribute ? ae.getAttribute("data-key") : null;
+  var stamp = [sc.basis.tx, sc.basis.ty, view.x, view.y, view.w, view.h, rel, key, app.selectedBed].join(",");
+  if (!force && stamp === isoLabelsKey) return;
+  isoLabelsKey = stamp;
+  isoLabels.forEach(function (r) {
+    var full = r.full || r.ids.some(function (id) { return key === "bed-" + id || app.selectedBed === id; });
+    var o = full ? 1 : labelOpacity(isoPoint(sc, r.x, r.y, r.h), view, rel, r.kind);
+    if (o === r.v) return;
+    r.v = o;
+    r.node.style.opacity = o === 1 ? "" : String(o);
+    r.node.style.visibility = o === 0 ? "hidden" : "";
+  });
+}
+document.addEventListener("focusin", function () { isoLabelsUpdate(); });
+document.addEventListener("focusout", function () { isoLabelsUpdate(); });
 
 // The depth strength of this device: `?persp=0.3` in the page address tunes it (0 to 0.35, remembered), `?persp=` or an
 // out of range value clears it (pure part: perspSetting in logic-iso.js). Runs once when the script loads, before any scene is built.

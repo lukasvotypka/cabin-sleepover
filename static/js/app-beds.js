@@ -65,6 +65,7 @@ function drawBeds() {
   drawBedTags(g, layout);
   drawMeadow(g, view);
   isoPeopleEnd(app.night + "|" + app.layoutKey + "|" + drawn.sort().join(","));
+  isoLabelsUpdate(true);      // the labels start at the opacity their place on screen gives (app-anchor.js)
 }
 
 // The tap areas of all beds, drawn over every bed: padding first, then furniture, then figures (isoHitRegions), so a
@@ -115,6 +116,7 @@ function drawRoomPlates(parent, layout) {
   plates.forEach(function (p, i) {
     var sg = svgEl(g, "g", { transform: isoFigureTransform({ x: p.rect[0], y: p.rect[1] + dy[i], k: k }) });
     isoAnchor("beds", sg, p.plan[0], p.plan[1], p.plan[2], false);
+    isoLabel("beds", sg, "room", p.plan[0], p.plan[1], p.plan[2], p.room.beds.map(function (b) { return b.id; }), false);
     drawRoomSign(sg, p.room);
   });
 }
@@ -142,6 +144,7 @@ function drawBedTags(parent, layout) {
       isoBedTags(app.iso, bed).forEach(function (t) {
         var w = t.text.length * 2.5 + 4, tg = svgEl(g, "g"), q = isoUnpoint(app.iso, t.x, t.y);
         isoAnchor("beds", tg, q[0], q[1], 0, false);
+        isoLabel("beds", tg, "bed", q[0], q[1], 0, [bed.id], false);
         rect(tg, t.x - w / 2, t.y, w, 6, COLORS.woodDark, { opacity: ".85" });
         addText(tg, t.x, t.y + 4.6, t.text, 4.5, COLORS.paper, { anchor: "middle", bold: true });
       });
@@ -244,6 +247,7 @@ function drawBed(parent, layout, view, room, bed) {
       drawZzz(sg, 0, 0, slot);
     } else {
       drawFreeMark(sg, 0, 0, bed.tight.indexOf(slot) !== -1);
+      isoLabel("beds", sg.lastChild, "bed", bed.rect[0] + bed.rect[2] / 2, bed.rect[1] + bed.rect[3] / 2, 0, [bed.id], pend);
     }
   });
   var ring = { points: pointsText(hit), fill: "none", stroke: COLORS.picked, "stroke-width": 2 };

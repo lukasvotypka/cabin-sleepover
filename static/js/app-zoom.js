@@ -11,6 +11,7 @@ function applyView() {
   app.svg.setAttribute("viewBox", viewBoxText(app.view));
   app.svg.classList.toggle("zoomed", viewZoom(app.view, app.bounds) >= BED_TAGS_ZOOM);
   isoSync();      // the 3D world under the svg shows the same part of the scene
+  isoLabelsUpdate();      // room signs, bed tags and „+“ fade away from the screen centre (app-anchor.js)
   housesZoomRule();      // 1.6x the rest zoom opens all houses, 1.15x closes them (app-houses.js)
   syncTurnBar();
   app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds) || atPhoneRest();
