@@ -269,3 +269,9 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **Smoothness on a phone (T-134):** the map pans and zooms smoothly while the details move, and the phone does not get warm after a minute on the map.
 - [ ] **Reduced motion (T-134):** with iOS „Zmenšiť pohyb“ or Android „Remove animations“ on, nothing moves (no smoke, leaves or sway; the fire stands still); moving the time slider still changes the light and glow at once.
 - [ ] **Hidden tab (T-134):** switch to another app or tab for a minute and come back: the map is correct at once, the smoke and fire go on from where they were, and the phone did no work while hidden (no heat or battery drain).
+
+## 17. Slight perspective (T-135)
+
+- [ ] **Depth on phones (T-135):** on a 380 px iPhone Safari and Android Chrome at the rest view, the far forest looks a little further away than the front houses, and the board block, signposts and HUD stay flat and upright at the same size. The depth is gentle (about 12 %): report it if it looks bent or too strong on the stair steps of the roofs.
+- [ ] **Tap and figures stay on the 3D beds (T-135):** on a phone, zoom in 3x and pan to the far beds (Konica, podkrovie) and to the front ones: the tap areas, the standing figures and the labels sit on the 3D beds and tapping each bed opens that bed.
+- [ ] **Alignment after the time slider on desktop (T-135):** on a desktop window (about 1280x900), drag the time knob, then zoom with the mouse wheel and pan: the svg taps and labels must stay on the 3D beds. The cause (the `night` class on the scene svg picked up the panel's `.night` padding and border) is fixed. Headless Chrome re-test on 27. 10. 2026 measured 0 to 0.002 px after the drag, zoom and pan. Confirm once in a real desktop browser.

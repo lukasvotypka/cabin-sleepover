@@ -3,8 +3,8 @@
 // App part: the isometric 3D world under the svg, drawn with Three.js (static/vendor/three.min.js, r158, the last
 // release with a plain-script build). It shows the ground, paths, the log cabins with their walls cut low at the
 // front, the furniture of every bed, trees, rocks, bushes and a campfire, as a static pixel-voxel world.
-// Everything that can be tapped stays in the svg on top (beds, figures, boards): the camera here is orthographic and
-// uses the same projection as logic-iso.js, and isoSync() points it at the svg's viewBox after every zoom or pan, so
+// Everything that can be tapped stays in the svg on top (beds, figures, boards): the camera here is a slight perspective
+// (orthographic with ISO.persp 0) and uses the same projection as logic-iso.js, and isoSync() points it at the svg's viewBox after every zoom or pan, so
 // both layers always line up. Without WebGL the svg draws flat floors instead (drawBase) and the app still works.
 // Roofs are left off (cutaway); a house keeps its roof colours on the cap log of its tall walls.
 // The day-night slider lights this world (isoLight) and a little life moves in it: campfire, chimney smoke, falling leaves,
@@ -12,7 +12,7 @@
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 var ISO_PIXEL_RATIO = 1;      // one WebGL pixel per CSS pixel: slightly chunky on a phone, which suits the pixel style
-var ISO_CAMERA_DIST = 2500;   // the orthographic camera sits this far from the origin along its view axis
+var ISO_CAMERA_DIST = 2500;   // an orthographic camera (persp 0) sits this far from the origin along its view axis
 var ISO_FRAME_MS = 33;        // about 30 frames a second while something moves
 var ISO_C = {
   log: "#7A4B2A", logLight: "#8E5A33", post: "#4E3020", brick: "#8E3B2A", mortar: "#6E2C20", chimneyCap: "#5A4A40", leafGreen: "#5E6B24",
@@ -363,11 +363,18 @@ function isoBuild(host, layout, sc) {
 
   var scene = new THREE.Scene();
   var vb = layout.map.viewbox, cx = vb[0] / 2, cy = vb[1] / 2;
-  var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 10, 8000);
-  var basis = sc.basis;
-  camera.up.set(-basis.s * basis.sp, basis.cp, -basis.c * basis.sp);
-  camera.position.set(basis.s * basis.cp * ISO_CAMERA_DIST, basis.sp * ISO_CAMERA_DIST, basis.c * basis.cp * ISO_CAMERA_DIST);
-  camera.lookAt(0, 0, 0);
+  var basis = sc.basis, camera;
+  if (basis.D) {      // slight perspective: the camera looks at the middle of the plan from distance D (the frustum is set by isoSync)
+    camera = new THREE.PerspectiveCamera(30, 1, 100, basis.D + 4000);
+    camera.up.set(-basis.s * basis.sp, basis.cp, -basis.c * basis.sp);
+    camera.position.set(basis.tx + basis.s * basis.cp * basis.D, basis.sp * basis.D, basis.ty + basis.c * basis.cp * basis.D);
+    camera.lookAt(basis.tx, 0, basis.ty);
+  } else {
+    camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 10, 8000);
+    camera.up.set(-basis.s * basis.sp, basis.cp, -basis.c * basis.sp);
+    camera.position.set(basis.s * basis.cp * ISO_CAMERA_DIST, basis.sp * ISO_CAMERA_DIST, basis.c * basis.cp * ISO_CAMERA_DIST);
+    camera.lookAt(0, 0, 0);
+  }
 
   // light: sky and ground, and the sun high in the south-east (about 55 degrees), so shadows fall north-west
   var hemi = new THREE.HemisphereLight("#FFF4DC", "#5A6A30", 0.9);
@@ -530,11 +537,15 @@ function isoSync() {
   }
   var v = app.view, s = Math.min(w / v.w, h / v.h), vw = w / s, vh = h / s;
   var vx = v.x - (vw - v.w) / 2, vy = v.y - (vh - v.h) / 2, sc = app.iso, cam = iso3.camera;
-  cam.left = vx - sc.ox;
-  cam.right = vx + vw - sc.ox;
-  cam.top = sc.oy - vy;
-  cam.bottom = sc.oy - (vy + vh);
-  cam.updateProjectionMatrix();
+  var l = vx - sc.ox, r = vx + vw - sc.ox, t = sc.oy - vy, b = sc.oy - (vy + vh);
+  if (sc.basis.D) {      // the crop of the full scene frame as an off-centre frustum (the principal point is at ox, oy), like the svg viewBox crop
+    var n = cam.near / sc.basis.D;
+    cam.projectionMatrix.makePerspective(l * n, r * n, t * n, b * n, cam.near, cam.far);
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+  } else {
+    cam.left = l; cam.right = r; cam.top = t; cam.bottom = b;
+    cam.updateProjectionMatrix();
+  }
   isoDirty();
 }
 

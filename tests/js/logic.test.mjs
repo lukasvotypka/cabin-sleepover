@@ -4567,7 +4567,7 @@ test("iso: projection formula with az 45 and tilt 30", () => {
   const [u, v] = L.isoRaw(b, 10, 4, 6);
   assert.ok(Math.abs(u - (10 * r - 4 * r)) < 1e-9);
   assert.ok(Math.abs(v - ((10 * r + 4 * r) * 0.5 - 6 * Math.cos(Math.PI / 6))) < 1e-9);
-  const s = L.isoScene(isoLayout);
+  const s = L.isoScene(isoLayout, { ...L.ISO, persp: 0 });
   const p = L.isoPoint(s, 10, 4, 6);
   assert.ok(Math.abs(p[0] - (u + s.ox)) < 1e-9 && Math.abs(p[1] - (v + s.oy)) < 1e-9);
 });
@@ -4668,8 +4668,53 @@ test("iso: small helpers", () => {
   assert.equal(L.isoSlotHeight({ kind: "bunk" }, 1), 5);
   assert.equal(L.isoSlotHeight({ kind: "bed2" }, 1), 7);
   const s = L.isoScene(isoLayout), f = L.isoFigure(s, [100, 100], 7);
-  assert.match(L.isoFigureTransform(f), /^translate\(.+ .+\) scale\(1\.35\)$/);
+  assert.match(L.isoFigureTransform(f), /^translate\(.+ .+\) scale\(\d\.\d+\)$/);
   assert.equal(L.polyBox(L.isoBoxOutline(s, [10, 10, 20, 20], 0, 10)).length, 4);
+});
+
+// --- slight perspective (T-135) ---
+
+test("iso perspective: the strength is one constant, 0 gives the orthographic projection", () => {
+  assert.equal(L.ISO.persp, 0.12);
+  const o = L.isoScene(isoLayout, { ...L.ISO, persp: 0 });
+  assert.equal(o.basis.D, 0);
+  const r = Math.SQRT1_2, p = L.isoPoint(o, 50, 20, 6);
+  assert.ok(Math.abs(p[0] - (50 * r - 20 * r + o.ox)) < 1e-9);
+  assert.equal(L.isoDepthScale(o.basis, 50, 20, 6), 1);
+});
+
+test("iso perspective: the nearest ground corner is drawn persp larger than the farthest, the middle is 1", () => {
+  const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
+  const k = [[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoDepthScale(s.basis, x, y, 0));
+  assert.ok(Math.abs(Math.max(...k) / Math.min(...k) - 1.12) < 1e-9);
+  assert.ok(Math.abs(L.isoDepthScale(s.basis, vw / 2, vh / 2, 0) - 1) < 1e-9);
+  assert.deepEqual(plain(L.isoPoint(s, vw / 2, vh / 2, 0)), [s.ox, s.oy]);
+});
+
+test("iso perspective: nearer things are larger, a far-near pair of equal rects projects unequal", () => {
+  const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
+  const w = (x, y) => { const a = L.isoPoint(s, x, y, 0), b = L.isoPoint(s, x + 10, y, 0); return Math.hypot(b[0] - a[0], b[1] - a[1]); };
+  assert.ok(w(vw - 20, vh - 20) > w(10, 10) * 1.08);
+});
+
+test("iso perspective: figures grow with depth in steps of 0.05, never below the flat scale by more than the strength", () => {
+  const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
+  const far = L.isoFigure(s, [10, 10], 0).k, near = L.isoFigure(s, [vw - 20, vh - 20], 0).k;
+  assert.ok(near > far);
+  [far, near].forEach((k) => assert.ok(Math.abs(k / 0.05 - Math.round(k / 0.05)) < 1e-6, String(k)));
+  assert.ok(far >= s.figScale * 0.9 && near <= s.figScale * 1.2);
+});
+
+test("iso perspective: the scene still holds every corner and the walls of every room, the fitted view shows all rooms", () => {
+  const s = L.isoScene(isoLayout), c = plain(L.isoContentRect(s, isoLayout));
+  isoLayout.rooms.forEach((room) => {
+    const [x, y, w, h] = room.rect;
+    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => [0, L.ISO.wallH].forEach((hh) => {
+      const p = L.isoPoint(s, px, py, hh);
+      assert.ok(isoInside(p, s.W, s.H));
+      assert.ok(p[0] >= c[0] && p[0] <= c[0] + c[2] && p[1] >= c[1] && p[1] <= c[1] + c[3], room.id);
+    }));
+  });
 });
 
 // --- the 3D world and the phone rest view (T-131) ---
@@ -4776,7 +4821,7 @@ test("iso beds: a bunk draws its bottom berth, then the rail, then the top berth
 });
 
 test("iso beds: a top berth figure stands 18 units higher than the bottom one", () => {
-  const s = L.isoScene(isoLayout), bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed;
+  const s = L.isoScene(isoLayout, { ...L.ISO, persp: 0 }), bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed;
   const top = L.isoFigure(s, [10, 10], L.isoSlotHeight(bunk, 0)), bottom = L.isoFigure(s, [10, 10], L.isoSlotHeight(bunk, 1));
   assert.ok(Math.abs((bottom.y - top.y) - 18 * Math.cos(Math.PI / 6)) < 1e-9);
 });
@@ -4835,4 +4880,10 @@ test("iso beds: the page draws beds as polygons with the old classes and the qui
   assert.match(pageFile, /#scene svg\.night \.quilt \{ display: inline; \}/);
   assert.match(pageFile, /#scene svg \.zzz, #scene svg \.quilt \{ display: none; \}/);
   assert.match(appSource, /rustleTree\(\); isoRustle\(\)/);
+});
+
+test("the svg's `night` class is not caught by the panel's .night rule (it would shrink the svg and drift it from the 3D world)", () => {
+  const rules = [...pageFile.matchAll(/(^|[\s,}])([^{}\n]*)\{[^}]*\}/g)].map((m) => m[2]);
+  const bare = rules.filter((sel) => sel.split(",").some((s) => /(^|\s)\.night(\.|\s|$)/.test(s.trim()) && !/^(#scene\s+)?svg|section/.test(s.trim())));
+  assert.deepEqual(bare, []);
 });

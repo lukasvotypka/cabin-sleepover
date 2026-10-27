@@ -5,14 +5,18 @@
 // The layout in config/cabin.yaml stays a flat plan (x right, y down, in map units). The page shows it from the
 // south-east and above: a ground point (x, y) at height h lands on the scene (the svg viewBox) at
 //   u = x·cos(az) − y·sin(az),  v = (x·sin(az) + y·cos(az))·sin(tilt) − h·cos(tilt),  then shifted by (ox, oy).
-// That is an orthographic projection, so the svg and the WebGL camera share it exactly: the svg draws beds, figures
-// and boards at projected points, and app-iso.js points its camera so that its pixels land on the same scene units.
+// With ISO.persp > 0 (T-135) it is a slight perspective instead: the same azimuth and tilt, a camera at distance D
+// from the middle of the plan, and every point scaled by D / (D − z) with z its distance toward the camera. D follows
+// from the strength: the nearest ground corner is drawn `persp` times larger than the farthest. persp 0 is the
+// orthographic view above. Either way the svg and the WebGL camera share the projection exactly: the svg draws beds,
+// figures and boards at projected points, and app-iso.js points its camera so that its pixels land on the same units.
 // The boards (title, time slider, night signposts, party table) and the icon signs do not lie on the ground: they
 // stand as one upright block above the world, scaled by `boardScale` so that their text stays readable on a phone.
 
 var ISO = {
   azimuth: 45,          // degrees: the plan turned so that its top left corner points up
   tilt: 30,             // degrees above the horizon: sin 30° = 0.5, the classic 2:1 pixel-art isometric
+  persp: 0.12,          // depth strength: the nearest ground corner is drawn this much larger than the farthest (0 = orthographic, keep it under 0.2)
   boardScale: 1.6,      // the board block on top of the world
   figScale: 1.35,       // the people sprites standing on the beds
   margin: 12,           // grass around the whole scene
@@ -34,14 +38,37 @@ var ISO_ICON_CELLS = [["notice", 0, 0], ["legend", 1, 0], ["letter", 0, 1], ["br
 var ISO_BED_TOP = { bed2: 7, bed1: 7, cot: 6, mats: 2, sofa: 7, sofa1: 7, stove: 13, bunk: 5 };
 var ISO_BUNK_TOP = 23;
 
-function isoBasis(azimuthDeg, tiltDeg) {
+// `persp` > 0 with the plan size `plan` [w, h] gives a perspective basis: the camera looks at the middle of the plan
+// (basis.tx, basis.ty) from distance basis.D. Without them the basis is orthographic.
+function isoBasis(azimuthDeg, tiltDeg, persp, plan) {
   var a = azimuthDeg * Math.PI / 180, t = tiltDeg * Math.PI / 180;
-  return { c: Math.cos(a), s: Math.sin(a), sp: Math.sin(t), cp: Math.cos(t) };
+  var b = { c: Math.cos(a), s: Math.sin(a), sp: Math.sin(t), cp: Math.cos(t), D: 0, tx: 0, ty: 0 };
+  if (persp > 0 && plan) {
+    b.tx = plan[0] / 2;
+    b.ty = plan[1] / 2;
+    var zs = [[0, 0], [plan[0], 0], [0, plan[1]], [plan[0], plan[1]]].map(function (p) { return isoCamZ(b, p[0], p[1], 0); });
+    var zn = Math.max.apply(null, zs), zf = Math.min.apply(null, zs);
+    b.D = ((1 + persp) * zn - zf) / persp;
+  }
+  return b;
 }
 
-// The projected point before the scene shift: [u, v].
+// How far a point is toward the camera from the plane through the plan's middle (perspective bases only).
+function isoCamZ(basis, x, y, h) {
+  return basis.cp * (basis.s * (x - basis.tx) + basis.c * (y - basis.ty)) + basis.sp * (h || 0);
+}
+
+// The scale of a point: 1 at the plan's middle, larger nearer to the camera. Always 1 for an orthographic basis.
+function isoDepthScale(basis, x, y, h) {
+  return basis.D ? basis.D / (basis.D - isoCamZ(basis, x, y, h)) : 1;
+}
+
+// The projected point before the scene shift: [u, v]. A perspective basis puts the plan's middle on the ground at [0, 0].
 function isoRaw(basis, x, y, h) {
-  return [x * basis.c - y * basis.s, (x * basis.s + y * basis.c) * basis.sp - (h || 0) * basis.cp];
+  h = h || 0;
+  if (!basis.D) return [x * basis.c - y * basis.s, (x * basis.s + y * basis.c) * basis.sp - h * basis.cp];
+  var dx = x - basis.tx, dy = y - basis.ty, f = isoDepthScale(basis, x, y, h);
+  return [(dx * basis.c - dy * basis.s) * f, ((dx * basis.s + dy * basis.c) * basis.sp - h * basis.cp) * f];
 }
 
 // The union rect [x, y, w, h] of the given rects.
@@ -60,7 +87,7 @@ function unionRect(rects) {
 // translate(x y) scale(k) translate(−src.x −src.y).
 function isoScene(layout, opts) {
   var o = opts || ISO;
-  var basis = isoBasis(o.azimuth, o.tilt);
+  var basis = isoBasis(o.azimuth, o.tilt, o.persp, layout.map.viewbox);
   var sc = layout.map.scene, vb = layout.map.viewbox;
   var boards = ["title", "time", "nights", "parties"].filter(function (k) { return sc[k]; }).map(function (k) { return sc[k]; });
   var core = unionRect(boards);
@@ -71,9 +98,10 @@ function isoScene(layout, opts) {
   });
   var src = [gx, core[1], core[0] + core[2] - gx, Math.max(core[3], 3 * ch)];
   var corners = [[0, 0], [vb[0], 0], [0, vb[1]], [vb[0], vb[1]]].map(function (p) { return isoRaw(basis, p[0], p[1], 0); });
-  var uMin = Math.min.apply(null, corners.map(function (p) { return p[0]; }));
-  var uMax = Math.max.apply(null, corners.map(function (p) { return p[0]; }));
-  var vMin = Math.min.apply(null, corners.map(function (p) { return p[1]; })) - o.headroom * basis.cp;
+  var tops = [[0, 0], [vb[0], 0], [0, vb[1]], [vb[0], vb[1]]].map(function (p) { return isoRaw(basis, p[0], p[1], o.headroom); });
+  var uMin = Math.min.apply(null, corners.concat(tops).map(function (p) { return p[0]; }));
+  var uMax = Math.max.apply(null, corners.concat(tops).map(function (p) { return p[0]; }));
+  var vMin = Math.min.apply(null, tops.map(function (p) { return p[1]; }));
   var vMax = Math.max.apply(null, corners.map(function (p) { return p[1]; }));
   var worldW = uMax - uMin, blockW = src[2] * o.boardScale, blockH = src[3] * o.boardScale;
   var W = Math.ceil(Math.max(worldW, blockW) + 2 * o.margin);
@@ -171,9 +199,12 @@ function isoSlotHeight(bed, index) {
 
 // Where the upright sprite of a figure goes on the scene. `pos` is its flat top left corner in map units
 // (figurePosition, meadowLayout: a 10 x 12 sprite), `h` the surface it stands or lies on. The sprite is drawn at
-// [x, y] with scale `k`; its foot point is the projected middle of the flat sprite.
+// [x, y] with scale `k`; its foot point is the projected middle of the flat sprite. In perspective `k` follows the
+// depth of the foot (nearer figures are a little larger), in steps of 0.05 so the pixels stay even.
 function isoFigure(scene, pos, h) {
-  var k = scene.figScale, foot = isoPoint(scene, pos[0] + 5, pos[1] + 7, h);
+  var foot = isoPoint(scene, pos[0] + 5, pos[1] + 7, h);
+  var k = Math.round(scene.figScale * isoDepthScale(scene.basis, pos[0] + 5, pos[1] + 7, h) / 0.05) * 0.05;
+  k = round3(k);
   return { x: foot[0] - 5 * k, y: foot[1] - 10 * k, k: k };
 }
 
