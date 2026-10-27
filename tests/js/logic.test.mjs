@@ -3021,6 +3021,15 @@ test("roofRect and chimneyRect follow the outline", () => {
   assert.deepEqual(plain(L.chimneyRect([118, 212, 254, 124], 164)), [164, 192, 6, 10]);
 });
 
+test("page: bed buttons keep the tap hint and move mode syncs the houses", () => {
+  const beds = fs.readFileSync(path.join(root, "static", "js", "app-beds.js"), "utf8");
+  const hints = beds.match(/bedLabel\(st, room, bed, night\) \+ "\. Ťuknutím otvoríš\."/g) || [];
+  assert.equal(hints.length, 2, "both bed buttons keep the hint");
+  assert.doesNotMatch(beds, /makeButton\(g, bedLabel\(st, room, bed, night\), /);
+  const actions = fs.readFileSync(path.join(root, "static", "js", "app-actions.js"), "utf8");
+  assert.match(actions.match(/function renderMoveBar\(\) \{[\s\S]*?\n\}/)[0], /housesSync\(\)/);
+});
+
 test("page: every script file parses on its own and the page keeps no inline script", () => {
   assert.doesNotMatch(pageFile, /<script(?![^>]*\bsrc=)[^>]*>/);
   scriptTags.forEach((file) => {
@@ -4902,4 +4911,94 @@ test("the svg's `night` class is not caught by the panel's .night rule (it would
   const rules = [...pageFile.matchAll(/(^|[\s,}])([^{}\n]*)\{[^}]*\}/g)].map((m) => m[2]);
   const bare = rules.filter((sel) => sel.split(",").some((s) => /(^|\s)\.night(\.|\s|$)/.test(s.trim()) && !/^(#scene\s+)?svg|section/.test(s.trim())));
   assert.deepEqual(bare, []);
+});
+
+// --- T-137: roofs and houses that open ---
+
+const roofRooms = (house) => house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+
+test("roofs: one gable over a house whose rooms fill the outline, one per room otherwise; ridge on the longer side", () => {
+  isoLayout.houses.forEach((house) => {
+    const roofs = L.isoRoofs(roofRooms(house), isoHouseOutline(house));
+    const o = isoHouseOutline(house), ov = L.ISO_ROOF.overhang;
+    assert.equal(roofs.length, 1, house.id);
+    assert.deepEqual(plain([roofs[0].x, roofs[0].y, roofs[0].w, roofs[0].d]), [o[0] - ov, o[1] - ov, o[2] + 2 * ov, o[3] + 2 * ov]);
+    assert.equal(roofs[0].along, o[2] >= o[3] ? "x" : "y");
+    assert.equal(roofs[0].h0, L.ISO.wallH);
+    assert.ok(Math.abs(roofs[0].h1 - (L.ISO.wallH + 0.35 * Math.min(o[2], o[3]))) < 1e-9);
+    assert.ok(roofs[0].h1 <= L.ISO.headroom, "the roof fits the headroom of the scene: " + house.id);
+  });
+  const l = [{ rect: [0, 0, 100, 40] }, { rect: [0, 40, 40, 60] }];      // an L: the box is not filled
+  const roofs = L.isoRoofs(l, [0, 0, 100, 100]);
+  assert.equal(roofs.length, 2);
+  assert.deepEqual(plain(roofs.map((r) => r.along)), ["x", "y"]);
+  assert.equal(roofs[0].h0, roofs[1].h0);
+});
+
+test("roofs: height over a point rises to the ridge, is 0 outside, and the chimney ends above the roof at its place", () => {
+  const roofs = L.isoRoofs([{ rect: [0, 0, 100, 40] }], [0, 0, 100, 40]);
+  const r = roofs[0];
+  assert.equal(L.isoRoofHeightAt(roofs, 50, 20), r.h1);
+  assert.equal(L.isoRoofHeightAt(roofs, 50, -4), r.h0);
+  assert.equal(L.isoRoofHeightAt(roofs, 200, 20), 0);
+  assert.ok(L.isoRoofHeightAt(roofs, 50, 8) < L.isoRoofHeightAt(roofs, 50, 14));
+  assert.equal(L.isoRoofTop(roofs), r.h1);
+  isoLayout.houses.forEach((house) => {
+    const rs = L.isoRoofs(roofRooms(house), isoHouseOutline(house)), o = isoHouseOutline(house);
+    assert.ok(house.chimney >= o[0] && house.chimney + 6 <= o[0] + o[2], "chimney inside the house width: " + house.id);
+    assert.ok(L.isoChimneyTop(rs, house.chimney) > L.ISO.wallH + 6 && L.isoChimneyTop(rs, house.chimney) <= L.ISO.headroom);
+  });
+});
+
+test("houses open: six steps, the roof lifts then goes, the front walls sink last", () => {
+  const f = Array.from({ length: 7 }, (_, s) => L.isoOpenFrame(s));
+  assert.deepEqual(plain(f.slice(0, 4).map((x) => x.lift)), [0, 6, 14, 26]);
+  assert.deepEqual(plain(f.map((x) => x.roof)), [true, true, true, true, false, false, false]);
+  assert.deepEqual(plain(f.map((x) => x.front)), ["closed", "closed", "closed", "closed", "closed", "mid", "open"]);
+  assert.deepEqual(plain(f.map((x) => x.svgOpen)), [false, false, false, false, true, true, true]);
+  assert.equal(L.isoOpenFrame(-3).roof, true);
+  assert.equal(L.isoOpenFrame(99).front, "open");
+  assert.equal(L.isoStepToward(0, 6), 1);
+  assert.equal(L.isoStepToward(6, 0), 5);
+  assert.equal(L.isoStepToward(3, 3), 3);
+});
+
+test("houses open: zoom 1.6x opens all, 1.15x closes all, in between nothing changes", () => {
+  assert.equal(L.isoZoomOpensAll(1, false), false);
+  assert.equal(L.isoZoomOpensAll(1.59, false), false);
+  assert.equal(L.isoZoomOpensAll(1.6, false), true);
+  assert.equal(L.isoZoomOpensAll(1.3, true), true);
+  assert.equal(L.isoZoomOpensAll(1.3, false), false);
+  assert.equal(L.isoZoomOpensAll(1.15, true), false);
+});
+
+test("houses open: the house view is centred on the house, no further out than rest and no further in than 2.5x", () => {
+  const bounds = { x: 0, y: 0, w: 400, h: 800 };
+  const v = L.isoHouseView(bounds, [100, 300, 100, 80], 8, 1, 2.5);
+  assert.ok(v.w >= 100 + 16 - 1e-6 && v.w <= 400 / 1 + 1e-6);
+  assert.ok(Math.abs(v.h / v.w - 2) < 1e-6, "the aspect of the bounds");
+  assert.ok(Math.abs(v.x + v.w / 2 - 150) < 1e-6 && Math.abs(v.y + v.h / 2 - 340) < 1e-6);
+  assert.ok(Math.abs(400 / v.w - 2.5) < 1e-6, "a small house stops at the maximum zoom");
+  const big = L.isoHouseView(bounds, [0, 0, 400, 300], 8, 1.2, 2.5);
+  assert.ok(Math.abs(400 / big.w - 1.2) < 1e-6, "a big house never zooms out past the rest view");
+});
+
+test("houses open: the ridge sign counts the free places of the house on a night", () => {
+  assert.equal(L.houseSignText(3), "voľné: 3");
+  assert.equal(L.houseSignText(0), "plno");
+  const rs = [{ beds: [{ slots: ["a", "b"] }, { slots: ["c"] }] }];
+  const st = { layout: { rooms: rs }, sleeping: { [THU]: { a: "p-1" } }, parties: [{ id: "p-1", name: "A", adults: 1, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: FRI }] };
+  assert.deepEqual(plain(L.houseFree(st, rs, THU)), { free: 2, total: 3 });
+  assert.deepEqual(plain(L.houseFree(st, rs, FRI)), { free: 3, total: 3 });
+  const lay = { rooms: [{ id: "a" }, { id: "b" }, { id: "c" }], houses: [{ id: "h", rooms: ["a", "b"], chimney: 1 }] };
+  assert.deepEqual(plain(L.isoHouseList(lay).map((h) => [h.id, h.rooms])), [["h", ["a", "b"]], ["c", ["c"]]]);
+  assert.equal(L.isoWallKey({ x: 1, y: 2, w: 3, d: 4, h0: 0, h: 28 }), L.isoWallKey({ x: 1, y: 2, w: 3, d: 4, h0: 0, h: 6 }));
+});
+
+test("houses open: the page hides beds of closed houses and taps open them; no hardcoded geometry", () => {
+  assert.match(appSource, /roomClosed\(layout, e\.room\.id\)\) return;/);
+  assert.match(appSource, /housesZoomRule\(\);/);
+  assert.match(appSource, /openHouse\(e\.house\.id, true\)/);
+  assert.match(pageFile, /static\/js\/logic-iso-roof\.js\?v=__ASSET_VERSION__/);
+  assert.match(pageFile, /static\/js\/app-houses\.js\?v=__ASSET_VERSION__/);
 });

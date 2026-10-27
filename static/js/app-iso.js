@@ -6,7 +6,7 @@
 // Everything that can be tapped stays in the svg on top (beds, figures, boards): the camera here is a slight perspective
 // (orthographic with ISO.persp 0) and uses the same projection as logic-iso.js, and isoSync() points it at the svg's viewBox after every zoom or pan, so
 // both layers always line up. Without WebGL the svg draws flat floors instead (drawBase) and the app still works.
-// Roofs are left off (cutaway); a house keeps its roof colours on the cap log of its tall walls.
+// Each house is closed (tall walls, gable roof in its colours) or open (roof gone, front walls low); app-iso-roof.js builds and animates that.
 // The day-night slider lights this world (isoLight) and a little life moves in it: campfire, chimney smoke, falling leaves,
 // fireflies (isoBuildLife, isoTick); everything moving steps on one shared 8 fps tick and sleeps while the tab is hidden.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
@@ -162,8 +162,8 @@ function isoWindow(b, glass, w) {
   }
 }
 
-function isoChimney(b, outline, x) {
-  var y = outline[1] - 3, top = ISO.wallH + 10, h;
+function isoChimney(b, outline, x, top) {
+  var y = outline[1] - 3, h;
   for (h = 0; h < top; h += 3) b.box(x, y, 6, 7, h, Math.min(top, h + 3), (h / 3) % 2 ? ISO_C.mortar : ISO_C.brick);
   b.box(x - 1, y - 1, 8, 9, top, top + 1.5, ISO_C.chimneyCap);
 }
@@ -360,12 +360,17 @@ function isoCutWalls(walls, house, layout) {
   });
 }
 
-// The corner posts of a room: tall on the north and west outline of the house, low elsewhere.
-function isoPosts(b, room, outline) {
+// The corner posts of a room: tall on the north and west outline of the house (`b`, always there). The others are
+// low once the house is open (`open`) and tall while it is closed (`closed`).
+function isoPosts(b, room, outline, open, closed) {
   var r = room.rect, T = 4;
   [[r[0], r[1]], [r[0] + r[2] - T, r[1]], [r[0], r[1] + r[3] - T], [r[0] + r[2] - T, r[1] + r[3] - T]].forEach(function (p) {
-    var tall = p[0] === outline[0] || p[1] === outline[1];
-    b.box(p[0], p[1], T, T, 0, tall ? ISO.wallH + 1 : ISO.lowWall + 1, ISO_C.post);
+    if (p[0] === outline[0] || p[1] === outline[1]) {
+      b.box(p[0], p[1], T, T, 0, ISO.wallH + 1, ISO_C.post);
+    } else {
+      open.box(p[0], p[1], T, T, 0, ISO.lowWall + 1, ISO_C.post);
+      closed.box(p[0], p[1], T, T, 0, ISO.wallH + 1, ISO_C.post);
+    }
   });
 }
 
@@ -438,23 +443,28 @@ function isoBuild(host, layout, sc) {
       b.box(p[0] + 1 + isoNoise(i, n + 31) * (p[2] - 3), p[1] + 1 + isoNoise(i, n + 37) * (p[3] - 3), 2, 1.5, 0.5, 0.8, ISO_C.pebble);
     }
   });
-  var aoGround = [], aoFloor = [], aoFurn = [], floors = [];      // contact shadows: plan polygons on the grass, on the floors, under furniture
-  var houses = (layout.houses || []).slice(), housed = {};
-  houses.forEach(function (h) { h.rooms.forEach(function (id) { housed[id] = true; }); });
-  layout.rooms.forEach(function (r) { if (!housed[r.id]) houses.push({ id: r.id, rooms: [r.id], chimney: null }); });
+  var aoGround = [], aoFloor = [], aoFurn = [], floors = [], houseMeshes = [];      // contact shadows: plan polygons on the grass, on the floors, under furniture
+  var houses = isoHouseList(layout);
   houses.forEach(function (house) {
     var rooms = layout.rooms.filter(function (r) { return house.rooms.indexOf(r.id) >= 0; });
     var outline = houseOutline(house, layout.rooms);
     if (!outline) return;
+    var openFront = new IsoBoxes(), closedFront = new IsoBoxes(), roofs = isoRoofs(rooms, outline);
     rooms.forEach(function (room) {
       isoFloor(b, room);
       floors.push([room.rect[0] + 4, room.rect[1] + 4, room.rect[2] - 8, room.rect[3] - 8]);
       room.beds.forEach(function (bed) { isoFurniture(b, bed); aoFurn.push(isoRectPoly(isoGrowRect(bed.rect, 1))); });
-      isoPosts(b, room, outline);
+      isoPosts(b, room, outline, openFront, closedFront);
     });
     var walls = isoCutWalls(isoWalls(rooms, outline, layout.map.doors || []), house, layout);
+    var tallKeys = {};
+    walls.forEach(function (wall) { if (wall.tall) tallKeys[isoWallKey(wall)] = true; });
+    // closed: every wall at full height; the ones that are not tall when open make up the "front" that sinks
+    isoWalls(rooms, outline, layout.map.doors || [], Object.assign({}, ISO, { lowWall: ISO.wallH })).forEach(function (wall) {
+      if (!tallKeys[isoWallKey(wall)]) { wall.tall = true; isoWall(closedFront, wall, house.roof); }
+    });
     walls.forEach(function (wall) {
-      isoWall(b, wall, house.roof);
+      isoWall(wall.tall ? b : openFront, wall, house.roof);
       var band = isoGrowRect([wall.x, wall.y, wall.w, wall.d], ISO_AO_BAND);
       aoGround.push(isoRectPoly(band));
       floors.forEach(function (f) { var c = isoRectClip(band, f); if (c) aoFloor.push(isoRectPoly(c)); });
@@ -463,9 +473,11 @@ function isoBuild(host, layout, sc) {
       if (rooms.some(function (r) { return rectsOverlap(d, r.rect); })) b.box(d[0], d[1], d[2], d[3], 0, 1.1, doorFloorColor(layout, d) || COLORS.path);
     });
     if (typeof house.chimney === "number") {
-      isoChimney(b, outline, house.chimney);
-      chimneys.push([house.chimney + 3, outline[1] - 3 + 3.5, ISO.wallH + 11.5]);      // where the smoke starts
+      var chimneyTop = isoChimneyTop(roofs, house.chimney);
+      isoChimney(b, outline, house.chimney, chimneyTop);
+      chimneys.push([house.chimney + 3, outline[1] - 3 + 3.5, chimneyTop + 1.5]);      // where the smoke starts
     }
+    houseMeshes.push(isoHouseMeshes(scene, house, roofs, openFront, closedFront));
   });
   (layout.map.windows || []).forEach(function (w) { isoWindow(b, glass, w); });
 
@@ -514,7 +526,7 @@ function isoBuild(host, layout, sc) {
   if (glass.pos.length) scene.add(glass.mesh(glassMat));
 
   var me = iso3 = { renderer: renderer, scene: scene, camera: camera, host: host, w: 0, h: 0, dirty: true, last: 0, raf: 0, lost: false,
-    hemi: hemi, sun: sun, ao: aoMeshes, glass: glassMat, groundMat: ground.material, sc: sc, worldTop: worldTop, clock: 0, tickAt: 0, light: null,
+    hemi: hemi, sun: sun, ao: aoMeshes, glass: glassMat, groundMat: ground.material, sc: sc, worldTop: worldTop, clock: 0, tickAt: 0, light: null, houses: houseMeshes,
     tree: { x: treeSpot[0], y: treeSpot[1], size: ISO_FEATURE_TREE, pivot: pivot, timer: 0 } };
   isoBuildLife(me, layout, { chimneys: chimneys, fire: fireSpot, leafTrees: forest.filter(function (t) { return t.kind === "leaf" && !underBoards(t, 45); }),
     edge: edge.filter(function (t) { return !underBoards(t, 10); }) });
@@ -536,6 +548,7 @@ function isoBuild(host, layout, sc) {
     render();
   });
   renderer.shadowMap.needsUpdate = true;
+  houseMeshes.forEach(function (h) { isoHouseApply(h, true); });
   isoSync();
   isoLight(isoLastLight || lightAt(12));
   isoWake();
@@ -769,6 +782,7 @@ function isoLoop(now) {
     if (now - me.tickAt >= ISO_TICK_MS) {
       me.clock += Math.min(now - me.tickAt, 2 * ISO_TICK_MS);      // after a pause the cycles go on where they were
       me.tickAt = now;
+      isoHousesTick(me);
       isoMove(me);
       me.dirty = true;
     }

@@ -58,6 +58,7 @@ function drawBeds() {
   var rooms = {};
   isoBedsBackToFront(app.iso, layout).forEach(function (e) { rooms[e.bed.id] = e; drawBed(g, layout, view, e.room, e.bed); });
   drawBedHits(g, layout, rooms);
+  drawHouseHits(g, view);
   drawBedTags(g, layout);
   drawMeadow(g, view);
 }
@@ -69,6 +70,7 @@ function drawBedHits(parent, layout, rooms) {
   var g = svgEl(parent, "g", { "class": "bed-hits", "aria-hidden": "true" });
   isoHitRegions(app.iso, layout).forEach(function (r) {
     var e = rooms[r.bed];
+    if (roomClosed(layout, e.room.id)) return;      // a closed house is tapped as a whole (drawHouseHits)
     var p = svgEl(g, "polygon", { points: pointsText(r.poly), fill: "transparent", "data-bed": r.bed, "data-part": r.part });
     p.addEventListener("click", function () {
       if (app.suppressClick) { app.suppressClick = false; return; }
@@ -95,7 +97,7 @@ function drawFeatureTreeHit(parent) {
 // that would overlap move up. Decor in the same layer, ignoring taps.
 function drawRoomPlates(parent, layout) {
   var sc = app.iso, k = sc.figScale;
-  var plates = layout.rooms.map(function (room) {
+  var plates = layout.rooms.filter(function (room) { return !roomClosed(layout, room.id); }).map(function (room) {
     var size = roomSignSize(room), r = room.rect, at = isoPoint(sc, r[0] + r[2] / 2, r[1], roomWallTop(layout, room));
     return { room: room, rect: [Math.round(at[0] - size[0] * k / 2), Math.round(at[1] - size[1] * k), size[0] * k, size[1] * k] };
   });
@@ -124,6 +126,7 @@ function roomWallTop(layout, room) {
 function drawBedTags(parent, layout) {
   var g = svgEl(parent, "g", { "class": "bed-tags", "aria-hidden": "true", "pointer-events": "none" });
   layout.rooms.forEach(function (room) {
+    if (roomClosed(layout, room.id)) return;
     room.beds.forEach(function (bed) {
       isoBedTags(app.iso, bed).forEach(function (t) {
         var w = t.text.length * 2.5 + 4;
@@ -179,6 +182,10 @@ function drawBed(parent, layout, view, room, bed) {
   var night = app.night, st = view.state, sc = app.iso;
   var hit = app.isoHits[bed.id], quilt = COLORS[isoQuiltKey(bed.kind)];
   var g = svgEl(parent, "g", { "class": "bed", "pointer-events": "none" });      // taps go to drawBedHits
+  if (roomClosed(layout, room.id)) {      // the house is closed: only the keyboard and screen readers reach the bed, and focus opens the house
+    makeButton(g, bedLabel(st, room, bed, night) + ". Ťuknutím otvoríš.", "bed-" + bed.id, function () { onBedTap(room, bed); });
+    return;
+  }
   svgEl(g, "polygon", { points: pointsText(hit), "class": "hit" });      // only the look of the keyboard focus
   isoSlotOrder(sc, bed).forEach(function (i) {
     if (bed.kind === "bunk" && i === 0) {      // the rail of the top berth lies over the sleeper below

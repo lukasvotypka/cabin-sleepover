@@ -21,7 +21,7 @@ var ISO = {
   figScale: 1.35,       // the people sprites standing on the beds
   margin: 12,           // grass around the whole scene
   gap: 14,              // between the board block and the highest point of the world
-  headroom: 44,         // map units above the ground the world may reach (walls, chimneys, smoke)
+  headroom: 84,         // map units above the ground the world may reach (roofs, chimneys, smoke)
   iconCell: [64, 64],   // one icon sign in the grid left of the boards, block units
   iconGap: 10,          // between the icon grid and the boards, block units
   wallH: 28,            // the back (north and west) outer walls of a house

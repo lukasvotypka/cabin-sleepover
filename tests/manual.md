@@ -280,3 +280,14 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 
 - [ ] **Shadows and corners on a real GPU (T-136):** on a 380 px iPhone Safari and Android Chrome at 12:00 (rest view), the walls and the big trees throw long soft shadows on the grass to the north-north-west, the corners where walls meet the floor and the dark blobs under the trees and beds read as darker, and no bed top is more than half in shadow. Then drag the time knob to dusk (about 16:30) and to 23:00: the shadows fade and the corners stay a little darker than the open floor.
 - [ ] **Frame cost on a phone (T-136):** on a 380 px phone with a mid-range GPU, the map pans and zooms as smoothly as before T-136 (compare with the trial build of T-135 on the same phone): no visible stutter while panning, and the page stays responsive when the time knob is dragged.
+
+## 19. Roofs, walls and opening houses (T-137)
+
+- [ ] **Closed houses on a phone (T-137):** on a 380 px iPhone Safari and Android Chrome at the rest view, every house is closed: tall walls, a gable roof in its own colours, a chimney with smoke, and on the ridge a small sign „voľné: N“ or „plno“ for the chosen night. The signs are readable without zooming in, and the numbers match the free places of each house (check against „Kto je kto“ and the table).
+- [ ] **Tap opens and zooms, never assigns (T-137):** tap a closed roof, a wall, and a bed hidden under a roof. The house opens and the view eases to it. No sheet, no place changes on another device. The next tap on a bed opens the sheet as before.
+- [ ] **Zoom opens and closes all (T-137):** pinch to about 1.6× the rest zoom: all houses open. Pinch back to about 1.15× or press „Celá mapa“: all close. Between these two zoom levels nothing flips while pinching.
+- [ ] **Move mode on a phone (T-137):** start a move („Presunúť“) with a house closed: every house must open at once so the target beds are visible. Report it if a closed house stays closed while the move bar is shown.
+- [ ] **Opening look (T-137):** the opening runs in about 0.4 s (roof lifts, then the front walls sink), with no jumps on the 8 fps tick. With „Zmenšiť pohyb“ (iOS) or „Odstrániť animácie“ (Android) it is instant.
+- [ ] **VoiceOver on closed houses (T-137):** a bed of a closed house is announced with the same label as on an open house (bed name, then „Ťuknutím otvoríš.“, as at HEAD). A double tap opens its sheet, and the house opens too. The ridge sign is not read as a button.
+- [ ] **Desktop hover (T-137):** with a mouse over a closed roof, the roof brightens and the cursor is a pointer. Click opens and zooms the house.
+- [ ] **Dark mode (T-137):** the roofs, walls and ridge signs keep their colours, and the panels follow the dark palette.

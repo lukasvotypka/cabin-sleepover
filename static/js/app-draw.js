@@ -109,6 +109,9 @@ function render() {
   if (!app.state || app.codeOpen || !app.introDone) return;     // the code screen and the loading view come first
   ensureScene();
   dnSync();
+  housesQuiet = true;
+  housesSync();      // the move mode opens every house
+  housesQuiet = false;
   keepFocus($("scene"), function () {
     drawBoards();
     drawBeds();

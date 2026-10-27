@@ -14,6 +14,7 @@ function isOwnSlotTaken(e) {
 // already shows the server's state when the promise settles (see write()). Resolves to the write result.
 function runWrite(path, body, ops) {
   app.pending = app.pending.concat(ops);
+  openHousesOfSlots(ops);      // a closed house shows the pending figure
   renderBeds();
   return write("POST", path, body, ops).then(function (res) {
     if (res.ok) return res;
@@ -166,6 +167,7 @@ function renderMoveBar() {
     $("moveAll").setAttribute("aria-pressed", m.all ? "true" : "false");
   }
   if (app.refit) app.refit();      // the scene makes room for the bar (or takes it back)
+  housesSync();      // move mode opens all houses, and closes them again when it ends
 }
 
 function startMove(slot) {
