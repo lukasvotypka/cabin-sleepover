@@ -1,8 +1,8 @@
 "use strict";
 
 // App part: the roofs of the 3D world and the opening of the houses (T-137). A closed house has tall walls all round
-// and a gable roof; opening it lifts the roof away in steps, then the front walls sink low (isoOpenFrame in
-// logic-iso-roof.js says what each step looks like). Steps advance on the shared 8 fps tick; with reduced motion
+// and a gable roof; opening it lifts the roof away smoothly, then the front walls sink low (isoOpenFrame in
+// logic-iso-roof.js says what each step looks like). Steps advance on the shared 30 fps update; with reduced motion
 // a change is instant. app-houses.js decides which houses should be open and draws the svg side.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
@@ -93,11 +93,11 @@ function isoHouseApply(h, quiet) {
   return true;
 }
 
-// One tick: every house moves one step towards its target.
-function isoHousesTick(me) {
+// One update: every house moves towards its target, one step per ISO_STEP_MS (`dt` ms since the last update).
+function isoHousesTick(me, dt) {
   (me.houses || []).forEach(function (h) {
     if (h.step === h.target) return;
-    h.step = isoStepToward(h.step, h.target);
+    h.step = isoStepToward(h.step, h.target, (dt || ISO_STEP_MS) / ISO_STEP_MS);
     isoHouseApply(h);
   });
 }

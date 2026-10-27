@@ -8,7 +8,7 @@
 // both layers always line up. Without WebGL the svg draws flat floors instead (drawBase) and the app still works.
 // Each house is closed (tall walls, gable roof in its colours) or open (roof gone, front walls low); app-iso-roof.js builds and animates that.
 // The day-night slider lights this world (isoLight) and a little life moves in it: campfire, chimney smoke, falling leaves,
-// fireflies (isoBuildLife, isoTick); everything moving steps on one shared 8 fps tick and sleeps while the tab is hidden.
+// fireflies (isoBuildLife, isoTick); everything moving updates on one shared 30 fps tick and sleeps while the tab is hidden.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 var ISO_PIXEL_RATIO_MAX = 1.5; // WebGL pixels per CSS pixel, at most: sharp, smooth edges on a phone without a 3x cost
@@ -563,7 +563,7 @@ function isoRustle() {
   var start = performance.now();
   cancelAnimationFrame(t.timer);
   (function sway(now) {
-    var p = Math.min(1, Math.floor((now - start) / 90) * 90 / 700), a = Math.sin(p * Math.PI * 5) * 0.06 * (1 - p);      // 90 ms steps
+    var p = Math.min(1, (now - start) / 700), a = Math.sin(p * Math.PI * 5) * 0.06 * (1 - p);
     t.pivot.rotation.z = a;
     t.pivot.rotation.x = a * 0.6;
     isoDirty();
@@ -729,13 +729,13 @@ function isoLight(l) {
   isoDirty();
 }
 
-// Moves the sun (and so redraws the shadow map) only when it stands ≥ 6° (azimuth) or ≥ 2° (elevation) from where the
+// Moves the sun (and so redraws the shadow map) only when it stands ≥ 2° (azimuth) or ≥ 1° (elevation) from where the
 // shadows were last drawn, and at most once per shared tick; with reduced motion there is no tick, so it moves at once.
 function isoSunStep(me) {
   var want = me.light && me.light.sun, got = me.sunDrawn;
   if (!want) return;
   var still = prefersReducedMotion();
-  if (got && Math.abs(want.az - got.az) < 6 && Math.abs(want.elev - got.elev) < 2) return;
+  if (got && Math.abs(want.az - got.az) < 2 && Math.abs(want.elev - got.elev) < 1) return;
   if (got && !still && me.sunClock === me.clock) return;      // already moved on this tick; the next tick picks it up
   me.sunDrawn = { az: want.az, elev: want.elev };
   me.sunClock = me.clock;
@@ -789,7 +789,7 @@ function isoWake() {
 }
 
 // Draws when the view changed (isoSync), the light changed or something moved, at most every ISO_FRAME_MS, and never
-// while the page is hidden. Moving parts step on one tick of ISO_TICK_MS, driven by the frame time alone (no timers).
+// while the page is hidden. Moving parts update on one tick of ISO_TICK_MS (~30 fps), driven by the frame time alone (no timers).
 function isoLoop(now) {
   var me = iso3;
   if (!me) return;
@@ -798,21 +798,23 @@ function isoLoop(now) {
   var moving = !prefersReducedMotion();
   if (moving) {
     if (!me.tickAt) me.tickAt = now;
-    if (now - me.tickAt >= ISO_TICK_MS) {
-      me.clock += Math.min(now - me.tickAt, 2 * ISO_TICK_MS);      // after a pause the cycles go on where they were
+    if (now - me.tickAt >= ISO_TICK_MS - 4) {      // a little early is fine: two 60 Hz frames are 33.3 ms
+      var dt = Math.min(now - me.tickAt, 2 * ISO_STEP_MS);      // after a pause the cycles go on where they were
+      me.clock += dt;
       me.tickAt = now;
-      isoHousesTick(me);
+      isoHousesTick(me, dt);
       isoMove(me);
       isoSunStep(me);
       isoPeopleTick(me);
       me.dirty = true;
     }
   }
-  if (me.dirty && now - me.last >= ISO_FRAME_MS && !me.renderer.getContext().isContextLost()) {      // the lost event may still be on its way
+  if (me.dirty && now - me.last >= ISO_FRAME_MS - 4 && !me.renderer.getContext().isContextLost()) {      // the lost event may still be on its way
     me.last = now;
     var started = isoFps.on ? performance.now() : 0;      // the fps meter (app-fps.js)
+    if (isoFps.on) isoFpsGpuBegin(me.renderer.getContext());
     me.renderer.render(me.scene, me.camera);
-    if (isoFps.on) isoFpsSample(started);
+    if (isoFps.on) isoFpsSample(started, me.renderer.info.render);
     me.dirty = false;
   }
   if (moving || me.dirty) me.raf = requestAnimationFrame(isoLoop);

@@ -4,7 +4,7 @@
 // in bed by day and lying under a quilt at night. The svg keeps the tap areas, labels, free „+“ marks and „z-z-z“.
 // drawBeds collects one spec per figure (isoPeopleBegin / isoPeopleAdd / isoPeopleEnd) and this file builds them again
 // on every redraw (a dozen figures: cheap), keeping what must go on between redraws (pop in, shake, walkers).
-// Everything that moves steps on the shared 8 fps tick (isoPeopleTick, called by isoLoop); with reduced motion nothing animates.
+// Everything that moves steps on the shared 30 fps update (isoPeopleTick, called by isoLoop); with reduced motion nothing animates.
 // Without the 3D world isoActive() is false and the svg sprites are drawn as before.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
@@ -55,13 +55,13 @@ function isoPeopleKit(me) {
 }
 
 function isoPeopleMat(P, hex, opacity) {
-  var o = isoQuarter(opacity), key = hex + "|" + o;
+  var o = isoOpacityStep(opacity), key = hex + "|" + o;
   return P.mats[key] || (P.mats[key] = new THREE.MeshLambertMaterial({ color: hex, transparent: o < 1, opacity: o }));
 }
 
 // An 8 x 8 canvas texture of the letter `ch` in `ink`, transparent around it (the 3 x 5 pixel font, centred).
 function isoLetterMat(P, ch, ink, opacity) {
-  var o = isoQuarter(opacity), key = "L|" + ch + "|" + ink + "|" + o;
+  var o = isoOpacityStep(opacity), key = "L|" + ch + "|" + ink + "|" + o;
   if (P.mats[key]) return P.mats[key];
   var tex = P.tex[ch + ink];
   if (!tex) {
@@ -115,7 +115,7 @@ function isoPoseGroup(P, entry, spec, pose) {
 
 function isoPeopleMake(me, spec) {
   var P = isoPeopleKit(me), root = new THREE.Group();
-  var entry = { spec: spec, root: root, mats: [], sit: null, lie: null, stand: null, opacity: -1, pop: -1, tick: 0, ring: null };
+  var entry = { spec: spec, root: root, mats: [], sit: null, lie: null, stand: null, opacity: -1, popAt: -1, shakeAt: -1, ring: null };
   if (spec.pose === "stand") {
     entry.stand = isoPoseGroup(P, entry, spec, "stand");
     root.add(entry.stand);
@@ -145,11 +145,11 @@ function isoPeopleMake(me, spec) {
   return entry;
 }
 
-// The opacity (pending, fading), the pose and the place of an entry, for the current tick.
+// The opacity (pending, fading), the pose and the place of an entry, for the current clock.
 function isoPeopleApply(me, entry) {
-  var s = entry.spec, P = me.people, o = s.pending ? 0.5 : 1, tick = Math.floor(me.clock / ISO_TICK_MS);
+  var s = entry.spec, P = me.people, o = s.pending ? 0.5 : 1, clock = me.clock;
   if (s.fade) o *= isoFadeAlpha(s.fade.dir, performance.now() - s.fade.start);
-  o = isoQuarter(o);
+  o = isoOpacityStep(o);
   if (entry.opacity !== o) {
     entry.opacity = o;
     entry.mats.forEach(function (m) { m.mesh.material = m.letter ? isoLetterMat(P, m.ch, m.ink, o) : isoPeopleMat(P, m.hex, o); });
@@ -161,27 +161,27 @@ function isoPeopleApply(me, entry) {
     entry.sit.visible = !sleep;
     entry.lie.visible = sleep;
   }
-  var lift = s.lift ? isoLiftOffset(tick) : 0, hop = s.hop ? isoWaiterHop(tick, s.hop.index, s.hop.count) : 0;
-  var shake = entry.shake !== undefined ? ISO_PEOPLE.shake[entry.shake] || 0 : 0;
+  var lift = s.lift ? isoLiftOffset(clock) : 0, hop = s.hop ? isoWaiterHop(clock, s.hop.index, s.hop.count) : 0;
+  var shake = entry.shakeAt >= 0 ? isoShakeOffset(clock - entry.shakeAt) : 0;
   entry.root.position.set(s.x + shake, s.h + lift + hop, s.z);
-  var pop = isoPopScale(entry.pop) * me.sc.figScale * (s.scale || 1);
+  var pop = isoPopScale(entry.popAt >= 0 ? clock - entry.popAt : null) * me.sc.figScale * (s.scale || 1);
   entry.root.scale.setScalar(pop);
 }
 
 // Builds the figures of a redraw. Unchanged figures are built again (cheap); a new key pops in, and a pending
-// figure that vanishes (the server said no) shakes for two ticks and goes.
+// figure that vanishes (the server said no) shakes for 250 ms and goes.
 function isoPeopleBuild(me, specs, ctx) {
   var P = isoPeopleKit(me), still = prefersReducedMotion(), same = P.ctx === ctx, keys = {};
   var kept = {};
   specs.forEach(function (s) { kept[s.key] = true; });
   P.entries.forEach(function (e) {
     P.group.remove(e.root);
-    if (same && !still && e.spec.pending && !e.spec.fade && !kept[e.spec.key]) { e.shake = 0; P.dying.push(e); P.group.add(e.root); }
+    if (same && !still && e.spec.pending && !e.spec.fade && !kept[e.spec.key]) { e.shakeAt = me.clock; P.dying.push(e); P.group.add(e.root); }
   });
   P.entries = specs.map(function (s) {
     var e = isoPeopleMake(me, s);
     keys[s.key] = true;
-    if (same && !still && !P.keys[s.key] && !s.fade) e.pop = 0;
+    if (same && !still && !P.keys[s.key] && !s.fade) e.popAt = me.clock;
     P.group.add(e.root);
     isoPeopleApply(me, e);
     return e;
@@ -198,20 +198,19 @@ function isoPeoplePose(me) {
   P.entries.forEach(function (e) { isoPeopleApply(me, e); });
 }
 
-// One tick: pop frames, shakes, the 06:00 fade, hops, the lifted figure and the blinking frames.
+// One update: pops, shakes, the 06:00 fade, hops, the lifted figure and the blinking frames.
 function isoPeopleTick(me) {
   var P = me.people;
   if (!P) return;
-  var tick = Math.floor(me.clock / ISO_TICK_MS), blink = (tick >> 2) % 2 === 0;
+  var blink = Math.floor(me.clock / (4 * ISO_STEP_MS)) % 2 === 0;      // half a second on, half a second dim
   P.ringMat.opacity = blink ? 1 : 0.35;
   P.entries.forEach(function (e) {
     if (e.ringMat) e.ringMat.opacity = P.ringMat.opacity * Math.max(e.opacity, 0);
-    if (e.pop >= 0) e.pop = e.pop + 1 >= ISO_PEOPLE.pop.length ? -1 : e.pop + 1;
-    if (e.pop >= 0 || e.spec.fade || e.spec.lift || e.spec.hop) isoPeopleApply(me, e);
+    if (e.popAt >= 0 && me.clock - e.popAt >= ISO_PEOPLE.popMs) e.popAt = -1;
+    if (e.popAt >= 0 || e.spec.fade || e.spec.lift || e.spec.hop) isoPeopleApply(me, e);
   });
   P.dying = P.dying.filter(function (e) {
-    e.shake++;
-    if (e.shake >= ISO_PEOPLE.shake.length) { P.group.remove(e.root); return false; }
+    if (me.clock - e.shakeAt >= ISO_PEOPLE.shakeMs) { P.group.remove(e.root); return false; }
     isoPeopleApply(me, e);
     return true;
   });

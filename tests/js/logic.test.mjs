@@ -4451,28 +4451,36 @@ test("iso ambient occlusion: stepped darkening at the ground, bands, clips and b
   o.forEach(([x, y]) => assert.ok(Math.max(Math.abs(x), Math.abs(y)) === 10));
 });
 
-test("iso life: flames, flicker, smoke, leaves and fireflies cycle in steps (T-134)", () => {
+test("iso life: flames and flicker keep their rhythm, smoke, leaves and fireflies move smoothly (T-141)", () => {
   assert.deepEqual([0, 159, 160, 320, 480].map(L.isoFlameFrame), [0, 0, 1, 2, 0]);
   assert.deepEqual([0, 125, 250, 375, 500].map(L.isoFlicker), [1, 0.85, 1.1, 0.9, 1]);
+  assert.equal(L.ISO_TICK_MS, 33);
+  assert.equal(L.ISO_STEP_MS, 125);
   const puff = (t, n) => plain(L.isoSmoke(t, n));
-  assert.equal(puff(0, 0).rise, 3);
-  assert.equal(puff(2999, 0).rise, 18);
-  assert.equal(puff(2999, 0).opacity, 0);
-  near(puff(0, 0).opacity, 0.5);
-  assert.equal(puff(0, 1).rise, puff(1000, 0).rise);      // staggered by one second
+  near(puff(0, 0).rise, 0);
+  near(puff(1500, 0).rise, 9);      // 18 units over 3 s
+  assert.ok(puff(2999, 0).rise > 17.9 && puff(2999, 0).opacity < 0.01);
+  near(puff(0, 0).opacity, 0.6);
+  near(puff(0, 1).rise, puff(1000, 0).rise);      // staggered by one second
   near(puff(0, 0).size, 3);
-  assert.ok(puff(2000, 0).size > 3 && puff(2999, 0).size <= 5);
-  for (let t = 0; t < 12000; t += 125) {
+  assert.ok(puff(2999, 0).size <= 5);
+  for (let t = 0; t < 2960; t += 33) assert.ok(puff(t + 33, 0).rise > puff(t, 0).rise, "rises every update");
+  let leafJump = 0, prevLeaf = L.isoLeaf(0, 2, 20);
+  for (let t = 1; t < 12000; t += 33) {
     const lf = L.isoLeaf(t, 2, 20);
     assert.ok(lf.y >= 0 && lf.y <= 20 && Math.abs(lf.dx) <= 6);
+    if (lf.y <= prevLeaf.y) leafJump = Math.max(leafJump, Math.abs(lf.dx - prevLeaf.dx));
+    prevLeaf = lf;
   }
+  assert.ok(leafJump < 0.6, "a leaf drifts, it does not jump: " + leafJump);
   assert.deepEqual(plain(L.isoLeaf(0, 0, 20)), plain(L.isoLeaf(0, 0, 20)));
   let on = 0;
   for (let t = 0; t < 1800; t += 100) if (L.isoFirefly(t, 0).on) on++;
   assert.equal(on, 6);      // on for 0.6 s of every 1.8 s
   const f = L.isoFirefly(1234, 3);
   assert.ok(Math.abs(f.dx) <= 1 && Math.abs(f.dy) <= 1);
-  assert.deepEqual(plain(L.isoFirefly(10, 3)), plain(L.isoFirefly(400, 3)));      // one hop per 500 ms
+  assert.ok([0, 1, 2, 3, 4, 5].some((i) => L.isoFirefly(10, i).dx !== L.isoFirefly(400, i).dx), "drifts within a 500 ms hop");
+  assert.ok(Math.abs(L.isoFirefly(499.9, 3).dx - L.isoFirefly(500, 3).dx) < 0.01, "continuous across a hop");
 });
 
 test("iso app: the frame loop is driven by rAF only, sleeps while hidden, and reduced motion does not animate (T-134)", () => {
@@ -4482,7 +4490,7 @@ test("iso app: the frame loop is driven by rAF only, sleeps while hidden, and re
   assert.match(src, /document\.addEventListener\("visibilitychange"/);
   assert.match(src, /var moving = !prefersReducedMotion\(\)/);
   assert.match(src, /still = prefersReducedMotion\(\)/);
-  assert.match(src, /Math\.floor\(\(now - start\) \/ 90\) \* 90/);      // the tree sways in 90 ms steps
+  assert.match(src, /Math\.min\(1, \(now - start\) \/ 700\)/);      // the tree sways smoothly for 0.7 s
   assert.equal((src.match(/new THREE\.PointLight/g) || []).length, 1);      // the campfire only
   assert.ok(!/castShadow\s*=\s*true/.test(src.slice(src.indexOf("function isoBuildLife"))));
 });
@@ -4876,14 +4884,15 @@ test("iso plates: overlapping room plates move the farther one up by the overlap
   assert.deepEqual(dy, [-6, 0]);
 });
 
-test("iso walk: the height is 0 on the floor and hops up in steps of 4 over the last steps", () => {
+test("iso walk: the height is 0 on the floor and climbs smoothly onto the bed over the last 160 or 480 ms", () => {
   assert.equal(L.isoWalkHeight(0, 3000, 7), 0);
   assert.equal(L.isoWalkHeight(2000, 3000, 7), 0);
   assert.equal(L.isoWalkHeight(3000, 3000, 7), 7);
-  const hs = []; for (let t = 0; t <= 3000; t += 20) hs.push(L.isoWalkHeight(t, 3000, 7));
-  assert.deepEqual([...new Set(hs)], [0, 4, 7]);
-  const bunk = [...new Set(Array.from({ length: 151 }, (_, i) => L.isoWalkHeight(i * 20, 3000, 23)))];
-  assert.deepEqual(bunk, [0, 4, 8, 12, 16, 20, 23]);
+  assert.equal(L.isoWalkHeight(2840, 3000, 7), 0);
+  near(L.isoWalkHeight(2880, 3000, 7), 2);      // 4 units per 80 ms
+  near(L.isoWalkHeight(2940, 3000, 7), 5);
+  assert.equal(L.isoWalkHeight(2999, 3000, 23), 23);
+  near(L.isoWalkHeight(2680, 3000, 23), 8);
   assert.equal(L.isoWalkHeight(2999, 3000, 0), 0);
 });
 
@@ -4964,6 +4973,16 @@ test("houses open: six steps, the roof lifts then goes, the front walls sink las
   assert.equal(L.isoStepToward(0, 6), 1);
   assert.equal(L.isoStepToward(6, 0), 5);
   assert.equal(L.isoStepToward(3, 3), 3);
+  assert.equal(L.isoStepToward(0, 6, 0.27), 0.27);
+  assert.equal(L.isoStepToward(5.9, 6, 0.27), 6);      // never past the target
+  assert.equal(L.isoStepToward(0.1, 0, 0.27), 0);
+  near(L.isoOpenFrame(0.5).lift, 3);      // in between: smooth
+  near(L.isoOpenFrame(2.5).lift, 20);
+  near(L.isoOpenFrame(4.5).frontScale, 0.775);
+  assert.equal(L.isoOpenFrame(3.4).roof, true);
+  assert.equal(L.isoOpenFrame(3.6).roof, false);
+  assert.equal(L.isoOpenFrame(5.4).front, "mid");
+  assert.equal(L.isoOpenFrame(5.6).front, "open");
 });
 
 test("houses open: zoom 1.6x opens all, 1.15x closes all, in between nothing changes", () => {
@@ -5037,23 +5056,42 @@ test("dolls: colours, sit scale under a bunk berth, pop, fade and the other tick
   assert.equal(L.isoSitScale(bunk, 0, "adult", 3), 1, "the upper berth has room");
   assert.equal(L.isoSitScale(bunk, 1, "adult", 3), 0.85, "a doll too tall for the lower berth shrinks");
   assert.equal(L.isoSitScale(bunk, 1, "adult", 1.35), 1);
-  assert.deepEqual([0, 1, 2, 3, -1].map(L.isoPopScale), [0.4, 1.15, 1, 1, 1]);
-  assert.deepEqual([0, 125, 250, 375, 500].map((t) => L.isoFadeAlpha(1, t)), [0.25, 0.5, 0.75, 1, 1]);
-  assert.deepEqual([0, 125, 250, 375, 500].map((t) => L.isoFadeAlpha(-1, t)), [0.75, 0.5, 0.25, 0, 0]);
-  assert.equal(L.isoQuarter(0.6), 0.5);
-  assert.deepEqual([0, 1, 2, 3].map(L.isoLiftOffset), [3, 4, 3, 4]);
-  // exactly one waiter of three hops in the first two ticks of each period, and none in between
+  // pop: 0.4 up to 1.15 and down to 1 over 375 ms (the old three 125 ms frames), then 1
+  near(L.isoPopScale(0), 0.4);
+  near(L.isoPopScale(187.5), 1.15);
+  assert.ok(Math.abs(L.isoPopScale(374) - 1) < 0.01);
+  assert.equal(L.isoPopScale(375), 1);
+  assert.equal(L.isoPopScale(null), 1);
+  assert.ok(L.isoPopScale(60) > 0.4 && L.isoPopScale(60) < 1.15);
+  // shake: one unit right, one left and back over 250 ms
+  near(L.isoShakeOffset(0), 1);
+  near(L.isoShakeOffset(125), -1);
+  assert.equal(L.isoShakeOffset(250), 0);
+  // fade: the same 0.25 .. 1 in 375 ms, smooth in between
+  near(L.isoFadeAlpha(1, 0), 0.25);
+  near(L.isoFadeAlpha(1, 375), 1);
+  near(L.isoFadeAlpha(1, 500), 1);
+  near(L.isoFadeAlpha(-1, 0), 0.75);
+  near(L.isoFadeAlpha(-1, 375), 0);
+  near(L.isoFadeAlpha(1, 125), 0.5);
+  assert.ok(L.isoFadeAlpha(1, 40) > L.isoFadeAlpha(1, 20));
+  assert.equal(L.isoOpacityStep(0.6), 0.625);
+  // the lifted figure bobs between 3 and 4 units once per 250 ms
+  near(L.isoLiftOffset(0), 3);
+  near(L.isoLiftOffset(125), 4);
+  near(L.isoLiftOffset(250), 3);
+  // exactly one waiter of three hops for 250 ms at the start of each 4 s period, and none in between
   for (let round = 0; round < 6; round++) {
-    const at = (t) => [0, 1, 2].map((i) => L.isoWaiterHop(round * 32 + t, i, 3)).reduce((a, b) => a + b, 0);
-    assert.equal(at(0), 1);
-    assert.equal(at(1), 1);
-    assert.equal(at(2), 0);
-    assert.equal(at(17), 0);
+    const at = (t) => [0, 1, 2].map((i) => L.isoWaiterHop(round * 4000 + t, i, 3)).reduce((a, b) => a + b, 0);
+    near(at(125), 1);      // the top of the arc
+    assert.ok(at(60) > 0 && at(60) < 1);
+    assert.equal(at(250), 0);
+    assert.equal(at(2100), 0);
   }
   assert.equal(L.isoWaiterHop(0, 0, 0), 0);
 });
 
-test("dolls: the walk goes through the door of the house, hops once per tick and ends exactly on the bed", () => {
+test("dolls: the walk goes through the door of the house at a steady pace and ends exactly on the bed", () => {
   const layout = { rooms: [{ id: "a", rect: [0, 0, 50, 50], beds: [{ id: "b1", slots: ["s1", "s2"] }] }, { id: "c", rect: [100, 0, 50, 50], beds: [{ id: "b2", slots: ["s3"] }] }],
     houses: [{ id: "h1", rooms: ["a"] }, { id: "h2", rooms: ["c"] }], map: { doors: [[48, 20, 4, 10], [98, 20, 4, 10]] } };
   assert.equal(L.isoBedOfSlot(layout, "s3").room.id, "c");
@@ -5066,16 +5104,21 @@ test("dolls: the walk goes through the door of the house, hops once per tick and
   const ms = 1600, first = L.isoWalkSample(pts, 0, ms), end = L.isoWalkSample(pts, ms, ms);
   assert.deepEqual(plain(first.pos), [200, 200]);
   assert.deepEqual(plain(end), { pos: [10, 10], bob: 0 });
-  let prev = first.pos, bobs = 0, passed = false;
-  for (let t = 0; t < ms; t += 125) {
+  let passed = false, maxStep = 0, prev = first.pos, bobMax = 0, bobMin = 1;
+  for (let t = 0; t < ms; t += 33) {
     const s = L.isoWalkSample(pts, t, ms);
     if (Math.abs(s.pos[0] - 45) <= 14 && Math.abs(s.pos[1] - 18) <= 14) passed = true;
-    bobs += s.bob;
+    maxStep = Math.max(maxStep, Math.hypot(s.pos[0] - prev[0], s.pos[1] - prev[1]));
+    bobMax = Math.max(bobMax, s.bob);
+    bobMin = Math.min(bobMin, s.bob);
     prev = s.pos;
   }
   assert.ok(passed, "passes near the door");
-  assert.equal(bobs, 6, "a bob on every second hop");
-  assert.deepEqual(plain(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 800, 1600).pos), [4, 3]);
+  assert.ok(maxStep < 25, "no jumps: " + maxStep);
+  assert.ok(bobMax > 0.9 && bobMin < 0.1, "bobs between 0 and 1");
+  near(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 750, 1600).pos[0], 4);
+  near(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 750, 1600).pos[1], 3);
+  near(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 250, 1600).bob, 0);
 });
 
 test("dolls: the page draws them in 3D, keeps the svg sprites as the fallback and lists the files", () => {
@@ -5106,9 +5149,9 @@ test("daynight: sunAt follows the stylized path and rests at the T-136 noon", ()
   assert.equal(L.lightAt(0).sun.moon, true);
 });
 
-test("iso: the sun moves in steps, once per tick, and not while still", () => {
+test("iso: the sun moves in small steps (2 deg / 1 deg), once per tick, and not while still", () => {
   assert.match(appSource, /function isoSunStep\(me\)/);
-  assert.match(appSource, /< 6 && Math\.abs\(want\.elev - got\.elev\) < 2/);
+  assert.match(appSource, /< 2 && Math\.abs\(want\.elev - got\.elev\) < 1/);
   assert.match(appSource, /me\.sunClock === me\.clock/);
   assert.match(appSource, /isoSunStep\(me\);\s*isoPeopleTick\(me\)/);
 });
@@ -5126,6 +5169,9 @@ test("fps meter: off by default, ?fps=1 / ?fps=0, stats and text", () => {
   assert.equal(s.worst, 4);
   assert.deepEqual(plain(L.fpsStats([], 100, 2000)), { fps: 0, ms: 0, worst: 0 });
   assert.equal(L.fpsText({ fps: 7.6, ms: 3.21, worst: 9.06 }, 1.5), "3D 8 fps · cpu 3.2 ms (max 9.1) · px 1.5");
+  const st = { fps: 30, ms: 1.2, worst: 3.1 };
+  assert.equal(L.fpsText(st, 1.5, { ms: 2.04, calls: 140, tris: 52340 }), "3D 30 fps · cpu 1.2 ms (max 3.1) · gpu 2.0 ms · 140 calls · 52k tris · px 1.5");
+  assert.equal(L.fpsText(st, 1, { ms: null, calls: 9, tris: 800 }), "3D 30 fps · cpu 1.2 ms (max 3.1) · gpu ? · 9 calls · 800 tris · px 1");
   const meter = fs.readFileSync(path.join(root, "static", "js", "app-fps.js"), "utf8");
   assert.match(meter, /if \(!isoFps\.on\) return;/, "the meter is only built when switched on");
   assert.match(html, /\.fps-meter \{[^}]*pointer-events: none;/);

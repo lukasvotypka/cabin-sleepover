@@ -472,13 +472,13 @@ function isoPlateShifts(plates) {
   return dy;
 }
 
-// The height of a walking figure after `elapsed` of `ms`: 0 on the floor, then a hop onto the bed in steps of
-// ISO_HOP_STEP over the last steps of the walk (the bunk top is the same climb, just longer).
+// The height of a walking figure after `elapsed` of `ms`: 0 on the floor, then a smooth climb onto the bed at
+// ISO_HOP_STEP per ISO_HOP_MS over the end of the walk (the bunk top is the same climb, just longer).
 function isoWalkHeight(elapsed, ms, hTo) {
   if (!(hTo > 0)) return 0;
-  var steps = Math.ceil(hTo / ISO_HOP_STEP), start = ms - steps * ISO_HOP_MS;
+  var start = ms - Math.ceil(hTo / ISO_HOP_STEP) * ISO_HOP_MS;
   if (!(elapsed >= start)) return 0;
-  return Math.min(hTo, ISO_HOP_STEP * (1 + Math.floor((elapsed - start) / ISO_HOP_MS)));
+  return Math.min(hTo, ISO_HOP_STEP * (elapsed - start) / ISO_HOP_MS);
 }
 
 // The figure (isoFigure) of a walk at progress t: positions in whole scene units.
@@ -565,8 +565,9 @@ function isoBlobPolygon(cx, cy, r) {
   return [[cx + r, cy - k], [cx + r, cy + k], [cx + k, cy + r], [cx - k, cy + r], [cx - r, cy + k], [cx - r, cy - k], [cx - k, cy - r], [cx + k, cy - r]];
 }
 
-var ISO_TICK_MS = 125;                       // the one shared tick of everything that moves: 8 steps a second
-var ISO_FLICKER = [1, 0.85, 1.1, 0.9];       // the campfire light, one entry per tick
+var ISO_TICK_MS = 33;                        // the one shared update of everything that moves: about 30 a second
+var ISO_STEP_MS = 125;                       // the old 8 fps beat: the speed of the on/off rhythms (flicker, blink) and the base of animation lengths
+var ISO_FLICKER = [1, 0.85, 1.1, 0.9];       // the campfire light, one entry per ISO_STEP_MS
 var ISO_FLAME_FRAMES = [[5, 4, 2.5], [6, 5, 3.5], [5.5, 4.5, 3]];      // heights of the outer, middle and core flame per frame
 var ISO_SMOKE_RISE = 18;
 var ISO_SMOKE_MS = 3000;
@@ -577,26 +578,29 @@ function isoFlameFrame(clock) {
 }
 
 function isoFlicker(clock) {
-  return ISO_FLICKER[Math.floor(clock / ISO_TICK_MS) % ISO_FLICKER.length];
+  return ISO_FLICKER[Math.floor(clock / ISO_STEP_MS) % ISO_FLICKER.length];
 }
 
-// A puff of chimney smoke: 6 jumps up (18 units) over 3 s, growing from 3 to 5 units and fading from 0.6 to 0; `n` (0..2) staggers by 1 s.
+// A puff of chimney smoke: rises smoothly 18 units over 3 s, growing from 3 to 5 units and fading from 0.6 to 0; `n` (0..2) staggers by 1 s.
 function isoSmoke(clock, n) {
-  var age = ((clock + n * 1000) % ISO_SMOKE_MS) / ISO_SMOKE_MS, step = Math.min(5, Math.floor(age * 6));
-  return { rise: (step + 1) * ISO_SMOKE_RISE / 6, size: 3 + 2 * step / 5, opacity: 0.6 * (1 - (step + 1) / 6) };
+  var age = ((clock + n * 1000) % ISO_SMOKE_MS) / ISO_SMOKE_MS;
+  return { rise: age * ISO_SMOKE_RISE, size: 3 + 2 * age, opacity: 0.6 * (1 - age) };
 }
 
-// A falling leaf `i` of height `top`: falls in 4 to 6 s, jumps up to 2 units sideways every 400 ms, then starts again.
+// A falling leaf `i` of height `top`: falls in 4 to 6 s, drifts up to 2 units sideways per 400 ms (smoothly), then starts again.
 function isoLeaf(clock, i, top) {
   var dur = 4000 + isoNoise(i, 41) * 2000, age = (clock + i * 1700) % dur, steps = Math.floor(age / 400), dx = 0, j;
-  for (j = 0; j <= steps; j++) dx += (isoNoise(i * 31 + j, 43) - 0.5) * 4;
+  for (j = 0; j < steps; j++) dx += (isoNoise(i * 31 + j, 43) - 0.5) * 4;
+  dx += (isoNoise(i * 31 + steps, 43) - 0.5) * 4 * ((age % 400) / 400);
   return { y: top * (1 - age / dur), dx: Math.max(-6, Math.min(6, dx)) };
 }
 
-// A firefly `i`: on for 0.6 s, off for 1.2 s, hopping 1 unit every 500 ms.
+// A firefly `i`: on for 0.6 s, off for 1.2 s, drifting 1 unit to a new spot every 500 ms (smoothly).
 function isoFirefly(clock, i) {
-  var on = (clock + i * 370) % 1800 < 600, hop = Math.floor(clock / 500);
-  return { on: on, dx: Math.round(isoNoise(i * 17 + hop, 51) * 2 - 1), dy: Math.round(isoNoise(i * 19 + hop, 53) * 2 - 1) };
+  var on = (clock + i * 370) % 1800 < 600, hop = Math.floor(clock / 500), f = (clock % 500) / 500;
+  function spot(h) { return [Math.round(isoNoise(i * 17 + h, 51) * 2 - 1), Math.round(isoNoise(i * 19 + h, 53) * 2 - 1)]; }
+  var a = spot(hop - 1), b = spot(hop);
+  return { on: on, dx: a[0] + (b[0] - a[0]) * f, dy: a[1] + (b[1] - a[1]) * f };
 }
 
 // --- fps meter (developer aid, off for everyone by default) ---
@@ -617,8 +621,14 @@ function fpsStats(samples, now, windowMs) {
   return { fps: recent.length * 1000 / windowMs, ms: recent.length ? total / recent.length : 0, worst: worst };
 }
 
-// The meter's line, e.g. "3D 8 fps · cpu 3.2 ms (max 9.1) · px 1.5". The time is the CPU side of a render (the GPU
-// works on after `render()` returns), so it is a lower bound of the real frame cost.
-function fpsText(stats, pixelRatio) {
-  return "3D " + Math.round(stats.fps) + " fps · cpu " + stats.ms.toFixed(1) + " ms (max " + stats.worst.toFixed(1) + ") · px " + pixelRatio;
+// The meter's line, e.g. "3D 30 fps · cpu 1.2 ms (max 3.1) · gpu 2.0 ms · 140 calls · 52k tris · px 1.5". The cpu time is the
+// CPU side of a render (the GPU works on after `render()` returns). `gpu` is {ms (null = no timer query), calls, tris}
+// or omitted.
+function fpsText(stats, pixelRatio, gpu) {
+  var s = "3D " + Math.round(stats.fps) + " fps · cpu " + stats.ms.toFixed(1) + " ms (max " + stats.worst.toFixed(1) + ")";
+  if (gpu) {
+    s += " · gpu " + (gpu.ms == null ? "?" : gpu.ms.toFixed(1) + " ms") + " · " + gpu.calls + " calls · " +
+      (gpu.tris >= 10000 ? Math.round(gpu.tris / 1000) + "k" : gpu.tris) + " tris";
+  }
+  return s + " · px " + pixelRatio;
 }

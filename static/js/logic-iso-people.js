@@ -4,17 +4,20 @@
 //
 // A doll is built from a few boxes (isoFigureLayout) in "doll units", then scaled by ISO.figScale in the 3D world.
 // Poses: "stand" (on the meadow), "sit" (day, in bed) and "lie" (night, under a quilt). All steps of the little
-// animations (pop in, shake, fade, hop, walk) count ticks of the shared 8 fps tick (ISO_TICK_MS), no smooth tweens.
+// animations (pop in, shake, fade, hop, walk) are functions of elapsed milliseconds (the lengths are those of the old 8 fps
+// steps, ISO_STEP_MS), interpolated smoothly at the 30 fps update rate.
 
 var ISO_PEOPLE = {
   kid: 0.72,                    // a kid is an adult scaled by this
   skin: "#F1C7A0", hair: "#4A2E1E", eye: "#2A1A12",
   ring: "#FFD23F",             // the ring around my party's figure
-  pop: [0.4, 1.15, 1],         // scale of the three frames when a figure appears
-  shake: [1, -1],              // x offsets of the two frames of a rejected figure
-  fadeSteps: 4,                // opacity steps of the 06:00 swap
-  hopEvery: 32,                // a meadow waiter hops every 32 ticks (4 s) ...
-  hopFrames: 2,                // ... for 2 ticks
+  pop: [0.4, 1.15, 1],         // scale at the start, the middle and the end of the pop in when a figure appears
+  popMs: 375,                  // the length of the pop in
+  shakeMs: 250,                // a rejected figure shakes one unit left and right for this long
+  fadeMs: 375,                 // the 06:00 swap (opacity 0.25 to 1 and back)
+  hopEveryMs: 4000,            // a meadow waiter hops every 4 s ...
+  hopMs: 250,                  // ... for 250 ms
+  liftMs: 250,                 // the figure picked in the move mode bobs once in this time
   lift: 3,                     // the figure picked in the move mode
   walkMs: 1600                 // the walk from the meadow to a bed in 3D (at most)
 };
@@ -64,32 +67,42 @@ function isoSitScale(bed, index, kind, figScale) {
   return isoSitHeight(kind) * figScale > clear ? 0.85 : 1;
 }
 
-// The scale of frame `step` of the pop in (-1 = done: 1).
-function isoPopScale(step) {
-  return step >= 0 && step < ISO_PEOPLE.pop.length ? ISO_PEOPLE.pop[step] : 1;
+// The scale of a pop in `elapsed` ms after it began (null or past its end: 1).
+function isoPopScale(elapsed) {
+  var P = ISO_PEOPLE;
+  if (elapsed == null || elapsed < 0 || elapsed >= P.popMs) return 1;
+  var h = P.popMs / 2;
+  return elapsed < h ? P.pop[0] + (P.pop[1] - P.pop[0]) * elapsed / h : P.pop[1] + (P.pop[2] - P.pop[1]) * (elapsed - h) / h;
 }
 
-// The opacity of a fading figure `elapsed` ms after the swap began: `dir` 1 fades in, -1 out, in 4 steps (never 0 on the first
-// frame of a fade in, so it is seen at once; exactly 0 after the last step of a fade out).
+// The x offset of a rejected figure `elapsed` ms into its shake: one unit right, one left, back (0 once it is over).
+function isoShakeOffset(elapsed) {
+  return elapsed < 0 || elapsed >= ISO_PEOPLE.shakeMs ? 0 : Math.cos(elapsed / ISO_PEOPLE.shakeMs * 2 * Math.PI);
+}
+
+// The opacity of a fading figure `elapsed` ms after the swap began: `dir` 1 fades in, -1 out (never 0 on the first
+// frame of a fade in, so it is seen at once; exactly 0 after the fade out).
 function isoFadeAlpha(dir, elapsed) {
-  var n = ISO_PEOPLE.fadeSteps, step = Math.max(0, Math.floor(elapsed / ISO_TICK_MS)), a = Math.min(1, (step + 1) / n);
+  var a = Math.min(1, (Math.max(0, elapsed) + ISO_STEP_MS) / (ISO_PEOPLE.fadeMs + ISO_STEP_MS));
   return dir > 0 ? a : Math.max(0, 1 - a);
 }
 
-// Rounds an opacity to a quarter, so a few cached materials are enough.
-function isoQuarter(o) {
-  return Math.round(Math.max(0, Math.min(1, o)) * 4) / 4;
+// Rounds an opacity to an eighth, so a few cached materials are enough.
+function isoOpacityStep(o) {
+  return Math.round(Math.max(0, Math.min(1, o)) * 8) / 8;
 }
 
-// 1 (one unit up) for the two ticks in which waiter `index` of `count` hops, else 0: every hopEvery ticks one random waiter.
-function isoWaiterHop(tick, index, count) {
-  if (count < 1 || tick % ISO_PEOPLE.hopEvery >= ISO_PEOPLE.hopFrames) return 0;
-  return Math.floor(isoNoise(Math.floor(tick / ISO_PEOPLE.hopEvery), 71) * count) === index ? 1 : 0;
+// The height (0..1 unit) of waiter `index` of `count` at `clock` ms: every hopEveryMs one random waiter hops in an arc for hopMs.
+function isoWaiterHop(clock, index, count) {
+  var P = ISO_PEOPLE, at = clock % P.hopEveryMs;
+  if (count < 1 || at >= P.hopMs) return 0;
+  if (Math.floor(isoNoise(Math.floor(clock / P.hopEveryMs), 71) * count) !== index) return 0;
+  return Math.sin(at / P.hopMs * Math.PI);
 }
 
-// The height offset of the figure picked in the move mode: lifted 3 units and bobbing 1 unit every tick.
-function isoLiftOffset(tick) {
-  return ISO_PEOPLE.lift + (tick % 2);
+// The height offset of the figure picked in the move mode: lifted 3 units and bobbing 1 unit up and down.
+function isoLiftOffset(clock) {
+  return ISO_PEOPLE.lift + 0.5 - 0.5 * Math.cos(clock / ISO_PEOPLE.liftMs * 2 * Math.PI);
 }
 
 // The bed (with its room) that holds `slot`, or null.
@@ -122,22 +135,21 @@ function isoWalkPoints(from, door, to) {
   return door ? [from, [door[0] - 5, door[1] - 7], to] : [from, to];
 }
 
-// Where a walk is `elapsed` ms into `ms`: {pos: [x, y] whole units, bob: 0 | 1}. One hop per tick along the polyline
-// of `points`, ending exactly on the last point; the bob lifts the figure on every second hop.
+// Where a walk is `elapsed` ms into `ms`: {pos: [x, y], bob: 0..1}. A steady pace along the polyline of `points`,
+// ending exactly on the last point; the figure bobs once per two old steps (ISO_STEP_MS x 2) while it walks.
 function isoWalkSample(points, elapsed, ms) {
-  var steps = Math.max(1, Math.floor(ms / ISO_TICK_MS)), step = Math.max(0, Math.floor(elapsed / ISO_TICK_MS));
-  var last = points[points.length - 1];
-  if (step >= steps) return { pos: [last[0], last[1]], bob: 0 };
-  var lens = [], total = 0, i;
+  var run = Math.max(1, Math.floor(ms / ISO_STEP_MS)) * ISO_STEP_MS, last = points[points.length - 1];
+  if (elapsed >= run) return { pos: [last[0], last[1]], bob: 0 };
+  var p = Math.max(0, elapsed) / run, lens = [], total = 0, i;
   for (i = 1; i < points.length; i++) { lens.push(Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1])); total += lens[i - 1]; }
-  var at = total * step / steps, pos = [last[0], last[1]];
+  var at = total * p, pos = [last[0], last[1]];
   for (i = 0; i < lens.length; i++) {
     if (at <= lens[i] || i === lens.length - 1) {
       var t = lens[i] > 0 ? Math.min(1, at / lens[i]) : 1;
-      pos = [Math.round(points[i][0] + (points[i + 1][0] - points[i][0]) * t), Math.round(points[i][1] + (points[i + 1][1] - points[i][1]) * t)];
+      pos = [points[i][0] + (points[i + 1][0] - points[i][0]) * t, points[i][1] + (points[i + 1][1] - points[i][1]) * t];
       break;
     }
     at -= lens[i];
   }
-  return { pos: pos, bob: step % 2 };
+  return { pos: pos, bob: 0.5 - 0.5 * Math.cos(elapsed / (2 * ISO_STEP_MS) * 2 * Math.PI) };
 }

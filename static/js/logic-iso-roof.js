@@ -14,7 +14,7 @@ var ISO_ROOF = {
   cap: 2,               // the ridge cap, units
   chimneyAbove: 6       // a chimney ends this far above the roof at its place
 };
-var ISO_OPEN_STEPS = 6;                 // 0 = closed ... 6 = open; one step per 8 fps tick
+var ISO_OPEN_STEPS = 6;                 // 0 = closed ... 6 = open; one step per ISO_STEP_MS (125 ms)
 var ISO_ROOF_LIFTS = [0, 6, 14, 26];    // the roof at steps 0..3 (gone from step 4 on)
 var ISO_FRONT_MID = 0.55;               // the front walls at step 5, as a part of the closed height
 var ISO_OPEN_ZOOM = 1.6;                // all houses open from this zoom (times the rest zoom) ...
@@ -55,20 +55,22 @@ function isoRoofTop(roofs) {
   return roofs.reduce(function (m, r) { return Math.max(m, r.h1); }, 0);
 }
 
-// The state of the opening animation at `step` (0..ISO_OPEN_STEPS).
+// The state of the opening animation at `step` (0..ISO_OPEN_STEPS, fractions in between: the roof and the walls move smoothly).
 function isoOpenFrame(step) {
-  var s = Math.max(0, Math.min(ISO_OPEN_STEPS, Math.round(step)));
+  var s = Math.max(0, Math.min(ISO_OPEN_STEPS, step)), i = Math.min(2, Math.floor(s)), f = Math.min(1, s - i);
   return {
-    roof: s <= 3,                              // the roof is gone from step 4
-    lift: ISO_ROOF_LIFTS[Math.min(s, 3)],
-    front: s <= 4 ? "closed" : s === 5 ? "mid" : "open",
-    frontScale: s <= 4 ? 1 : s === 5 ? ISO_FRONT_MID : 1,
-    svgOpen: s >= 4                            // the beds, figures and labels in the svg show from here
+    roof: s < 3.5,                             // the roof is gone from step 4 (rounded)
+    lift: s >= 3 ? ISO_ROOF_LIFTS[3] : ISO_ROOF_LIFTS[i] + (ISO_ROOF_LIFTS[i + 1] - ISO_ROOF_LIFTS[i]) * f,
+    front: s <= 4 ? "closed" : s < 5.5 ? "mid" : "open",
+    frontScale: s <= 4 ? 1 : s >= 5 ? ISO_FRONT_MID : 1 + (ISO_FRONT_MID - 1) * (s - 4),
+    svgOpen: s >= 3.5                          // the beds, figures and labels in the svg show from here
   };
 }
 
-function isoStepToward(step, target) {
-  return step < target ? step + 1 : step > target ? step - 1 : step;
+// `step` moved by at most `delta` towards `target`.
+function isoStepToward(step, target, delta) {
+  var d = delta == null ? 1 : delta;
+  return step < target ? Math.min(target, step + d) : step > target ? Math.max(target, step - d) : step;
 }
 
 // Whether all houses are open for a view: `rel` = zoom / rest zoom, `wasAll` = they were all open. Hysteresis
