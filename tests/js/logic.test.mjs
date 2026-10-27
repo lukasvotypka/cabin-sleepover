@@ -2023,7 +2023,8 @@ test("page: the map is zoomed through the viewBox, with no CSS transform and a w
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.doesNotMatch(html, /transform\s*:\s*scale|\.style\.transform/);
   assert.match(app, /setAttribute\("viewBox", viewBoxText\(/);
-  assert.match(html, /shape-rendering": "crispEdges"/);
+  assert.match(fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8"), /"shape-rendering": "geometricPrecision", role: "group"/);
+  assert.doesNotMatch(pageFile, /#scene (svg|\.iso-canvas) \{[^}]*image-rendering: pixelated/);
   assert.match(app, /addEventListener\("wheel", [\s\S]*passive: false/);
   assert.match(html, /#scene svg \{[^}]*touch-action: none;/);
   // two fingers must not become a page scroll: non-passive touch listeners cancel them
@@ -4785,7 +4786,7 @@ test("app-iso: listed in the page with the asset version, builds with textConten
   assert.match(src, /shadow\.camera\.far = 1600;\s*sun\.shadow\.camera\.updateProjectionMatrix\(\)/, "three does not refresh the shadow frustum itself (T-136)");
   assert.ok(!src.includes("shadow.radius"), "radius is ignored by PCFSoftShadowMap");
   for (const k of ["isoBuild(", "isoDispose(", "isoSync(", "isoLoop(", "document.hidden", "webglcontextlost", "webglcontextrestored",
-    "shadowMap.autoUpdate = false", "PCFSoftShadowMap", "antialias: false", "NearestFilter", "isoAvailable()"]) assert.ok(src.includes(k), k);
+    "shadowMap.autoUpdate = false", "PCFSoftShadowMap", "antialias: true", "LinearFilter", "Math.min(window.devicePixelRatio || 1, ISO_PIXEL_RATIO_MAX)", "isoAvailable()"]) assert.ok(src.includes(k), k);
   const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
   assert.ok(scene.indexOf("isoBuild(") < scene.indexOf('svgEl(host, "svg"'), "the canvas goes under the svg");
   const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
@@ -4795,7 +4796,7 @@ test("app-iso: listed in the page with the asset version, builds with textConten
   assert.match(draw, /function drawBase[\s\S]*?if \(isoActive\(\)\) return;/);
   assert.match(draw, /function drawGround[\s\S]*?if \(isoActive\(\)\) return;/);
   assert.match(fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8"), /function applyView\(\)[\s\S]*?isoSync\(\)/);
-  assert.match(pageFile, /#scene \.iso-canvas \{[^}]*pointer-events: none;[^}]*image-rendering: pixelated/);
+  assert.match(pageFile, /#scene \.iso-canvas \{[^}]*pointer-events: none;/);
 });
 
 // --- beds, people and the meadow in the isometric view (T-133) ---

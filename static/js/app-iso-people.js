@@ -74,7 +74,7 @@ function isoLetterMat(P, ch, ink, opacity) {
     });
     tex = P.tex[ch + ink] = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.magFilter = tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
   }
   return (P.mats[key] = new THREE.MeshLambertMaterial({ map: tex, transparent: true, opacity: o, alphaTest: 0.4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));

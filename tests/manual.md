@@ -301,3 +301,9 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **Move mode lift (T-138):** the picked figure rises and bobs; on drop it pops in on the new bed.
 - [ ] **No-WebGL device (T-138):** in a browser without WebGL (or with hardware acceleration off) the page shows the flat ground and the old svg sprites, and taps still work.
 - [ ] **Battery and heat (T-138):** leave the map open with my party chosen for 5 minutes on a phone; the page stays responsive, and when the tab is hidden nothing is drawn (no heat, no animation).
+
+## 16. Smooth edges (T-139)
+
+- [ ] **Smooth edges on a real phone (T-139):** on a 380 px iPhone Safari (DPR 3) and Android Chrome, at the rest view and zoomed 3x: walls, roof edges, beds, dolls, trees, the title and signpost boards, the icon grid and the party table text show antialiased edges, no stair steps. The map canvas and the svg are not blurred by a pixel scale-up.
+- [ ] **Render cost on a real GPU (T-139):** on the same phone, pan and pinch for 1 minute with the time slider at noon and at night; the map stays responsive, and with the tab hidden nothing is drawn. Headless SwiftShader measured about 52 ms per frame at pixel ratio 1.5 (vs about 15 ms before, without MSAA); if the phone feels slow, lower `ISO_PIXEL_RATIO_MAX` in `static/js/app-iso.js` (and CLAUDE.md) to 1.
+- [ ] **Two-device alignment after smoothing (T-139):** with the map zoomed on the cabin, a bed tap on the phone hits the bed drawn in 3D (no offset between the svg tap area and the furniture).

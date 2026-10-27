@@ -122,7 +122,7 @@ function ensureScene() {
   app.sceneContent = isoContentRect(app.iso, layout);      // what the rest view of a phone fits (restView)
   isoBuild(host, layout, app.iso);      // the 3D world goes under the svg; false = no WebGL, drawBase draws a flat fallback
   var svg = svgEl(host, "svg", {
-    viewBox: "0 0 " + app.iso.W + " " + app.iso.H, "shape-rendering": "crispEdges", role: "group",
+    viewBox: "0 0 " + app.iso.W + " " + app.iso.H, "shape-rendering": "geometricPrecision", role: "group",
     "aria-label": "Mapa chaty. Rovnaké údaje sú aj ako text hneď za mapou."
   });
   app.layers = {

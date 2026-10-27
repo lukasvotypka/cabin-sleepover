@@ -11,7 +11,7 @@
 // fireflies (isoBuildLife, isoTick); everything moving steps on one shared 8 fps tick and sleeps while the tab is hidden.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
-var ISO_PIXEL_RATIO = 1;      // one WebGL pixel per CSS pixel: slightly chunky on a phone, which suits the pixel style
+var ISO_PIXEL_RATIO_MAX = 1.5; // WebGL pixels per CSS pixel, at most: sharp, smooth edges on a phone without a 3x cost
 var ISO_CAMERA_DIST = 2500;   // an orthographic camera (persp 0) sits this far from the origin along its view axis
 var ISO_FRAME_MS = 33;        // about 30 frames a second while something moves
 var ISO_C = {
@@ -122,7 +122,7 @@ function isoGrassTexture() {
   var tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.magFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.LinearFilter;
   return tex;
 }
 
@@ -380,12 +380,12 @@ function isoBuild(host, layout, sc) {
   if (!isoAvailable()) return false;
   var renderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: "low-power" });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "low-power" });
   } catch (e) {
     return false;
   }
   renderer.useLegacyLights = true;
-  renderer.setPixelRatio(ISO_PIXEL_RATIO);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, ISO_PIXEL_RATIO_MAX));
   renderer.setClearColor(COLORS.grass);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
