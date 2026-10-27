@@ -45,6 +45,22 @@ function ease(x) {
   return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
 
+// Stylized sun path (angles in degrees from south, + = east): rises in the east, passes the camera axis (+45) quickly in the
+// morning, rests at the T-136 noon look and sets in the west. At night a still moon spot takes over.
+var SUN_PATH = [[SUNRISE, 95, 6], [8, 70, 13], [9.25, 25, 19], [11, -10, 23], [12, -20, 24], [13, -28, 23], [15, -60, 15], [SUNSET, -95, 6]];
+var MOON_SPOT = { az: -40, elev: 40 };
+
+function sunAt(h) {
+  var t = ((h % 24) + 24) % 24, a = SUNRISE - TWILIGHT / 2, b = SUNSET + TWILIGHT / 2;
+  if (t < a || t > b) return { az: MOON_SPOT.az, elev: MOON_SPOT.elev, moon: true };
+  var P = SUN_PATH, i = 0;
+  if (t <= P[0][0]) return { az: P[0][1], elev: P[0][2], moon: false };
+  if (t >= P[P.length - 1][0]) return { az: P[P.length - 1][1], elev: P[P.length - 1][2], moon: false };
+  while (t > P[i + 1][0]) i++;
+  var k = (t - P[i][0]) / (P[i + 1][0] - P[i][0]);
+  return { az: P[i][1] + (P[i + 1][1] - P[i][1]) * k, elev: P[i][2] + (P[i + 1][2] - P[i][2]) * k, moon: false };
+}
+
 // Opacities the app sets per frame.
 function lightAt(h) {
   var d = darkness(h), k = dusk(h);
@@ -55,6 +71,7 @@ function lightAt(h) {
     lamp: smooth((d - .25) / .5),
     fireflies: smooth((d - .6) / .4),
     bird: 1 - smooth(d / .6),
+    sun: sunAt(h),      // where the light stands (shadow direction)
     sleep: d >= .5      // people in the beds are asleep: the „z-z-z“ over them shows
   };
 }

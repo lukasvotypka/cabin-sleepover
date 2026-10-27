@@ -36,7 +36,7 @@ var ISO_FACES = [
   [[0, 0, -1], [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]]]
 ];
 
-var ISO_SUN_ELEV = 24 * Math.PI / 180;      // the sun is fixed, so the shadow map is drawn once per build
+var ISO_SUN_ELEV = 24 * Math.PI / 180;      // the noon sun; later positions come from sunAt() (isoSunStep)
 var ISO_SUN_AZ = -20 * Math.PI / 180;       // west of south: shadows fall north-north-east, beside the objects as the south-east camera sees them (a sun east of south throws them straight behind the objects, out of sight)
 
 function IsoBoxes() {
@@ -717,6 +717,7 @@ function isoLight(l) {
   me.groundMat.emissive.set(p.glow);
   me.sun.color.set(p.sun);
   me.sun.intensity = p.sunPower;
+  isoSunStep(me);
   me.glass.emissiveIntensity = l.lamp;
   [["room", 0.4], ["window", 0.25], ["door", 0.25], ["ring", 0.3]].forEach(function (e) {
     m[e[0]].opacity = e[1] * l.lamp;
@@ -726,6 +727,22 @@ function isoLight(l) {
   isoMove(me);
   isoPeoplePose(me);
   isoDirty();
+}
+
+// Moves the sun (and so redraws the shadow map) only when it stands ≥ 6° (azimuth) or ≥ 2° (elevation) from where the
+// shadows were last drawn, and at most once per shared tick; with reduced motion there is no tick, so it moves at once.
+function isoSunStep(me) {
+  var want = me.light && me.light.sun, got = me.sunDrawn;
+  if (!want) return;
+  var still = prefersReducedMotion();
+  if (got && Math.abs(want.az - got.az) < 6 && Math.abs(want.elev - got.elev) < 2) return;
+  if (got && !still && me.sunClock === me.clock) return;      // already moved on this tick; the next tick picks it up
+  me.sunDrawn = { az: want.az, elev: want.elev };
+  me.sunClock = me.clock;
+  var az = want.az * Math.PI / 180, el = want.elev * Math.PI / 180, t = me.sun.target.position;
+  me.sun.position.set(t.x + 600 * Math.cos(el) * Math.sin(az), 600 * Math.sin(el), t.z + 600 * Math.cos(el) * Math.cos(az));
+  me.renderer.shadowMap.needsUpdate = true;
+  me.shadowDraws = (me.shadowDraws || 0) + 1;
 }
 
 // Puts every moving part where `me.clock` says (or at rest with reduced motion); called by each tick and by isoLight.
@@ -786,6 +803,7 @@ function isoLoop(now) {
       me.tickAt = now;
       isoHousesTick(me);
       isoMove(me);
+      isoSunStep(me);
       isoPeopleTick(me);
       me.dirty = true;
     }

@@ -4369,7 +4369,7 @@ test("daynight: retarget from a mid-animation hour uses the current hour", () =>
 
 test("daynight: lightAt at noon and midnight", () => {
   const day = L.lightAt(12);
-  assert.deepEqual(plain(day), { d: 0, dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1, sleep: false });
+  assert.deepEqual(plain(day), { d: 0, dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1, sun: { az: -20, elev: 24, moon: false }, sleep: false });
   const night = L.lightAt(0);
   assert.equal(night.sleep, true);
   assert.equal(L.lightAt(15).sleep, false);
@@ -5085,4 +5085,30 @@ test("dolls: the page draws them in 3D, keeps the svg sprites as the fallback an
   assert.match(appSource, /isoPeopleEnd\(/);
   assert.match(appSource, /drawFigure\(sg, 0, 0, color/, "the svg sprite stays for the no-WebGL fallback");
   assert.match(appSource, /isoPeopleTick\(me\)/);
+});
+
+test("daynight: sunAt follows the stylized path and rests at the T-136 noon", () => {
+  const noon = L.sunAt(12);
+  near(noon.az, -20); near(noon.elev, 24); assert.equal(noon.moon, false);
+  const rise = L.sunAt(6 + 40 / 60), set = L.sunAt(16 + 40 / 60);
+  near(rise.az, 95); near(rise.elev, 6); near(set.az, -95); near(set.elev, 6);
+  near(L.sunAt(8).az, 70); near(L.sunAt(15).az, -60);
+  // east in the morning, west in the evening, never below 6 degrees while the sun is up
+  for (let h = 6.1; h < 17.3; h += 0.05) {
+    const s = L.sunAt(h);
+    if (!s.moon) assert.ok(s.elev >= 6 - 1e-9 && s.az >= -95 - 1e-9 && s.az <= 95 + 1e-9);
+  }
+  assert.ok(L.sunAt(7.5).az > 45 && L.sunAt(10).az < 45);
+  // holds the end keyframes in twilight, then the still moon takes over
+  near(L.sunAt(6.2).az, 95);
+  for (const h of [17.5, 22, 0, 3, 5.9, 24 + 22]) { const s = L.sunAt(h); assert.equal(s.moon, true); near(s.az, -40); near(s.elev, 40); }
+  assert.equal(L.lightAt(12).sun.moon, false);
+  assert.equal(L.lightAt(0).sun.moon, true);
+});
+
+test("iso: the sun moves in steps, once per tick, and not while still", () => {
+  assert.match(appSource, /function isoSunStep\(me\)/);
+  assert.match(appSource, /< 6 && Math\.abs\(want\.elev - got\.elev\) < 2/);
+  assert.match(appSource, /me\.sunClock === me\.clock/);
+  assert.match(appSource, /isoSunStep\(me\);\s*isoPeopleTick\(me\)/);
 });
