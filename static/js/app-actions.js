@@ -130,14 +130,16 @@ function myParty(st) {
   return partyById(st, app.myParty);
 }
 
-// `only` (optional): exactly these slots, e.g. the one free place tapped in the bed sheet.
-function assignHere(bed, stay, only) {
+// `only` (optional): exactly these slots, e.g. the one free place tapped in the bed sheet. `stayOnly` (optional, with
+// `stay`): only these nights of the stay.
+function assignHere(bed, stay, only, stayOnly) {
   var st = viewState().state, party = myParty(st), night = app.night;
   if (!party) { closePanel(); openWho(); return; }
   if (!isPresent(party, night)) return;
   var slots = only ? only.filter(function (slot) { return isFreeSlot(st, slot, night); }) : slotsToTake(st, party, bed, night);
   if (!slots.length) return;
   var ops = [], nights = stay ? stayNights(st, party, slots) : [night];
+  if (stay && stayOnly) nights = nights.filter(function (n) { return stayOnly.indexOf(n) !== -1; });
   nights.forEach(function (n) {
     slots.forEach(function (slot) { ops.push({ night: n, slot: slot, party_id: party.id }); });
   });
@@ -148,7 +150,7 @@ function assignHere(bed, stay, only) {
   }
   closePanel();
   var run = stay
-    ? runWrite("api/assign-stay", { slots: slots, party_id: party.id }, ops)
+    ? runWrite("api/assign-stay", stayOnly ? { slots: slots, party_id: party.id, nights: stayOnly } : { slots: slots, party_id: party.id }, ops)
     : runWrite("api/assign", { night: night, slots: slots, party_id: party.id }, ops);
   run.then(function (res) {
     // A rejected write puts the figure back on the meadow by the normal rollback (a 401 already cancelled).

@@ -180,8 +180,12 @@ def check_assign(state: State, layout: Layout, night: str, slots: list[str], par
     return list(slots)
 
 
-def check_assign_stay(state: State, layout: Layout, slots: list[str], party_id: str) -> StayPlan:
+def check_assign_stay(
+    state: State, layout: Layout, slots: list[str], party_id: str, only: list[str] | None = None
+) -> StayPlan:
     """For each night of the stay: all slots free means the whole night is written, else it is skipped.
+
+    `only` limits the stay to those nights (nights outside the stay are ignored).
 
     If every night is skipped, this is `slot_taken` (Q5) with the first conflict in `params`
     plus `skipped` (all nights of the stay). A slot the same party already holds on a night
@@ -190,7 +194,7 @@ def check_assign_stay(state: State, layout: Layout, slots: list[str], party_id: 
     _check_slot_list(slots)
     party = find_party(state, party_id)
     _check_slots_known(layout, slots)
-    stay = party_nights(party, layout)
+    stay = [n for n in party_nights(party, layout) if only is None or n in only]
     if not stay:
         raise _invalid(
             "no_event_nights", "Party is not at the cabin on any night of the event",

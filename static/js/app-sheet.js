@@ -32,8 +32,9 @@ function openBedSheet(room, bed) {
       if (place) row.appendChild(htmlEl("span", { "class": "place", "aria-hidden": "true" }, place));
       var party = myParty(st);
       if (!who && freeSlotTakes(st, party, night, app.night, canWrite(st, app.role))) {
-        var t = takeSlotTexts(party, place);
-        var take = button(t.main, "take-" + slot, function () { assignHere(bed, false, [slot]); }, true, t.label + (tight ? " Tesné miesto." : ""));
+        var nights = takeSlotNights(st, party, slot, night);
+        var t = takeSlotTexts(party, place, nights.length);
+        var take = button(t.main, "take-" + slot, function () { assignHere(bed, nights.length > 1, [slot], nights); }, true, t.label + (tight ? " Tesné miesto." : ""));
         take.classList.add("take");
         if (t.who) take.appendChild(htmlEl("small", { "class": "take-who" }, t.who));
         row.appendChild(take);

@@ -175,6 +175,19 @@ async def test_assign_stay_without_skips_returns_an_empty_list(app, group_client
     assert sleeping_of(app) == {THU: {A1: ivan["id"]}, FRI: {A1: ivan["id"]}}
 
 
+async def test_assign_stay_only_the_listed_nights(app, group_client):
+    ivan = await mk_party(group_client)
+    resp = await group_client.post("/api/assign-stay", json={"slots": [A1], "party_id": ivan["id"], "nights": [FRI, SAT, SUN]})
+    assert resp.status_code == 200
+    assert resp.json()["skipped"] == []
+    assert sleeping_of(app) == {FRI: {A1: ivan["id"]}, SAT: {A1: ivan["id"]}}  # SUN is not a night of the stay
+    assert audit_docs(app)[-1]["nights"] == [FRI, SAT]
+    resp = await group_client.post("/api/assign-stay", json={"slots": [A2], "party_id": ivan["id"], "nights": [SUN]})
+    assert (resp.status_code, error_of(resp)["params"]["reason"]) == (422, "no_event_nights")
+    resp = await group_client.post("/api/assign-stay", json={"slots": [A2], "party_id": ivan["id"], "nights": [FRI, FRI]})
+    assert (resp.status_code, error_of(resp)["code"]) == (422, "invalid")
+
+
 async def test_assign_stay_all_nights_taken(app, group_client):
     ivan, riso = await mk_party(group_client), await mk_party(group_client, "Riso a Ben")
     for night in (THU, FRI, SAT):

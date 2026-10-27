@@ -178,7 +178,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 | GET | `/api/state` | skupina | Celý stav, s `ETag` podľa `version` a údajov o tom, kto je online |
 | GET | `/api/events?party=…&client=…` | skupina | Spojenie Server-Sent Events (rozhodnutie organizátora z 25. 10. 2026, sekcia Zmeny naživo) |
 | POST | `/api/assign` | skupina | `{night, slots[], party_id}`: zapíše partiu na voľné miesta, buď všetky, alebo žiadne. Partia musí byť v tú noc prítomná |
-| POST | `/api/assign-stay` | skupina | `{slots[], party_id}`: to isté pre všetky noci pobytu. Každá noc je buď celá, alebo žiadna: noci, kde niektoré z miest nie je voľné, vynechá a vráti v `skipped` |
+| POST | `/api/assign-stay` | skupina | `{slots[], party_id, nights[]?}`: to isté pre všetky noci pobytu (s `nights` len pre tieto z nich). Každá noc je buď celá, alebo žiadna: noci, kde niektoré z miest nie je voľné, vynechá a vráti v `skipped` |
 | POST | `/api/clear` | skupina | `{night, slot}`: uvoľní miesto |
 | POST | `/api/move` | skupina | `{party_id, from_slot, to_slot, nights[]}`: presun buď celý, alebo nič |
 | POST | `/api/parties` | skupina | Vytvorí partiu |

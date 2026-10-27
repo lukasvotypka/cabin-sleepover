@@ -1018,7 +1018,7 @@ def create_app(
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
             guard_party(request, tx.state, body.party_id, auth)
-            plan = check_assign_stay(tx.state, rt.layout, body.slots, body.party_id)
+            plan = check_assign_stay(tx.state, rt.layout, body.slots, body.party_id, body.nights)
             for night in plan.nights:
                 for slot in plan.slots:
                     tx.state.sleeping.setdefault(night, {})[slot] = body.party_id

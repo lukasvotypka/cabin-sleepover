@@ -2981,10 +2981,31 @@ test("takeSlotTexts: the button says what it does, the label names the place", (
   assert.deepEqual(plain(L.takeSlotTexts(null, "")), { main: "Ľahnúť si sem", who: "", label: "Ľahnúť si sem." });
 });
 
+test("takeSlotTexts: more nights say „na celý pobyt“ and count them in the label", () => {
+  assert.deepEqual(plain(L.takeSlotTexts(party(), "Miesto 1", 3)), {
+    main: "Ľahnúť si sem na celý pobyt", who: "„Ivan a Eva“",
+    label: "Miesto 1, voľné. Ľahnúť si sem na celý pobyt: zapíše „Ivan a Eva“ na toto miesto na 3 noci."
+  });
+  assert.equal(L.takeSlotTexts(party(), "", 1).main, "Ľahnúť si sem");
+});
+
+test("takeSlotNights: the shown night and the other stay nights where the place is free and a place is missing", () => {
+  const p = party();      // 2 adults, Thu to Sun
+  assert.deepEqual(plain(L.takeSlotNights(stateWith([p]), p, "left-double-1", FRI)), [THU, FRI, SAT]);
+  assert.deepEqual(plain(L.takeSlotNights(stateWith([p]), null, "left-double-1", FRI)), [FRI], "no party: only the shown night");
+  const full = stateWith([p], { [THU]: hold(p.id, ["konica-lower-mats-1", "konica-lower-mats-2"]) });
+  assert.deepEqual(plain(L.takeSlotNights(full, p, "konica-lower-mats-3", FRI)), [FRI, SAT], "Thursday is complete: no extra place");
+  const other = party({ id: "p-other1", name: "Riso" });
+  const taken = stateWith([p, other], { [SAT]: hold(other.id, ["left-double-1"]) });
+  assert.deepEqual(plain(L.takeSlotNights(taken, p, "left-double-1", FRI)), [THU, FRI], "taken on Saturday");
+  const late = party({ arrive: FRI });
+  assert.deepEqual(plain(L.takeSlotNights(stateWith([late]), late, "left-double-1", FRI)), [FRI, SAT]);
+});
+
 test("bed sheet: no checkbox-like squares, free places as a tag or a take button", () => {
   assert.doesNotMatch(appSource, /"swatch" \+ \(who \? "" : " free"\)/);
   assert.match(appSource, /"free-tag"/);
-  assert.match(appSource, /assignHere\(bed, false, \[slot\]\)/);
+  assert.match(appSource, /assignHere\(bed, nights\.length > 1, \[slot\], nights\)/);
   assert.doesNotMatch(html, /\.slot-row \.swatch/);
 });
 

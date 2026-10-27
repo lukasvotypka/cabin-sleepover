@@ -237,13 +237,24 @@ function freeSlotTakes(state, party, night, shownNight, writable) {
   return isPresent(party, night) && missingPlaces(state, party, night) > 0;
 }
 
+// The nights that button writes: the shown night plus every other night of the party's stay on which this place
+// is free and the party still misses a place (so it never adds an extra place). Event order; [night] without a party.
+function takeSlotNights(state, party, slot, night) {
+  if (!party) return [night];
+  return state.event.nights.filter(function (n) {
+    return n === night || (isPresent(party, n) && isFreeSlot(state, slot, n) && missingPlaces(state, party, n) > 0);
+  });
+}
+
 // The texts of that button: {main, who, label}. `who` is the party name in quotes ("" without a party), `label`
-// the whole thing for screen readers, with the place.
-function takeSlotTexts(party, placeText) {
+// the whole thing for screen readers, with the place. `nights` is how many nights it writes (`takeSlotNights`):
+// more than one is „na celý pobyt“, the default the organizer wants (27. 10. 2026).
+function takeSlotTexts(party, placeText, nights) {
   var who = party ? "„" + party.name + "“" : "";
+  var main = nights > 1 ? "Ľahnúť si sem na celý pobyt" : "Ľahnúť si sem";
   return {
-    main: "Ľahnúť si sem", who: who,
-    label: (placeText ? placeText + ", voľné. " : "") + "Ľahnúť si sem" + (who ? ": zapíše " + who + " na toto miesto." : ".")
+    main: main, who: who,
+    label: (placeText ? placeText + ", voľné. " : "") + main + (who ? ": zapíše " + who + " na toto miesto" + (nights > 1 ? " na " + nightsCount(nights) + "." : ".") : ".")
   };
 }
 

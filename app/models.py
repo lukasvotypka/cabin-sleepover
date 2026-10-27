@@ -400,6 +400,7 @@ class AssignRequest(_Model):
 class AssignStayRequest(_Model):
     slots: SlotList
     party_id: PartyRef
+    nights: NightList | None = None  # only these nights of the stay (the page leaves out nights the party already has)
 
 
 class ClearRequest(_Model):
