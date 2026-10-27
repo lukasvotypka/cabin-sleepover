@@ -36,6 +36,9 @@ var ISO_FACES = [
   [[0, 0, -1], [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]]]
 ];
 
+var ISO_SUN_ELEV = 24 * Math.PI / 180;      // the sun is fixed, so the shadow map is drawn once per build
+var ISO_SUN_AZ = -20 * Math.PI / 180;       // west of south: shadows fall north-north-east, beside the objects as the south-east camera sees them (a sun east of south throws them straight behind the objects, out of sight)
+
 function IsoBoxes() {
   this.pos = [];
   this.nor = [];
@@ -49,14 +52,18 @@ IsoBoxes.prototype.box = function (x, y, w, d, h0, h1, color) {
   if (!(w > 0 && d > 0 && h1 > h0)) return;
   var c = this.colors[color] || (this.colors[color] = new THREE.Color(color));
   var self = this;
-  ISO_FACES.forEach(function (face) {
-    var base = self.pos.length / 3;
-    face[1].forEach(function (k) {
-      self.pos.push(x + k[0] * w, h0 + k[1] * (h1 - h0), y + k[2] * d);
-      self.nor.push(face[0][0], face[0][1], face[0][2]);
-      self.col.push(c.r, c.g, c.b);
+  ISO_FACES.forEach(function (face, f) {
+    // the side faces are cut into flat bands near the ground (baked ambient occlusion); the top is never darkened
+    var bands = f === 0 ? [{ a: h0, b: h1, shade: 1 }] : isoAoBands(h0, h1);
+    bands.forEach(function (band) {
+      var base = self.pos.length / 3;
+      face[1].forEach(function (k) {
+        self.pos.push(x + k[0] * w, f === 0 ? h0 + k[1] * (h1 - h0) : (k[1] ? band.b : band.a), y + k[2] * d);
+        self.nor.push(face[0][0], face[0][1], face[0][2]);
+        self.col.push(c.r * band.shade, c.g * band.shade, c.b * band.shade);
+      });
+      self.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
     });
-    self.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   });
 };
 
@@ -75,6 +82,28 @@ IsoBoxes.prototype.mesh = function (material) {
   m.receiveShadow = true;
   return m;
 };
+
+// Flat dark shapes for the baked contact shadows: `polys` are lists of [x, z] corners at height y, drawn as one translucent mesh.
+function isoBlobMesh(polys, y, opacity) {
+  var pos = [], idx = [];
+  polys.forEach(function (poly) {
+    var base = pos.length / 3;
+    poly.forEach(function (p) { pos.push(p[0], y, p[1]); });
+    for (var i = 1; i + 1 < poly.length; i++) idx.push(base, base + i + 1, base + i);      // facing up
+  });
+  var g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  var mat = new THREE.MeshBasicMaterial({ color: "#1A1020", transparent: true, opacity: opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  var m = new THREE.Mesh(g, mat);
+  m.userData.aoOpacity = opacity;
+  m.renderOrder = 1;
+  return m;
+}
+
+function isoRectPoly(r) {
+  return [[r[0], r[1]], [r[0], r[1] + r[3]], [r[0] + r[2], r[1] + r[3]], [r[0] + r[2], r[1]]];
+}
 
 // --- textures ---
 
@@ -354,7 +383,7 @@ function isoBuild(host, layout, sc) {
   renderer.setPixelRatio(ISO_PIXEL_RATIO);
   renderer.setClearColor(COLORS.grass);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.BasicShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.shadowMap.autoUpdate = false;
   var canvas = renderer.domElement;
   canvas.className = "iso-canvas";
@@ -376,18 +405,20 @@ function isoBuild(host, layout, sc) {
     camera.lookAt(0, 0, 0);
   }
 
-  // light: sky and ground, and the sun high in the south-east (about 55 degrees), so shadows fall north-west
+  // light: sky and ground, and a low sun (24 degrees) 20 degrees west of south, so long shadows fall north-north-east, beside the objects and away from the beds
   var hemi = new THREE.HemisphereLight("#FFF4DC", "#5A6A30", 0.9);
   scene.add(hemi);
   var sun = new THREE.DirectionalLight("#FFFFFF", 0.9);
-  sun.position.set(cx + 210, 420, cy + 210);
+  sun.position.set(cx + 600 * Math.cos(ISO_SUN_ELEV) * Math.sin(ISO_SUN_AZ), 600 * Math.sin(ISO_SUN_ELEV), cy + 600 * Math.cos(ISO_SUN_ELEV) * Math.cos(ISO_SUN_AZ));
   sun.target.position.set(cx, 0, cy);
   sun.castShadow = true;
-  var reach = Math.max(vb[0], vb[1]) * 0.75 + 80;
+  var reach = Math.hypot(vb[0], vb[1]) / 2 + 70;      // the plan and its rim of trees, as tight as the turned light camera allows
   sun.shadow.camera.left = -reach; sun.shadow.camera.right = reach;
   sun.shadow.camera.top = reach; sun.shadow.camera.bottom = -reach;
   sun.shadow.camera.near = 10; sun.shadow.camera.far = 1600;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.updateProjectionMatrix();      // three does not do this itself: without it the shadow camera keeps its default 10 x 10 frustum
+  var small = Math.min(window.innerWidth, window.innerHeight) < 600;
+  sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
   sun.shadow.bias = -0.002;
   scene.add(sun);
   scene.add(sun.target);
@@ -407,6 +438,7 @@ function isoBuild(host, layout, sc) {
       b.box(p[0] + 1 + isoNoise(i, n + 31) * (p[2] - 3), p[1] + 1 + isoNoise(i, n + 37) * (p[3] - 3), 2, 1.5, 0.5, 0.8, ISO_C.pebble);
     }
   });
+  var aoGround = [], aoFloor = [], aoFurn = [], floors = [];      // contact shadows: plan polygons on the grass, on the floors, under furniture
   var houses = (layout.houses || []).slice(), housed = {};
   houses.forEach(function (h) { h.rooms.forEach(function (id) { housed[id] = true; }); });
   layout.rooms.forEach(function (r) { if (!housed[r.id]) houses.push({ id: r.id, rooms: [r.id], chimney: null }); });
@@ -416,11 +448,17 @@ function isoBuild(host, layout, sc) {
     if (!outline) return;
     rooms.forEach(function (room) {
       isoFloor(b, room);
-      room.beds.forEach(function (bed) { isoFurniture(b, bed); });
+      floors.push([room.rect[0] + 4, room.rect[1] + 4, room.rect[2] - 8, room.rect[3] - 8]);
+      room.beds.forEach(function (bed) { isoFurniture(b, bed); aoFurn.push(isoRectPoly(isoGrowRect(bed.rect, 1))); });
       isoPosts(b, room, outline);
     });
     var walls = isoCutWalls(isoWalls(rooms, outline, layout.map.doors || []), house, layout);
-    walls.forEach(function (wall) { isoWall(b, wall, house.roof); });
+    walls.forEach(function (wall) {
+      isoWall(b, wall, house.roof);
+      var band = isoGrowRect([wall.x, wall.y, wall.w, wall.d], ISO_AO_BAND);
+      aoGround.push(isoRectPoly(band));
+      floors.forEach(function (f) { var c = isoRectClip(band, f); if (c) aoFloor.push(isoRectPoly(c)); });
+    });
     (layout.map.doors || []).forEach(function (d) {
       if (rooms.some(function (r) { return rectsOverlap(d, r.rect); })) b.box(d[0], d[1], d[2], d[3], 0, 1.1, doorFloorColor(layout, d) || COLORS.path);
     });
@@ -453,6 +491,18 @@ function isoBuild(host, layout, sc) {
     else { isoMushroom(b, t.x - 2, t.y); isoMushroom(b, t.x + 2, t.y + 2); }
   });
   scene.add(b.mesh());
+  var aoTrees = [], aoCores = [];      // two stepped octagons per tree: the outer one -12 %, the inner one about -25 % together
+  forest.forEach(function (t) {
+    if (underBoards(t, 45)) return;
+    var r = (t.kind === "pine" ? 9 : 8) * Math.min(t.size, t.kind === "pine" ? ISO_PINE_MAX : t.size);
+    aoTrees.push(isoBlobPolygon(t.x, t.y, r));
+    aoCores.push(isoBlobPolygon(t.x, t.y, r * 0.6));
+  });
+  aoTrees.push(isoBlobPolygon(treeSpot[0], treeSpot[1], 8 * ISO_FEATURE_TREE));
+  aoCores.push(isoBlobPolygon(treeSpot[0], treeSpot[1], 8 * ISO_FEATURE_TREE * 0.6));
+  var aoMeshes = [isoBlobMesh(aoGround, 0.06, 0.25), isoBlobMesh(aoFloor, 1.06, 0.25), isoBlobMesh(aoFurn, 1.06, 0.2),
+    isoBlobMesh(aoTrees, 0.07, 0.12), isoBlobMesh(aoCores, 0.08, 0.14)];
+  aoMeshes.forEach(function (m) { scene.add(m); });
   var tree = new IsoBoxes();      // the big tree on its own, so a tap can sway it (isoRustle)
   isoLeafTree(tree, treeSpot[0], treeSpot[1], ISO_FEATURE_TREE);
   var pivot = new THREE.Group(), crown = tree.mesh();
@@ -464,7 +514,7 @@ function isoBuild(host, layout, sc) {
   if (glass.pos.length) scene.add(glass.mesh(glassMat));
 
   var me = iso3 = { renderer: renderer, scene: scene, camera: camera, host: host, w: 0, h: 0, dirty: true, last: 0, raf: 0, lost: false,
-    hemi: hemi, sun: sun, glass: glassMat, groundMat: ground.material, sc: sc, worldTop: worldTop, clock: 0, tickAt: 0, light: null,
+    hemi: hemi, sun: sun, ao: aoMeshes, glass: glassMat, groundMat: ground.material, sc: sc, worldTop: worldTop, clock: 0, tickAt: 0, light: null,
     tree: { x: treeSpot[0], y: treeSpot[1], size: ISO_FEATURE_TREE, pivot: pivot, timer: 0 } };
   isoBuildLife(me, layout, { chimneys: chimneys, fire: fireSpot, leafTrees: forest.filter(function (t) { return t.kind === "leaf" && !underBoards(t, 45); }),
     edge: edge.filter(function (t) { return !underBoards(t, 10); }) });
@@ -646,8 +696,9 @@ function isoLight(l) {
   if (!me || me.lost) return;
   var p = isoLightParams(l), m = me.life.mats;
   me.light = l;
-  me.hemi.color.set(p.sky);
-  me.hemi.groundColor.set(p.ground);
+  me.hemi.color.set(isoMix(p.sky, "#3A2E4A", 0.15));      // a cool tint, so shadowed areas lean purple like pixel-art shading
+  me.hemi.groundColor.set(isoMix(p.ground, "#3A2E4A", 0.35));
+  me.ao.forEach(function (a) { a.material.opacity = a.userData.aoOpacity * p.ao; });
   me.hemi.intensity = p.hemi;
   me.groundMat.emissive.set(p.glow);
   me.sun.color.set(p.sun);

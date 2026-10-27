@@ -4410,19 +4410,33 @@ test("daynight scene: the board shade hides at rest and the world is lit in 3D (
 
 test("iso light: day, dusk and night colours and strengths (T-134)", () => {
   const day = plain(L.isoLightParams(L.lightAt(12)));
-  assert.deepEqual(day, { sky: "#FFF4DC", ground: "#5A6A30", glow: "#000000", hemi: 0.9, sun: "#FFFFFF", sunPower: 0.9, smoke: "#C9C2B6" });
+  assert.deepEqual(day, { sky: "#FFF4DC", ground: "#5A6A30", glow: "#000000", hemi: 0.4, sun: "#FFFFFF", sunPower: 2.2, ao: 1, smoke: "#C9C2B6" });
   const night = plain(L.isoLightParams(L.lightAt(0)));
   assert.equal(night.sky, "#3A4A7A");
   assert.equal(night.ground, "#1A2030");
   assert.equal(night.glow, "#1B2A48");
   assert.equal(night.sun, "#8FA8E0");
-  near(night.hemi, 0.45);
-  near(night.sunPower, 0.3);
+  near(night.hemi, 0.55);
+  near(night.sunPower, 0.15);
+  near(night.ao, 0.5);
   const dusk = plain(L.isoLightParams({ ...L.lightAt(12), dusk: 0.55 }));
   assert.equal(dusk.sky, "#F2B07A");
   assert.equal(dusk.sun, "#FF9A4A");
   assert.equal(L.isoMix("#000000", "#FFFFFF", 0.5), "#808080");
   assert.equal(L.isoMix("#102030", "#102030", 7), "#102030");
+});
+
+test("iso ambient occlusion: stepped darkening at the ground, bands, clips and blobs (T-136)", () => {
+  assert.deepEqual([0, 1.9, 2, 3.9, 4, 5.9, 6, 40].map(L.isoAoShade), [0.7, 0.7, 0.8, 0.8, 0.9, 0.9, 1, 1]);
+  assert.deepEqual(plain(L.isoAoBands(0, 3.5)), [{ a: 0, b: 2, shade: 0.7 }, { a: 2, b: 3.5, shade: 0.8 }]);
+  assert.deepEqual(plain(L.isoAoBands(3.5, 7)), [{ a: 3.5, b: 4, shade: 0.8 }, { a: 4, b: 6, shade: 0.9 }, { a: 6, b: 7, shade: 1 }]);
+  assert.deepEqual(plain(L.isoAoBands(10, 20)), [{ a: 10, b: 20, shade: 1 }]);
+  assert.deepEqual(plain(L.isoRectClip([0, 0, 10, 10], [6, 4, 10, 3])), [6, 4, 4, 3]);
+  assert.equal(L.isoRectClip([0, 0, 4, 4], [4, 0, 4, 4]), null);
+  assert.deepEqual(plain(L.isoGrowRect([10, 10, 4, 6], 2)), [8, 8, 8, 10]);
+  const o = plain(L.isoBlobPolygon(0, 0, 10));
+  assert.equal(o.length, 8);
+  o.forEach(([x, y]) => assert.ok(Math.max(Math.abs(x), Math.abs(y)) === 10));
 });
 
 test("iso life: flames, flicker, smoke, leaves and fireflies cycle in steps (T-134)", () => {
@@ -4757,8 +4771,10 @@ test("app-iso: listed in the page with the asset version, builds with textConten
   assert.ok(pageFile.indexOf("static/js/app-iso.js") > pageFile.indexOf("static/vendor/three.min.js"));
   const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
   assert.ok(!src.includes("innerHTML"));
+  assert.match(src, /shadow\.camera\.far = 1600;\s*sun\.shadow\.camera\.updateProjectionMatrix\(\)/, "three does not refresh the shadow frustum itself (T-136)");
+  assert.ok(!src.includes("shadow.radius"), "radius is ignored by PCFSoftShadowMap");
   for (const k of ["isoBuild(", "isoDispose(", "isoSync(", "isoLoop(", "document.hidden", "webglcontextlost", "webglcontextrestored",
-    "shadowMap.autoUpdate = false", "BasicShadowMap", "antialias: false", "NearestFilter", "isoAvailable()"]) assert.ok(src.includes(k), k);
+    "shadowMap.autoUpdate = false", "PCFSoftShadowMap", "antialias: false", "NearestFilter", "isoAvailable()"]) assert.ok(src.includes(k), k);
   const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
   assert.ok(scene.indexOf("isoBuild(") < scene.indexOf('svgEl(host, "svg"'), "the canvas goes under the svg");
   const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");

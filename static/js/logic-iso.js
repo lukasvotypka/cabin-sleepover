@@ -519,11 +519,50 @@ function isoLightParams(l) {
     sky: isoMix(isoMix("#FFF4DC", "#F2B07A", k), "#3A4A7A", d),
     ground: isoMix("#5A6A30", "#1A2030", d),
     glow: isoMix("#000000", "#1B2A48", d),      // the grass is green, so blue light alone would leave it black: a little blue of its own
-    hemi: 0.9 - 0.45 * d,
+    hemi: 0.4 + 0.15 * d,      // low by day so the sun shadows read; at night the ambient does the lighting
     sun: isoMix(isoMix("#FFFFFF", "#FF9A4A", k), "#8FA8E0", d),
-    sunPower: 0.9 - 0.6 * d,
+    sunPower: 2.2 - 2.05 * d,      // the shadows are what the sun adds, so they fade with it and are almost gone at night
+    ao: 1 - 0.5 * d,      // the baked corner and blob darkening: full by day, half at night
     smoke: isoMix("#C9C2B6", "#8FA8E0", d * 0.6)
   };
+}
+
+// --- ambient occlusion (T-136): flat steps of darkening where boxes meet the ground, pure and baked once at build ---
+
+var ISO_AO_STEPS = [[2, 0.7], [4, 0.8], [6, 0.9]];      // [height below which, brightness]: -30 % at the contact, 0 from 6 units up
+var ISO_AO_BAND = 6;                                    // width of the dark band along the foot of a wall
+
+// The brightness (0.7..1) of a side face at height y above the ground.
+function isoAoShade(y) {
+  for (var i = 0; i < ISO_AO_STEPS.length; i++) if (y < ISO_AO_STEPS[i][0]) return ISO_AO_STEPS[i][1];
+  return 1;
+}
+
+// A side face of a box from h0 to h1 cut into flat bands: [{a, b, shade}], so the darkening has steps and not a gradient.
+function isoAoBands(h0, h1) {
+  var cuts = [h0], out = [];
+  ISO_AO_STEPS.forEach(function (s) { if (s[0] > h0 && s[0] < h1) cuts.push(s[0]); });
+  cuts.push(h1);
+  for (var i = 0; i + 1 < cuts.length; i++) out.push({ a: cuts[i], b: cuts[i + 1], shade: isoAoShade((cuts[i] + cuts[i + 1]) / 2) });
+  return out;
+}
+
+// The overlap of two plan rects [x, y, w, d], or null.
+function isoRectClip(a, b) {
+  var x0 = Math.max(a[0], b[0]), y0 = Math.max(a[1], b[1]);
+  var x1 = Math.min(a[0] + a[2], b[0] + b[2]), y1 = Math.min(a[1] + a[3], b[1] + b[3]);
+  return x1 > x0 && y1 > y0 ? [x0, y0, x1 - x0, y1 - y0] : null;
+}
+
+// A plan rect grown by `m` on every side.
+function isoGrowRect(r, m) {
+  return [r[0] - m, r[1] - m, r[2] + 2 * m, r[3] + 2 * m];
+}
+
+// The stepped 8-sided blob under a crown: corners [x, y] around (cx, cy), counter-clockwise from the east, flat-sided like the voxels.
+function isoBlobPolygon(cx, cy, r) {
+  var k = r * 0.4142;      // an octagon of half-width r
+  return [[cx + r, cy - k], [cx + r, cy + k], [cx + k, cy + r], [cx - k, cy + r], [cx - r, cy + k], [cx - r, cy - k], [cx - k, cy - r], [cx + k, cy - r]];
 }
 
 var ISO_TICK_MS = 125;                       // the one shared tick of everything that moves: 8 steps a second
