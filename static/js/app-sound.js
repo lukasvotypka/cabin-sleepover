@@ -156,15 +156,10 @@ function onBirdFlight(e) {
   app.chirpTimer = setTimeout(playChirp, birdChirpDelay(Math.random) * 1000);
 }
 
-// A tap on the tree: the crown sways and the wind whistles through it.
-function rustleTree(tree) {
+// A tap on the tree: the wind whistles through it (the crown sways in the 3D world, isoRustle).
+function rustleTree() {
   unlockSound();
   playTreeWind();
-  tree.classList.remove("rustle");
-  void tree.getBBox();      // restart the sway when tapped again during it
-  tree.classList.add("rustle");
-  clearTimeout(app.rustleTimer);
-  app.rustleTimer = setTimeout(function () { tree.classList.remove("rustle"); }, 700);
 }
 
 // Crickets while the scene shows night: on and off by dnPaint (`lightAt(h).sleep`). Silent while muted, locked or

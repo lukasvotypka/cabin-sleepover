@@ -459,7 +459,12 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(readScripts("app-hud"), /return storage\.get\(QUEST_KEY\) === "1";/, "folded by default");
   assert.ok(scriptTags.indexOf("static/js/app-hud.js") > -1 && scriptTags.indexOf("static/js/app-hud.js") < scriptTags.indexOf("static/js/app-start.js"));
   assert.match(pageFile, /\.hud \{[^}]*z-index: 12/);
-  assert.match(pageFile, /\.zoom-reset \{[^}]*bottom: calc\(18px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(pageFile, /\.zoom-reset \{[^}]*bottom: calc\(max\(var\(--hud-h, 0px\), env\(safe-area-inset-bottom, 0px\)\) \+ 10px\)/, "above the bottom bar");
+  assert.match(pageFile, /<div id="tophud" class="tophud">[\s\S]*<div id="stamps"[^>]*>[\s\S]*<div id="rail" class="rail-wrap" role="slider" tabindex="0" aria-label="Čas"/, "night stamps and the time rail in the top HUD");
+  assert.match(pageFile, /<div id="bar" class="bothud">[\s\S]*<button id="crest"[\s\S]*<div id="tools"/, "Si and the tools in the bottom bar");
+  assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.tophud \{ display: none; \}/);
+  assert.ok(scriptTags.indexOf("static/js/app-tophud.js") > -1 && scriptTags.indexOf("static/js/app-tophud.js") < scriptTags.indexOf("static/js/app-start.js"));
+  assert.match(pageFile, /\.stamp \.dt \{ display: none; \}/, "the date line hides on low windows");
   assert.match(pageFile, /#toast \{[^}]*var\(--hud-h/);
   assert.ok(!/innerHTML/.test(readScripts("app-hud")), "human text goes in via textContent");
 });
@@ -1128,14 +1133,18 @@ test("the notice is only the ? icon: 44x44, clear of rooms, doors, windows, the 
   assert.ok(!overlap(n, [scene.nights[0], scene.nights[1], scene.nights[2], scene.nights[3] + 6]), "notice vs signposts with posts");
 });
 
-test("drawNotice draws only the ? icon, opens the Návod window, no innerHTML", () => {
-  const body = html.slice(html.indexOf("function drawNotice("), html.indexOf("// The table of all parties"));
-  assert.ok(body.length > 100);
-  assert.match(body, /"Návod\. Ťuknutím ho otvoríš\."/);
-  assert.match(body, /"notice", openNotice\)/);
-  assert.match(body, /hitRect\(g, r\)/);
-  assert.doesNotMatch(body, /NOTICE_LINES/);
+test("the bottom bar tools: Návod, Info, Prehľad, Pred cestou, key for the admin and the locked sign", () => {
+  const body = readScripts("app-hud");
+  const tools = body.slice(body.indexOf("function hudTools("), body.indexOf("function drawTools("));
+  assert.match(tools, /"Návod\. Ťuknutím ho otvoríš\."/);
+  assert.match(tools, /key: "notice"[^\n]*run: openNotice/);
+  assert.match(tools, /key: "legend"[^\n]*openLegend\("legend"\)/);
+  assert.match(tools, /key: "letter"[^\n]*run: openSummary/);
+  assert.match(tools, /if \(state\.info\)[\s\S]*key: "briefing"[\s\S]*run: enterBriefing/);
+  assert.match(tools, /if \(isAdmin\(app\.role\)\) tools\.push\(\{ key: "key"[^\n]*run: openAdmin/);
+  assert.match(tools, /if \(state\.signup_open === false\) tools\.push\(\{ key: "locked"[^\n]*LOCKED_TEXTS\.sign/);
   assert.doesNotMatch(body, /innerHTML/);
+  for (const k of ["notice", "legend", "letter", "briefing", "key", "locked"]) assert.match(body, new RegExp("\\b" + k + ": \\[\\["), "icon " + k);
 });
 
 test("openNotice opens a centred panel with one textContent paragraph per step and returns focus to the ? icon", () => {
@@ -1147,10 +1156,11 @@ test("openNotice opens a centred panel with one textContent paragraph per step a
   assert.doesNotMatch(body, /innerHTML/);
 });
 
-test("the party table is drawn on every drawBoards, and no collapse state is left", () => {
-  const body = html.slice(html.indexOf("function drawBoards("), html.indexOf("// The letter icon"));
-  assert.match(body, /\n\s+drawPartyTable\(g, scene\.parties, state\);/);
-  const gone = ["notice" + "Collapsed", "collapse" + "Notice", "expand" + "Notice", "notice" + "IconRect", "notice" + "Layout", "KEYS.notice"];
+test("drawBoards draws the gate and the notice board, and no collapse state is left", () => {
+  const body = html.slice(html.indexOf("function drawBoards("), html.indexOf("function renderBoards("));
+  assert.match(body, /drawGate\(g, isoSignBox\(app\.iso, state\.layout, "gate"\), state\);/);
+  assert.match(body, /drawNoticeBoard\(g, isoSignBox\(app\.iso, state\.layout, "board"\), state\);/);
+  const gone = ["notice" + "Collapsed", "collapse" + "Notice", "expand" + "Notice", "notice" + "IconRect", "notice" + "Layout", "KEYS.notice", "drawPartyTable", "drawTitle("];
   for (const name of gone) assert.ok(!html.includes(name), `${name} is gone`);
 });
 
@@ -1639,13 +1649,19 @@ test("scene: title board, signposts with posts, and the other boards and rooms d
   for (const key of ["notice", "parties"]) assert.ok(!overlap(scene.title, scene[key]), `title overlaps scene.${key}`);
 });
 
-test("drawTitle and drawNights read their positions from the layout, not from numbers", () => {
-  const draw = html.slice(html.indexOf("function drawTitle("), html.indexOf("function drawNotice("));
-  assert.match(draw, /signpostLayout\(scene\.nights/);
+test("drawGate reads its place from the layout; the night stamps are HTML buttons (T-145)", () => {
+  const draw = html.slice(html.indexOf("function drawGate("), html.indexOf("// The notice board: a wooden frame"));
   assert.match(draw, /titleLabel\(state\.event\)/);
+  assert.match(draw, /state\.event\.name/);
   assert.doesNotMatch(draw, /eventDateText/);
-  assert.doesNotMatch(draw, /r\[1\] \+ ([1-9]\d|[7-9])\b/, "no row offsets from the rect top (the 6-unit nails are fine)");
   assert.doesNotMatch(draw, /innerHTML/);
+  assert.match(draw, /"pointer-events": "none"/, "taps pass through the gate");
+  const top = readScripts("app-tophud");
+  assert.match(top, /htmlEl\("button", \{ "class": "stamp", type: "button", "data-key": "night-" \+ night, "aria-pressed"/);
+  assert.match(top, /selectNight\(night, \{ animate: true \}\)/);
+  assert.match(top, /nightTally\(state, party, night\)/);
+  assert.doesNotMatch(top, /innerHTML/);
+  assert.doesNotMatch(html, /function drawNights\(/);
 });
 
 test("a far neighbour does not stretch the signpost hit area, and a room is never covered", () => {
@@ -1653,25 +1669,6 @@ test("a far neighbour does not stretch the signpost hit area, and a room is neve
   assert.deepEqual(plain(L.nightsHit(moved, 8)), [176, 38, 196, 74]);   // 8 up and 8 down, not down to y=330
   const close = { ...moved, rooms: [{ ...rooms[3], rect: [176, 107, 100, 50], beds: [] }] };
   assert.deepEqual(plain(L.nightsHit(close, 8)), [176, 38, 196, 69]);   // stops 3 units above the room
-});
-
-test("bed hit areas contain the bed, never overlap each other or a scene board", () => {
-  const all = realLayout.rooms.flatMap((r) => r.beds);
-  const hits = all.map((b) => [b, L.bedHit(realLayout, b, 8)]);
-  hits.forEach(([b, hit]) => {
-    assert.ok(hit[0] <= b.rect[0] && hit[1] <= b.rect[1] && hit[0] + hit[2] >= b.rect[0] + b.rect[2] && hit[1] + hit[3] >= b.rect[1] + b.rect[3], b.id);
-    assert.ok(hit[2] <= b.rect[2] + 16 && hit[3] <= b.rect[3] + 16, `${b.id} grew by more than the cap`);
-    Object.values(scene).forEach((r) => assert.ok(!overlap(hit, r), `${b.id} overlaps a scene board`));
-  });
-  for (let i = 0; i < hits.length; i++) {
-    for (let j = i + 1; j < hits.length; j++) assert.ok(!overlap(hits[i][1], hits[j][1]), `${hits[i][0].id} overlaps ${hits[j][0].id}`);
-  }
-});
-
-test("a bed hit area follows the bed rect from the config", () => {
-  assert.deepEqual(plain(L.bedHit(realLayout, bedById("left-window"), 8)), [179, 212, 39, 50]);   // half the gap to its neighbours
-  const moved = { ...realLayout, rooms: realLayout.rooms.map((r) => ({ ...r, beds: r.beds.map((b) => (b.id === "left-window" ? { ...b, rect: [20, 312, 24, 34] } : b)) })) };
-  assert.deepEqual(plain(L.bedHit(moved, moved.rooms[2].beds[1], 8)), [12, 308, 40, 41]);   // stops at the legend sign above and at half the gap to a bed below
 });
 
 test("diagonal neighbours do not get overlapping hit areas", () => {
@@ -2042,7 +2039,8 @@ test("page: the map is zoomed through the viewBox, with no CSS transform and a w
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.doesNotMatch(html, /transform\s*:\s*scale|\.style\.transform/);
   assert.match(app, /setAttribute\("viewBox", viewBoxText\(/);
-  assert.match(html, /shape-rendering": "crispEdges"/);
+  assert.match(fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8"), /"shape-rendering": "geometricPrecision", role: "group"/);
+  assert.doesNotMatch(pageFile, /#scene (svg|\.iso-canvas) \{[^}]*image-rendering: pixelated/);
   assert.match(app, /addEventListener\("wheel", [\s\S]*passive: false/);
   assert.match(html, /#scene svg \{[^}]*touch-action: none;/);
   // two fingers must not become a page scroll: non-passive touch listeners cancel them
@@ -2306,7 +2304,7 @@ test("fit: an extra top inset the size of the move bar keeps the whole scene bel
 test("page: the move bar's height is a top inset while it shows, and the scene refits when it shows or hides", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(app, /if \(!bar\.hidden\) top = Math\.max\(top, bar\.offsetHeight\);/);
-  assert.match(app, /else top = Math\.max\(top, questBottom\(\)\);/);
+  assert.match(app, /else top = Math\.max\(top, questBottom\(\), topHudBottom\(\)\);/);
   assert.match(app, /observer\.observe\(moveBar\)/);
   assert.match(app, /if \(app\.refit\) app\.refit\(\);/);
   // panels: no overscroll chaining, a long sheet stays below the status bar, a tall code board scrolls from its top
@@ -2697,8 +2695,8 @@ test("walkers: two adults tapping a double bed walk from the first two meadow ce
   const cells = plain(L.meadowLayout(realLayout.map.scene.meadow, 2).cells);
   const bed = bedById("left-double");
   assert.deepEqual(walkFor(p, before, after, "left-double", slots), [
-    { slot: slots[0], from: cells[0], to: plain(L.figurePosition(bed, 0)), kind: "adult", color: p.color },
-    { slot: slots[1], from: cells[1], to: plain(L.figurePosition(bed, 1)), kind: "adult", color: p.color },
+    { slot: slots[0], from: cells[0], to: plain(L.figurePosition(bed, 0)), h: L.isoSlotHeight(bed, 0), kind: "adult", color: p.color },
+    { slot: slots[1], from: cells[1], to: plain(L.figurePosition(bed, 1)), h: L.isoSlotHeight(bed, 1), kind: "adult", color: p.color },
   ]);
 });
 
@@ -2747,8 +2745,10 @@ test("page: the walk layer is hidden from readers and pointers, sits above the b
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(app, /walk: svgEl\(svg, "g", \{ "aria-hidden": "true", "pointer-events": "none" \}\),\s+boards:/);
   assert.match(app, /beds: svgEl\(svg, "g"\),\s+walk:/);
-  assert.match(app, /walkProgress\(elapsed, WALK_MS\)/);
-  assert.match(app, /walkPosition\(item\.from, item\.to, t\)/);
+  assert.match(app, /walkProgress\(elapsed, walk\.ms\)/);
+  assert.match(app, /walk\.ms: |ms: three \? ISO_PEOPLE\.walkMs : WALK_MS/);
+  assert.match(app, /isoWalkFigure\(app\.iso, item\.from, item\.to, t, hop\)/);
+  assert.match(app, /isoWalkHeight\(elapsed, walk\.ms, item\.h\)/);
   assert.match(app, /if \(app\.walking\[night \+ "\|" \+ slot\]\) return;/);
   assert.doesNotMatch(app, /\b3000\b/);
   assert.doesNotMatch(app, /innerHTML/);
@@ -3040,6 +3040,15 @@ test("roofRect and chimneyRect follow the outline", () => {
   assert.deepEqual(plain(L.chimneyRect([118, 212, 254, 124], 164)), [164, 192, 6, 10]);
 });
 
+test("page: bed buttons keep the tap hint and move mode syncs the houses", () => {
+  const beds = fs.readFileSync(path.join(root, "static", "js", "app-beds.js"), "utf8");
+  const hints = beds.match(/bedLabel\(st, room, bed, night\) \+ "\. Ťuknutím otvoríš\."/g) || [];
+  assert.equal(hints.length, 2, "both bed buttons keep the hint");
+  assert.doesNotMatch(beds, /makeButton\(g, bedLabel\(st, room, bed, night\), /);
+  const actions = fs.readFileSync(path.join(root, "static", "js", "app-actions.js"), "utf8");
+  assert.match(actions.match(/function renderMoveBar\(\) \{[\s\S]*?\n\}/)[0], /housesSync\(\)/);
+});
+
 test("page: every script file parses on its own and the page keeps no inline script", () => {
   assert.doesNotMatch(pageFile, /<script(?![^>]*\bsrc=)[^>]*>/);
   scriptTags.forEach((file) => {
@@ -3198,12 +3207,6 @@ test("placesUndoInfo: texts per weekday and plural, null without override", () =
   const p = party({ adults: 3 });
   assert.equal(L.placesUndoInfo(stateWith([p]), p, THU), null);
   assert.equal(L.placesUndoInfo(stateWith([p]), null, THU), null);
-});
-
-test("meadowHitRect: 44 units tall from the meadow top, as wide as the meadow", () => {
-  const m = realLayout.map.scene.meadow;
-  assert.deepEqual(plain(L.meadowHitRect(m)), [m[0], m[1] - 1, m[2], 44]);
-  assert.deepEqual(plain(L.meadowHitRect([112, 397, 124, 14])), [112, 396, 124, 44]);   // real config: starts below the icons (end at 396)
 });
 
 test("meadowButtonLabel: singular address and plurals", () => {
@@ -3550,16 +3553,24 @@ test("foodRow: foodCount of every event day, zero included", () => {
   assert.deepEqual(plain(L.foodRow({ event: null, parties: [] })), []);
 });
 
-test("drawPartyTable: one button over the drawn board, moon and sun from rects, no emoji", () => {
-  const body = html.slice(html.indexOf("function drawMoon("), html.indexOf("// App part 5b"));
-  assert.match(body, /partyTableLayout\(r, rows\.length, dayRows\.length, nights\.length, days\.length\)/);
-  assert.match(body, /hitRect\(g, \[r\[0\], r\[1\], r\[2\], lay\.height\]\)/);
-  assert.match(body, /Kto kde spí po nociach, kto príde cez deň a koľko vás je na jedlo\. Ťuknutím otvoríš „Kto je kto“\./);
-  assert.match(body, /openLegend\("parties"\)/);
-  assert.match(body, /"Noc"/);
-  assert.match(body, /"Cez deň"/);
-  assert.match(body, /"spolu na jedlo"/);
-  assert.doesNotMatch(body, /innerHTML|☀|🌙|☾/);
+test("notice board: one button over the drawn board, stamps from the pure model, the panel is built with textContent (T-146)", () => {
+  const body = html.slice(html.indexOf("function drawNoticeBoard("), html.indexOf("// A tap wiggles the board"));
+  assert.match(body, /boardNightStamp\(state, app\.myParty, app\.night\)/);
+  assert.match(body, /boardDayStamp\(state, app\.myParty\)/);
+  assert.match(body, /makeButton\(outer, boardLabel\(state\), "board"/);
+  assert.match(body, /openBoardPanel\("board"\)/);
+  assert.match(body, /"KTO KEDY PRÍDE"/);
+  assert.match(body, /"CEZ DEŇ"/);
+  assert.match(body, /"na jedlo:"/);
+  const panel = html.slice(html.indexOf("function openBoardPanel("));
+  assert.match(panel, /openPanel\("Kto kedy príde"/);
+  assert.match(panel, /"Noc"/);
+  assert.match(panel, /"Cez deň"/);
+  assert.match(panel, /"Zavrieť"/);
+  assert.match(panel, /panel\.refresh = function/);
+  assert.doesNotMatch(html.slice(html.indexOf("function drawGate("), html.indexOf("// --- the panel ---")), /innerHTML|☀|🌙|☾/);
+  assert.doesNotMatch(panel, /innerHTML/);
+  assert.ok(pageFile.includes("static/js/app-board.js?v=__ASSET_VERSION__") && pageFile.includes("static/js/logic-board.js?v=__ASSET_VERSION__"));
 });
 
 test("intro zoom: constants", () => {
@@ -3577,6 +3588,24 @@ test("intro zoom: the start view is 2x, centered on the scene, at the scene top 
     assert.ok(Math.abs(v.h - v.w * B.h / B.w) < 1e-9, "aspect ratio of the bounds");
     assert.deepEqual(plain(L.clampView(v, B)), v);
   }
+});
+
+test("intro zoom: a focus x centres the start view on it (clamped)", () => {
+  const B = L.fitBounds(375, 667, SW, SH, { bottom: 56 });
+  const v = plain(L.introStartView(B, SW, SH, SW * 0.75));
+  assert.ok(v.x + v.w / 2 > SW / 2, "moved right of the middle");
+  assert.deepEqual(plain(L.clampView(v, B)), v);
+});
+
+test("iso: the signs layer has no block transform; icons and signposts are not in the scene", () => {
+  const read = (f) => fs.readFileSync(path.join(root, "static", "js", f), "utf8");
+  assert.match(read("app-scene.js"), /boards: svgEl\(svg, "g"\),/);
+  assert.ok(!html.includes("isoBlockTransform") && !html.includes("isoBlockPoint"), "the board block is gone");
+  assert.equal(L.isoBlockTransform, undefined);
+  const boards = read("app-draw.js") + read("app-board.js");
+  assert.doesNotMatch(boards, /icons\.|drawNotice\b|drawLetter|drawLegend|drawLocked|drawNights/);
+  assert.equal(L.isoScene(isoLayout).icons, undefined);
+  assert.equal(L.isoScene(isoLayout).block, undefined);
 });
 
 test("intro zoom: introViewAt eases between the views and clamps t", () => {
@@ -3649,7 +3678,8 @@ test("sound: the bird chirps while it is over the map, and the chirp and the win
 test("sound: the bird chirps per flight and a tap on the tree blows wind through it", () => {
   assert.match(appSource, /bird\.addEventListener\("animationiteration", onBirdFlight\)/);
   assert.match(appSource, /e\.animationName !== "birdFly"/);
-  assert.match(appSource, /"tree-hit"[\s\S]*?rustleTree\(t\)/);
+  assert.match(appSource, /"tree-hit"[\s\S]*?rustleTree\(\); isoRustle\(\)/);
+  assert.doesNotMatch(appSource, /classList\.add\("rustle"\)/);
   assert.match(html, /#scene svg \.tree-hit \{ pointer-events: all;/);
 });
 
@@ -4203,9 +4233,9 @@ test("signupToggleLabel flips by signup_open and deleteConfirmText names the par
   assert.equal(L.deleteConfirmText("Novákovci"), "Naozaj zmazať „Novákovci“? Uvoľnia sa všetky jej miesta.");
 });
 
-test("the key icon is drawn only for the admin and is a labelled button", () => {
-  assert.match(appSource, /if \(isAdmin\(app\.role\)\) drawKey\(g, scene\.key\)/);
-  assert.match(appSource, /makeButton\(g, "Admin nástroje", "key", openAdmin\)/);
+test("the key button is in the bottom bar only for the admin and is a labelled button", () => {
+  assert.match(appSource, /if \(isAdmin\(app\.role\)\) tools\.push\(\{ key: "key", caption: "Admin", label: "Admin nástroje", run: openAdmin \}\)/);
+  assert.match(appSource, /htmlEl\("button", \{ "class": "tool" \+ long, type: "button", "data-key": t\.key, "aria-label": t\.label \}\)/);
 });
 
 test("canWrite: open signup or admin may write, a closed signup lets only the admin write", () => {
@@ -4342,9 +4372,9 @@ test("daynight: clockLabel", () => {
 });
 
 test("daynight: durationMs, ease", () => {
-  assert.equal(L.durationMs(12, 36), 2150);
-  assert.equal(L.durationMs(12, 60), 3400);
-  assert.equal(L.durationMs(60, 12), 3400);
+  assert.equal(L.durationMs(12, 36), 6500);
+  assert.equal(L.durationMs(12, 60), 11500);
+  assert.equal(L.durationMs(60, 12), 11500);
   near(L.ease(0), 0);
   near(L.ease(0.5), 0.5);
   near(L.ease(1), 1);
@@ -4354,15 +4384,16 @@ test("daynight: durationMs, ease", () => {
 
 test("daynight: retarget from a mid-animation hour uses the current hour", () => {
   const cur = 40.3;
-  near(L.durationMs(cur, 12), 900 + 1250 * 28.3 / 24);
+  near(L.durationMs(cur, 12), 1500 + 5000 * 28.3 / 24);
 });
 
 test("daynight: lightAt at noon and midnight", () => {
   const day = L.lightAt(12);
-  assert.deepEqual(plain(day), { dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1, sleep: false });
+  assert.deepEqual(plain(day), { d: 0, dark: 0, dusk: 0, lamp: 0, fireflies: 0, bird: 1, sun: { az: -20, elev: 24, moon: false }, sleep: false });
   const night = L.lightAt(0);
   assert.equal(night.sleep, true);
   assert.equal(L.lightAt(15).sleep, false);
+  near(night.d, 1);
   near(night.dark, 0.78);
   near(night.lamp, 1);
   near(night.fireflies, 1);
@@ -4377,41 +4408,120 @@ test("daynight scene: script listed, no innerHTML, light layer between walk and 
   const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
   const ens = scene.slice(scene.indexOf("function ensureScene"));
   assert.ok(ens.indexOf("walk:") > -1 && ens.indexOf("walk:") < ens.indexOf("boards:"));
-  assert.ok(ens.includes("dnBuild(svg, layout, app.layers.boards"));
+  assert.ok(ens.includes("dnBuild(svg, layout);"));
   assert.ok(ens.indexOf("drawBird(") < ens.indexOf("dnBuild("));
 });
 
-test("daynight slider: drawn in the scene, no HTML bar, aria and keys wired (T-117)", () => {
+test("daynight rail: HTML in the top HUD, aria and keys wired (T-145)", () => {
   assert.ok(!pageFile.includes('id="time' + 'bar"') && !pageFile.includes("ts-knob"));
   assert.ok(!pageFile.includes('id="clo' + 'ck"'));
   const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
   assert.ok(!src.includes("innerHTML"));
-  for (const k of ["sliderKey(", "sliderValueText(", "figureSwap(", "nightAt(", "sceneXToHour(", "hourToSceneX(", "sliderSegments(",
-    "aria-valuetext", "getScreenCTM", "setPointerCapture", "scene.time", '"slider"']) assert.ok(src.includes(k), k);
+  for (const k of ["sliderKey(", "sliderValueText(", "figureSwap(", "nightAt(", "sceneXToHour(", "hourToSceneX(", "sliderSegments(", "railGradient(",
+    "aria-valuetext", "setPointerCapture", '$("rail")']) assert.ok(src.includes(k), k);
+  assert.ok(!src.includes("getScreenCTM") && !src.includes("scene.time"), "the rail is not drawn in the svg any more");
   assert.ok(!src.includes("shownNight") && !src.includes("drawnNight"));
   const hud = fs.readFileSync(path.join(root, "static", "js", "app-hud.js"), "utf8");
   assert.ok(!hud.includes("timebar"));
 });
 
-test("daynight scene: hidden light elements get display none (T-113)", () => {
-  const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
-  assert.ok(src.includes("function dnVis("));
-  assert.ok(src.includes('n.setAttribute("display", "none")'));
-  assert.ok(src.includes('dnWrap(fx.layer'));
-  assert.ok(src.includes('dnWrap(fx.shadeLayer'));
+test("railGradient: day cream, night blue, a stop every hour, ends at 0 and 100 percent", () => {
+  const g = L.railGradient(12, 30);
+  assert.match(g, /^linear-gradient\(90deg, #[0-9a-f]{6} 0%.*#[0-9a-f]{6} 100%\)$/);
+  assert.equal(g.split("%").length - 1, 19);
+  assert.equal(L.railColor(12), "#f7e7b4");
+  assert.equal(L.railColor(24), "#2f3b5c");
 });
 
-test("daynight light layer: plain alpha, no blend, mask, filter or clip-path (T-118)", () => {
+test("daynight scene: the world is lit in 3D and the signs have no tint (T-113, T-134, T-146)", () => {
   const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
-  for (const k of ["mix-blend-mode", "multiply", "mask", "Mask", "filter", "clip-path", "clipPath"]) assert.ok(!src.includes(k), k);
-  assert.ok(src.includes('"fill-rule": "evenodd"'));
-  assert.ok(src.includes("function dnFitArea(") && src.includes("groundRect(app.bounds)"));
+  assert.ok(src.includes("isoLight(l)"));
+  for (const k of ["fx.dusk", "fx.dark", "fx.darkRooms", "fx.lamp", "fx.fireflies", "dnFitArea", "DN_FIREFLIES", "evenodd", "boardShade", "partyShade", "dnFitPartyShade", "dnVis(", "dnWrap("]) assert.ok(!src.includes(k), k);
   const zoom = fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8");
-  assert.ok(zoom.includes("dnFitArea(dn.fx)"));
-  // The party table shade follows the drawn table height, not the configured rect.
-  assert.ok(src.includes("fx.partyShade") && src.includes("function dnFitPartyShade("));
-  const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
-  assert.ok(draw.includes("dnFitPartyShade(lay.height)"));
+  assert.ok(!zoom.includes("dnFitArea"));
+  assert.ok(!html.includes("dnFirefly") && !html.includes(".dn-ff"));
+});
+
+test("iso light: day, dusk and night colours and strengths (T-134)", () => {
+  const day = plain(L.isoLightParams(L.lightAt(12)));
+  assert.deepEqual(day, { sky: "#FFF4DC", ground: "#5A6A30", glow: "#000000", hemi: 0.4, sun: "#FFFFFF", sunPower: 2.2, ao: 1, smoke: "#C9C2B6" });
+  const night = plain(L.isoLightParams(L.lightAt(0)));
+  assert.equal(night.sky, "#3A4A7A");
+  assert.equal(night.ground, "#1A2030");
+  assert.equal(night.glow, "#1B2A48");
+  assert.equal(night.sun, "#8FA8E0");
+  near(night.hemi, 0.55);
+  near(night.sunPower, 0.15);
+  near(night.ao, 0.5);
+  const dusk = plain(L.isoLightParams({ ...L.lightAt(12), dusk: 0.55 }));
+  assert.equal(dusk.sky, "#F2B07A");
+  assert.equal(dusk.sun, "#FF9A4A");
+  assert.equal(L.isoMix("#000000", "#FFFFFF", 0.5), "#808080");
+  assert.equal(L.isoMix("#102030", "#102030", 7), "#102030");
+});
+
+test("iso ambient occlusion: stepped darkening at the ground, bands, clips and blobs (T-136)", () => {
+  assert.deepEqual([0, 1.9, 2, 3.9, 4, 5.9, 6, 40].map(L.isoAoShade), [0.7, 0.7, 0.8, 0.8, 0.9, 0.9, 1, 1]);
+  assert.deepEqual(plain(L.isoAoBands(0, 3.5)), [{ a: 0, b: 2, shade: 0.7 }, { a: 2, b: 3.5, shade: 0.8 }]);
+  assert.deepEqual(plain(L.isoAoBands(3.5, 7)), [{ a: 3.5, b: 4, shade: 0.8 }, { a: 4, b: 6, shade: 0.9 }, { a: 6, b: 7, shade: 1 }]);
+  assert.deepEqual(plain(L.isoAoBands(10, 20)), [{ a: 10, b: 20, shade: 1 }]);
+  assert.deepEqual(plain(L.isoRectClip([0, 0, 10, 10], [6, 4, 10, 3])), [6, 4, 4, 3]);
+  assert.equal(L.isoRectClip([0, 0, 4, 4], [4, 0, 4, 4]), null);
+  assert.deepEqual(plain(L.isoGrowRect([10, 10, 4, 6], 2)), [8, 8, 8, 10]);
+  const o = plain(L.isoBlobPolygon(0, 0, 10));
+  assert.equal(o.length, 8);
+  o.forEach(([x, y]) => assert.ok(Math.max(Math.abs(x), Math.abs(y)) === 10));
+});
+
+test("iso life: flames and flicker keep their rhythm, smoke, leaves and fireflies move smoothly (T-141)", () => {
+  assert.deepEqual([0, 159, 160, 320, 480].map(L.isoFlameFrame), [0, 0, 1, 2, 0]);
+  assert.deepEqual([0, 125, 250, 375, 500].map(L.isoFlicker), [1, 0.85, 1.1, 0.9, 1]);
+  assert.equal(L.ISO_TICK_MS, 33);
+  assert.equal(L.ISO_STEP_MS, 125);
+  const puff = (t, n) => plain(L.isoSmoke(t, n));
+  near(puff(0, 0).rise, 0);
+  near(puff(1500, 0).rise, 9);      // 18 units over 3 s
+  assert.ok(puff(2999, 0).rise > 17.9 && puff(2999, 0).opacity < 0.01);
+  near(puff(0, 0).opacity, 0.6);
+  near(puff(0, 1).rise, puff(1000, 0).rise);      // staggered by one second
+  near(puff(0, 0).size, 3);
+  assert.ok(puff(2999, 0).size <= 5);
+  for (let t = 0; t < 2960; t += 33) assert.ok(puff(t + 33, 0).rise > puff(t, 0).rise, "rises every update");
+  let leafJump = 0, prevLeaf = L.isoLeaf(0, 2, 20);
+  for (let t = 1; t < 12000; t += 33) {
+    const lf = L.isoLeaf(t, 2, 20);
+    assert.ok(lf.y >= 0 && lf.y <= 20 && Math.abs(lf.dx) <= 6);
+    if (lf.y <= prevLeaf.y) leafJump = Math.max(leafJump, Math.abs(lf.dx - prevLeaf.dx));
+    prevLeaf = lf;
+  }
+  assert.ok(leafJump < 0.6, "a leaf drifts, it does not jump: " + leafJump);
+  assert.deepEqual(plain(L.isoLeaf(0, 0, 20)), plain(L.isoLeaf(0, 0, 20)));
+  let on = 0;
+  for (let t = 0; t < 1800; t += 100) if (L.isoFirefly(t, 0).on) on++;
+  assert.equal(on, 6);      // on for 0.6 s of every 1.8 s
+  const f = L.isoFirefly(1234, 3);
+  assert.ok(Math.abs(f.dx) <= 1 && Math.abs(f.dy) <= 1);
+  assert.ok([0, 1, 2, 3, 4, 5].some((i) => L.isoFirefly(10, i).dx !== L.isoFirefly(400, i).dx), "drifts within a 500 ms hop");
+  assert.ok(Math.abs(L.isoFirefly(499.9, 3).dx - L.isoFirefly(500, 3).dx) < 0.01, "continuous across a hop");
+});
+
+test("iso app: the frame loop is driven by rAF only, sleeps while hidden, and reduced motion does not animate (T-134)", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.ok(!src.includes("setInterval") && !src.includes("setTimeout"));
+  assert.match(src, /function isoLoop\(now\)[\s\S]*?document\.hidden/);
+  assert.match(src, /document\.addEventListener\("visibilitychange"/);
+  assert.match(src, /var moving = !prefersReducedMotion\(\)/);
+  assert.match(src, /still = prefersReducedMotion\(\)/);
+  assert.match(src, /Math\.min\(1, \(now - start\) \/ 700\)/);      // the tree sways smoothly for 0.7 s
+  assert.equal((src.match(/new THREE\.PointLight/g) || []).length, 1);      // the campfire only
+  assert.ok(!/castShadow\s*=\s*true/.test(src.slice(src.indexOf("function isoBuildLife"))));
+});
+
+test("cleanup (T-134): the flat svg furniture, tree, roof and smoke are gone", () => {
+  for (const k of ["function drawFurniture", "function drawTree", "function drawRoof", "function drawChimney", "function drawHouses", "bedHit(", "BED_HIT_GROW", "meadowHitRect", "smokepuff", "shedleaf"]) {
+    assert.ok(!appSource.includes(k) && !logicSource.includes(k) && !pageFile.includes(k), k);
+  }
+  assert.match(appSource, /"class": "bed-hits", "aria-hidden": "true"/);
 });
 
 const fs2 = (x) => JSON.parse(JSON.stringify(x));
@@ -4498,4 +4608,1110 @@ test("quickWhatsAppText: the route line follows the arrival line, with a bare UR
   assert.equal(lines[1], "🕓 Prídem o 17:00.");
   assert.equal(lines[2], "📍 Cez Detvu. https://maps.app.goo.gl/x");
   assert.ok(!L.quickWhatsAppText(infoCfg, "Chata").includes("📍"));
+});
+
+// --- isometric view (logic-iso.js), checked against the real config/cabin.yaml ---
+
+// tests/js/cabin-layout.json is a copy of config/cabin.yaml (tests/test_iso_layout_fixture.py fails when it drifts)
+const isoLayout = JSON.parse(fs.readFileSync(path.join(root, "tests", "js", "cabin-layout.json"), "utf8"));
+const isoHouseOutline = (house) => L.unionRect(house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id).rect));
+const isoInside = (p, W, H) => p[0] >= 0 && p[0] <= W && p[1] >= 0 && p[1] <= H;
+
+test("iso: projection formula with az 45 and tilt 30", () => {
+  const b = L.isoBasis(45, 30);
+  const r = Math.SQRT1_2;
+  const [u, v] = L.isoRaw(b, 10, 4, 6);
+  assert.ok(Math.abs(u - (10 * r - 4 * r)) < 1e-9);
+  assert.ok(Math.abs(v - ((10 * r + 4 * r) * 0.5 - 6 * Math.cos(Math.PI / 6))) < 1e-9);
+  const s = L.isoScene(isoLayout, { ...L.ISO, persp: 0 });
+  const p = L.isoPoint(s, 10, 4, 6);
+  assert.ok(Math.abs(p[0] - (u + s.ox)) < 1e-9 && Math.abs(p[1] - (v + s.oy)) < 1e-9);
+});
+
+test("iso: scene holds every layout corner and the two signs, clear of the world top", () => {
+  const s = L.isoScene(isoLayout);
+  const [vw, vh] = isoLayout.map.viewbox;
+  [[0, 0], [vw, 0], [0, vh], [vw, vh]].forEach(([x, y]) => assert.ok(isoInside(L.isoPoint(s, x, y, 0), s.W, s.H), `${x},${y}`));
+  ["board", "gate"].forEach((k) => {
+    const b = L.isoSignBox(s, isoLayout, k);
+    assert.ok(b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= s.W && b[1] + b[3] <= s.H, k);
+  });
+  assert.ok(isoInside(L.isoPoint(s, 0, 0, L.ISO.headroom), s.W, s.H));
+  assert.ok(isoInside(L.isoPoint(s, vw, 0, L.ISO.headroom), s.W, s.H));
+  assert.equal(s.top, L.ISO.margin);
+});
+
+test("iso: a sign box stands on its plan point: bottom middle, size from ISO_SIGNS", () => {
+  const s = L.isoScene(isoLayout), sc = isoLayout.map.scene;
+  ["board", "gate"].forEach((k) => {
+    const b = plain(L.isoSignBox(s, isoLayout, k)), p = L.isoPoint(s, sc[k][0], sc[k][1], 0), size = L.ISO_SIGNS[k];
+    assert.deepEqual([b[2], b[3]], [size.w, size.h]);
+    assert.ok(Math.abs(b[0] + b[2] / 2 - p[0]) < 1e-9 && Math.abs(b[1] + b[3] - p[1]) < 1e-9, k);
+  });
+});
+
+test("iso: the notice board covers no house at any of the four angles", () => {
+  const rooms = Object.fromEntries(isoLayout.rooms.map((r) => [r.id, r.rect]));
+  [45, 135, 225, 315].forEach((az) => {
+    const s = L.isoScene(isoLayout, { azimuth: az }), box = plain(L.isoSignBox(s, isoLayout, "board"));
+    isoLayout.houses.forEach((house) => {
+      const roof = plain(L.polyBox(L.isoBoxOutline(s, plain(L.unionRect(house.rooms.map((id) => rooms[id]))), 0, 44)));
+      assert.ok(!L.rectsOverlap(box, roof), `${az}: board over ${house.id}`);
+    });
+  });
+});
+
+test("iso: the world top is the scene margin, nothing stands above it", () => {
+  const s = L.isoScene(isoLayout);
+  const tops = [[0, 0], [380, 0], [0, 496], [380, 496]].map(([x, y]) => L.isoPoint(s, x, y, L.ISO.headroom)[1]);
+  assert.ok(Math.min(...tops) >= s.top - 1e-9);
+});
+
+test("iso: only north and west outline edges are tall, doors keep a lintel", () => {
+  const O = L.ISO;
+  isoLayout.houses.forEach((house) => {
+    const rooms = house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+    const outline = isoHouseOutline(house);
+    const walls = L.isoWalls(rooms, outline, isoLayout.map.doors);
+    assert.ok(walls.length > 0);
+    walls.forEach((w) => {
+      if (w.tall) {
+        const north = w.y === outline[1], west = w.x === outline[0];
+        assert.ok(north || west, "tall wall on the north or west edge");
+        assert.equal(w.h, O.wallH);
+      } else assert.equal(w.h, O.lowWall);
+    });
+  });
+  // The door [80, 172, 20, 6] sits on the tall west/north walls? Any tall piece over a door starts at doorH.
+  const all = isoLayout.houses.flatMap((house) => L.isoWalls(house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id)), isoHouseOutline(house), isoLayout.map.doors));
+  isoLayout.map.doors.forEach((d) => {
+    all.filter((w) => w.tall && L.rectsOverlap([w.x, w.y, w.w, w.d], d)).forEach((w) => assert.equal(w.h0, O.doorH, "lintel above the door"));
+  });
+  // A synthetic tall wall with a door: pieces beside the gap are full, the gap piece is a lintel.
+  const synth = L.isoWalls([{ rect: [0, 0, 100, 50] }], [0, 0, 100, 50], [[40, 0, 20, 4]]);
+  const north = synth.filter((w) => w.y === 0 && w.d === 4 && w.tall);
+  assert.deepEqual(plain(north.map((w) => [w.x, w.w, w.h0])).sort((a, b) => a[0] - b[0]), [[0, 40, 0], [40, 20, O.doorH], [60, 40, 0]]);
+});
+
+test("iso: no wall box overlaps a bed rect of the real layout", () => {
+  const beds = isoLayout.rooms.flatMap((r) => r.beds.map((b) => [r.id, b]));
+  isoLayout.houses.forEach((house) => {
+    const rooms = house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+    L.isoWalls(rooms, isoHouseOutline(house), isoLayout.map.doors).forEach((w) => {
+      beds.forEach(([room, b]) => assert.ok(!L.rectsOverlap([w.x, w.y, w.w, w.d], b.rect), `${room}/${b.id}`));
+    });
+  });
+});
+
+test("iso: trees are deterministic and keep their clearance", () => {
+  const keepOut = [[150, 380, 40, 40]];
+  const a = L.isoTrees(isoLayout, { keepOut }), b = L.isoTrees(isoLayout, { keepOut });
+  assert.deepEqual(plain(a), plain(b));
+  assert.ok(a.length > 20);
+  const blocked = isoLayout.rooms.map((r) => r.rect).concat(isoLayout.map.paths, isoLayout.map.doors, keepOut, [isoLayout.map.scene.meadow]);
+  a.forEach((t) => {
+    const reach = 14 + 8 * t.size;                 // the code keeps clear (14 by default) + 8 * size around the trunk
+    blocked.forEach((r) => assert.ok(!L.rectsOverlap([t.x - reach, t.y - reach, 2 * reach, 2 * reach], r), `tree ${t.x},${t.y}`));
+    assert.ok(["pine", "leaf"].includes(t.kind));
+  });
+});
+
+test("iso: convexHull of a square with interior and collinear points", () => {
+  const pts = [[0, 0], [4, 0], [4, 4], [0, 4], [2, 2], [2, 0], [4, 2], [1, 3], [0, 0]];
+  const hull = plain(L.convexHull(pts));
+  assert.equal(hull.length, 4);
+  assert.deepEqual(hull.map((p) => p.join(",")).sort(), ["0,0", "0,4", "4,0", "4,4"]);
+  assert.deepEqual(plain(L.convexHull([[1, 1], [2, 2]])), [[1, 1], [2, 2]]);
+});
+
+test("iso: small helpers", () => {
+  assert.deepEqual(plain(L.unionRect([[0, 0, 2, 2], [5, 1, 1, 1]])), [0, 0, 6, 2]);
+  assert.ok(L.rectsOverlap([0, 0, 2, 2], [1, 1, 2, 2]) && !L.rectsOverlap([0, 0, 2, 2], [2, 0, 2, 2]));
+  assert.equal(L.pointsText([[1, 2], [3.14159, 4]]), "1,2 3.142,4");
+  assert.ok(L.isoNoise(3, 1) >= 0 && L.isoNoise(3, 1) < 1 && L.isoNoise(3, 1) === L.isoNoise(3, 1));
+  assert.equal(L.isoSlotHeight({ kind: "bunk" }, 0), L.ISO_BUNK_TOP);
+  assert.equal(L.isoSlotHeight({ kind: "bunk" }, 1), 5);
+  assert.equal(L.isoSlotHeight({ kind: "bed2" }, 1), 7);
+  const s = L.isoScene(isoLayout), f = L.isoFigure(s, [100, 100], 7);
+  assert.match(L.isoFigureTransform(f), /^translate\(.+ .+\) scale\(\d\.\d+\)$/);
+  assert.equal(L.polyBox(L.isoBoxOutline(s, [10, 10, 20, 20], 0, 10)).length, 4);
+});
+
+// --- slight perspective (T-135) ---
+
+test("iso perspective: the strength is one constant, 0 gives the orthographic projection", () => {
+  assert.equal(L.ISO.persp, 0.35);
+  const o = L.isoScene(isoLayout, { ...L.ISO, persp: 0 });
+  assert.equal(o.basis.D, 0);
+  const r = Math.SQRT1_2, p = L.isoPoint(o, 50, 20, 6);
+  assert.ok(Math.abs(p[0] - (50 * r - 20 * r + o.ox)) < 1e-9);
+  assert.equal(L.isoDepthScale(o.basis, 50, 20, 6), 1);
+});
+
+test("iso perspective: the nearest ground corner is drawn persp larger than the farthest, the middle is 1", () => {
+  const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
+  const k = [[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoDepthScale(s.basis, x, y, 0));
+  assert.ok(Math.abs(Math.max(...k) / Math.min(...k) - (1 + L.ISO.persp)) < 1e-9);
+  assert.ok(Math.abs(L.isoDepthScale(s.basis, vw / 2, vh / 2, 0) - 1) < 1e-9);
+  assert.deepEqual(plain(L.isoPoint(s, vw / 2, vh / 2, 0)), [s.ox, s.oy]);
+});
+
+test("iso perspective: nearer things are larger, a far-near pair of equal rects projects unequal", () => {
+  const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
+  const w = (x, y) => { const a = L.isoPoint(s, x, y, 0), b = L.isoPoint(s, x + 10, y, 0); return Math.hypot(b[0] - a[0], b[1] - a[1]); };
+  assert.ok(w(vw - 20, vh - 20) > w(10, 10) * 1.08);
+});
+
+test("iso perspective: figures grow with depth in steps of 0.05, never below the flat scale by more than the strength", () => {
+  const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
+  const far = L.isoFigure(s, [10, 10], 0).k, near = L.isoFigure(s, [vw - 20, vh - 20], 0).k;
+  assert.ok(near > far);
+  [far, near].forEach((k) => assert.ok(Math.abs(k / 0.05 - Math.round(k / 0.05)) < 1e-6, String(k)));
+  assert.ok(far >= s.figScale * (1 - L.ISO.persp) && near <= s.figScale * (1 + L.ISO.persp));
+});
+
+test("iso perspective: the scene still holds every corner and the walls of every room, the fitted view shows all rooms", () => {
+  const s = L.isoScene(isoLayout), c = plain(L.isoContentRect(s, isoLayout));
+  isoLayout.rooms.forEach((room) => {
+    const [x, y, w, h] = room.rect;
+    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => [0, L.ISO.wallH].forEach((hh) => {
+      const p = L.isoPoint(s, px, py, hh);
+      assert.ok(isoInside(p, s.W, s.H));
+      assert.ok(p[0] >= c[0] && p[0] <= c[0] + c[2] && p[1] >= c[1] && p[1] <= c[1] + c[3], room.id);
+    }));
+  });
+});
+
+// --- the 3D world and the phone rest view (T-131) ---
+
+test("iso: the content rect holds both signs and every projected room, padded", () => {
+  const s = L.isoScene(isoLayout), c = plain(L.isoContentRect(s, isoLayout));
+  const inside = (x, y) => x >= c[0] && x <= c[0] + c[2] && y >= c[1] && y <= c[1] + c[3];
+  ["board", "gate"].forEach((k) => {
+    const b = L.isoSignBox(s, isoLayout, k);
+    assert.ok(inside(b[0], b[1]) && inside(b[0] + b[2], b[1] + b[3]), k);
+  });
+  isoLayout.rooms.forEach((room) => {
+    const [x, y, w, h] = room.rect;
+    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => {
+      const p = L.isoPoint(s, px, py, 0);
+      assert.ok(inside(p[0], p[1]), `${room.id} corner ${px},${py}`);
+    });
+  });
+  assert.ok(c[2] < s.W, "narrower than the whole scene, so a phone zooms in on it");
+  assert.ok(c[0] >= -1 && c[1] >= -1 && c[0] + c[2] <= s.W + 1 && c[1] + c[3] <= s.H + 1, "stays on the scene");
+});
+
+test("restView: a portrait phone fits the content's width; both signs and all rooms stay in view at >= 0.55 px per unit", () => {
+  const s = L.isoScene(isoLayout), content = plain(L.isoContentRect(s, isoLayout));
+  const vw = 380, vh = 740, bounds = L.fitBounds(vw, vh, s.W, s.H, {});
+  const v = plain(L.restView(bounds, s.W, s.H, vw, vh, content));
+  assert.ok(vw / v.w >= 0.55, `scale ${vw / v.w}`);
+  assert.ok(v.x <= content[0] + 0.5 && v.x + v.w >= content[0] + content[2] - 0.5, "content width fits");
+  assert.ok(v.y <= content[1] + 0.5 && v.y + v.h >= content[1] + content[3] - 0.5, "content height fits");
+  assert.ok(L.sameView(v, L.phoneRestView(bounds, vw, vh, content)));
+  assert.ok(L.isZoomed(v, bounds));
+  // other screens keep today's rules
+  const desk = L.fitBounds(1440, 900, s.W, s.H, {});
+  assert.deepEqual(plain(L.restView(desk, s.W, s.H, 1440, 900, content)), plain(L.wholeView(desk)));
+  const land = L.fitBounds(844, 390, s.W, s.H, {});
+  assert.deepEqual(plain(L.restView(land, s.W, s.H, 844, 390, content)), plain(L.restView(land, s.W, s.H, 844, 390)));
+  assert.equal(L.phoneRestView(bounds, vw, vh, null), null);
+  assert.equal(L.phoneRestView(land, 844, 390, content), null);
+});
+
+test("phoneRestView: with a top inset the content starts below it (the title never sits under the HUD)", () => {
+  const s = L.isoScene(isoLayout), content = plain(L.isoContentRect(s, isoLayout));
+  const vw = 390, vh = 844, ins = { top: 190, bottom: 70 };
+  const bounds = L.fitBounds(vw, vh, s.W, s.H, ins);
+  const v = L.phoneRestView(bounds, vw, vh, content, ins), sc = vw / v.w;
+  assert.ok((content[1] - v.y) * sc >= ins.top - 1, `content top at ${(content[1] - v.y) * sc} px`);
+});
+
+test("app-iso: listed in the page with the asset version, builds with textContent only, falls back without WebGL", () => {
+  assert.ok(pageFile.includes("static/js/app-iso.js?v=__ASSET_VERSION__"));
+  assert.ok(pageFile.indexOf("static/js/app-iso.js") > pageFile.indexOf("static/vendor/three.min.js"));
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.ok(!src.includes("innerHTML"));
+  assert.match(src, /shadow\.camera\.far = 1600;\s*sun\.shadow\.camera\.updateProjectionMatrix\(\)/, "three does not refresh the shadow frustum itself (T-136)");
+  assert.ok(!src.includes("shadow.radius"), "radius is ignored by PCFSoftShadowMap");
+  for (const k of ["isoBuild(", "isoDispose(", "isoSync(", "isoLoop(", "document.hidden", "webglcontextlost", "webglcontextrestored",
+    "shadowMap.autoUpdate = false", "PCFSoftShadowMap", "antialias: true", "LinearFilter", "Math.min(window.devicePixelRatio || 1, ISO_PIXEL_RATIO_MAX, ISO_QUALITY[isoQuality.level].px)", "isoAvailable()"]) assert.ok(src.includes(k), k);
+  const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
+  assert.ok(scene.indexOf("isoBuild(") < scene.indexOf('svgEl(host, "svg"'), "the canvas goes under the svg");
+  const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
+  assert.match(src, /function isoActive\(\) \{\s*return !!iso3 && !iso3\.lost;/);
+  assert.match(src, /webglcontextlost[\s\S]*?iso3 !== me[\s\S]*?drawBase\(app\.layers\.base/);
+  assert.ok(src.includes("forceContextLoss()"));
+  assert.match(draw, /function drawBase[\s\S]*?if \(isoActive\(\)\) return;/);
+  assert.match(draw, /function drawGround[\s\S]*?if \(isoActive\(\)\) return;/);
+  assert.match(fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8"), /function applyView\(\)[\s\S]*?isoSync\(\)/);
+  assert.match(pageFile, /#scene \.iso-canvas \{[^}]*pointer-events: none;/);
+});
+
+// --- beds, people and the meadow in the isometric view (T-133) ---
+
+const allIsoBeds = () => isoLayout.rooms.flatMap((r) => r.beds.map((b) => ({ room: r, bed: b })));
+
+test("iso beds: every bed has a tap polygon that holds its furniture and sprites, and separate beds never overlap", () => {
+  const s = L.isoScene(isoLayout), hits = plain(L.isoBedHits(s, isoLayout));
+  const beds = allIsoBeds();
+  assert.equal(Object.keys(hits).length, beds.length);
+  beds.forEach(({ bed }) => {
+    const hit = hits[bed.id], shape = plain(L.isoBedShape(s, bed));
+    shape.forEach((p) => assert.ok(L.isoPointIn(hit, p), `${bed.id}: the shape is inside its hit polygon`));
+    beds.forEach((o) => {      // shapes that overlap by themselves (neighbouring sprites) share their area, the nearer bed wins
+      if (o.bed !== bed && !L.isoPolysOverlap(shape, L.isoBedShape(s, o.bed))) assert.ok(!L.isoPolysOverlap(hit, hits[o.bed.id]), `${bed.id} overlaps ${o.bed.id}`);
+    });
+  });
+});
+
+test("iso beds: a bed's own furniture and figures always hit that bed, never a neighbour (T-133 bug 1)", () => {
+  const s = L.isoScene(isoLayout), regions = L.isoHitRegions(s, isoLayout);
+  allIsoBeds().forEach(({ bed }) => {
+    const r = bed.rect, top = L.ISO_BED_TOP[bed.kind] === undefined ? 6 : L.ISO_BED_TOP[bed.kind];
+    assert.equal(L.isoHitAt(regions, L.isoPoint(s, r[0] + r[2] / 2, r[1] + r[3] / 2, top)), bed.id, `${bed.id}: furniture centre`);
+    bed.slots.forEach((slot, i) => {
+      const pos = L.figurePosition(bed, i), f = L.isoFigure(s, pos, L.isoSlotHeight(bed, i));
+      assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 11 * f.k]), bed.id, `${slot}: figure feet`);
+      assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 6 * f.k]), bed.id, `${slot}: figure body`);
+    });
+  });
+});
+
+test("iso beds: the smallest tap polygon at the rest view is known (crowded cots stay small)", () => {
+  const s = L.isoScene(isoLayout), hits = plain(L.isoBedHits(s, isoLayout)), k = 0.67;
+  const sizes = Object.values(hits).map((h) => L.polyBox(h)).map((b) => Math.min(b[2], b[3]) * k);
+  const min = Math.min(...sizes);
+  assert.ok(min >= 20, "smallest side " + min + " px; the dev log of T-133 reports the gap to 44 px");
+});
+
+test("iso beds: a bunk draws its bottom berth, then the rail, then the top berth; others go back to front", () => {
+  const s = L.isoScene(isoLayout), bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed;
+  assert.deepEqual(plain(L.isoSlotOrder(s, bunk)), [1, 0]);
+  assert.equal(L.isoBunkRail(s, bunk).length, 2);
+  const two = allIsoBeds().find((e) => e.bed.kind === "bed2").bed, order = plain(L.isoSlotOrder(s, two));
+  const v = (i) => { const p = L.figurePosition(two, i); return L.isoPoint(s, p[0] + 5, p[1] + 7, L.isoSlotHeight(two, i))[1]; };
+  assert.ok(v(order[0]) <= v(order[1]));
+  const list = plain(L.isoBedsBackToFront(s, isoLayout));
+  for (let i = 1; i < list.length; i++) assert.ok(list[i - 1].v <= list[i].v);
+  assert.equal(list.length, allIsoBeds().length);
+});
+
+test("iso beds: a top berth figure stands 18 units higher than the bottom one", () => {
+  const s = L.isoScene(isoLayout, { ...L.ISO, persp: 0 }), bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed;
+  const top = L.isoFigure(s, [10, 10], L.isoSlotHeight(bunk, 0)), bottom = L.isoFigure(s, [10, 10], L.isoSlotHeight(bunk, 1));
+  assert.ok(Math.abs((bottom.y - top.y) - 18 * Math.cos(Math.PI / 6)) < 1e-9);
+});
+
+test("iso beds: quilt colours exist for every bed kind", () => {
+  ["bed2", "bed1", "bunk", "cot", "mats", "stove", "sofa", "sofa1"].forEach((k) => assert.ok(L.isoQuiltKey(k)));
+  assert.equal(L.isoQuiltKey("mats"), "mat");
+  assert.equal(L.isoQuiltKey("stove"), "stoveBlanket");
+});
+
+test("iso beds: bed tags sit under the front corner of the furniture, one per mat", () => {
+  const s = L.isoScene(isoLayout), mats = allIsoBeds().find((e) => e.bed.kind === "mats").bed;
+  const tags = plain(L.isoBedTags(s, mats));
+  assert.equal(tags.length, mats.slots.length);
+  assert.ok(tags[0].x < tags[1].x || tags[0].x !== tags[1].x);
+  const one = allIsoBeds().find((e) => e.bed.kind === "bed2").bed, t = plain(L.isoBedTags(s, one))[0];
+  const lowest = Math.max(...L.isoBoxOutline(s, one.rect, 0, 0).map((p) => p[1]));
+  assert.equal(t.y, lowest + 2);
+});
+
+test("iso plates: overlapping room plates move the farther one up by the overlap", () => {
+  assert.deepEqual(plain(L.isoPlateShifts([[0, 0, 20, 10], [100, 0, 20, 10]])), [0, 0]);
+  const dy = plain(L.isoPlateShifts([[0, 0, 20, 10], [10, 4, 20, 10]]));      // the second is nearer (lower)
+  assert.deepEqual(dy, [-6, 0]);
+});
+
+test("iso walk: the height is 0 on the floor and climbs smoothly onto the bed over the last 160 or 480 ms", () => {
+  assert.equal(L.isoWalkHeight(0, 3000, 7), 0);
+  assert.equal(L.isoWalkHeight(2000, 3000, 7), 0);
+  assert.equal(L.isoWalkHeight(3000, 3000, 7), 7);
+  assert.equal(L.isoWalkHeight(2840, 3000, 7), 0);
+  near(L.isoWalkHeight(2880, 3000, 7), 2);      // 4 units per 80 ms
+  near(L.isoWalkHeight(2940, 3000, 7), 5);
+  assert.equal(L.isoWalkHeight(2999, 3000, 23), 23);
+  near(L.isoWalkHeight(2680, 3000, 23), 8);
+  assert.equal(L.isoWalkHeight(2999, 3000, 0), 0);
+});
+
+test("iso walk: the figure is rounded to whole scene units and ends on the bed figure", () => {
+  const s = L.isoScene(isoLayout), from = [112, 453], to = [60, 200];
+  const start = plain(L.isoWalkFigure(s, from, to, 0, 0)), mid = plain(L.isoWalkFigure(s, from, to, 0.37, 0)), end = plain(L.isoWalkFigure(s, from, to, 1, 7));
+  [start, mid, end].forEach((f) => { assert.equal(f.x, Math.round(f.x)); assert.equal(f.y, Math.round(f.y)); });
+  const target = L.isoFigure(s, to, 7);
+  assert.equal(end.x, Math.round(target.x));
+  assert.equal(end.y, Math.round(target.y));
+});
+
+test("iso meadow: the tap polygon covers the waiting figures and misses every bed polygon", () => {
+  const s = L.isoScene(isoLayout), meadow = isoLayout.map.scene.meadow, hit = plain(L.isoMeadowHit(s, isoLayout, meadow, 3));
+  L.meadowLayout(meadow, 3).cells.forEach((c) => L.isoSpritePoints(s, c, 0).forEach((p) => assert.ok(L.isoPointIn(hit, p))));
+  allIsoBeds().forEach(({ bed }) => assert.ok(!L.isoPolysOverlap(hit, L.isoBedShape(s, bed)), "meadow touches " + bed.id));
+});
+
+test("iso beds: the page draws beds as polygons with the old classes and the quilt only under the night class", () => {
+  assert.match(appSource, /isoBedsBackToFront\(app\.iso, layout\)/);
+  assert.match(appSource, /transform: isoFigureTransform\(isoFigure\(sc, figurePosition\(bed, i\), isoSlotHeight\(bed, i\)\)\)/);
+  assert.match(pageFile, /#scene svg\.night \.quilt \{ display: inline; \}/);
+  assert.match(pageFile, /#scene svg \.zzz, #scene svg \.quilt \{ display: none; \}/);
+  assert.match(appSource, /rustleTree\(\); isoRustle\(\)/);
+});
+
+test("the svg's `night` class is not caught by the panel's .night rule (it would shrink the svg and drift it from the 3D world)", () => {
+  const rules = [...pageFile.matchAll(/(^|[\s,}])([^{}\n]*)\{[^}]*\}/g)].map((m) => m[2]);
+  const bare = rules.filter((sel) => sel.split(",").some((s) => /(^|\s)\.night(\.|\s|$)/.test(s.trim()) && !/^(#scene\s+)?svg|section/.test(s.trim())));
+  assert.deepEqual(bare, []);
+});
+
+// --- T-137: roofs and houses that open ---
+
+const roofRooms = (house) => house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+
+test("roofs: one gable over a house whose rooms fill the outline, one per room otherwise; ridge on the longer side", () => {
+  isoLayout.houses.forEach((house) => {
+    const roofs = L.isoRoofs(roofRooms(house), isoHouseOutline(house));
+    const o = isoHouseOutline(house), ov = L.ISO_ROOF.overhang;
+    assert.equal(roofs.length, 1, house.id);
+    assert.deepEqual(plain([roofs[0].x, roofs[0].y, roofs[0].w, roofs[0].d]), [o[0] - ov, o[1] - ov, o[2] + 2 * ov, o[3] + 2 * ov]);
+    assert.equal(roofs[0].along, o[2] >= o[3] ? "x" : "y");
+    assert.equal(roofs[0].h0, L.ISO.wallH);
+    assert.ok(Math.abs(roofs[0].h1 - (L.ISO.wallH + 0.35 * Math.min(o[2], o[3]))) < 1e-9);
+    assert.ok(roofs[0].h1 <= L.ISO.headroom, "the roof fits the headroom of the scene: " + house.id);
+  });
+  const l = [{ rect: [0, 0, 100, 40] }, { rect: [0, 40, 40, 60] }];      // an L: the box is not filled
+  const roofs = L.isoRoofs(l, [0, 0, 100, 100]);
+  assert.equal(roofs.length, 2);
+  assert.deepEqual(plain(roofs.map((r) => r.along)), ["x", "y"]);
+  assert.equal(roofs[0].h0, roofs[1].h0);
+});
+
+test("roofs: height over a point rises to the ridge, is 0 outside, and the chimney ends above the roof at its place", () => {
+  const roofs = L.isoRoofs([{ rect: [0, 0, 100, 40] }], [0, 0, 100, 40]);
+  const r = roofs[0];
+  assert.equal(L.isoRoofHeightAt(roofs, 50, 20), r.h1);
+  assert.equal(L.isoRoofHeightAt(roofs, 50, -4), r.h0);
+  assert.equal(L.isoRoofHeightAt(roofs, 200, 20), 0);
+  assert.ok(L.isoRoofHeightAt(roofs, 50, 8) < L.isoRoofHeightAt(roofs, 50, 14));
+  assert.equal(L.isoRoofTop(roofs), r.h1);
+  isoLayout.houses.forEach((house) => {
+    const rs = L.isoRoofs(roofRooms(house), isoHouseOutline(house)), o = isoHouseOutline(house);
+    assert.ok(house.chimney >= o[0] && house.chimney + 6 <= o[0] + o[2], "chimney inside the house width: " + house.id);
+    assert.ok(L.isoChimneyTop(rs, house.chimney) > L.ISO.wallH + 6 && L.isoChimneyTop(rs, house.chimney) <= L.ISO.headroom);
+  });
+});
+
+test("houses open: six steps, the roof lifts then goes, the front walls sink last", () => {
+  const f = Array.from({ length: 7 }, (_, s) => L.isoOpenFrame(s));
+  assert.deepEqual(plain(f.slice(0, 4).map((x) => x.lift)), [0, 6, 14, 26]);
+  assert.deepEqual(plain(f.map((x) => x.roof)), [true, true, true, true, false, false, false]);
+  assert.deepEqual(plain(f.map((x) => x.front)), ["closed", "closed", "closed", "closed", "closed", "mid", "open"]);
+  assert.deepEqual(plain(f.map((x) => x.svgOpen)), [false, false, false, false, true, true, true]);
+  assert.equal(L.isoOpenFrame(-3).roof, true);
+  assert.equal(L.isoOpenFrame(99).front, "open");
+  assert.equal(L.isoStepToward(0, 6), 1);
+  assert.equal(L.isoStepToward(6, 0), 5);
+  assert.equal(L.isoStepToward(3, 3), 3);
+  assert.equal(L.isoStepToward(0, 6, 0.27), 0.27);
+  assert.equal(L.isoStepToward(5.9, 6, 0.27), 6);      // never past the target
+  assert.equal(L.isoStepToward(0.1, 0, 0.27), 0);
+  near(L.isoOpenFrame(0.5).lift, 3);      // in between: smooth
+  near(L.isoOpenFrame(2.5).lift, 20);
+  near(L.isoOpenFrame(4.5).frontScale, 0.775);
+  assert.equal(L.isoOpenFrame(3.4).roof, true);
+  assert.equal(L.isoOpenFrame(3.6).roof, false);
+  assert.equal(L.isoOpenFrame(5.4).front, "mid");
+  assert.equal(L.isoOpenFrame(5.6).front, "open");
+});
+
+test("houses open: zoom 1.6x opens all, 1.15x closes all, in between nothing changes", () => {
+  assert.equal(L.isoZoomOpensAll(1, false), false);
+  assert.equal(L.isoZoomOpensAll(1.59, false), false);
+  assert.equal(L.isoZoomOpensAll(1.6, false), true);
+  assert.equal(L.isoZoomOpensAll(1.3, true), true);
+  assert.equal(L.isoZoomOpensAll(1.3, false), false);
+  assert.equal(L.isoZoomOpensAll(1.15, true), false);
+});
+
+test("houses open: the house view is centred on the house, no further out than rest and no further in than 2.5x", () => {
+  const bounds = { x: 0, y: 0, w: 400, h: 800 };
+  const v = L.isoHouseView(bounds, [100, 300, 100, 80], 8, 1, 2.5);
+  assert.ok(v.w >= 100 + 16 - 1e-6 && v.w <= 400 / 1 + 1e-6);
+  assert.ok(Math.abs(v.h / v.w - 2) < 1e-6, "the aspect of the bounds");
+  assert.ok(Math.abs(v.x + v.w / 2 - 150) < 1e-6 && Math.abs(v.y + v.h / 2 - 340) < 1e-6);
+  assert.ok(Math.abs(400 / v.w - 2.5) < 1e-6, "a small house stops at the maximum zoom");
+  const big = L.isoHouseView(bounds, [0, 0, 400, 300], 8, 1.2, 2.5);
+  assert.ok(Math.abs(400 / big.w - 1.2) < 1e-6, "a big house never zooms out past the rest view");
+});
+
+test("houses open: the ridge sign counts the free places of the house on a night", () => {
+  assert.equal(L.houseSignText(3), "voľné: 3");
+  assert.equal(L.houseSignText(0), "plno");
+  const rs = [{ beds: [{ slots: ["a", "b"] }, { slots: ["c"] }] }];
+  const st = { layout: { rooms: rs }, sleeping: { [THU]: { a: "p-1" } }, parties: [{ id: "p-1", name: "A", adults: 1, kids: 0, kids_in_parents_bed: 0, arrive: THU, leave: FRI }] };
+  assert.deepEqual(plain(L.houseFree(st, rs, THU)), { free: 2, total: 3 });
+  assert.deepEqual(plain(L.houseFree(st, rs, FRI)), { free: 3, total: 3 });
+  const lay = { rooms: [{ id: "a" }, { id: "b" }, { id: "c" }], houses: [{ id: "h", rooms: ["a", "b"], chimney: 1 }] };
+  assert.deepEqual(plain(L.isoHouseList(lay).map((h) => [h.id, h.rooms])), [["h", ["a", "b"]], ["c", ["c"]]]);
+  assert.equal(L.isoWallKey({ x: 1, y: 2, w: 3, d: 4, h0: 0, h: 28 }), L.isoWallKey({ x: 1, y: 2, w: 3, d: 4, h0: 0, h: 6 }));
+});
+
+test("houses open: the page hides beds of closed houses and taps open them; no hardcoded geometry", () => {
+  assert.match(appSource, /!roomClosed\(layout, rooms\[r\.bed\]\.room\.id\)/);
+  assert.match(appSource, /housesZoomRule\(\);/);
+  assert.match(appSource, /openHouse\(e\.house\.id, true\)/);
+  assert.match(pageFile, /static\/js\/logic-iso-roof\.js\?v=__ASSET_VERSION__/);
+  assert.match(pageFile, /static\/js\/app-houses\.js\?v=__ASSET_VERSION__/);
+});
+
+// --- people as 3D dolls (T-138, logic-iso-people.js) ---
+
+test("dolls: layout by pose, kid smaller, nothing under the floor, the letter sits on the chest or the quilt", () => {
+  for (const pose of ["stand", "sit", "lie"]) {
+    const adult = L.isoFigureLayout("adult", pose), kid = L.isoFigureLayout("kid", pose);
+    assert.equal(adult.parts.length, kid.parts.length);
+    adult.parts.forEach((p) => assert.ok(p.y >= 0 && p.w > 0 && p.h > 0 && p.d > 0, pose + " " + p.c));
+    kid.parts.forEach((p, i) => assert.ok(Math.abs(p.h - adult.parts[i].h * 0.72) < 1e-9));
+  }
+  const top = (lay) => Math.max(...lay.parts.map((p) => p.y + p.h));
+  assert.ok(top(L.isoFigureLayout("adult", "stand")) > top(L.isoFigureLayout("adult", "sit")), "standing is taller than sitting");
+  assert.ok(top(L.isoFigureLayout("adult", "lie")) < 5, "lying is low");
+  assert.deepEqual(L.isoFigureLayout("adult", "stand").parts.filter((p) => p.c === "legs").length, 1);
+  assert.equal(L.isoFigureLayout("adult", "sit").parts.filter((p) => p.c === "legs").length, 0, "legs are under the quilt when sitting");
+  assert.equal(L.isoFigureLayout("adult", "lie").parts.filter((p) => p.c === "quilt").length, 1);
+  assert.equal(L.isoFigureLayout("adult", "lie").letter.flat, true);
+  assert.equal(L.isoFigureLayout("adult", "sit").letter.flat, false);
+  const lie = L.isoFigureLayout("adult", "lie").parts;       // the head is north (smaller z) of the quilt
+  assert.ok(lie.find((p) => p.c === "skin").z < lie.find((p) => p.c === "quilt").z);
+});
+
+test("dolls: colours, sit scale under a bunk berth, pop, fade and the other tick steps", () => {
+  const c = L.isoFigureColors("#808080");
+  assert.equal(c.body, "#808080");
+  assert.notEqual(c.legs, c.body);
+  assert.notEqual(c.quilt, c.body);
+  const bunk = { kind: "bunk" }, bed = { kind: "bed2" };
+  assert.equal(L.isoSitScale(bed, 1, "adult", 1.35), 1);
+  assert.equal(L.isoSitScale(bunk, 0, "adult", 3), 1, "the upper berth has room");
+  assert.equal(L.isoSitScale(bunk, 1, "adult", 3), 0.85, "a doll too tall for the lower berth shrinks");
+  assert.equal(L.isoSitScale(bunk, 1, "adult", 1.35), 1);
+  // pop: 0.4 up to 1.15 and down to 1 over 375 ms (the old three 125 ms frames), then 1
+  near(L.isoPopScale(0), 0.4);
+  near(L.isoPopScale(187.5), 1.15);
+  assert.ok(Math.abs(L.isoPopScale(374) - 1) < 0.01);
+  assert.equal(L.isoPopScale(375), 1);
+  assert.equal(L.isoPopScale(null), 1);
+  assert.ok(L.isoPopScale(60) > 0.4 && L.isoPopScale(60) < 1.15);
+  // shake: one unit right, one left and back over 250 ms
+  near(L.isoShakeOffset(0), 1);
+  near(L.isoShakeOffset(125), -1);
+  assert.equal(L.isoShakeOffset(250), 0);
+  // fade: the same 0.25 .. 1 in 375 ms, smooth in between
+  near(L.isoFadeAlpha(1, 0), 0.25);
+  near(L.isoFadeAlpha(1, 375), 1);
+  near(L.isoFadeAlpha(1, 500), 1);
+  near(L.isoFadeAlpha(-1, 0), 0.75);
+  near(L.isoFadeAlpha(-1, 375), 0);
+  near(L.isoFadeAlpha(1, 125), 0.5);
+  assert.ok(L.isoFadeAlpha(1, 40) > L.isoFadeAlpha(1, 20));
+  assert.equal(L.isoOpacityStep(0.6), 0.625);
+  // the lifted figure bobs between 3 and 4 units once per 250 ms
+  near(L.isoLiftOffset(0), 3);
+  near(L.isoLiftOffset(125), 4);
+  near(L.isoLiftOffset(250), 3);
+  // exactly one waiter of three hops for 250 ms at the start of each 4 s period, and none in between
+  for (let round = 0; round < 6; round++) {
+    const at = (t) => [0, 1, 2].map((i) => L.isoWaiterHop(round * 4000 + t, i, 3)).reduce((a, b) => a + b, 0);
+    near(at(125), 1);      // the top of the arc
+    assert.ok(at(60) > 0 && at(60) < 1);
+    assert.equal(at(250), 0);
+    assert.equal(at(2100), 0);
+  }
+  assert.equal(L.isoWaiterHop(0, 0, 0), 0);
+});
+
+test("dolls: the walk goes through the door of the house at a steady pace and ends exactly on the bed", () => {
+  const layout = { rooms: [{ id: "a", rect: [0, 0, 50, 50], beds: [{ id: "b1", slots: ["s1", "s2"] }] }, { id: "c", rect: [100, 0, 50, 50], beds: [{ id: "b2", slots: ["s3"] }] }],
+    houses: [{ id: "h1", rooms: ["a"] }, { id: "h2", rooms: ["c"] }], map: { doors: [[48, 20, 4, 10], [98, 20, 4, 10]] } };
+  assert.equal(L.isoBedOfSlot(layout, "s3").room.id, "c");
+  assert.equal(L.isoBedOfSlot(layout, "zz"), null);
+  assert.deepEqual(plain(L.isoWalkDoor(layout, layout.rooms[0], [200, 200])), [50, 25]);
+  assert.deepEqual(plain(L.isoWalkDoor(layout, layout.rooms[1], [0, 0])), [100, 25]);
+  assert.equal(L.isoWalkDoor({ rooms: layout.rooms, houses: layout.houses, map: {} }, layout.rooms[0], [0, 0]), null);
+  const pts = L.isoWalkPoints([200, 200], [50, 25], [10, 10]);
+  assert.deepEqual(plain(pts), [[200, 200], [45, 18], [10, 10]]);
+  const ms = 1600, first = L.isoWalkSample(pts, 0, ms), end = L.isoWalkSample(pts, ms, ms);
+  assert.deepEqual(plain(first.pos), [200, 200]);
+  assert.deepEqual(plain(end), { pos: [10, 10], bob: 0 });
+  let passed = false, maxStep = 0, prev = first.pos, bobMax = 0, bobMin = 1;
+  for (let t = 0; t < ms; t += 33) {
+    const s = L.isoWalkSample(pts, t, ms);
+    if (Math.abs(s.pos[0] - 45) <= 14 && Math.abs(s.pos[1] - 18) <= 14) passed = true;
+    maxStep = Math.max(maxStep, Math.hypot(s.pos[0] - prev[0], s.pos[1] - prev[1]));
+    bobMax = Math.max(bobMax, s.bob);
+    bobMin = Math.min(bobMin, s.bob);
+    prev = s.pos;
+  }
+  assert.ok(passed, "passes near the door");
+  assert.ok(maxStep < 25, "no jumps: " + maxStep);
+  assert.ok(bobMax > 0.9 && bobMin < 0.1, "bobs between 0 and 1");
+  near(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 750, 1600).pos[0], 4);
+  near(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 750, 1600).pos[1], 3);
+  near(L.isoWalkSample(L.isoWalkPoints([0, 0], null, [8, 6]), 250, 1600).bob, 0);
+});
+
+test("dolls: the page draws them in 3D, keeps the svg sprites as the fallback and lists the files", () => {
+  assert.match(pageFile, /static\/js\/logic-iso-people\.js\?v=__ASSET_VERSION__/);
+  assert.match(pageFile, /static\/js\/app-iso-people\.js\?v=__ASSET_VERSION__/);
+  assert.match(appSource, /isoPeopleBegin\(\);/);
+  assert.match(appSource, /isoPeopleEnd\(/);
+  assert.match(appSource, /drawFigure\(sg, 0, 0, color/, "the svg sprite stays for the no-WebGL fallback");
+  assert.match(appSource, /isoPeopleTick\(me\)/);
+});
+
+test("daynight: sunAt follows the stylized path and rests at the T-136 noon", () => {
+  const noon = L.sunAt(12);
+  near(noon.az, -20); near(noon.elev, 24); assert.equal(noon.moon, false);
+  const rise = L.sunAt(6 + 40 / 60), set = L.sunAt(16 + 40 / 60);
+  near(rise.az, 95); near(rise.elev, 6); near(set.az, -95); near(set.elev, 6);
+  near(L.sunAt(8).az, 70); near(L.sunAt(15).az, -60);
+  // east in the morning, west in the evening, never below 6 degrees while the sun is up
+  for (let h = 6.1; h < 17.3; h += 0.05) {
+    const s = L.sunAt(h);
+    if (!s.moon) assert.ok(s.elev >= 6 - 1e-9 && s.az >= -95 - 1e-9 && s.az <= 95 + 1e-9);
+  }
+  assert.ok(L.sunAt(7.5).az > 45 && L.sunAt(10).az < 45);
+  // holds the end keyframes in twilight, then the still moon takes over
+  near(L.sunAt(6.2).az, 95);
+  for (const h of [17.5, 22, 0, 3, 5.9, 24 + 22]) { const s = L.sunAt(h); assert.equal(s.moon, true); near(s.az, -40); near(s.elev, 40); }
+  assert.equal(L.lightAt(12).sun.moon, false);
+  assert.equal(L.lightAt(0).sun.moon, true);
+});
+
+test("iso: the sun moves in small steps (2 deg / 1 deg), once per tick, and not while still", () => {
+  assert.match(appSource, /function isoSunStep\(me\)/);
+  assert.match(appSource, /< 2 && Math\.abs\(want\.elev - got\.elev\) < 1/);
+  assert.match(appSource, /me\.sunClock === me\.clock/);
+  assert.match(appSource, /isoSunStep\(me\);\s*isoPeopleTick\(me\)/);
+});
+
+test("fps meter: off by default, ?fps=1 / ?fps=0, stats and text", () => {
+  assert.equal(L.fpsSetting("", null), false);
+  assert.equal(L.fpsSetting("?fps=1", null), true);
+  assert.equal(L.fpsSetting("?a=2&fps=1", null), true);
+  assert.equal(L.fpsSetting("?fps=0", "1"), false);
+  assert.equal(L.fpsSetting("", "1"), true);
+  assert.equal(L.fpsSetting("?fps=10", null), false);
+  const s = L.fpsStats([{ at: 0, ms: 50 }, { at: 1000, ms: 2 }, { at: 1500, ms: 4 }], 2500, 2000);
+  assert.equal(s.fps, 1);
+  assert.equal(s.ms, 3);
+  assert.equal(s.worst, 4);
+  assert.deepEqual(plain(L.fpsStats([], 100, 2000)), { fps: 0, ms: 0, worst: 0 });
+  assert.equal(L.fpsText({ fps: 7.6, ms: 3.21, worst: 9.06 }, 1.5), "3D 8 fps · cpu 3.2 ms (max 9.1) · px 1.5");
+  const st = { fps: 30, ms: 1.2, worst: 3.1 };
+  assert.equal(L.fpsText(st, 1.5, { ms: 2.04, calls: 140, tris: 52340 }), "3D 30 fps · cpu 1.2 ms (max 3.1) · gpu 2.0 ms · 140 calls · 52k tris · px 1.5");
+  assert.equal(L.fpsText(st, 1, { ms: null, calls: 9, tris: 800 }), "3D 30 fps · cpu 1.2 ms (max 3.1) · gpu ? · 9 calls · 800 tris · px 1");
+  const meter = fs.readFileSync(path.join(root, "static", "js", "app-fps.js"), "utf8");
+  assert.match(meter, /if \(!isoFps\.on\) return;/, "the meter is only built when switched on");
+  assert.match(html, /\.fps-meter \{[^}]*pointer-events: none;/);
+});
+
+// --- automatic quality and lighter geometry (T-142) ---
+
+function runQuality(state, ms, seconds) {
+  let changes = [];
+  for (let t = 0; t < seconds * 1000; t += ms) {
+    const r = L.isoQualityStep(state, ms);
+    state = r.state;
+    if (r.change) changes.push([Math.round(t), r.change, state.level]);
+  }
+  return { state, changes };
+}
+
+test("quality: slow frames for about 2 s step down, one level at a time, down to the last level", () => {
+  let r = runQuality(L.isoQualityStart(), 60, 1.9);
+  assert.equal(r.state.level, 0);
+  r = runQuality(L.isoQualityStart(), 60, 2.2);
+  assert.equal(r.state.level, 1);
+  r = runQuality(L.isoQualityStart(), 60, 30);
+  assert.equal(r.state.level, L.ISO_QUALITY.length - 1, "it stops at the lowest level");
+  assert.deepEqual(plain(L.ISO_QUALITY.map((q) => [q.px, q.soft])), [[1.5, true], [1.25, true], [1, true], [1, false]]);
+});
+
+test("quality: good frames and pauses do not step down, and a good frame breaks the slow streak", () => {
+  assert.equal(runQuality(L.isoQualityStart(), 33, 10).state.level, 0);
+  let s = L.isoQualityStart();
+  for (let i = 0; i < 100; i++) s = L.isoQualityStep(s, i % 10 === 9 ? 60 : 33).state;      // a slow frame now and then
+  assert.equal(s.level, 0);
+  s = L.isoQualityStart();
+  for (let i = 0; i < 100; i++) s = L.isoQualityStep(s, 5000).state;      // long pauses (hidden tab, idle) are not slowness
+  assert.equal(s.level, 0);
+  assert.equal(L.isoQualityStep(s, 0).change, 0);
+});
+
+test("quality: steps back up after a good stretch, tolerates a few slow frames, and a failed climb doubles the wait", () => {
+  let r = runQuality(L.isoQualityStart(), 60, 2.2);
+  assert.equal(r.state.level, 1);
+  assert.equal(r.state.upAfter, L.ISO_QUALITY_GOOD_MS, "a plain step down keeps the base wait");
+  assert.equal(runQuality(r.state, 33, 19).state.level, 1, "19 s of good frames is not enough");
+  const up = runQuality(r.state, 33, 21);
+  assert.equal(up.state.level, 0);
+  assert.deepEqual(plain(up.changes.map((c) => c[1])), [1]);
+  // slow again right away (within the probation of the climb): a failed climb, so the next one needs twice as long
+  const down = runQuality(up.state, 60, 2.2);
+  assert.equal(down.state.level, 1);
+  assert.equal(down.state.upAfter, 2 * L.ISO_QUALITY_GOOD_MS);
+  assert.equal(runQuality(down.state, 33, 39).state.level, 1);
+  const again = runQuality(down.state, 33, 41);
+  assert.equal(again.state.level, 0);
+  // a climb that holds for the probation resets the wait to the base
+  const held = runQuality(again.state, 33, L.ISO_QUALITY_GOOD_MS / 1000 + 1);
+  assert.equal(held.state.level, 0);
+  assert.equal(held.state.upAfter, L.ISO_QUALITY_GOOD_MS);
+  // a bounded wait: never more than 8x the base
+  let s = L.isoQualityStart();
+  for (let i = 0; i < 12; i++) { s = runQuality(s, 60, 2.2).state; s = runQuality(s, 33, 200).state; }
+  assert.ok(s.upAfter <= L.ISO_QUALITY_GOOD_MS * 8);
+});
+
+test("quality: a few slow frames in the stretch do not stop a step up, many do", () => {
+  const down = runQuality(L.isoQualityStart(), 60, 2.2).state;
+  const run = (state, slowEvery) => {
+    for (let t = 0, i = 0; t < 25000; i++) {
+      const ms = i % slowEvery === slowEvery - 1 ? 45 : 33;
+      t += ms;
+      state = L.isoQualityStep(state, ms).state;
+    }
+    return state;
+  };
+  assert.equal(run(down, 20).level, 0, "1 slow frame in 20 (5 %) still climbs");
+  assert.equal(run(down, 5).level, 1, "1 slow frame in 5 (20 %) does not");
+});
+
+test("quality: the meter shows the level; the loop feeds frame intervals only while things move", () => {
+  const st = { fps: 30, ms: 1, worst: 2 };
+  assert.equal(L.fpsText(st, 1, null, { level: 2, soft: true }), "3D 30 fps · cpu 1.0 ms (max 2.0) · px 1 · q2");
+  assert.equal(L.fpsText(st, 1, null, { level: 3, soft: false }), "3D 30 fps · cpu 1.0 ms (max 2.0) · px 1 · q3 hard");
+  const iso = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.match(iso, /isoQualityFrame\(me, now, moving\)/);
+  assert.match(iso, /PCFShadowMap/);
+});
+
+test("static mesh: boxes drop faces another box covers, and the crown builds merged outside faces", () => {
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.match(src, /IsoBoxes\.prototype\.flush/);
+  assert.match(src, /greedy merge/);
+});
+
+// --- four view angles (T-143) ---
+
+const isoAngles = [45, 135, 225, 315];
+const isoSceneAt = (azimuth, extra = {}) => L.isoScene(isoLayout, { azimuth, ...extra });
+
+test("view angle: only 45, 135, 225 and 315 are valid, a stored string works, anything else is 45; turns wrap", () => {
+  assert.deepEqual(plain(L.ISO_ANGLES), isoAngles);
+  assert.equal(L.isoAngle("135"), 135);
+  assert.equal(L.isoAngle(315), 315);
+  [null, undefined, "", "abc", "90", 0, 46, "45.5", "-45", NaN].forEach((v) => assert.equal(L.isoAngle(v), 45, String(v)));
+  assert.equal(L.isoTurnAngle(45, 1), 135);
+  assert.equal(L.isoTurnAngle(315, 1), 45);
+  assert.equal(L.isoTurnAngle(45, -1), 315);
+  assert.equal(L.isoTurnAngle(135, -1), 45);
+  assert.equal(L.isoTurnAngle(225, 4), 225);
+  assert.equal(L.ISO.azimuth, 45, "the default view is unchanged");
+  assert.equal(L.isoScene(isoLayout).azimuth, 45);
+  assert.deepEqual(plain(L.isoScene(isoLayout)), plain(isoSceneAt(45)));
+});
+
+test("view angle: +90 turns the map clockwise on screen (the east edge of the plan goes from right-down to left-down)", () => {
+  const dir = (az) => { const s = isoSceneAt(az, { persp: 0 }); const a = L.isoPoint(s, 0, 0, 0), b = L.isoPoint(s, 100, 0, 0); return [b[0] - a[0], b[1] - a[1]]; };
+  const e45 = dir(45), e135 = dir(135);
+  assert.ok(e45[0] > 0 && e45[1] > 0, "at 45 the plan's x axis runs right and down");
+  assert.ok(e135[0] < 0 && e135[1] > 0, "at 135 it runs left and down (clockwise by a quarter)");
+});
+
+test("view angle: the back sides of a house are the two facing away from the camera", () => {
+  const sides = (az) => { const b = L.isoBackSides(az); return Object.keys(b).filter((k) => b[k]).sort().join(""); };
+  assert.equal(sides(45), "nw");
+  assert.equal(sides(135), "sw");
+  assert.equal(sides(225), "es");
+  assert.equal(sides(315), "en");
+});
+
+test("view angle: the sun and the roof colours turn with the view, so the bright side is the same on screen", () => {
+  assert.equal(L.isoSunAzimuth(-20, 45), -20);
+  assert.equal(L.isoSunAzimuth(-20, 135), 70);
+  assert.equal(L.isoSunAzimuth(95, 315), 365);
+  assert.deepEqual(plain(L.isoSunSlope(45)), { x: -1, y: 1 }, "south and west at the default view, as before");
+  isoAngles.forEach((az) => {
+    // the horizontal direction to the sun, seen on screen: its u component (left-right) has the same sign from every side
+    const s = isoSceneAt(az, { persp: 0 }), a = L.isoSunAzimuth(L.ISO_NOON_SUN_AZ, az) * Math.PI / 180;
+    const o = L.isoPoint(s, 100, 100, 0), t = L.isoPoint(s, 100 + 50 * Math.sin(a), 100 + 50 * Math.cos(a), 0);
+    const base = isoSceneAt(45, { persp: 0 }), a0 = L.ISO_NOON_SUN_AZ * Math.PI / 180;
+    const o0 = L.isoPoint(base, 100, 100, 0), t0 = L.isoPoint(base, 100 + 50 * Math.sin(a0), 100 + 50 * Math.cos(a0), 0);
+    assert.ok(Math.abs((t[0] - o[0]) - (t0[0] - o0[0])) < 1e-6 && Math.abs((t[1] - o[1]) - (t0[1] - o0[1])) < 1e-6, `${az}: same screen direction`);
+    // and the slope picked faces that direction: a slope normal (the sun slope's side) has a positive dot product with the sun direction
+    const sl = L.isoSunSlope(az);
+    assert.ok(Math.sin(a) * sl.x >= 0 && Math.cos(a) * sl.y >= 0, `${az}: sunny slope faces the sun`);
+  });
+});
+
+test("view angle: every angle holds all corners, tops, both signs and every room's walls in the scene and in the fitted view", () => {
+  const [vw, vh] = isoLayout.map.viewbox;
+  isoAngles.forEach((az) => {
+    const s = isoSceneAt(az), c = plain(L.isoContentRect(s, isoLayout));
+    [[0, 0], [vw, 0], [0, vh], [vw, vh]].forEach(([x, y]) => [0, L.ISO.headroom].forEach((h) => assert.ok(isoInside(L.isoPoint(s, x, y, h), s.W, s.H), `${az}: ${x},${y},${h}`)));
+    ["board", "gate"].forEach((k) => {
+      const b = L.isoSignBox(s, isoLayout, k);
+      assert.ok(b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= s.W && b[1] + b[3] <= s.H, `${az}: ${k} inside the scene`);
+      assert.ok(b[0] >= c[0] - 1 && b[0] + b[2] <= c[0] + c[2] + 1 && b[1] >= c[1] - 1 && b[1] + b[3] <= c[1] + c[3] + 1, `${az}: ${k} inside the fitted content`);
+    });
+    isoLayout.rooms.forEach((room) => {
+      const [x, y, w, h] = room.rect;
+      [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => [0, L.ISO.wallH].forEach((hh) => {
+        const p = L.isoPoint(s, px, py, hh);
+        assert.ok(isoInside(p, s.W, s.H) && p[0] >= c[0] && p[0] <= c[0] + c[2] && p[1] >= c[1] && p[1] <= c[1] + c[3], `${az}: ${room.id}`);
+      }));
+    });
+    assert.ok(c[2] < s.W, `${az}: narrower than the scene, so a phone zooms in on it`);
+  });
+});
+
+test("view angle: the tall outline walls follow the back sides, doors keep a lintel, and no wall stands over a bed", () => {
+  const O = L.ISO, beds = allIsoBeds();
+  isoAngles.forEach((az) => {
+    const back = L.isoBackSides(az), o = { ...O, azimuth: az };
+    isoLayout.houses.forEach((house) => {
+      const rooms = house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+      const outline = isoHouseOutline(house), walls = L.isoWalls(rooms, outline, isoLayout.map.doors, o);
+      assert.ok(walls.some((w) => w.tall), `${az} ${house.id}: has tall walls`);
+      walls.forEach((w) => {
+        const edge = { n: w.y === outline[1], s: w.y + w.d === outline[1] + outline[3], w: w.x === outline[0], e: w.x + w.w === outline[0] + outline[2] };
+        if (w.tall) {
+          assert.ok(back[w.side] && edge[w.side], `${az}: a tall ${w.side} wall is on a back side of the outline`);
+          assert.equal(w.h, O.wallH);
+        } else assert.equal(w.h, O.lowWall);
+        assert.ok(["n", "s", "w", "e"].includes(w.side));
+        beds.forEach(({ room, bed }) => assert.ok(!L.rectsOverlap([w.x, w.y, w.w, w.d], bed.rect), `${az}: ${room.id}/${bed.id}`));
+        if (w.tall && isoLayout.map.doors.some((d) => L.rectsOverlap([w.x, w.y, w.w, w.d], d))) assert.ok(w.h0 === 0 || w.h0 === O.doorH, "a piece over a door is a lintel");
+      });
+      // each room's outline edges on a back side are tall somewhere, those on a front side never
+      rooms.forEach((r) => {
+        const q = r.rect, onOutline = { n: q[1] === outline[1], s: q[1] + q[3] === outline[1] + outline[3], w: q[0] === outline[0], e: q[0] + q[2] === outline[0] + outline[2] };
+        ["n", "s", "w", "e"].forEach((side) => {
+          if (!onOutline[side] || !back[side]) assert.ok(!walls.some((w) => w.tall && w.side === side && L.rectsOverlap([w.x, w.y, w.w, w.d], q) && (side === "n" ? w.y === q[1] : side === "s" ? w.y + w.d === q[1] + q[3] : side === "w" ? w.x === q[0] : w.x + w.w === q[0] + q[2])), `${az} ${r.id}: no tall ${side} wall`);
+        });
+      });
+    });
+  });
+});
+
+test("view angle: every bed's furniture and figures hit that bed from every angle, and hit areas never overlap", () => {
+  isoAngles.forEach((az) => {
+    const s = isoSceneAt(az), hits = plain(L.isoBedHits(s, isoLayout)), regions = L.isoHitRegions(s, isoLayout), beds = allIsoBeds();
+    assert.equal(Object.keys(hits).length, beds.length);
+    beds.forEach(({ bed }) => {
+      const r = bed.rect, top = L.ISO_BED_TOP[bed.kind] === undefined ? 6 : L.ISO_BED_TOP[bed.kind];
+      assert.equal(L.isoHitAt(regions, L.isoPoint(s, r[0] + r[2] / 2, r[1] + r[3] / 2, top)), bed.id, `${az} ${bed.id}: furniture centre`);
+      bed.slots.forEach((slot, i) => {
+        const f = L.isoFigure(s, L.figurePosition(bed, i), L.isoSlotHeight(bed, i));
+        assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 11 * f.k]), bed.id, `${az} ${slot}: figure feet`);
+        assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 6 * f.k]), bed.id, `${az} ${slot}: figure body`);
+      });
+      const shape = plain(L.isoBedShape(s, bed));
+      shape.forEach((p) => assert.ok(L.isoPointIn(hits[bed.id], p), `${az} ${bed.id}: the shape is inside its hit polygon`));
+      beds.forEach((o) => {
+        if (o.bed !== bed && !L.isoPolysOverlap(shape, L.isoBedShape(s, o.bed))) assert.ok(!L.isoPolysOverlap(hits[bed.id], hits[o.bed.id]), `${az}: ${bed.id} overlaps ${o.bed.id}`);
+      });
+    });
+    const bunk = beds.find((e) => e.bed.kind === "bunk").bed;
+    assert.deepEqual(plain(L.isoSlotOrder(s, bunk)), [1, 0]);
+    assert.equal(L.isoBunkRail(s, bunk).length, 2);
+  });
+});
+
+test("view angle: the bunk rail lies on the two sides that face the camera", () => {
+  const bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed, r = bunk.rect;
+  const rail = (az) => plain(L.isoBunkRail(isoSceneAt(az), bunk).map((poly) => L.polyBox(poly)));
+  [[45, [r[0] + r[2] - 2, r[1] + r[3] - 2]], [135, [r[0] + r[2] - 2, r[1]]], [225, [r[0], r[1]]], [315, [r[0], r[1] + r[3] - 2]]].forEach(([az, [x, y]]) => {
+    const s = isoSceneAt(az), want = [[x, r[1], 2, r[3]], [r[0], y, r[2], 2]].map((q) => plain(L.polyBox(L.isoBoxOutline(s, q, L.ISO_BUNK_TOP - 2, L.ISO_BUNK_TOP))));
+    assert.deepEqual(rail(az), want, String(az));
+  });
+});
+
+test("view angle: isoUnpoint inverts isoPoint on the ground, with and without perspective", () => {
+  isoAngles.forEach((az) => [0, 0.12].forEach((persp) => {
+    const s = isoSceneAt(az, { persp });
+    [[10, 20], [200, 300], [370, 480], [90, 410]].forEach(([x, y]) => {
+      const p = L.isoPoint(s, x, y, 0), q = L.isoUnpoint(s, p[0], p[1]);
+      assert.ok(Math.abs(q[0] - x) < 1e-6 && Math.abs(q[1] - y) < 1e-6, `${az} ${persp}: ${x},${y} -> ${q}`);
+    });
+  }));
+});
+
+test("view angle: a turned map at rest lands on the new rest view; a zoomed one keeps its centre point and relative zoom", () => {
+  const vw = 380, vh = 740;
+  const prep = (az) => { const s = isoSceneAt(az), c = plain(L.isoContentRect(s, isoLayout)), b = L.fitBounds(vw, vh, s.W, s.H, {}); return { s, b, rest: plain(L.restView(b, s.W, s.H, vw, vh, c)) }; };
+  const a = prep(45), b = prep(135);
+  assert.deepEqual(plain(L.isoTurnView(a.s, b.s, a.rest, a.rest, b.rest, b.b)), b.rest);
+  assert.deepEqual(plain(L.isoTurnView(a.s, b.s, null, a.rest, b.rest, b.b)), b.rest);
+  // zoomed 2x on the plan point (250, 300)
+  const c = L.isoPoint(a.s, 250, 300, 0), w = a.rest.w / 2, h = a.rest.h / 2;
+  const zoomed = { x: c[0] - w / 2, y: c[1] - h / 2, w, h };
+  isoAngles.slice(1).forEach((az) => {
+    const t = prep(az), v = plain(L.isoTurnView(a.s, t.s, zoomed, a.rest, t.rest, t.b));
+    assert.ok(Math.abs(v.w - t.rest.w / 2) < 1e-6, `${az}: same zoom relative to the rest`);
+    const p = L.isoUnpoint(t.s, v.x + v.w / 2, v.y + v.h / 2);
+    assert.ok(Math.abs(p[0] - 250) < 1.5 && Math.abs(p[1] - 300) < 1.5, `${az}: the plan point stays in the middle (${p})`);
+  });
+});
+
+test("view angle: the page keeps the angle in storage, rebuilds on a change and lists app-turn.js", () => {
+  const read = (f) => fs.readFileSync(path.join(root, "static", "js", f), "utf8");
+  assert.ok(pageFile.includes("static/js/app-turn.js?v=__ASSET_VERSION__"));
+  assert.ok(read("app-core.js").includes('angle: "cabin-view-angle"'));
+  assert.match(read("app-core.js"), /viewAngle: isoAngle\(storage\.get\(KEYS\.angle\)\)/);
+  assert.match(read("app-scene.js"), /layout\.houses, app\.viewAngle\]/, "the angle is part of the layout key");
+  assert.match(read("app-scene.js"), /isoScene\(layout, \{ azimuth: app\.viewAngle \}\)/);
+  assert.ok(!read("app-turn.js").includes("innerHTML"));
+  assert.match(read("app-turn.js"), /storage\.set\(KEYS\.angle/);
+});
+
+// T-143: the tap regions of the closed houses follow the visible silhouette and the order of the angle.
+test("iso houses: at every angle a visible point of a closed house resolves to that house", () => {
+  const houses = L.isoHouseList(isoLayout).map((h) => {
+    const rooms = isoLayout.rooms.filter((r) => h.rooms.includes(r.id));
+    return { id: h.id, rooms, outline: L.houseOutline(h, isoLayout.rooms), roofs: null };
+  });
+  houses.forEach((h) => { h.roofs = L.isoRoofs(h.rooms, h.outline); });
+  const inRect = (r, x, y) => x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3];
+  // is the 3D point (x, y, z) inside the solid of house h (walls up to the eaves, roof over them)
+  const solid = (h, x, y, z) => h.rooms.some((r) => inRect(r.rect, x, y) && z <= L.ISO.wallH) || (z > L.ISO.wallH && z <= L.isoRoofHeightAt(h.roofs, x, y));
+  let checked = 0;
+  [45, 135, 225, 315].forEach((az) => {
+    const s = isoSceneAt(az, { persp: 0 }), a = az * Math.PI / 180;
+    const order = L.isoHouseOrder(s, houses);
+    const polys = {};
+    houses.forEach((h) => { polys[h.id] = L.isoHouseSilhouette(s, h.rooms, h.outline); });
+    const resolve = (p) => { let hit = null; order.forEach((h) => { if (polys[h.id].some((q) => L.isoPointIn(q, p))) hit = h.id; }); return hit; };
+    houses.forEach((h) => {
+      // sample the top surface of the roofs and the tops of the walls
+      const pts = [];
+      h.roofs.forEach((r) => {
+        for (let i = 0; i <= 12; i++) for (let j = 0; j <= 12; j++) {
+          const x = r.x + r.w * i / 12, y = r.y + r.d * j / 12;
+          pts.push([x, y, L.isoRoofHeightAt([r], x, y)]);
+        }
+      });
+      h.rooms.forEach((r) => {
+        for (let i = 1; i < 12; i++) for (let j = 1; j < 12; j++) pts.push([r.rect[0] + r.rect[2] * i / 12, r.rect[1] + r.rect[3] * j / 12, L.ISO.wallH]);
+      });
+      pts.forEach(([x, y, z]) => {
+        if (z <= 0) return;
+        // hidden when a solid of another house stands on the ray to the camera
+        const hidden = houses.some((o) => o !== h && (() => { for (let t = 0.5; t < 400; t += 0.5) if (solid(o, x + t * Math.sin(a), y + t * Math.cos(a), z + t * Math.tan(30 * Math.PI / 180))) return true; return false; })());
+        if (hidden) return;
+        const sp = L.isoPoint(s, x, y, z);
+        assert.equal(resolve([sp[0], sp[1]]), h.id, `${az} ${h.id}: visible point (${x.toFixed(0)}, ${y.toFixed(0)}, ${z.toFixed(0)}) resolves to its house`);
+        checked++;
+      });
+    });
+  });
+  assert.ok(checked > 1000, "enough points were checked");
+});
+
+test("turn swing: the azimuth eases from the start angle to the target through the shortest, unwrapped way", () => {
+  assert.equal(L.isoEase(0), 0);
+  assert.equal(L.isoEase(1), 1);
+  assert.equal(L.isoEase(0.5), 0.5);
+  assert.ok(L.isoEase(0.1) < 0.1 && L.isoEase(0.9) > 0.9, "ease-in-out");
+  assert.equal(L.isoSwingAzimuth(45, 1, 0), 45);
+  assert.equal(L.isoSwingAzimuth(45, 1, 1), 135);
+  assert.equal(L.isoSwingAzimuth(45, -1, 1), -45);
+  assert.equal(L.isoSwingAzimuth(315, 1, 1), 405);
+  assert.equal(L.isoSwingAzimuth(135, 2, 0.5), 225);
+});
+
+test("turn swing: the in-between view equals the old view at the start, and a map at rest stays inside the scene", () => {
+  const vw = 380, vh = 740, s = isoSceneAt(45), c = plain(L.isoContentRect(s, isoLayout));
+  const b = L.fitBounds(vw, vh, s.W, s.H, {}), rest = plain(L.restView(b, s.W, s.H, vw, vh, c));
+  const same = plain(L.isoSwingView(s, s, rest, isoLayout));
+  ["x", "y", "w", "h"].forEach((k) => assert.ok(Math.abs(same[k] - rest[k]) < 1e-6, k));
+  const mid = plain(L.isoSwingView(s, isoSceneAt(90), rest, isoLayout));
+  assert.ok(mid.w > 0 && mid.h > 0 && Math.abs(mid.w / mid.h - rest.w / rest.h) < 1e-6);
+});
+
+test("turn buttons: the page has the pair, its texts, the keys and the reduced-motion switch", () => {
+  const turn = fs.readFileSync(path.join(root, "static", "js", "app-turn.js"), "utf8");
+  assert.ok(pageFile.includes('id="turnBar"') && pageFile.includes('id="turnStatus"'));
+  assert.ok(turn.includes("Otočiť mapu doľava") && turn.includes("Otočiť mapu doprava"));
+  assert.ok(turn.includes('"q"') && turn.includes('"e"'));
+  assert.ok(/prefersReducedMotion\(\)[^]*turnViewAngle\(steps\)/.test(turn), "reduced motion turns at once");
+  assert.ok(pageFile.includes(".zoom-reset.above"), "„Celá mapa“ moves up one row");
+});
+
+test("view angle: the screen reader text uses the right Slovak preposition for all four angles", () => {
+  assert.equal(L.isoAngleText(45), "Pohľad z juhovýchodu");
+  assert.equal(L.isoAngleText(135), "Pohľad zo severovýchodu");
+  assert.equal(L.isoAngleText(225), "Pohľad zo severozápadu");
+  assert.equal(L.isoAngleText(315), "Pohľad z juhozápadu");
+});
+
+// --- the notice board in the village and its panel (T-146) ---
+
+test("boardPick: the first rows, but my party always makes it into the list", () => {
+  const rows = ["a", "b", "c", "d", "e", "f"].map((id, i) => ({ id, mine: id === "f" }));
+  assert.deepEqual(plain(L.boardPick(rows, 4)).map((r) => r.id), ["a", "b", "c", "f"]);
+  assert.deepEqual(plain(L.boardPick(rows.map((r) => ({ ...r, mine: r.id === "b" })), 4)).map((r) => r.id), ["a", "b", "c", "d"]);
+  assert.equal(L.boardPick(rows.slice(0, 3), 4).length, 3);
+});
+
+test("boardNightStamp: names, Št–Ne, a cell per night, the chosen night marked, absent as a dot", () => {
+  const ivan = party(), riso = party({ id: "p-bbbbbb", name: "Riso a Ben", arrive: FRI, leave: "2026-11-01" });
+  const s = realState([ivan, riso], { [THU]: hold(ivan.id, ["left-double-1", "left-double-2"]) });
+  const stamp = plain(L.boardNightStamp(s, ivan.id, FRI));
+  assert.deepEqual(stamp.nights.map((n) => [n.label, n.current]), [["Št", false], ["Pi", true], ["So", false]]);
+  assert.equal(stamp.rows.length, 2);
+  assert.deepEqual(stamp.rows[0], { id: ivan.id, label: "Ivan a Eva", color: "#D07A2B", mine: true, span: "Št–Ne",
+    cells: [{ kind: "ok", text: "2/2", current: false }, { kind: "under", text: "0/2", current: true }, { kind: "under", text: "0/2", current: false }] });
+  assert.equal(stamp.rows[1].span, "Pi–Ne");
+  assert.deepEqual(stamp.rows[1].cells[0], { kind: "absent", text: "·", current: false });
+  assert.equal(stamp.more, 0);
+});
+
+test("boardNightStamp: a long name is cut, more than four parties give +N and keep mine", () => {
+  const many = ["a", "b", "c", "d", "e", "f"].map((c, i) => party({ id: "p-" + c.repeat(6), name: "Veľmi dlhé meno " + c }));
+  const s = realState(many, {});
+  const stamp = plain(L.boardNightStamp(s, many[5].id, THU));
+  assert.equal(stamp.rows.length, L.BOARD_NIGHT_ROWS);
+  assert.equal(stamp.more, 2);
+  assert.ok(stamp.rows.some((r) => r.mine), "my party is shown");
+  assert.ok(stamp.rows.every((r) => r.label.length <= L.BOARD_NAME_MAX), "names are cut");
+});
+
+test("boardDayStamp: day-only visitors with their days and the „na jedlo“ counts", () => {
+  const s = visitState();
+  const stamp = plain(L.boardDayStamp(s, "p-eeeeee"));
+  assert.deepEqual(stamp.rows.map((r) => [r.label, r.days, r.mine]), [["Jakub", "Pi, Ne", false], ["Katka a P…", "So", true], ["Zuzka", "So", false]]);
+  assert.deepEqual(stamp.food.map((f) => f.label), ["Št", "Pi", "So", "Ne"]);
+  assert.deepEqual(stamp.food.map((f) => f.count), plain(L.foodRow(s)));
+  assert.equal(stamp.more, 0);
+  assert.deepEqual(plain(L.boardFoodLines(stamp.food, 2)), stamp.food.length === 4 ? [`Št ${stamp.food[0].count}  Pi ${stamp.food[1].count}`, `So ${stamp.food[2].count}  Ne ${stamp.food[3].count}`] : []);
+  assert.deepEqual(plain(L.boardDayStamp(realState([party()], {}), null).rows), []);
+});
+
+test("boardPanelModel: rows with arrive and leave, tally cells, occupancy footer and the food row", () => {
+  const s = visitState();
+  const m = plain(L.boardPanelModel(s, "p-aaaaaa", THU));
+  assert.equal(m.title, "Kto kedy príde");
+  assert.equal(m.sub, "Čísla sú miesta: vybraté / treba.");
+  assert.deepEqual(m.night.cols.map((c) => [c.label, c.current]), [["Št", true], ["Pi", false], ["So", false]]);
+  assert.deepEqual(m.night.rows.map((r) => [r.name, r.arrive, r.leave, r.mine]), [["Ivan a Eva", "Št 29", "Ne 1", true], ["Riso a Ben", "Št 29", "Ne 1", false]]);
+  assert.equal(m.night.rows[0].cells[0].text, "2/2");
+  assert.equal(m.night.footerLabel, "Obsadené");
+  assert.deepEqual(m.night.footer.map((c) => c.text), ["3/20", "0/20", "0/20"]);
+  assert.deepEqual(m.day.cols.map((c) => c.label), ["Št 29", "Pi 30", "So 31", "Ne 1"]);
+  assert.deepEqual(m.day.rows.map((r) => r.cells), [["·", "1", "·", "1"], ["·", "·", "2", "·"], ["·", "·", "4", "·"]]);
+  assert.equal(m.day.foodLabel, "Spolu na jedlo");
+  assert.deepEqual(m.day.food, plain(L.foodRow(s)));
+});
+
+test("boardLabel: counts the parties and says it can be opened", () => {
+  assert.match(L.boardLabel(visitState()), /^Nástenka Kto kedy príde: 2 partií na noc, 3 cez deň\. Ťuknutím ju otvoríš\.$/);
+});
+
+test("intro zoom: a focus y centres the start view on it vertically (clamped)", () => {
+  const B = L.fitBounds(375, 667, SW, SH, { bottom: 56 });
+  const v = plain(L.introStartView(B, SW, SH, SW / 2, SH * 0.7));
+  assert.ok(v.y > 0, "moved down from the top");
+  assert.deepEqual(plain(L.clampView(v, B)), v);
+});
+
+test("the scene points of cabin.yaml are plan coordinates of a board and a gate", () => {
+  const sc = isoLayout.map.scene;
+  assert.equal(sc.board.length, 2);
+  assert.equal(sc.gate.length, 2);
+  assert.equal(sc.title, undefined);
+  assert.equal(sc.parties, undefined);
+});
+
+// --- the perspective follows the pan (T-147) ---
+
+const centred = (az, persp, vx, vy) => { const s = isoSceneAt(az, { persp }); L.isoSetCentre(s, vx, vy); return s; };
+
+test("pan centre: the plan point under the view centre keeps its place, whatever the strength", () => {
+  isoAngles.forEach((az) => [0.2, 0.35].forEach((persp) => {
+    const s0 = isoSceneAt(az, { persp });
+    [[60, 90], [300, 400], [190, 250]].forEach(([x, y]) => {
+      const p = L.isoPoint(s0, x, y, 0), s = centred(az, persp, p[0], p[1]), q = L.isoPoint(s, x, y, 0);
+      assert.ok(Math.abs(q[0] - p[0]) < 1e-6 && Math.abs(q[1] - p[1]) < 1e-6, `${az} ${persp}`);
+      assert.ok(Math.abs(L.isoDepthScale(s.basis, x, y, 0) - 1) < 1e-9);
+    });
+  }));
+});
+
+test("pan centre: isoPoint and isoUnpoint round trip with a moved centre; the view frame (ref) stays put", () => {
+  isoAngles.forEach((az) => {
+    const s = centred(az, 0.2, 90, 200), ref = isoSceneAt(az, { persp: 0.2 });
+    [[10, 20], [200, 300], [370, 480]].forEach(([x, y]) => {
+      const p = L.isoPoint(s, x, y, 0), q = L.isoUnpoint(s, p[0], p[1]);
+      assert.ok(Math.abs(q[0] - x) < 1e-6 && Math.abs(q[1] - y) < 1e-6);
+      assert.deepEqual(plain(L.isoPoint(s.ref, x, y, 0)), plain(L.isoPoint(ref, x, y, 0)));
+    });
+  });
+});
+
+test("pan centre: a point at the edge shows its sides, the same wall seen from the left and the right of the centre", () => {
+  const s0 = isoSceneAt(45, { persp: 0.2 }), c = L.isoPoint(s0, 190, 250, 0);
+  const wallLeft = (s) => { const a = L.isoPoint(s, 100, 100, 0), b = L.isoPoint(s, 100, 100, 28); return b[0] - a[0]; };      // the lean of a vertical edge
+  const west = centred(45, 0.2, c[0] + 150, c[1]), east = centred(45, 0.2, c[0] - 150, c[1]);
+  const rest = wallLeft(s0);
+  assert.ok(wallLeft(west) < rest - 0.2 && wallLeft(east) > rest + 0.2, `${wallLeft(west)} ${rest} ${wallLeft(east)}`);      // opposite sides lean opposite ways
+  const ortho = isoSceneAt(45, { persp: 0 });
+  assert.equal(L.isoSetCentre(ortho, 10, 10), false);
+});
+
+test("pan centre: a larger strength shows more of the sides; zoom (the view size) does not change it", () => {
+  const lean = (persp) => { const s0 = isoSceneAt(45, { persp }), c = L.isoPoint(s0, 190, 250, 0), s = centred(45, persp, c[0] + 150, c[1]);
+    const a = L.isoPoint(s, 100, 100, 0), b = L.isoPoint(s, 100, 100, 28); return Math.abs(b[0] - a[0]); };
+  assert.ok(lean(0.35) > lean(0.2));
+  const s = centred(45, 0.2, 120, 300);
+  assert.equal(s.basis.D, isoSceneAt(45, { persp: 0.2 }).basis.D);
+});
+
+test("anchors: a sign moves by exactly the shift of its plan point", () => {
+  const s = isoSceneAt(45, { persp: 0.2 }), cx = 190, cy = 250, sign = L.isoAnchorMake(s, cx, cy, 0, false), tail = L.isoPoint(s.ref, cx, cy, 0);
+  [[tail[0] + 150, tail[1] - 60], [tail[0] - 150, tail[1] + 60]].forEach(([vx, vy]) => {
+    L.isoSetCentre(s, vx, vy);
+    const t = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(L.isoAnchorTransform(s, sign)), q = L.isoPoint(s, cx, cy, 0);
+    assert.ok(Math.abs(+t[1] - (q[0] - sign.p[0])) < 1e-2 && Math.abs(+t[2] - (q[1] - sign.p[1])) < 1e-2);
+  });
+});
+
+test("tap polygons are projected again at the moved centre (150 units off, all four angles): same count, moved, and a bed centre lies in its own region", () => {
+  isoAngles.forEach((az) => {
+    const s = isoSceneAt(az, { persp: 0.2 }), c = L.isoPoint(s, 190, 250, 0);
+    const before = L.isoHitRegions(s, isoLayout), pbefore = plain(before);
+    L.isoSetCentre(s, c[0] + 150, c[1] - 40);
+    const after = L.isoHitRegions(s, isoLayout);
+    assert.equal(after.length, before.length);
+    assert.notDeepEqual(plain(after), pbefore);
+    allIsoBeds().forEach(({ bed }) => {
+      const r = bed.rect, p = L.isoPoint(s, r[0] + r[2] / 2, r[1] + r[3] / 2, 3);
+      assert.ok(after.some((q) => q.bed === bed.id && L.isoPointIn(q.poly, p)), `${az} ${bed.id}`);
+    });
+  });
+});
+
+test("persp setting: the address sets it, empty or out of range clears it, the stored text is used otherwise", () => {
+  assert.equal(L.perspSetting("", null), 0.35);
+  assert.equal(L.perspSetting("?persp=0.35", null), 0.35);
+  assert.equal(L.perspSetting("?x=1&persp=0", "0.3"), 0);
+  assert.equal(L.perspSetting("", "0.3"), 0.3);
+  assert.equal(L.perspSetting("?persp=", "0.3"), 0.35);
+  assert.equal(L.perspSetting("?persp=0.5", "0.3"), 0.35);
+  assert.equal(L.perspSetting("", "abc"), 0.35);
 });

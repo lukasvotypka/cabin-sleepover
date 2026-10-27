@@ -10,115 +10,6 @@ function viewState() {
   return withPending(app.state, app.pending);
 }
 
-// Furniture of a bed by `kind`. The layout follows `furn()` of the approved preview, but every place gets a
-// pillow, a patchwork quilt with a folded edge and a shadow on the floor, so it reads as a bed even at 1x.
-// Everything stays inside `bed.rect` (plus the stove pipe), see `furnitureBounds`; only the shadow spills 2 units.
-var QUILT_BLUE = ["quiltBlue", "quiltBlueFold", "quiltBlueCheck"], QUILT_RED = ["quiltRed", "quiltRedFold", "quiltRedCheck"];
-
-function pillow(g, x, y, w) {
-  rect(g, x, y, w, 6, COLORS.pillowShade);
-  rect(g, x, y, w, 5, COLORS.pillow);
-}
-
-// One sleeping place: a sheet, a pillow at the head and a quilt over the lower part. `quilt` is [base, fold, check].
-function berth(g, x, y, w, h, quilt) {
-  rect(g, x, y, w, h, COLORS.sheet);
-  pillow(g, x + 2, y + 1, w - 4);
-  var qy = y + Math.max(11, Math.round(h * 0.42)), cx, cy, row;
-  rect(g, x, qy, w, y + h - qy, COLORS[quilt[0]]);
-  for (cy = qy + 2, row = 0; cy < y + h; cy += 3, row++) {
-    for (cx = x + (row % 2) * 3; cx < x + w; cx += 6) {
-      rect(g, cx, cy, Math.min(3, x + w - cx), Math.min(3, y + h - cy), COLORS[quilt[2]]);
-    }
-  }
-  rect(g, x, qy, w, 2, COLORS[quilt[1]]);
-}
-
-function shadow(g, x, y, w, h) {
-  rect(g, x + 2, y + 2, w, h, COLORS.furnShadow);
-}
-
-function drawFurniture(g, bed) {
-  var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3], i, n;
-  switch (bed.kind) {
-    case "bed2":
-    case "bed1":
-      shadow(g, x, y, w, h);
-      rect(g, x, y, w, h, COLORS.bedWood);
-      rect(g, x, y, w, 4, COLORS.bedWoodDark);              // headboard
-      rect(g, x, y + h - 2, w, 2, COLORS.bedWoodDark);      // footboard
-      berth(g, x + 2, y + 4, w - 4, h - 6, bed.kind === "bed2" ? QUILT_RED : QUILT_BLUE);
-      if (bed.kind === "bed2") {                            // two pillows side by side
-        rect(g, x + 2, y + 5, w - 4, 6, COLORS.sheet);
-        pillow(g, x + 3, y + 5, (w - 8) / 2);
-        pillow(g, x + w / 2 + 1, y + 5, (w - 8) / 2);
-      }
-      break;
-    case "cot":
-      shadow(g, x, y, w, h);
-      rect(g, x, y, w, h, COLORS.cotSteelDark);
-      rect(g, x + 1, y + 1, w - 2, h - 2, COLORS.cotCanvas);
-      rect(g, x + 1, y + 1, 1, h - 2, COLORS.cotCanvasLight);
-      for (i = y + 8; i < y + h - 2; i += 6) rect(g, x + 1, i, w - 2, 1, COLORS.cotSteelDark);      // crossbars
-      rect(g, x + 3, y + 2, w - 6, 5, COLORS.pillowShade);
-      rect(g, x + 3, y + 2, w - 6, 4, COLORS.pillow);
-      [[x, y], [x + w - 2, y], [x, y + h - 2], [x + w - 2, y + h - 2]].forEach(function (p) {      // legs
-        rect(g, p[0], p[1], 2, 2, COLORS.cotSteel);
-      });
-      break;
-    case "mats":
-      for (i = 0; i < bed.slots.length; i++) {
-        var mx = x + i * 46;
-        shadow(g, mx, y, 32, h);
-        rect(g, mx, y, 32, h, COLORS.matFoam);
-        rect(g, mx + 1, y + 1, 30, h - 2, COLORS.matFoamLight);
-        rect(g, mx + 3, y + 2, 26, 5, COLORS.pillowShade);
-        rect(g, mx + 3, y + 2, 26, 4, COLORS.pillow);
-        rect(g, mx + 2, y + 13, 28, h - 15, COLORS.bag);    // sleeping bag with a zip
-        rect(g, mx + 2, y + 13, 28, 2, COLORS.bagLight);
-        rect(g, mx + 15, y + 15, 1, h - 17, COLORS.bagDark);
-      }
-      break;
-    case "bunk":
-      shadow(g, x, y, w, h);
-      rect(g, x, y, w, h, COLORS.bedWoodDark);
-      berth(g, x + 2, y + 2, w - 6, 17, QUILT_BLUE);
-      berth(g, x + 2, y + 23, w - 6, h - 25, QUILT_BLUE);
-      rect(g, x, y + 19, w, 4, COLORS.bedWood);             // rail between the bunks
-      rect(g, x, y, 2, 2, COLORS.bedWoodLight);
-      rect(g, x, y + h - 2, 2, 2, COLORS.bedWoodLight);
-      rect(g, x + w - 4, y + 2, 3, h - 4, COLORS.bedWoodLight);      // ladder on the right side
-      for (i = y + 5; i < y + h - 2; i += 4) rect(g, x + w - 4, i, 3, 1, COLORS.bedWoodDark);
-      break;
-    case "sofa":
-    case "sofa1":
-      shadow(g, x, y, w, h);
-      rect(g, x, y, w, h, COLORS.sofaDark);
-      rect(g, x + 6, y + 4, w - 9, h - 8, COLORS.sofaLight);         // seat, the backrest is on the left
-      n = bed.slots.length;
-      for (i = 1; i < n; i++) rect(g, x + 6, y + 4 + i * (h - 8) / n, w - 9, 1, COLORS.sofaSeam);
-      for (i = 0; i < n; i++) {                             // a pillow per place
-        var py = y + 5 + i * (h - 8) / n;
-        rect(g, x + 9, py, w - 15, 5, COLORS.pillowShade);
-        rect(g, x + 9, py, w - 15, 4, COLORS.pillow);
-      }
-      break;
-    case "stove":
-      shadow(g, x, y, w, h);
-      rect(g, x, y, w, h, COLORS.stoveTileDark);
-      rect(g, x + 1, y + 1, w - 2, h - 2, COLORS.stoveTile);
-      for (i = x + 8; i < x + w; i += 8) rect(g, i, y + 1, 1, h - 2, COLORS.stoveTileLine);
-      for (i = y + 7; i < y + h; i += 7) rect(g, x + 1, i, w - 2, 1, COLORS.stoveTileLine);
-      rect(g, x + 4, y + 5, w - 8, h - 9, COLORS.stoveBlanket);       // a blanket on top
-      rect(g, x + 4, y + 5, w - 8, 2, COLORS.pillow);
-      rect(g, x + 4, y + h - 5, w - 8, 1, COLORS.stoveBlanketEdge);
-      var pipe = stovePipeRect(bed);
-      rect(g, pipe[0], pipe[1], pipe[2], pipe[3], COLORS.stovePipe);
-      rect(g, pipe[0] + 1, pipe[1] + 1, pipe[2] - 2, pipe[3] - 2, COLORS.stovePipeLight);
-      break;
-  }
-}
-
 // A pixel figure in the party color, ported from `sprite()` of the preview. Kids are smaller.
 function drawFigure(g, px, py, color, kind, ch) {
   if (kind === "kid") {
@@ -158,25 +49,118 @@ function drawBeds() {
   var g = app.layers.beds, layout = app.state.layout;
   var view = viewState();
   clearNode(g);
-  layout.rooms.forEach(function (room) {
-    room.beds.forEach(function (bed) { drawBed(g, layout, view, room, bed); });
+  isoAnchorsReset("beds");      // the items below hang on plan points (app-anchor.js) and follow the pan
+  app.isoHits = isoBedHits(app.iso, layout);      // at the centre of the perspective just now, like everything drawn here
+  drawRoomPlates(g, layout);
+  drawFeatureTreeHit(g);
+  var rooms = {}, drawn = [];
+  isoPeopleBegin();      // the 3D dolls of the open rooms (app-iso-people.js)
+  isoBedsBackToFront(app.iso, layout).forEach(function (e) {
+    rooms[e.bed.id] = e;
+    if (!roomClosed(layout, e.room.id)) drawn.push(e.room.id);
+    drawBed(g, layout, view, e.room, e.bed);
   });
+  drawBedHits(g, layout, rooms);
+  drawHouseHits(g, view);
   drawBedTags(g, layout);
   drawMeadow(g, view);
+  isoPeopleEnd(app.night + "|" + app.layoutKey + "|" + drawn.sort().join(","));
+}
+
+// The tap areas of all beds, drawn over every bed: padding first, then furniture, then figures (isoHitRegions), so a
+// bed's own footprint always wins over a neighbour's padding. The bed groups themselves ignore the pointer and keep
+// focus, label and Tab order; a tap here does what a tap on the bed did.
+function drawBedHits(parent, layout, rooms) {
+  var g = svgEl(parent, "g", { "class": "bed-hits", "aria-hidden": "true" });
+  var open = function () { return isoHitRegions(app.iso, layout).filter(function (r) { return !roomClosed(layout, rooms[r.bed].room.id); }); };      // a closed house is tapped as a whole (drawHouseHits)
+  var nodes = [];
+  open().forEach(function (r) {
+    var e = rooms[r.bed];
+    var p = svgEl(g, "polygon", { points: pointsText(r.poly), fill: "transparent", "data-bed": r.bed, "data-part": r.part });
+    nodes.push(p);
+    p.addEventListener("click", function () {
+      if (app.suppressClick) { app.suppressClick = false; return; }
+      onBedTap(e.room, e.bed);
+    });
+    watchLongPress(p, e.bed);
+    if (r.part === "figure") {      // the hover title of a person
+      var who = slotOccupant(viewState().state, r.slot, app.night);
+      if (who) svgEl(p, "title", null, who.party ? who.party.name : UNKNOWN_PARTY);
+    }
+  });
+  isoPolyGroup("beds", nodes, function () { return open().map(function (r) { return r.poly; }); });
+}
+
+// The tap target of the big tree in the 3D world (its crown sways, app-iso.js). Decor, so it stays out of the Tab order.
+function drawFeatureTreeHit(parent) {
+  var t = isoActive() && iso3.tree;
+  if (!t) return;
+  var s = t.size, poly = isoBoxOutline(app.iso, [t.x - 11 * s, t.y - 11 * s, 22 * s, 22 * s], 0, 30 * s);
+  var hit = svgEl(parent, "polygon", { points: pointsText(poly), fill: "transparent", "class": "tree-hit", "aria-hidden": "true" });
+  isoPolyGroup("beds", [hit], function () { return [isoBoxOutline(app.iso, [t.x - 11 * s, t.y - 11 * s, 22 * s, 22 * s], 0, 30 * s)]; });
+  hit.addEventListener("click", function () { rustleTree(); isoRustle(); });
+}
+
+// The room names on small wooden signs hanging upright on the far wall of each room (the north one, or the south one when the camera is in the north) (never over a bed). Signs
+// that would overlap move up. Decor in the same layer, ignoring taps.
+function drawRoomPlates(parent, layout) {
+  var sc = app.iso, k = sc.figScale;
+  var plates = layout.rooms.filter(function (room) { return !roomClosed(layout, room.id); }).map(function (room) {
+    var size = roomSignSize(room), r = room.rect, at = isoPoint(sc, r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room));
+    return { room: room, plan: [r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room)],
+      rect: [Math.round(at[0] - size[0] * k / 2), Math.round(at[1] - size[1] * k), size[0] * k, size[1] * k] };
+  });
+  var dy = isoPlateShifts(plates.map(function (p) { return p.rect; }));
+  var g = svgEl(parent, "g", { "aria-hidden": "true", "pointer-events": "none" });
+  plates.forEach(function (p, i) {
+    var sg = svgEl(g, "g", { transform: isoFigureTransform({ x: p.rect[0], y: p.rect[1] + dy[i], k: k }) });
+    isoAnchor("beds", sg, p.plan[0], p.plan[1], p.plan[2], false);
+    drawRoomSign(sg, p.room);
+  });
+}
+
+// The height of the far wall (north or south, see drawRoomPlates) of a room at its middle, as the 3D world builds it (tall on
+// the outline of a house unless cut low, app-iso.js): the plate hangs on its top.
+function roomWallTop(layout, room) {
+  var house = (layout.houses || []).filter(function (h) { return h.rooms.indexOf(room.id) >= 0; })[0] || { id: room.id, rooms: [room.id], chimney: null };
+  var rooms = layout.rooms.filter(function (r) { return house.rooms.indexOf(r.id) >= 0; });
+  var azimuth = app.iso.azimuth, side = isoBackSides(azimuth).n ? "n" : "s";
+  var walls = isoCutWalls(isoWalls(rooms, houseOutline(house, layout.rooms), layout.map.doors || [], Object.assign({}, ISO, { azimuth: azimuth })), house, layout);
+  var mid = room.rect[0] + room.rect[2] / 2, top = ISO.lowWall;
+  walls.forEach(function (w) {
+    if (w.h0 === 0 && w.side === side && w.x <= mid && mid <= w.x + w.w && w.y >= room.rect[1] && w.y < room.rect[1] + room.rect[3]) top = Math.max(top, w.h);
+  });
+  return top;
 }
 
 // The short bed names under the beds. Hidden by CSS until the map is zoomed in (the `zoomed` class, app-zoom.js).
 function drawBedTags(parent, layout) {
   var g = svgEl(parent, "g", { "class": "bed-tags", "aria-hidden": "true", "pointer-events": "none" });
   layout.rooms.forEach(function (room) {
+    if (roomClosed(layout, room.id)) return;
     room.beds.forEach(function (bed) {
-      bedTags(bed).forEach(function (t) {
-        var w = t.text.length * 2.5 + 4;
-        rect(g, t.x - w / 2, t.y, w, 6, COLORS.woodDark, { opacity: ".85" });
-        addText(g, t.x, t.y + 4.6, t.text, 4.5, COLORS.paper, { anchor: "middle", bold: true });
+      isoBedTags(app.iso, bed).forEach(function (t) {
+        var w = t.text.length * 2.5 + 4, tg = svgEl(g, "g"), q = isoUnpoint(app.iso, t.x, t.y);
+        isoAnchor("beds", tg, q[0], q[1], 0, false);
+        rect(tg, t.x - w / 2, t.y, w, 6, COLORS.woodDark, { opacity: ".85" });
+        addText(tg, t.x, t.y + 4.6, t.text, 4.5, COLORS.paper, { anchor: "middle", bold: true });
       });
     });
   });
+}
+
+// The flat shadow under a standing figure, in sprite units (the sprite group is scaled by figScale).
+function drawFootShadow(g) {
+  var k = app.iso.figScale, w = ISO_SHADOW[0] / k;
+  rect(g, 5 - w / 2, 11, w, ISO_SHADOW[1] / k, COLORS.furnShadow);
+}
+
+// The quilt over the lower body of a sleeper, shown only at night (CSS `svg.night .quilt`).
+function drawQuilt(g, kind, color) {
+  var q = svgEl(g, "g", { "class": "quilt", "aria-hidden": "true" });
+  var x = kind === "kid" ? 1 : 0, w = kind === "kid" ? 8 : 10, y = kind === "kid" ? 6 : 8;
+  rect(q, x, y, w, 12 - y, color);
+  rect(q, x, y, w, 1, COLORS.ink, { opacity: ".3" });
 }
 
 // My party's people without a bed on the selected night, standing on the meadow. One button that opens the
@@ -185,56 +169,88 @@ function drawMeadow(parent, view) {
   var party = app.myParty ? partyById(view.state, app.myParty) : null;
   var waiting = waitingFigures(view.state, party, app.night);
   if (!waiting.length) return;
-  var spot = meadowLayout(view.state.layout.map.scene.meadow, waiting.length);
+  var sc = app.iso, meadow = view.state.layout.map.scene.meadow;
+  var spot = meadowLayout(meadow, waiting.length);
   var g = svgEl(parent, "g");
   var ch = shirtChar(party.name);
-  spot.cells.forEach(function (cell, i) {
-    drawFigure(g, cell[0], cell[1], party.color, waiting[i].kind, ch);
-  });
+  var meadowHit = isoMeadowHit(sc, view.state.layout, meadow, waiting.length);
+  var meadowNode = svgEl(g, "polygon", { points: pointsText(meadowHit), "class": "hit" });
+  isoPolyGroup("beds", [meadowNode], function () { return [isoMeadowHit(app.iso, view.state.layout, meadow, waiting.length)]; });
+  spot.cells.map(function (cell, i) { return { cell: cell, kind: waiting[i].kind, i: i, v: isoPoint(sc, cell[0] + 5, cell[1] + 7, 0)[1] }; })
+    .sort(function (a, b) { return a.v - b.v; })
+    .forEach(function (e) {
+      if (isoPeopleSpecs) {      // a 3D doll standing on the meadow
+        isoPeopleAdd({ key: "w|" + e.i, kind: e.kind, color: party.color, ch: ch, x: e.cell[0] + 5, z: e.cell[1] + 7, h: 0, pose: "stand", scale: 1,
+          pending: false, mine: false, lift: false, fade: null, hop: { index: e.i, count: spot.cells.length } });
+        return;
+      }
+      var fg = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, e.cell, 0)) });
+      drawFootShadow(fg);
+      drawFigure(fg, 0, 0, party.color, e.kind, ch);
+    });
   if (spot.morePos) {
-    var chip = [spot.morePos[0] - 1, spot.morePos[1], 12, 12];
-    board(g, chip, COLORS.plank);
-    addText(g, chip[0] + 6, chip[1] + 8.5, "+" + spot.more, 7, COLORS.paper, { anchor: "middle", bold: true });
+    var cg = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, spot.morePos, 0)) });
+    isoAnchor("beds", cg, spot.morePos[0] + 5, spot.morePos[1] + 7, 0, false);
+    var chip = [-1, 0, 12, 12];
+    board(cg, chip, COLORS.plank);
+    addText(cg, chip[0] + 6, chip[1] + 8.5, "+" + spot.more, 7, COLORS.paper, { anchor: "middle", bold: true });
   }
-  hitRect(g, meadowHitRect(view.state.layout.map.scene.meadow));
   makeButton(g, meadowButtonLabel(waiting.length), "meadow", function () { openPlacesPanel(app.night); });
 }
 
 function drawBed(parent, layout, view, room, bed) {
-  var night = app.night, st = view.state;
-  var x = bed.rect[0], y = bed.rect[1], w = bed.rect[2], h = bed.rect[3];
-  var g = svgEl(parent, "g", { "class": "bed" });
-  hitRect(g, bedHit(layout, bed, BED_HIT_GROW));      // first, so figures keep their hover titles
-  drawFurniture(g, bed);
-  bed.slots.forEach(function (slot, i) {
+  var night = app.night, st = view.state, sc = app.iso;
+  var hit = app.isoHits[bed.id], quilt = COLORS[isoQuiltKey(bed.kind)];
+  var g = svgEl(parent, "g", { "class": "bed", "pointer-events": "none" });      // taps go to drawBedHits
+  isoAnchor("beds", g, bed.rect[0] + bed.rect[2] / 2, bed.rect[1] + bed.rect[3] / 2, 0, true);
+  if (roomClosed(layout, room.id)) {      // the house is closed: only the keyboard and screen readers reach the bed, and focus opens the house
+    makeButton(g, bedLabel(st, room, bed, night) + ". Ťuknutím otvoríš.", "bed-" + bed.id, function () { onBedTap(room, bed); });
+    return;
+  }
+  svgEl(g, "polygon", { points: pointsText(hit), "class": "hit" });      // only the look of the keyboard focus
+  isoSlotOrder(sc, bed).forEach(function (i) {
+    if (bed.kind === "bunk" && i === 0) {      // the rail of the top berth lies over the sleeper below
+      isoBunkRail(sc, bed).forEach(function (poly) {
+        svgEl(g, "polygon", { points: pointsText(poly), fill: COLORS.bedWood, stroke: COLORS.bedWoodDark, "stroke-width": .5, "aria-hidden": "true" });
+      });
+    }
+    var slot = bed.slots[i];
     if (app.walking[night + "|" + slot]) return;      // its figure is still walking over from the meadow
-    var pos = figurePosition(bed, i), who = slotOccupant(st, slot, night);
+    var who = slotOccupant(st, slot, night);
     var fx = dnSlotFx(night, slot), ghost = fx && fx.old ? slotOccupant(st, slot, fx.old) : null;
-    if (ghost) {      // the figure of the old night getting up
-      var gg = svgEl(g, "g", { "class": "dn-out", style: fx.style });
-      drawFigure(gg, pos[0], pos[1], ghost.party ? ghost.party.color : COLORS.mat, ghost.kind, ghost.party ? shirtChar(ghost.party.name) : null);
+    var og = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, figurePosition(bed, i), isoSlotHeight(bed, i))) });
+    var three = !!isoPeopleSpecs, pend = !!view.pending[night + "|" + slot];
+    if (ghost && three) {      // the figure of the old night getting up, faded out in 3D
+      isoPeopleAdd(isoBedSpec(bed, i, ghost, { key: "g|" + night + "|" + slot, fade: { dir: -1, start: dn.swap.start } }));
+    } else if (ghost) {      // the figure of the old night getting up
+      var gg = svgEl(og, "g", { "class": "dn-out", style: fx.style });
+      drawFootShadow(gg);
+      drawFigure(gg, 0, 0, ghost.party ? ghost.party.color : COLORS.mat, ghost.kind, ghost.party ? shirtChar(ghost.party.name) : null);
+      drawQuilt(gg, ghost.kind, quilt);
     }
     var cls = (view.pending[night + "|" + slot] ? "pending " : "") + (fx && fx.inn ? "dn-in" : "");
-    var sg = svgEl(g, "g", cls ? { "class": cls.trim(), style: fx && fx.inn ? fx.style : "" } : null);
+    var sg = svgEl(og, "g", cls ? { "class": cls.trim(), style: fx && fx.inn ? fx.style : "" } : null);
+    if (!three) drawFootShadow(sg);
     if (who) {
-      var color = who.party ? who.party.color : COLORS.mat;
-      if (who.party && who.party.id === app.myParty) {      // the yellow frame of my party
-        rect(sg, pos[0] - 1, pos[1] - 1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });
+      var color = who.party ? who.party.color : COLORS.mat, mine = !!(who.party && who.party.id === app.myParty);
+      if (three) {
+        isoPeopleAdd(isoBedSpec(bed, i, who, { key: night + "|" + slot + "|" + (who.party ? who.party.id : "?") + "|" + who.kind, pending: pend, mine: mine,
+          lift: !!(app.move && app.move.fromSlot === slot), fade: fx && fx.inn ? { dir: 1, start: dn.swap.start } : null }));
+      } else {
+        if (mine) rect(sg, -1, -1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });      // the yellow frame of my party
+        drawFigure(sg, 0, 0, color, who.kind, who.party ? shirtChar(who.party.name) : null);
+        drawQuilt(sg, who.kind, quilt);
       }
-      svgEl(sg, "title", null, who.party ? who.party.name : UNKNOWN_PARTY);
-      drawFigure(sg, pos[0], pos[1], color, who.kind, who.party ? shirtChar(who.party.name) : null);
-      drawZzz(sg, pos[0], pos[1], slot);
+      drawZzz(sg, 0, 0, slot);
     } else {
-      drawFreeMark(sg, pos[0], pos[1], bed.tight.indexOf(slot) !== -1);
+      drawFreeMark(sg, 0, 0, bed.tight.indexOf(slot) !== -1);
     }
   });
-  if (app.selectedBed === bed.id) rect(g, x - 3, y - 3, w + 6, h + 6, "none", { stroke: COLORS.picked, "stroke-width": 2 });
-  rect(g, x - 3, y - 3, w + 6, h + 6, "none", { "class": "ring", stroke: COLORS.picked, "stroke-width": 2 });
-  makeButton(g, bedLabel(st, room, bed, night) + ". Ťuknutím otvoríš.", "bed-" + bed.id, function () {
-    if (app.suppressClick) { app.suppressClick = false; return; }
-    onBedTap(room, bed);
-  });
-  watchLongPress(g, bed);
+  var ring = { points: pointsText(hit), fill: "none", stroke: COLORS.picked, "stroke-width": 2 };
+  if (app.selectedBed === bed.id) svgEl(g, "polygon", ring);
+  ring["class"] = "ring";
+  svgEl(g, "polygon", ring);
+  makeButton(g, bedLabel(st, room, bed, night) + ". Ťuknutím otvoríš.", "bed-" + bed.id, function () { onBedTap(room, bed); });
 }
 
 // A long press on touch shows who sleeps in the bed (a hover title does not exist there).
@@ -277,10 +293,10 @@ function showTip(bed) {
   var g = app.layers.tip;
   clearNode(g);
   if (!names.length) return;
-  var text = ellipsize(names.join(", "), 28), vb = st.layout.map.viewbox, h = 18;
-  var w = Math.min(vb[0] - 4, text.length * 5.4 + 14);
-  var x = Math.max(2, Math.min(vb[0] - w - 2, bed.rect[0] + bed.rect[2] / 2 - w / 2));
-  var y = bed.rect[1] - h - 4 < 2 ? bed.rect[1] + bed.rect[3] + 4 : bed.rect[1] - h - 4;
+  var text = ellipsize(names.join(", "), 28), W = app.iso.W, h = 18, box = polyBox(isoBedShape(app.iso, bed));
+  var w = Math.min(W - 4, text.length * 5.4 + 14);
+  var x = Math.max(2, Math.min(W - w - 2, box[0] + box[2] / 2 - w / 2));
+  var y = box[1] - h - 4 < 2 ? box[1] + box[3] + 4 : box[1] - h - 4;
   board(g, [x, y, w, h], COLORS.paper, COLORS.woodDark);
   addText(g, x + w / 2, y + 12, text, 8, COLORS.ink, { anchor: "middle", bold: true, maxWidth: w - 10 });
   clearTimeout(app.tipTimer);

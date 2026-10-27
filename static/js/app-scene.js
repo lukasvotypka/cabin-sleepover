@@ -111,16 +111,19 @@ function board(parent, r, face, edge) {
 
 function ensureScene() {
   var layout = app.state.layout;
-  var key = JSON.stringify([layout.map, layout.rooms, layout.houses]);
+  var key = JSON.stringify([layout.map, layout.rooms, layout.houses, app.viewAngle]);
   showScene(true);     // visible first: text is measured while drawing
   if (app.layoutKey === key) return;
   app.layoutKey = key;
   cancelWalks();      // the old walk layer goes away with the old svg
+  isoAnchorsReset();
   var host = $("scene");
   clearNode(host);
-  var vb = layout.map.viewbox;
+  app.iso = isoScene(layout, { azimuth: app.viewAngle });      // the isometric projection and scene size (logic-iso.js); the svg is as big as the scene
+  app.sceneContent = isoContentRect(app.iso, layout);      // the rooms and the signs, what the rest view of a phone fits (restView)
+  isoBuild(host, layout, app.iso);      // the 3D world goes under the svg; false = no WebGL, drawBase draws a flat fallback
   var svg = svgEl(host, "svg", {
-    viewBox: "0 0 " + vb[0] + " " + vb[1], "shape-rendering": "crispEdges", role: "group",
+    viewBox: "0 0 " + app.iso.W + " " + app.iso.H, "shape-rendering": "geometricPrecision", role: "group",
     "aria-label": "Mapa chaty. Rovnaké údaje sú aj ako text hneď za mapou."
   });
   app.layers = {
@@ -128,12 +131,12 @@ function ensureScene() {
     base: svgEl(svg, "g", { "aria-hidden": "true" }),
     beds: svgEl(svg, "g"),
     walk: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
-    boards: svgEl(svg, "g"),
+    boards: svgEl(svg, "g"),      // the notice board and the title gate (upright signs on the plan)
     tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
     sky: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
   };
   drawBase(app.layers.base, layout);
   drawBird(app.layers.sky, layout);
-  dnBuild(svg, layout, app.layers.boards, app.layers.tip);
-  setupZoom(host, svg, vb[0], vb[1]);
+  dnBuild(svg, layout);
+  setupZoom(host, svg, app.iso.W, app.iso.H);
 }

@@ -64,19 +64,35 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene { position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100dvh; }
 /* The page has nothing to scroll, so the map owns every touch: one finger pans it at every zoom (a little past the edges),
    two fingers pinch it, and the browser neither scrolls nor zooms the page there. */
-#scene svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+/* The 3D world (app-iso.js) is a canvas under the svg: same box, no taps, pixels stay square. */
+#scene .iso-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+#scene svg { position: relative; display: block; width: 100%; height: 100%; touch-action: none; }
 #scene svg:focus:not(:focus-visible) { outline: none; }     /* a mouse press focuses the svg: no ring around the whole screen */
 #scene svg:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
 .zoom-reset {
-  /* in line with the name plate of the crest (HUD): same bottom edge (crest offset 8px + plate margin 10px) and height */
-  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); min-width: 44px; min-height: 44px; padding: 6px 12px;
+  /* above the bottom HUD bar (--hud-h is its height from the window bottom, set by app-hud.js) */
+  position: absolute; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px)) + 10px); min-width: 44px; min-height: 44px; padding: 6px 12px;
   background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
   font: 700 12px/1.2 ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; cursor: pointer; touch-action: manipulation;      /* as the HUD */
 }
 .zoom-reset:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+.zoom-reset.above { bottom: calc(max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px)) + 10px + 44px + 8px); }      /* one row up while the turn buttons show (T-144) */
+/* The turn buttons (T-144): above the bottom HUD at the right, like „Celá mapa“ (fixed scene colors, never inverted). */
+.turn-bar { position: fixed; z-index: 5; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px)) + 10px); display: flex; gap: 4px; }
+.turn-bar[hidden], .movebar:not([hidden]) ~ .turn-bar, #panelRoot:not(:empty) ~ .turn-bar { display: none; }
+.turn-btn {
+  width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  background: #F4EBD0; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
+}
+.turn-btn svg { width: 24px; height: 24px; display: block; shape-rendering: crispEdges; }
+.turn-btn:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
+.turn-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0, 0, 0, .28); }      /* press feedback: no tween */
+#scene.swinging svg { opacity: 0; pointer-events: none; }      /* the overlay hides during the swing and fades back in two steps */
+#scene.swinging.swing-half svg { opacity: .5; }
 #scene svg text { font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; user-select: none; -webkit-user-select: none; }
 #scene svg g[role="button"] { cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
 #scene svg .hit { fill: transparent; }
+#scene svg .house-hit { cursor: pointer; }
 #scene svg g[role="button"]:focus-visible .hit, #scene svg g[role="slider"]:focus-visible .hit { stroke: #FFD54A; stroke-width: 2; fill: rgba(255, 213, 74, .18); }
 .boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; background: var(--bg); color: var(--muted); }
 
@@ -203,7 +219,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg .pending { opacity: .5; }
 #scene svg .bed-tags { opacity: 0; transition: opacity .25s; }
 #scene svg.zoomed .bed-tags { opacity: 1; }
-#scene svg g.bed { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+#scene svg g.bed, #scene svg g.bed-hits { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 #scene svg g.bed .ring { display: none; pointer-events: none; }
 #scene svg g.bed:focus-visible .ring { display: block; }
 #scene svg g.bed:focus-visible .hit { stroke: none; fill: rgba(58, 167, 224, .15); }
@@ -212,7 +228,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .bed-tags { transition: none; }
 }
 
-/* --- HUD (fixed scene colors, never inverted in dark mode): quest log top right, crest bottom left.
+/* --- HUD (fixed scene colors, never inverted in dark mode): night stamps and time rail on top, quest log below them on the right, „Si: …“ and the tools at the bottom.
    The wrapper covers the viewport but lets taps through to the map; only its pieces take taps. --- */
 .hud {
   position: fixed; inset: 0; z-index: 12; pointer-events: none;
@@ -223,7 +239,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .hud button:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
 #moveBar:not([hidden]) ~ .hud .quest { display: none; }      /* the move bar takes the top while it shows */
 .quest {
-  position: absolute; pointer-events: auto; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
+  position: absolute; pointer-events: auto; top: calc(max(var(--top-h, 0px), env(safe-area-inset-top, 0px)) + 18px); right: calc(12px + env(safe-area-inset-right, 0px));
   width: 150px; padding: 0 5px 2px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
 }
 .quest::before, .quest::after { content: ""; position: absolute; left: -8px; right: -8px; height: 6px; background: #8A5A34; border: 2px solid #5C4033; }
@@ -276,23 +292,63 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .yard-slide.still .yard-b { animation: none; }
 .update-sign.wait { cursor: default; color: #6B5644; }
 .update-sign:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
-.crest {
-  position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  display: flex; align-items: flex-end; max-width: calc(100% - 140px);      /* leaves room for „Celá mapa“ beside it */
+/* Top HUD (T-145): the night stamps and the time rail, fixed to the top. The world darkens at night, never this bar. */
+.tophud { position: absolute; top: 0; left: 0; right: 0; padding: max(6px, env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) 0 calc(8px + env(safe-area-inset-left, 0px)); pointer-events: none; }
+#moveBar:not([hidden]) ~ .hud .tophud { display: none; }      /* the move bar takes the top while it shows */
+.tophud-in { pointer-events: auto; margin: 0 auto; max-width: 520px; background: #6B4426; border: 2px solid #5C4033; box-shadow: 0 3px 0 rgba(46, 31, 20, .45); padding: 6px 6px 2px; }
+.stamps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.hud .stamp {
+  position: relative; min-height: 50px; padding: 3px; text-align: center; color: #2E1F14;
+  background: radial-gradient(circle at 3px 3px, transparent 1.6px, #D4A870 2px) -3px -3px / 6px 6px;      /* perforated stamp edge */
 }
+.stamp .face { display: block; height: 100%; padding: 2px 2px 3px; background: #F4EBD0; border: 1px solid #5C4033; }
+.hud .stamp[aria-pressed="true"] { background: radial-gradient(circle at 3px 3px, transparent 1.6px, #FFD54A 2px) -3px -3px / 6px 6px; }
+.stamp[aria-pressed="true"] .face { background: #F2D58A; border-color: #C98A1C; }
+.stamp .d { display: block; font-weight: 700; font-size: 12px; line-height: 14px; white-space: nowrap; }
+.stamp .dt { display: block; font-size: 10px; line-height: 12px; white-space: nowrap; }
+.stamp .row { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 2px; font-size: 10px; line-height: 13px; white-space: nowrap; }
+.stamp .occ b { font-size: 11px; }
+.stamp .chip { padding: 0 3px; border: 1px solid; font-weight: 700; }
+.stamp .chip.under { background: #F3E3C0; border-color: #C98A1C; color: #2E1F14; }
+.stamp .chip.ok { background: #3D7A55; border-color: #1F4A31; color: #FFFFFF; }
+.stamp .chip.over { background: #B4472F; border-color: #6E2414; color: #FFFFFF; }
+.stamp .chip.absent { border-color: transparent; color: #2E1F14; font-weight: 400; }
+.hud .stamp:active, .hud .tool:active, .hud .crest:active { transform: translateY(2px); }
+@media (max-height: 620px) { .stamp .dt { display: none; } .hud .stamp { min-height: 38px; } }
+.rail-wrap { position: relative; height: 44px; margin-top: -6px; margin-bottom: -4px; cursor: pointer; touch-action: none; pointer-events: auto; }
+.rail-wrap::before { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
+.rail-wrap:focus-visible { outline: 3px solid #FFD54A; outline-offset: 1px; }
+.rail { position: absolute; left: 0; right: 0; top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; pointer-events: none; }
+.seg { height: 8px; border: 1px solid #5C4033; background: #F7E7B4; }
+.knob { position: absolute; top: 12px; left: 0; width: 24px; height: 24px; margin-left: -12px; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  background: #F4EBD0; border: 2px solid #5C4033; box-shadow: 2px 2px 0 rgba(0, 0, 0, .35); box-sizing: border-box; }
+.knob svg { width: 14px; height: 14px; display: block; shape-rendering: crispEdges; }
+.knob-time { display: none; position: absolute; left: 50%; top: -19px; transform: translateX(-50%); padding: 0 4px; background: #2E1F14; color: #F4EBD0; font-size: 10px; line-height: 14px; white-space: nowrap; }
+.rail-wrap.dragging .knob-time { display: block; }
+
+/* Bottom HUD (T-145): „Si: …“ on the left, the tool buttons right of it. */
+.bothud { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 calc(8px + env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px)); pointer-events: none; }
+.bothud-in { pointer-events: auto; margin: 0 auto; max-width: 520px; display: flex; align-items: center; gap: 6px; background: #6B4426; border: 2px solid #5C4033; padding: 4px; box-shadow: 0 -2px 0 rgba(46, 31, 20, .35); }
+.tools { display: contents; }
+.hud .crest { flex: 1 1 0; min-width: 96px; min-height: 48px; display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #F4EBD0; color: #2E1F14; border: 1px solid #5C4033; }
+.crest-plate { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1 1 auto; }
+.hud .tool { position: relative; flex: 0 1 44px; min-width: 38px; width: 44px; height: 48px; padding: 2px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  background: #B98B56; border: 1px solid #5C4033; text-align: center; }
+.tool svg { width: 26px; height: 26px; display: block; shape-rendering: crispEdges; }
+.tool.long small { font-size: 7px; }
+.tool small { display: block; width: 100%; background: #5C4033; color: #F4EBD0; font-size: 8px; line-height: 11px; font-weight: 700; letter-spacing: -.4px; white-space: nowrap; overflow: hidden; }
+.hud .tool.sign { cursor: default; background: #A3361E; }      /* „Zatvorené“: a sign, not a button */
+.tool-count { position: absolute; left: -3px; top: -3px; padding: 0 2px; background: #F4EBD0; border: 1px solid #5C4033; font-size: 8px; line-height: 10px; font-weight: 700; color: #2E1F14; }
+.tool-bang { position: absolute; right: -3px; top: -3px; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; background: #FFD54A; border: 1px solid #5C4033; font-size: 10px; font-weight: 700; color: #2E1F14; animation: blink 1.4s ease-in-out infinite; }
 .quest[hidden] { display: none; }
-.crest.ask .crest-shield, .crest.ask .crest-plate { animation: crest-ask 1.2s steps(2) infinite; }
+.crest.ask { animation: crest-ask 1.2s steps(2) infinite; }
 @keyframes crest-ask { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) { .crest.ask .crest-shield, .crest.ask .crest-plate { animation: none; } }
-.crest-shield { flex: none; display: block; position: relative; z-index: 1; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, .3)); }
-.crest-plate {
-  display: flex; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px; margin: 0 0 10px -8px; padding: 4px 12px 4px 14px;
-  background: #8A5A34; color: #F4EBD0; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
-}
+@media (prefers-reduced-motion: reduce) { .crest.ask, .tool-bang { animation: none; } .hud .stamp:active, .hud .tool:active, .hud .crest:active { transform: none; } }
+.crest-shield { flex: none; display: block; }
 .crest-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.crest-age { display: flex; align-items: center; gap: 3px; min-height: 14px; font-size: 10px; color: #E8D2A6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crest-age { display: flex; align-items: center; gap: 3px; min-height: 14px; font-size: 10px; color: #96540F; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .online-chip { flex: none; display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; box-sizing: border-box; border: 2px solid rgba(0, 0, 0, .35); }
-.online-chip.mine { border-color: #F2D58A; }   /* my places have the same yellow frame on the map */
+.online-chip.mine { border-color: #C98A1C; }   /* my places have the same amber frame on the map */
 .online-label, .online-more { flex: none; }
 .online-more { font-weight: 700; }
 .crest:active, .quest-row:active { transform: translate(2px, 2px); }
@@ -301,41 +357,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .crest:active, .quest-row:active { transform: none; }
 }
 
-/* --- roofs and chimneys (T-029): the smoke of the three chimneys. Each puff starts at the top of its chimney, rises
-   about 24 px, drifts sideways by --dx and fades out; three puffs per chimney on staggered delays, one loop of 8.7 s.
-   Hidden until its delay has passed. Covered by the global reduced-motion rule below (the puffs stay invisible). */
-#scene svg .roofs { pointer-events: none; }
-#scene svg .smokepuff { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: smokeRise 8.7s linear infinite; }
-@keyframes smokeRise {
-  0% { opacity: 0; transform: translate(0px, 0px); }
-  10% { opacity: .85; }
-  55% { opacity: .55; }
-  100% { opacity: 0; transform: translate(var(--dx, 3px), -24px); }
-}
-
-/* --- nature decor: a tree on the left edge whose six leaves each drift down in turn, and a bird that
-   occasionally crosses the map (drawn in the svg, so it pans and zooms with the land). Purely cosmetic (organizer request, 23. 10. 2026), fixed scene
-   colors, never inverted in dark mode. Both are covered by the global reduced-motion rule above. */
-#scene svg .tree { pointer-events: none; transform-box: fill-box; transform-origin: 50% 100%; }
-/* A tap on the tree blows wind through it (the sound is in app-sound.js): the crown sways for a moment. */
+/* --- nature decor: a bird that occasionally crosses the map (drawn in the svg, so it pans and zooms with the land). Purely
+   cosmetic (organizer request, 23. 10. 2026), fixed scene colors, never inverted in dark mode. Covered by the
+   reduced-motion rule below. The tree, smoke, leaves and fireflies live in the 3D world (app-iso.js). */
+/* A tap on the big tree of the 3D world blows wind through it (the sound is in app-sound.js, the sway in app-iso.js). */
 #scene svg .tree-hit { pointer-events: all; cursor: pointer; }
-#scene svg .tree.rustle { animation: treeSway .7s ease-out; }
-@keyframes treeSway {
-  0%, 100% { transform: rotate(0deg); }
-  20% { transform: rotate(2.5deg); }
-  45% { transform: rotate(-2deg); }
-  70% { transform: rotate(1deg); }
-}
-#scene svg .shedleaf { pointer-events: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: leafDrop var(--dur) linear var(--delay) infinite; }
-@keyframes leafDrop {
-  0% { opacity: 0; transform: translate(0px, 0px) rotate(0deg); }
-  6% { opacity: 1; }
-  25% { transform: translate(calc(var(--dx) * .9), calc(var(--fall) * .25)) rotate(calc(var(--rot) * .3)); }
-  50% { transform: translate(calc(var(--dx) * -.2), calc(var(--fall) * .5)) rotate(calc(var(--rot) * -.5)); }
-  75% { transform: translate(calc(var(--dx) * .7), calc(var(--fall) * .78)) rotate(calc(var(--rot) * .8)); }
-  90% { opacity: 1; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
-  100% { opacity: 0; transform: translate(calc(var(--dx) * .3), var(--fall)) rotate(var(--rot)); }
-}
 #scene svg .bird { pointer-events: none; animation: birdFly 28s linear infinite; }
 #scene svg .bird-frame-a, #scene svg .bird-frame-b { animation: birdFlap .5s linear infinite; }
 #scene svg .bird-frame-b { opacity: 0; animation-delay: .25s; }
@@ -350,20 +376,53 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .bird { display: none; }
 }
 
-/* Day–night (T-111, T-117): the time slider in the scene, fireflies, figures getting up. */
-#scene svg .dn-slider { touch-action: none; }
-#scene svg .dn-slider [role="slider"] { cursor: grab; outline: none; -webkit-tap-highlight-color: transparent; }
+/* The notice board in the village (T-146): a tap wiggles it in four steps, the pin blinks. */
+#scene svg .board-sign.wiggle { animation: boardWiggle .4s steps(1) 1; }
+@keyframes boardWiggle { 0% { transform: translate(-2px, 0); } 25% { transform: translate(2px, 0); } 50% { transform: translate(-1px, 0); } 75% { transform: translate(1px, 0); } 100% { transform: none; } }
+#scene svg .pin-blink { animation: pinBlink 1.2s steps(1) infinite; }
+@keyframes pinBlink { 0%, 60% { opacity: 1; } 60.1%, 100% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  #scene svg .board-sign.wiggle, #scene svg .pin-blink { animation: none; }
+}
+/* the panel: the table of who comes when; a centred window on a desktop */
+.sheet.board-panel { max-width: 560px; }
+.board-tabs { display: flex; gap: 8px; margin: 0 0 10px; }
+.board-tab { flex: 1; min-height: 44px; padding: 8px 12px; font: inherit; font-weight: 700; color: var(--ink); background: var(--surface2); border: 3px solid var(--line); border-radius: 0; cursor: pointer; }
+.board-tab[aria-selected="true"] { background: var(--amber-soft); border-color: var(--amber); }
+.board-tab:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.board-table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 15px; }
+.board-table th, .board-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.board-table thead th, .board-table tr:first-child th { font-weight: 700; color: var(--muted); }
+.board-table .num { text-align: center; white-space: nowrap; }
+.board-table .current { background: var(--amber-soft); }
+.board-table tr.mine th, .board-table tr.mine td { font-weight: 700; }
+.board-table .board-name { font-weight: 500; overflow-wrap: anywhere; }
+.board-table .swatch { display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; border: 2px solid rgba(0, 0, 0, .35); }
+.board-table tr.foot th, .board-table tr.foot td { border-top: 3px solid var(--line); border-bottom: 0; font-weight: 700; }
+.board-table .tally { display: inline-block; min-width: 38px; padding: 2px 4px; border: 2px solid transparent; }
+.board-table .tally.ok { background: #3D7A55; color: #fff; }
+.board-table .tally.under { background: #F3E3C0; color: #2E1F14; border-color: #C98A1C; }
+.board-table .tally.over { background: #B4472F; color: #fff; }
+.board-table .tally.absent { color: var(--muted); }
+.board-empty { color: var(--muted); }
+@media (min-width: 700px) {
+  .sheet.board-panel {
+    left: 50%; right: auto; bottom: auto; top: 50%; width: min(560px, calc(100% - 32px)); margin: 0;
+    border-bottom: 4px solid #5C4033; transform: translate(-50%, -50%); opacity: 0; transition: opacity .15s ease-out;
+  }
+  .sheet.board-panel.open { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+/* Day–night (T-111, T-117): the time slider in the scene, figures getting up. */
 #scene svg .dn-in { animation: dnIn .5s linear backwards; }
 #scene svg .dn-out { animation: dnOut .5s linear forwards; pointer-events: none; }
 @keyframes dnIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dnOut { from { opacity: 1; transform: translate(0, 0); } to { opacity: 0; transform: translate(0, -3px); } }
-#scene svg .dn-ff { animation: dnFirefly 2.4s ease-in-out infinite; }
-@keyframes dnFirefly { 0%, 100% { opacity: .15; transform: translate(0, 0); } 50% { opacity: 1; transform: translate(3px, -4px); } }
-#scene svg .zzz { display: none; }
+#scene svg .zzz, #scene svg .quilt { display: none; }
+#scene svg.night .quilt { display: inline; }
 #scene svg.night .zzz { display: inline; animation: dnZzz 3s steps(6) infinite; }
 @keyframes dnZzz { 0% { opacity: 0; transform: translate(0, 2px); } 20%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(2px, -5px); } }
 @media (prefers-reduced-motion: reduce) {
-  #scene svg .dn-ff { animation: none; }
   #scene svg.night .zzz { animation: none; }
   #scene svg .dn-in, #scene svg .dn-out { animation: none; }
 }
@@ -379,6 +438,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn[aria-pressed="true"] { background: var(--forest); color: var(--surface); }
 .btn.secondary[aria-pressed="false"] { background: transparent; color: var(--forest); }
 
+/* fps meter (developer aid, `?fps=1`): small, top left, never takes taps */
+.fps-meter {
+  position: fixed; z-index: 50; left: calc(6px + env(safe-area-inset-left, 0px)); top: calc(6px + env(safe-area-inset-top, 0px));
+  padding: 2px 6px; background: rgba(0, 0, 0, .7); color: #9CFF9C; pointer-events: none;
+  font: 11px/1.3 ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+}
 #toast {
   position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
   bottom: calc(12px + max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px))); z-index: 40; max-width: 536px; margin: 0 auto; padding: 12px 14px;
@@ -389,12 +454,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #toast.info { border-left-color: var(--moss); }
 
 .sheet .sub { margin: 0 0 8px; }
-.night { margin: 0 0 10px; padding: 4px 0 8px; border-top: 2px solid var(--line); }
+section.night { margin: 0 0 10px; padding: 4px 0 8px; border-top: 2px solid var(--line); }
 .night-head {
   display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 6px 10px; text-align: left;
   background: transparent; border: 0; border-radius: 0; font-weight: 700; color: var(--forest); cursor: pointer; touch-action: manipulation;
 }
-.night.on .night-head { background: var(--surface2); border-left: 4px solid var(--moss); }
+section.night.on .night-head { background: var(--surface2); border-left: 4px solid var(--moss); }
 .night-head:focus-visible, .slot-row .btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 .slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 10px; min-height: 36px; }
 .slot-row .place { flex: none; width: 64px; font-size: 13px; color: var(--muted); }
@@ -710,9 +775,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 </div>
 <main id="scene" hidden></main>
 <!-- HUD: fixed to the viewport (not part of the zoomable svg). Filled by app-hud.js; shown only with the map. -->
-<div id="hud" class="hud" role="group" aria-label="Úlohy a kto si" hidden>
+<div id="hud" class="hud" role="group" aria-label="Noci, úlohy a kto si" hidden>
+  <div id="tophud" class="tophud">
+    <div class="tophud-in">
+      <div id="stamps" class="stamps" role="group" aria-label="Noci"></div>
+      <div id="rail" class="rail-wrap" role="slider" tabindex="0" aria-label="Čas" data-key="time"></div>
+    </div>
+  </div>
   <div id="quest" class="quest"></div>
-  <button id="crest" class="crest" type="button" data-key="who"></button>
+  <div id="bar" class="bothud">
+    <div class="bothud-in">
+      <button id="crest" class="crest" type="button" data-key="who"></button>
+      <div id="tools" class="tools"></div>
+    </div>
+  </div>
 </div>
 <div id="updateSign" class="update-sign" role="button" tabindex="0" aria-live="polite" hidden></div>
 <section id="srSummary" class="sr-only" aria-label="Textový prehľad chaty" hidden></section>
@@ -733,7 +809,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 <div id="adventure" class="adventure" role="region" aria-label="Pred cestou" hidden></div>
 <div id="panelRoot"></div>
+<!-- The pair of turn buttons (app-turn.js, T-144): scene UI in fixed colors; hidden by CSS under panels and the move bar -->
+<div id="turnBar" class="turn-bar" role="group" aria-label="Otočenie mapy" hidden></div>
+<p id="turnStatus" class="sr-only" role="status" aria-live="polite"></p>
 
+<script src="static/vendor/three.min.js?v=r158"></script>
 <script src="static/js/logic-model.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-beds.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-view.js?v=__ASSET_VERSION__"></script>
@@ -747,13 +827,26 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/logic-sound.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-live.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-daynight.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-iso.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-iso-roof.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-iso-people.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-board.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-core.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-boot.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-scene.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-zoom.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-iso.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-anchor.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-fps.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-iso-roof.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-iso-people.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-houses.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-turn.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-draw.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-board.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-daynight.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-hud.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-tophud.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-beds.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-panels.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-actions.js?v=__ASSET_VERSION__"></script>

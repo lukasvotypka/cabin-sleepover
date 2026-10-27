@@ -10,7 +10,17 @@ var BED_TAGS_ZOOM = 1.8;   // from this zoom on, the short bed names show under 
 function applyView() {
   app.svg.setAttribute("viewBox", viewBoxText(app.view));
   app.svg.classList.toggle("zoomed", viewZoom(app.view, app.bounds) >= BED_TAGS_ZOOM);
-  app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds);
+  isoSync();      // the 3D world under the svg shows the same part of the scene
+  housesZoomRule();      // 1.6x the rest zoom opens all houses, 1.15x closes them (app-houses.js)
+  syncTurnBar();
+  app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds) || atPhoneRest();
+}
+
+// The scene point [x, y] the intro zoom centres on: the title gate. [undefined, undefined] before the scene exists.
+function introFocus() {
+  if (!app.state || !app.iso) return [undefined, undefined];
+  var b = isoSignBox(app.iso.ref, app.state.layout, "gate");      // in the view frame, not at the moving centre
+  return [b[0] + b[2] / 2, b[1] + b[3] / 2];
 }
 
 function setView(view) {
@@ -19,13 +29,24 @@ function setView(view) {
 }
 
 function resetView() {
-  setView(wholeView(app.bounds));
+  setView(phoneRest() || wholeView(app.bounds));
+}
+
+// The rest view of a phone held upright (the content of the scene fitted by width), or null on other screens.
+function phoneRest() {
+  var px = app.viewportPx || [0, 0];
+  return phoneRestView(app.bounds, px[0], px[1], app.sceneContent, readInsets());
+}
+
+function atPhoneRest() {
+  var rest = phoneRest();
+  return !!rest && sameView(app.view, rest);
 }
 
 // The view of the map at rest (whole, or the upright scale on a phone held sideways, see restView).
 function appRestView(bounds, px) {
   px = px || app.viewportPx || [0, 0];
-  return restView(bounds, app.sceneSize[0], app.sceneSize[1], px[0], px[1]);
+  return restView(bounds, app.sceneSize[0], app.sceneSize[1], px[0], px[1], app.sceneContent, readInsets());
 }
 
 // --- the one-time intro zoom: the map starts zoomed on the top of the scene and eases out to the fitted view ---
@@ -43,7 +64,7 @@ function holdIntroZoom() {
     return;
   }
   app.introZoom = "held";
-  setView(introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1]));
+  setView(introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocus()[0], introFocus()[1]));
 }
 
 // The splash is gone: ease out to the fitted view.
@@ -66,7 +87,7 @@ function introFrame() {
     renderBriefingOffer();
     return;
   }
-  var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1]);
+  var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocus()[0], introFocus()[1]);
   setView(introViewAt(from, to, t));
   app.introRaf = requestAnimationFrame(introFrame);
 }
@@ -99,11 +120,12 @@ function readInsets() {
   var cs = getComputedStyle(app.insetProbe);
   // While the move bar shows, the scene must sit below it: the bar's height (it includes the safe-area top padding)
   // is the top inset when that is larger.
-  // Otherwise the scene sits below the quest log of the HUD (its bottom edge includes the safe-area top).
+  // Otherwise the scene sits below the top HUD (night stamps and time rail) and the quest log under it (their bottom edges
+  // include the safe-area top).
   var bar = $("moveBar"), top = parseFloat(cs.paddingTop);
   if (!bar.hidden) top = Math.max(top, bar.offsetHeight);
-  else top = Math.max(top, questBottom());
-  // The crest already includes the home-bar inset in its height; the scene must sit above it.
+  else top = Math.max(top, questBottom(), topHudBottom());
+  // The bottom bar already includes the home-bar inset in its height; the scene must sit above it.
   var bottom = Math.max(parseFloat(cs.paddingBottom), hudHeight());
   return { top: top, right: parseFloat(cs.paddingRight), bottom: bottom, left: parseFloat(cs.paddingLeft) };
 }
@@ -138,7 +160,6 @@ function setupZoom(host, svg, W, H) {
     app.view = resting ? appRestView(nb, px) : refitView(app.view, old, nb);
     app.bounds = nb;
     drawGround(app.layers.ground, nb);
-    if (dn.fx) dnFitArea(dn.fx);
     applyView();
   }
 
@@ -167,12 +188,24 @@ function setupZoom(host, svg, W, H) {
     setView(zoomView(app.view, app.bounds, factor, p.x, p.y));
   }
   // After a key zoom the focused bed or sign must still be in view.
+  // The box of a node in scene units. Boards and icons sit in a transformed group, so getBBox is in their own units.
+  function sceneBox(node) {
+    var b = node.getBBox(), m = node.getScreenCTM(), root = svg.getScreenCTM();
+    if (!m || !root) return [b.x, b.y, b.width, b.height];
+    var t = root.inverse().multiply(m), pts = [[b.x, b.y], [b.x + b.width, b.y + b.height]].map(function (c) {
+      var p = svg.createSVGPoint();
+      p.x = c[0];
+      p.y = c[1];
+      p = p.matrixTransform(t);
+      return [p.x, p.y];
+    });
+    return [pts[0][0], pts[0][1], pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]];
+  }
   function revealFocused() {
     var node = document.activeElement;
     if (!node || !svg.contains(node) || !node.getBBox || node === svg || !resetShown(app.view, app.bounds)) return;
     try {
-      var b = node.getBBox();
-      setView(revealRect(app.view, app.bounds, [b.x, b.y, b.width, b.height], 6));
+      setView(revealRect(app.view, app.bounds, sceneBox(node), 8));
     } catch (err) { /* not measurable: leave the view */ }
   }
 
@@ -314,8 +347,7 @@ function setupZoom(host, svg, W, H) {
     if (!resetShown(app.view, app.bounds) || !node.getBBox || Date.now() - app.navKeyAt > 500) return;
     try {
       if (!node.matches(":focus-visible")) return;
-      var b = node.getBBox();
-      setView(revealRect(app.view, app.bounds, [b.x, b.y, b.width, b.height], 6));
+      setView(revealRect(app.view, app.bounds, sceneBox(node), 8));
     } catch (err) { /* not measurable: leave the view */ }
   });
 

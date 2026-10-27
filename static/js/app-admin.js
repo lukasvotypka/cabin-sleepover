@@ -3,21 +3,6 @@
 // App part: the organizer's key icon and admin panel (T-076): lock signup, download the data, delete a party.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
-// The key icon, drawn only for the admin role. The hit area is the whole `map.scene.key` rect.
-function drawKey(parent, r) {
-  var g = svgEl(parent, "g");
-  var x = r[0] + (r[2] - 28) / 2, y = r[1] + (r[3] - 28) / 2;
-  rect(g, x, y + 2, 16, 16, COLORS.amberEdge);               // the bow (ring)
-  rect(g, x + 4, y + 6, 8, 8, COLORS.grass);                 // the hole
-  rect(g, x + 14, y + 8, 14, 4, COLORS.amberEdge);           // the shaft
-  rect(g, x + 22, y + 12, 3, 6, COLORS.amberEdge);           // the teeth
-  rect(g, x + 26, y + 12, 2, 4, COLORS.amberEdge);
-  rect(g, x + 3, y + 3, 10, 2, COLORS.amber, { opacity: ".7" });
-  iconCaption(g, r[0] + r[2] / 2, r[1] + 37, "Admin");
-  hitRect(g, r);
-  makeButton(g, "Admin nástroje", "key", openAdmin);
-}
-
 // Called when the role changes (the admin code was entered or the admin cookie is gone).
 function renderAdminUi() {
   if (!isAdmin(app.role) && app.panel && app.panel.isAdmin) closePanel();

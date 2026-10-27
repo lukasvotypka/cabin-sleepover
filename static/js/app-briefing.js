@@ -6,7 +6,7 @@
 
 var briefingUi = { offerClosed: false, sending: {} };   // offerClosed: hidden until the next page load
 
-// --- the board in the scene (map.scene.briefing) ---
+// --- the label of the „Pred cestou“ button in the bottom HUD ---
 
 function briefingLabel(state) {
   var count = briefingCount(state), mine = briefingDone(state, app.myParty);
@@ -14,31 +14,6 @@ function briefingLabel(state) {
   if (count) text += " Prešlo to " + count.done + " z " + count.total + ".";
   if (partyById(state, app.myParty)) text += mine ? " Tvoja partia to má prejdené." : " Tvoja partia to ešte nemá prejdené.";
   return text + " Ťuknutím otvoríš dvor.";
-}
-
-function drawBriefing(parent, r, state) {
-  var g = svgEl(parent, "g");
-  var x = r[0], y = r[1], w = r[2];
-  rect(g, x + 8, y + 40, 6, 10, COLORS.woodDark);                  // posts
-  rect(g, x + w - 14, y + 40, 6, 10, COLORS.woodDark);
-  board(g, [x, y + 6, w, 40], COLORS.plank);
-  advSprite(g, "batoh", x + (w - 32) / 2, y + 10, 2);
-  var count = briefingCount(state);
-  iconCaption(g, x + w / 2, y + 48, "Pred cestou");
-  if (count) {                                                     // the count as a small badge on the board
-    rect(g, x - 2, y + 1, 24, 11, COLORS.woodDark);
-    rect(g, x - 1, y + 2, 22, 9, COLORS.paper);
-    addText(g, x + 10, y + 9, count.done + "/" + count.total, 7, COLORS.ink, { anchor: "middle", bold: true, maxWidth: 20 });
-  }
-  if (partyById(state, app.myParty) && !briefingDone(state, app.myParty)) {                         // the blinking „!“ bubble
-    var bang = svgEl(g, "g", { "class": "briefing-bang", "aria-hidden": "true" });
-    rect(bang, x + w - 20, y, 18, 20, COLORS.woodDark);
-    rect(bang, x + w - 18, y + 2, 14, 16, "#FFD54A");
-    rect(bang, x + w - 12, y + 5, 3, 7, COLORS.woodDark);
-    rect(bang, x + w - 12, y + 14, 3, 3, COLORS.woodDark);
-  }
-  hitRect(g, r);
-  makeButton(g, briefingLabel(state), "briefing", enterBriefing);
 }
 
 // --- the way in ---

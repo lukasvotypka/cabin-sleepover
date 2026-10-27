@@ -33,18 +33,36 @@ function wholeView(bounds) {
   return { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h };
 }
 
-// The view the map rests on when nobody zoomed it: the whole bounds, except on a phone held sideways. There the
-// whole scene would have to fit the short height and come out tiny, so the map keeps the scale it has with the
-// phone upright (the scene as wide as the short side of the screen), zoomed around the scene centre. vw x vh is the
-// viewport in CSS px; only below LANDSCAPE_MAX_H px of height (phones, not desktop windows).
+// The view the map rests on when nobody zoomed it: the whole bounds, except
+//  - on a phone held upright (a portrait viewport narrower than REST_PHONE_W px) when `content` ([x, y, w, h], the part
+//    of the scene that matters: the board block and the rooms) is given: the view fits the content's width, so a phone
+//    shows the board block and every room larger than the whole scene would be (only the forest edge is cropped),
+//  - on a phone held sideways. There the whole scene would have to fit the short height and come out tiny, so the map
+//    keeps the scale it has with the phone upright (the scene as wide as the short side of the screen), zoomed around
+//    the scene centre. vw x vh is the viewport in CSS px; only below LANDSCAPE_MAX_H px of height (phones, not desktop windows).
 var LANDSCAPE_MAX_H = 500;
-function restView(bounds, W, H, vw, vh) {
-  var whole = wholeView(bounds);
+var REST_PHONE_W = 600;
+function restView(bounds, W, H, vw, vh, content, insets) {
+  var whole = wholeView(bounds), phone = phoneRestView(bounds, vw, vh, content, insets);
+  if (phone) return phone;
   if (!(vw > vh) || !(vh < LANDSCAPE_MAX_H) || !(bounds.w > 0)) return whole;
   var s = vw / bounds.w;                                  // px per scene unit at 1x
   var z = Math.min(ZOOM_MAX, vh / W / s);
   if (!(z > 1.05)) return whole;
   return zoomView(whole, bounds, z, W / 2, H / 2);      // the scene centre stays where it is (above the HUD)
+}
+
+// The rest view of a phone held upright (see restView): the content rect fitted by width and centred, or null when
+// the rule does not apply (no content, a wide or a landscape viewport, or the content is no narrower than the scene).
+function phoneRestView(bounds, vw, vh, content, insets) {
+  if (!content || !(vw < REST_PHONE_W) || !(vh >= vw) || !(content[2] > 0) || !(bounds.w > 0)) return null;
+  var w = content[2], h = w * bounds.h / bounds.w;
+  if (!(bounds.w / w > 1.02)) return null;
+  // With insets ({top, bottom} in px: the top HUD and quest tab, the bottom bar) the content is centred in the free band
+  // between them, so the title board never sits under the HUD.
+  var sc = vw / w, top = insets && insets.top > 0 ? insets.top : 0, bot = insets && insets.bottom > 0 ? insets.bottom : 0;
+  var mid = (top + vh - bot) / 2 / sc;      // the band's centre in scene units from the view top
+  return clampView({ x: content[0], y: content[1] + content[3] / 2 - mid, w: w, h: h }, bounds);
 }
 
 // Two views are the same up to half a scene unit.
@@ -200,10 +218,11 @@ function revealRect(view, bounds, r, margin) {
 
 // The first view of the one-time intro: zoomed INTRO_ZOOM_START times, centered on the scene horizontally, with the
 // top edge at the top of the scene (the W x H scene sits at 0, 0 in the bounds' coordinates).
-function introStartView(bounds, W, H) {
+function introStartView(bounds, W, H, focusX, focusY) {
   var w = bounds.w / INTRO_ZOOM_START;
   var h = w * bounds.h / bounds.w;
-  return clampView({ x: W / 2 - w / 2, y: 0, w: w, h: h }, bounds);
+  var cx = focusX === undefined ? W / 2 : focusX;      // the title gate (or the scene middle)
+  return clampView({ x: cx - w / 2, y: focusY === undefined ? 0 : focusY - h / 2, w: w, h: h }, bounds);
 }
 
 // The view `t` (0 to 1, clamped) of the way from `from` to `to`, eased in and out. Exactly `from` at 0, `to` at 1.

@@ -49,7 +49,7 @@ function stovePipeRect(bed) {
 }
 
 // The box that the furniture of a bed really covers, in map units: the union, on all four sides, of
-// the bed rect, every mat (mats are spaced 46 apart and 32 wide, see `drawFurniture`) and the stove
+// the bed rect, every mat (mats are spaced 46 apart and 32 wide, see `isoFurniture`) and the stove
 // pipe. The hit area and the figures use `bed.rect` itself.
 function furnitureBounds(bed) {
   var r = bed.rect, parts = [r], i;
@@ -185,7 +185,7 @@ function walkPosition(from, to, t) {
 
 // The walks for one assign on `night`: stateBefore is the view before the tap, stateAfter the view with
 // the new pending ops. For the i-th slot of `slots` the figure starts at the i-th meadow cell (or at the
-// "+N" badge when the meadow overflows) and ends at its place in the bed. `kind` is what will stand in
+// "+N" badge when the meadow overflows) and ends at its place in the bed, at height `h` (isoSlotHeight). `kind` is what will stand in
 // the bed, so nothing swaps at landing. [] when party is null or had no waiting figures.
 function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) {
   if (!party) return [];
@@ -196,16 +196,10 @@ function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) 
     var from = i < spot.cells.length ? spot.cells[i] : i < waiting ? spot.morePos : null;
     var who = slotOccupant(stateAfter, slot, night);
     if (!from || !who) return;
-    out.push({ slot: slot, from: from, to: figurePosition(bed, bed.slots.indexOf(slot)), kind: who.kind, color: party.color });
+    var at = bed.slots.indexOf(slot);
+    out.push({ slot: slot, from: from, to: figurePosition(bed, at), h: isoSlotHeight(bed, at), kind: who.kind, color: party.color });
   });
   return out;
-}
-
-var MEADOW_HIT_H = 44;   // touch target height in scene units
-// Hit rect of the meadow button: starts at the meadow top (below the letter and key icons) and is 44 units tall,
-// taller than the meadow itself, so no other scene board may sit within it (tests/test_map_layout.py checks this).
-function meadowHitRect(meadow) {
-  return [meadow[0], meadow[1] - 1, meadow[2], MEADOW_HIT_H];
 }
 
 // Screen-reader label of the meadow group, "" for 0.

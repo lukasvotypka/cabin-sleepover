@@ -469,6 +469,6 @@ function closeAdventure() {
   adv.els = null;
   slidesReset();
   advSetInert(false);
-  var back = adv.opener && adv.opener !== document.body && document.contains(adv.opener) ? adv.opener : document.querySelector('#scene [data-key="briefing"]');
+  var back = adv.opener && adv.opener !== document.body && document.contains(adv.opener) ? adv.opener : document.querySelector('#hud [data-key="briefing"]');
   if (back && back.focus) back.focus({ preventScroll: true });
 }

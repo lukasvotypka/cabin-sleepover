@@ -6,14 +6,12 @@
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
 var AGE_TICK_MS = 1000;
-var CREST_CHIPS_MAX = 6;   // online chips under „Si: …“ (what fits at 380 px after „online:“); the rest is „+N“
+var CREST_CHIPS_MAX = 4;   // online chips under „Si: …“ (what fits at 380 px after „online:“ next to the tool buttons); the rest is „+N“
 // A request that hangs (a phone that slept or lost the network mid-request) is given up after this,
 // so the next poll can run. Without it a hung poll blocked all later ones and the page stayed stale.
 var POLL_TIMEOUT_MS = 10000;
 var WRITE_TIMEOUT_MS = 20000;
-var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound" };
-var BED_HIT_GROW = 8;     // most units a bed hit area grows into free space
-var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
+var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound", fps: "cabin.fps", persp: "cabin.persp", angle: "cabin-view-angle" };
 var LONG_PRESS_MS = 500;
 var TOAST_MS = 6000;
 // The grass around the scene: a tile with a few tufts, the same look as the code screen.
@@ -35,7 +33,7 @@ var COLORS = {
   stoveTileDark: "#7D7264", stoveBlanket: "#C9D8EA", stoveBlanketEdge: "#9DB5D4", stovePipeLight: "#8A8A8A",
   tight: "#E0A33A", picked: "#3AA7E0",
   moon: "#7A8FB8", moonDark: "#3E4F7A", moonBand: "#D9DFEE", nightInk: "#2F3B5C", dayBand: "#F7E7B4", dayInk: "#7A4A0C",
-  brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C", smokeLight: "#C9C9C9", smokeDark: "#A9A9A9"
+  brick: "#7A3226", brickLight: "#A8523C", brickMortar: "#5A241C"
 };
 // Signpost tally chip per kind: [edge, face, text] keys of COLORS (under = amber: still to do; over = red: too many).
 var TALLY_COLORS = { under: ["amberEdge", "amber", "ink"], over: ["redEdge", "red", "white"], ok: ["greenEdge", "green", "white"] };
@@ -106,6 +104,7 @@ var app = {
   toastTimer: null,
   panel: null,
   layoutKey: null,
+  viewAngle: isoAngle(storage.get(KEYS.angle)),   // the camera azimuth of the map: 45, 135, 225 or 315 (logic-iso.js, app-turn.js)
   layers: null,
   view: null,          // the visible window of the map (zoom and pan), see the zoom functions in the logic script
   bounds: null,        // the whole viewport in scene units: the scene plus the grass around it (fitBounds)
@@ -124,7 +123,7 @@ var app = {
   introRaf: 0,         // id of the intro's animation frame
   introZoomAt: 0,      // performance.now() when the intro zoom began easing
   hudHeight: 0,        // height of the bottom HUD in CSS px, to refit the scene when it changes
-  questBottom: 0,      // bottom edge of the quest log in CSS px, to refit the scene when it changes
+  questBottom: 0,      // bottom edge of the quest log or the top HUD in CSS px, to refit the scene when it changes
   questRows: null,     // the last quest rows, to notice a finished night
   questParty: null,    // the party those rows were for
   ageNode: null,       // the line under „Si: …“ in the bottom HUD: online chips, or the data age on a problem

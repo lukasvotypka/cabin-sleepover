@@ -228,3 +228,112 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **Screen reader:** VoiceOver and TalkBack read the slider value like „piatok 03:00, noc Št → Pi“. On desktop the arrows, Page Up/Down, Home and End move the time.
 - [ ] **Reduced motion (iOS „Zmenšiť pohyb“, Android „Remove animations“):** no time-lapse, no fade, fireflies stay still; dragging the knob still works.
 - [ ] **Pan and zoom fps with the day-night layer at rest (T-113):** on a 380 px iPhone Safari (and Android Chrome) at noon, drag, pinch and zoom the map with one and two fingers for about 10 s: it moves smoothly, no visible lag compared with the night-free state. Headless Chrome at 8x CPU throttle showed no difference (median about 17 ms, p90 about 20 ms, layer hidden or forced), so the iOS gap from the organizer report is only checked here.
+
+## 12. Isometric base (T-130)
+
+- [ ] **Vendored Three.js loads on devices (T-130):** on a 380 px iPhone Safari and Android Chrome, open the trial link (or a fresh private tab) and check that the page opens and the map draws with no error in the console (Safari: Develop menu via a Mac; Chrome: remote debugging). `static/vendor/three.min.js` (about 650 KB) is loaded before the logic scripts; on a slow mobile connection the page must still show the title and the map within a few seconds.
+
+## 13. Isometric 3D world (T-131)
+
+- [ ] **3D world on a real GPU (T-131):** on a 380 px iPhone Safari and Android Chrome, the map shows the pixel 3D world (grass, paths, log cabins, furniture, trees, campfire) under the svg, not blank and not flat. Pan, pinch and double-tap zoom: the svg hit areas and the 3D furniture stay aligned at every zoom (check a small cot or bunk at the largest zoom).
+- [ ] **Phone rest view (T-131 design):** on a 380 × 740 portrait screen the first view (and the reset button) shows the whole board block (title, signposts, party table, icons) and all three houses, with the forest edge cropped and reachable by panning. Rooms and bed shapes are readable (about 0.66 px per unit).
+- [ ] **Desktop and landscape:** at 1440 × 900 and on a phone turned sideways, the world fills the map as before, with no stripe of blank background at any edge while panning.
+- [ ] **Backgrounded tab (T-131):** on iOS Safari, open the map, switch to another app for a minute, come back: the world is drawn (or the flat grass fallback shows and then the world rebuilds), never a blank map with the beds floating. A reload always shows the world.
+- [ ] **No WebGL on device:** on a device with WebGL off (Safari: Settings → Safari → Advanced → Experimental features, or a low-memory phone), the page still works: flat grass, room floors and bed outlines, taps on beds open the sheet, no error message on the page.
+- [ ] **Dark mode:** with the system in dark mode the 3D scene looks the same as in light mode (fixed colours); only the panels change.
+- [ ] **Reduced motion:** with reduced motion on, the world is static and nothing flickers while scrolling the page.
+
+## 14. Board block above the world (T-132)
+
+- [ ] **Block on a real phone (T-132):** on a 380 px iPhone Safari and Android Chrome, the title board, time slider, three night signposts and party table stand upright above the 3D world, with a strip of grass between the block and the houses. The 2×3 icon grid sits left of the boards (Návod, Kto je kto / Prehľad, Pred cestou / key or „Zápis je zatvorený“), every sign is easy to tap with a thumb, and no label or badge touches a neighbouring sign.
+- [ ] **Knob and rail by touch (T-132):** on the phone, drag the time knob with one finger at the default view and after a pinch zoom: the knob follows the finger without a jump at the grab. A tap on the rail runs the time-lapse to that hour, and the knob stops under the finger's tap point.
+- [ ] **Intro on a device (T-132):** on iPhone Safari and Android Chrome, after a reload the map starts zoomed on the title board and eases out to the full view, with the title board not hidden by the bottom HUD.
+- [ ] **Bird in the grass strip (T-132):** the bird flies left to right across the whole map width between the block and the 3D world, never over the boards, and does not block a tap on a sign.
+- [ ] **Hardware keyboard (T-132):** on a desktop or iPad with a keyboard, Tab through the signs (boards and icons, then beds) while zoomed in: each focused sign is brought into view. Enter or Space on an icon opens its panel.
+- [ ] **Admin key and locked sign on devices (T-132):** as an admin on the phone, the key sign („Admin“) appears in the lower-left cell of the grid and opens the admin panel; with signup locked, „Zápis je zatvorený“ shows for everyone in the lower-right cell, and the other cells stay empty (no gap closing).
+
+## 15. Beds, people and meadow in the isometric view (T-133)
+
+- [ ] **Beds by thumb (T-133):** on a 380 px phone at the rest view, tap each kind of bed (double bed, single, cots, mats, sofa, bunk top and bottom, stove). Cots and the single bed are small (about 24 to 30 px at the rest view): zoom in once if a tap misses, and report which beds are hard to hit.
+- [ ] **Night quilts (T-133):** slide to night: every sleeper shows a quilt strip and z-z-z; the bottom bunk sleeper is under the rail of the top berth. By day they stand on their beds.
+- [ ] **Tap where the bed is (T-133):** on a phone at the rest view, tap the middle of the bunk top and of the single cot next to another cot, and tap the standing figure on each cot. Each tap must open the bed you touched (Poschodová posteľ 1, Rozkladacie lehátko 1), not the neighbour. Known open issue: the neighbour's tap area takes part of these beds (T-133 test report, bug 1). Note here which taps went to the wrong bed.
+- [ ] **Long press tip (T-133):** on a phone, press and hold (about 0.5 s) a bed with people, first a middle one, then one at the left or right edge of the map. The name tip appears above the bed (below it near the top edge), stays inside the map and goes away after about 2.5 s.
+- [ ] **Move by thumb (T-133):** on a phone, tap your party's bed, „Presunúť“, then tap a free bed: the figure walks or moves to it, the move bar goes away and the new place shows in the sheet at once. A bunk top move shows the right berth.
+- [ ] **06:00 fade on devices (T-133):** drag the time knob across 06:00 (or tap the next night's signpost on the iPhone and Android): figures that leave fade out, new ones fade in, figures in the same place stay put. With reduced motion (iOS „Zmenšiť pohyb“, Android „Remove animations“) there is no fade and the figures change at once.
+- [ ] **Walk onto the bunk top (T-133):** on a phone, a figure walking from the meadow to the top berth climbs up in small steps at the end of the walk, not in one jump, and lands on the berth.
+
+## 16. Day, night and life in the 3D map (T-134)
+
+- [ ] **Time-lapse on iPhone Safari and Android Chrome (T-134):** tap a night signpost: the light changes from day through orange dusk to blue night and back at dawn. At night every room glows warm, the windows and doors light the ground outside, the grass is dark blue (not black), and the campfire is brighter. No flat rectangle shows over the world, and the figures, names and boards stay readable.
+- [ ] **Moving details (T-134):** by day, smoke rises from the chimneys in small steps and a few leaves fall near the cabins; at night the leaves are gone and fireflies blink at the forest edge, never over the signs. The campfire flickers. Tapping the big tree makes its crown sway in steps.
+- [ ] **Smoothness on a phone (T-134):** the map pans and zooms smoothly while the details move, and the phone does not get warm after a minute on the map.
+- [ ] **Reduced motion (T-134):** with iOS „Zmenšiť pohyb“ or Android „Remove animations“ on, nothing moves (no smoke, leaves or sway; the fire stands still); moving the time slider still changes the light and glow at once.
+- [ ] **Hidden tab (T-134):** switch to another app or tab for a minute and come back: the map is correct at once, the smoke and fire go on from where they were, and the phone did no work while hidden (no heat or battery drain).
+
+## 17. Slight perspective (T-135)
+
+- [ ] **Depth on phones (T-135):** on a 380 px iPhone Safari and Android Chrome at the rest view, the far forest looks a little further away than the front houses, and the board block, signposts and HUD stay flat and upright at the same size. The depth is gentle (about 12 %): report it if it looks bent or too strong on the stair steps of the roofs.
+- [ ] **Tap and figures stay on the 3D beds (T-135):** on a phone, zoom in 3x and pan to the far beds (Konica, podkrovie) and to the front ones: the tap areas, the standing figures and the labels sit on the 3D beds and tapping each bed opens that bed.
+- [ ] **Alignment after the time slider on desktop (T-135):** on a desktop window (about 1280x900), drag the time knob, then zoom with the mouse wheel and pan: the svg taps and labels must stay on the 3D beds. The cause (the `night` class on the scene svg picked up the panel's `.night` padding and border) is fixed. Headless Chrome re-test on 27. 10. 2026 measured 0 to 0.002 px after the drag, zoom and pan. Confirm once in a real desktop browser.
+
+## 18. Depth lighting (T-136)
+
+- [ ] **Shadows and corners on a real GPU (T-136):** on a 380 px iPhone Safari and Android Chrome at 12:00 (rest view), the walls and the big trees throw long soft shadows on the grass to the north-north-west, the corners where walls meet the floor and the dark blobs under the trees and beds read as darker, and no bed top is more than half in shadow. Then drag the time knob to dusk (about 16:30) and to 23:00: the shadows fade and the corners stay a little darker than the open floor.
+- [ ] **Frame cost on a phone (T-136):** on a 380 px phone with a mid-range GPU, the map pans and zooms as smoothly as before T-136 (compare with the trial build of T-135 on the same phone): no visible stutter while panning, and the page stays responsive when the time knob is dragged.
+
+## 19. Roofs, walls and opening houses (T-137)
+
+- [ ] **Closed houses on a phone (T-137):** on a 380 px iPhone Safari and Android Chrome at the rest view, every house is closed: tall walls, a gable roof in its own colours, a chimney with smoke, and on the ridge a small sign „voľné: N“ or „plno“ for the chosen night. The signs are readable without zooming in, and the numbers match the free places of each house (check against „Kto je kto“ and the table).
+- [ ] **Tap opens and zooms, never assigns (T-137):** tap a closed roof, a wall, and a bed hidden under a roof. The house opens and the view eases to it. No sheet, no place changes on another device. The next tap on a bed opens the sheet as before.
+- [ ] **Zoom opens and closes all (T-137):** pinch to about 1.6× the rest zoom: all houses open. Pinch back to about 1.15× or press „Celá mapa“: all close. Between these two zoom levels nothing flips while pinching.
+- [ ] **Move mode on a phone (T-137):** start a move („Presunúť“) with a house closed: every house must open at once so the target beds are visible. Report it if a closed house stays closed while the move bar is shown.
+- [ ] **Opening look (T-137):** the opening runs in about 0.75 s (roof lifts, then the front walls sink), smooth at 30 fps (T-141), with no jumps. With „Zmenšiť pohyb“ (iOS) or „Odstrániť animácie“ (Android) it is instant.
+- [ ] **VoiceOver on closed houses (T-137):** a bed of a closed house is announced with the same label as on an open house (bed name, then „Ťuknutím otvoríš.“, as at HEAD). A double tap opens its sheet, and the house opens too. The ridge sign is not read as a button.
+- [ ] **Desktop hover (T-137):** with a mouse over a closed roof, the roof brightens and the cursor is a pointer. Click opens and zooms the house.
+- [ ] **Dark mode (T-137):** the roofs, walls and ridge signs keep their colours, and the panels follow the dark palette.
+
+## 15. People as 3D figures (T-138)
+
+- [ ] **Figures on a real GPU (T-138):** on a 380 px iPhone Safari and Android Chrome, with the party table filled, the people sit in their beds by day (upright, legs under the quilt) and lie under a party-coloured quilt at night. Each figure has its party colour and its shirt letter readable on the chest. Kids are visibly smaller. Check at the rest zoom and zoomed in 4x (the letter stays crisp, no shimmer while panning).
+- [ ] **My party ring (T-138):** the yellow frame blinks around my figures on the bed top; a pending figure of my party shows the frame at half strength. Reduced motion: the frame stays steady.
+- [ ] **Pending, rejection and 06:00 (T-138):** a tap on a free bed pops the figure in, it is semi-transparent until the server answers, and a rejection shakes it and removes it with the Slovak reason. Dragging across 06:00 fades leaving figures out and arriving ones in, in visible steps.
+- [ ] **Walk and meadow in 3D (T-138):** the meadow waiters stand with a dark blob under the feet and hop now and then; a tap on a bed makes one of them walk along the path through the house door and up onto the bed, about 1.5 s, and it stays opaque. Check that the door opens first.
+- [ ] **Move mode lift (T-138):** the picked figure rises and bobs; on drop it pops in on the new bed.
+- [ ] **No-WebGL device (T-138):** in a browser without WebGL (or with hardware acceleration off) the page shows the flat ground and the old svg sprites, and taps still work.
+- [ ] **Battery and heat (T-138):** leave the map open with my party chosen for 5 minutes on a phone; the page stays responsive, and when the tab is hidden nothing is drawn (no heat, no animation).
+
+## 16. Smooth edges (T-139)
+
+- [ ] **Smooth edges on a real phone (T-139):** on a 380 px iPhone Safari (DPR 3) and Android Chrome, at the rest view and zoomed 3x: walls, roof edges, beds, dolls, trees, the title and signpost boards, the icon grid and the party table text show antialiased edges, no stair steps. The map canvas and the svg are not blurred by a pixel scale-up.
+- [ ] **Render cost on a real GPU (T-139):** on the same phone, pan and pinch for 1 minute with the time slider at noon and at night; the map stays responsive, and with the tab hidden nothing is drawn. Headless SwiftShader measured about 52 ms per frame at pixel ratio 1.5 (vs about 15 ms before, without MSAA); if the phone feels slow, lower `ISO_PIXEL_RATIO_MAX` in `static/js/app-iso.js` (and CLAUDE.md) to 1.
+- [ ] **Two-device alignment after smoothing (T-139):** with the map zoomed on the cabin, a bed tap on the phone hits the bed drawn in 3D (no offset between the svg tap area and the furniture).
+
+- [ ] **Moving sun (T-140):** on a real iPhone Safari and Android Chrome (380 px wide, light and dark mode, one house open): drag the time knob from morning to evening and watch the tree and wall shadows turn from west through north to east and shorten toward noon. The time-lapse (tap a signpost or the rail) shows a quick sundial sweep in steps, not a slide, and the phone does not stutter noticeably. At 17:16 and 06:04 the light changes to the moon (short soft shadows); this should read as a change of light, not a glitch. With reduced motion (system setting) the sun jumps at once. Tell the organizer if the steps look too coarse (the sun steps are now 2° / 1°, T-141) or the phone gets hot.
+
+## 20. Smooth 30 fps animation (T-141)
+
+- [ ] **30 fps on a real phone (T-141):** on a 380-390 px iPhone Safari and Android Chrome, open the page with `?fps=1`. At rest with motion allowed the meter reads about 30 fps (smoke and leaves always move). Tap a night signpost for the time-lapse: the shadows slide smoothly, no stutter, and the phone does not get noticeably hot after 1 minute. Tell the organizer if it does (the idle ambient life could drop to 10-15 fps, see T-141 review note).
+- [ ] **Animation lengths on a real phone (T-141):** the pop of a new figure (0.375 s), the fade at 06:00 (0.375 s), the house opening (0.75 s) and the walk to a bed (1.6 s) look as long as before the change (they were 8 fps steps of the same length). No visible jumps.
+- [ ] **Reduced motion and hidden tab (T-141):** with the system setting „Zmenšiť pohyb“ (iOS) or „Odstrániť animácie“ (Android), the meter reads 0 fps at rest and the time jumps at once. Switching to another app or locking the phone stops all drawing (the meter stops moving).
+- [ ] **Automatic quality on a real phone (T-142):** on a 380-390 px iPhone Safari and Android Chrome, open the page with `?fps=1`, pan and zoom for 1 minute, then leave the tab open with a hot phone or a busy device. The meter shows `q0` at first; if the frame rate drops under about 25 fps for a few seconds the level steps to `q1`, `q2`, `q3 hard` and the picture stays clean (no visible shadow jumps). After the load eases it climbs back (about 20 s per level after a held climb, longer after a failed one). Tell the organizer if the picture looks worse at `q0` or the climb never comes back.
+- [ ] **Look after the lighter geometry (T-142):** on the same phone, open a house (tap the closed roof) and compare with the trial build of T-141: the roofs, crowns, pine tiers and the stacked logs look the same, no holes or see-through walls from inside the house.
+
+## 21. Four view angles (T-143)
+- [ ] **Four angles on a phone (T-143):** on a 380-390 px iPhone Safari and Android Chrome, with the test hook `setViewAngle(135)`, `225`, `315` (or after T-144 the buttons), check at each angle: the 3D map and the svg line up (beds and signposts sit on their tap areas), every bed opens its own bed, the boards are readable, and the shadows fall up and to the right on screen. Tap the roof of „Letná kuchynka“ at 135 with all houses closed: the kitchen opens, not „Izba vľavo“ (T-143 test report, bug 1, until fixed).
+- [ ] **Angle after reload (T-143):** set another angle, reload the page on the phone: the map shows the same angle; an unknown stored value falls back to the south-east view.
+
+## 22. Turn buttons and swing (T-144)
+- [ ] **Swing on a real phone (T-144):** on iPhone Safari and Android Chrome, tap ⟳ and ⟲ (the arrows at the bottom right): the map swings about half a second through the four angles without stutter, the svg overlay fades out and back in (no flash of the flat map), and a double tap turns two quarters.
+- [ ] **Reduced motion on a device (T-144):** with „Reduce motion“ on in the phone settings, one tap switches the angle at once, with no swing and no fade.
+- [ ] **Buttons on a phone with a notch (T-144):** the pair sits at the bottom right, beside the crest and above the home bar; „Celá mapa“ sits one row above the pair when the map is zoomed. Both have a 44 px touch target and the pressed look (2 px shift) on touch.
+- [ ] **Shadows at each angle at noon (T-143/T-144 design check):** at noon, a screenshot from each of the four angles shows the shadows falling up and to the right, as at 45°.
+
+- [ ] **Top and bottom HUD (T-145):** the three night stamps (`Št → Pi`, dates, `used/20`, my chip `4/4`, amber, red or „nie si“) and the time rail under them stay fixed at the top while the map is panned, zoomed, turned and while „Celá mapa“ is used; the scene is fitted between the top bar and the bottom bar and never hides behind them (also with the notch and home bar). A stamp tap selects the night and runs the time-lapse; dragging the knob shows the time (`18:00`) and changes the night at 06:00; arrow keys, Home and End work on the rail. The bottom bar shows „Si: …“ and the buttons Návod, Info, Prehľad and Pred cestou (and „Admin“ for the admin, a red „Zatvorené“ sign while signup is locked), all 44 px wide and working. Only the world darkens at night. Move mode hides the top bar. Check on iPhone Safari and Android Chrome.
+- [ ] **No WebGL on a device (T-145):** on a phone with WebGL switched off (or a browser where it fails), the page still shows the flat map with the three night stamps, the time rail, the bottom bar with its buttons and the „Si: …“ card; a tap on a bed opens its sheet; „Otočiť mapu“ turns the flat plan. Check the top bar also clears the notch and the rounded corners (safe area) on iPhone Safari in both orientations.
+- [ ] **Notice board and title gate (T-146):** on an iPhone Safari and an Android Chrome (380 px wide, light and dark mode) the village shows a wooden gate „Chata 29. 10. – 1. 11.“ over the entrance path and a „Kto kedy príde“ notice board with two pinned stamps („Noc“ with party colour, name, `Št–Ne` and the placed/needed numbers per night, my row yellow, the chosen night marked; „Cez deň“ with day visitors and „na jedlo“). Zoom in with two fingers: the stamps are readable. Turn the map with the two buttons: the board and the gate face you at all four angles and stay readable; the board never hides behind a roof. The gate may overlap a house corner at some angles (accepted deviation): it must stay readable and taps on the house or beds behind it must still work. Tap the board: it wiggles and a „Kto kedy príde“ panel opens (bottom sheet on the phone, centred window on a desktop) with the tabs „Noc“ / „Cez deň“, a footer „Obsadené“ and „Zavrieť“; Esc, the backdrop and „Zavrieť“ close it. With a second device assign a bed: the board and the open panel update by themselves; tap another night stamp in the top HUD: the marked column moves. Tab to the board (Enter / Space opens it). With reduced motion the board does not wiggle. Tell the organizer if the map at rest looks too small (the board in the north-east corner makes the rest view wider, see T-146 Dev log).
+
+## Perspective follows the pan (T-147)
+
+- Pan the map to the left and right edge at the same zoom: the houses near the edge show their outer side wall, the one in the middle looks like at the rest view.
+- During the pan, bed tap areas, room signs, ridge signs, bed tags, the notice board and the title gate stay on their 3D objects (no drifting); tap a bed and a closed house right after a pan, at all four view angles.
+- `?persp=0` (flat), `?persp=0.35` (strong): shadows, roofs, people and the board look right. `?persp=` clears the setting.

@@ -24,17 +24,9 @@ from app.models import (
 from tests.conftest import APP_YAML, CABIN_YAML
 
 SCENE = {
-    "title": [176, 4, 196, 28],
-    "nights": [176, 48, 196, 58],
-    "notice": [24, 316, 44, 44],
-    "locked": [16, 190, 62, 56],
-    "letter": [128, 408, 44, 44],
-    "key": [184, 408, 44, 44],
-    "legend": [24, 264, 44, 44],
-    "parties": [176, 112, 196, 136],
+    "board": [380, 50],
+    "gate": [248, 490],
     "meadow": [112, 453, 124, 14],
-    "briefing": [296, 408, 56, 56],
-    "time": [176, 34, 196, 12],
 }
 
 
@@ -75,7 +67,6 @@ def test_meadow_is_inside_the_viewbox_and_overlaps_nothing(layout):
     others = {f"room {r.id}": r.rect for r in layout.rooms}
     others.update({f"path {i}": r for i, r in enumerate(layout.map.paths)})
     others.update({f"door {i}": r for i, r in enumerate(layout.map.doors)})
-    others.update({f"scene {k}": v for k, v in layout.map.scene.model_dump().items() if k != "meadow"})
     for name, rect in others.items():
         assert not _overlap(meadow, rect), f"meadow overlaps {name}"
 
@@ -105,14 +96,14 @@ def test_app_config_rejects_unknown_and_bad_values(tmp_path):
 
 def test_layout_dump_is_json_ready(layout):
     dumped = layout.model_dump(mode="json")
-    assert dumped["map"]["scene"]["key"] == [184, 408, 44, 44]
+    assert dumped["map"]["scene"]["board"] == [380, 50]
     assert dumped["rooms"][0]["beds"][0]["kind"] == "bed2"
 
 
 # --- errors in cabin.yaml ------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", sorted(set(SCENE) - {"briefing", "time"}))
+@pytest.mark.parametrize("name", sorted(SCENE))
 def test_missing_scene_rect_names_it(layout_data, name):
     del layout_data["map"]["scene"][name]
     with pytest.raises(ConfigError) as exc:
@@ -120,22 +111,18 @@ def test_missing_scene_rect_names_it(layout_data, name):
     assert f"map.scene.{name}" in str(exc.value)
 
 
-def test_briefing_rect_is_optional_with_a_default(layout_data):
-    del layout_data["map"]["scene"]["briefing"]
-    assert parse_layout(layout_data).map.scene.briefing == [296, 408, 56, 56]
-
-
-def test_time_rect_is_optional_with_a_default(layout_data):
-    del layout_data["map"]["scene"]["time"]
-    assert parse_layout(layout_data).map.scene.time == [176, 34, 196, 12]
+def test_scene_point_must_have_two_ints(layout_data):
+    layout_data["map"]["scene"]["board"] = [1]
+    with pytest.raises(ConfigError, match="map.scene.board"):
+        parse_layout(layout_data)
 
 
 def test_scene_rect_must_have_four_ints(layout_data):
-    layout_data["map"]["scene"]["title"] = [1, 2, 3]
-    with pytest.raises(ConfigError, match="map.scene.title"):
+    layout_data["map"]["scene"]["meadow"] = [1, 2, 3]
+    with pytest.raises(ConfigError, match="map.scene.meadow"):
         parse_layout(layout_data)
-    layout_data["map"]["scene"]["title"] = [1, 2, 3, "x"]
-    with pytest.raises(ConfigError, match="map.scene.title"):
+    layout_data["map"]["scene"]["meadow"] = [1, 2, 3, "x"]
+    with pytest.raises(ConfigError, match="map.scene.meadow"):
         parse_layout(layout_data)
 
 

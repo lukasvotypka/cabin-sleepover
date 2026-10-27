@@ -105,38 +105,20 @@ def test_roofs_and_chimneys_clear_of_everything():
     assert _run_node(ROOF_CHECK) == []
 
 
-def test_scene_boards_stay_clear_of_rooms_and_each_other():
+def test_scene_meadow_is_clear_of_rooms_and_the_signs_stand_outside_them():
     layout = yaml.safe_load((ROOT / "config" / "cabin.yaml").read_text(encoding="utf-8"))
     width, height = layout["map"]["viewbox"]
-    boards = {k: v for k, v in layout["map"]["scene"].items()}
-    rooms = {f"room {r['id']}": r["rect"] for r in layout["rooms"]}
-    names = sorted(boards)
-    for i, a in enumerate(names):
-        x, y, w, h = boards[a]
-        assert x >= 0 and y >= 0 and x + w <= width and y + h <= height, f"{a} is outside the viewbox"
-        for name, rect in rooms.items():
-            assert not _overlap(boards[a], rect), f"{a} overlaps {name}"
-        for b in names[i + 1:]:
-            assert not _overlap(boards[a], boards[b]), f"{a} overlaps {b}"
-
-
-MEADOW_CHECK = r"""
-const vm = require("node:vm");
-const input = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-const L = vm.createContext({});
-vm.runInContext(input.logic, L);
-const overlap = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
-const { map } = input.layout;
-const hit = Array.from(L.meadowHitRect(map.scene.meadow));
-const problems = [];
-if (hit[1] + hit[3] > map.viewbox[1]) problems.push("the meadow hit area reaches past the viewbox");
-Object.entries(map.scene).forEach(([k, v]) => { if (k !== "meadow" && overlap(hit, v)) problems.push(`the meadow hit area overlaps scene ${k}`); });
-process.stdout.write(JSON.stringify(problems));
-"""
-
-
-def test_meadow_hit_area_stays_clear_of_other_scene_boards():
-    assert _run_node(MEADOW_CHECK) == []
+    scene = layout["map"]["scene"]
+    assert set(scene) == {"board", "gate", "meadow"}
+    x, y, w, h = scene["meadow"]
+    assert x >= 0 and y >= 0 and x + w <= width and y + h <= height, "meadow is outside the viewbox"
+    for room in layout["rooms"]:
+        assert not _overlap(scene["meadow"], room["rect"]), f"meadow overlaps room {room['id']}"
+    for name in ("board", "gate"):
+        px, py = scene[name]
+        assert not _overlap([px - 8, py - 8, 16, 16], scene["meadow"]), f"{name} stands on the meadow"
+        for room in layout["rooms"]:
+            assert not _overlap([px - 8, py - 8, 16, 16], room["rect"]), f"{name} stands in room {room['id']}"
 
 
 def _overlap(a, b):

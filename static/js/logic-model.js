@@ -216,19 +216,6 @@ function nightsHit(layout, grow) {
   return growRect(layout.map.scene.nights, obstacles, { up: grow, down: grow, left: 0, right: 0 }, layout.map.viewbox);
 }
 
-// Hit area of a bed: its rect grown by at most `grow` units on every side. It keeps half of the gap to
-// a neighbouring bed and stops at the scene boards, so no two hit areas overlap.
-function bedHit(layout, bed, grow) {
-  var obstacles = [];
-  layout.rooms.forEach(function (room) {
-    room.beds.forEach(function (other) {
-      if (other.id !== bed.id) obstacles.push({ rect: other.rect, shared: true });
-    });
-  });
-  sceneRects(layout).forEach(function (r) { obstacles.push({ rect: r, shared: false }); });
-  return growRect(bed.rect, obstacles, { up: grow, down: grow, left: grow, right: grow }, layout.map.viewbox);
-}
-
 // --- parties and nights ---
 
 function partyById(state, id) {
