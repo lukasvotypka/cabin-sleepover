@@ -148,10 +148,11 @@ function drawHouseHits(parent, view) {
       hit.addEventListener("pointerleave", function () { isoHouseHover(e.house.id, false); });
     });
     var roof = isoRoofs(e.box.rooms, e.box.outline).sort(function (a, b) { return b.h1 - a.h1; })[0];
-    var text = houseSignText(houseFree(view.state, e.box.rooms, app.night).free), k = sc.figScale;
+    var text = houseSignText(houseFree(view.state, e.box.rooms, app.night).free);
+    var k = round3(sc.figScale * isoDepthScale(sc.basis, roof.x + roof.w / 2, roof.y + roof.d / 2, roof.h1 + 2));      // grows with depth like the roof (T-151)
     var w = text.length * 4.6 + 10, h = 13, at = isoPoint(sc, roof.x + roof.w / 2, roof.y + roof.d / 2, roof.h1 + 2);
     var sg = svgEl(g, "g", { transform: "translate(" + round3(at[0] - w * k / 2) + " " + round3(at[1] - h * k) + ") scale(" + k + ")", "pointer-events": "none", "class": "house-sign" });
-    isoAnchor("beds", sg, roof.x + roof.w / 2, roof.y + roof.d / 2, roof.h1 + 2, false);
+    isoAnchor("beds", sg, roof.x + roof.w / 2, roof.y + roof.d / 2, roof.h1 + 2, true);
     board(sg, [0, 0, w, h], COLORS.paper, COLORS.woodDark);
     addText(sg, w / 2, 9.2, text, 7, COLORS.ink, { anchor: "middle", bold: true });
   });

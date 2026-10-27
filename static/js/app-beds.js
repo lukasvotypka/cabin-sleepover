@@ -105,17 +105,18 @@ function drawFeatureTreeHit(parent) {
 // The room names on small wooden signs hanging upright on the far wall of each room (the north one, or the south one when the camera is in the north) (never over a bed). Signs
 // that would overlap move up. Decor in the same layer, ignoring taps.
 function drawRoomPlates(parent, layout) {
-  var sc = app.iso, k = sc.figScale;
+  var sc = app.iso;
   var plates = layout.rooms.filter(function (room) { return !roomClosed(layout, room.id); }).map(function (room) {
-    var size = roomSignSize(room), r = room.rect, at = isoPoint(sc, r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room));
-    return { room: room, plan: [r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room)],
+    var size = roomSignSize(room), r = room.rect, plan = [r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room)];
+    var at = isoPoint(sc, plan[0], plan[1], plan[2]), k = round3(sc.figScale * isoDepthScale(sc.basis, plan[0], plan[1], plan[2]));      // grows with depth (T-151)
+    return { room: room, plan: plan, k: k,
       rect: [Math.round(at[0] - size[0] * k / 2), Math.round(at[1] - size[1] * k), size[0] * k, size[1] * k] };
   });
   var dy = isoPlateShifts(plates.map(function (p) { return p.rect; }));
   var g = svgEl(parent, "g", { "aria-hidden": "true", "pointer-events": "none" });
   plates.forEach(function (p, i) {
-    var sg = svgEl(g, "g", { transform: isoFigureTransform({ x: p.rect[0], y: p.rect[1] + dy[i], k: k }) });
-    isoAnchor("beds", sg, p.plan[0], p.plan[1], p.plan[2], false);
+    var sg = svgEl(g, "g", { transform: isoFigureTransform({ x: p.rect[0], y: p.rect[1] + dy[i], k: p.k }) });
+    isoAnchor("beds", sg, p.plan[0], p.plan[1], p.plan[2], true);
     isoLabel("beds", sg, "room", p.plan[0], p.plan[1], p.plan[2], p.room.beds.map(function (b) { return b.id; }), false);
     drawRoomSign(sg, p.room);
   });
@@ -142,8 +143,9 @@ function drawBedTags(parent, layout) {
     if (roomClosed(layout, room.id)) return;
     room.beds.forEach(function (bed) {
       isoBedTags(app.iso, bed).forEach(function (t) {
-        var w = t.text.length * 2.5 + 4, tg = svgEl(g, "g"), q = isoUnpoint(app.iso, t.x, t.y);
-        isoAnchor("beds", tg, q[0], q[1], 0, false);
+        var w = t.text.length * 2.5 + 4, q = isoUnpoint(app.iso, t.x, t.y), f = round3(isoDepthScale(app.iso.basis, q[0], q[1], 0));
+        var tg = svgEl(g, "g", { transform: "translate(" + round3(t.x) + " " + round3(t.y) + ") scale(" + f + ") translate(" + round3(-t.x) + " " + round3(-t.y) + ")" });      // grows with depth (T-151)
+        isoAnchor("beds", tg, q[0], q[1], 0, true);
         isoLabel("beds", tg, "bed", q[0], q[1], 0, [bed.id], false);
         rect(tg, t.x - w / 2, t.y, w, 6, COLORS.woodDark, { opacity: ".85" });
         addText(tg, t.x, t.y + 4.6, t.text, 4.5, COLORS.paper, { anchor: "middle", bold: true });
@@ -193,7 +195,7 @@ function drawMeadow(parent, view) {
     });
   if (spot.morePos) {
     var cg = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, spot.morePos, 0)) });
-    isoAnchor("beds", cg, spot.morePos[0] + 5, spot.morePos[1] + 7, 0, false);
+    isoAnchor("beds", cg, spot.morePos[0] + 5, spot.morePos[1] + 7, 0, true);
     var chip = [-1, 0, 12, 12];
     board(cg, chip, COLORS.plank);
     addText(cg, chip[0] + 6, chip[1] + 8.5, "+" + spot.more, 7, COLORS.paper, { anchor: "middle", bold: true });
