@@ -4740,7 +4740,7 @@ test("iso: small helpers", () => {
 // --- slight perspective (T-135) ---
 
 test("iso perspective: the strength is one constant, 0 gives the orthographic projection", () => {
-  assert.equal(L.ISO.persp, 0.2);
+  assert.equal(L.ISO.persp, 0.35);
   const o = L.isoScene(isoLayout, { ...L.ISO, persp: 0 });
   assert.equal(o.basis.D, 0);
   const r = Math.SQRT1_2, p = L.isoPoint(o, 50, 20, 6);
@@ -4751,7 +4751,7 @@ test("iso perspective: the strength is one constant, 0 gives the orthographic pr
 test("iso perspective: the nearest ground corner is drawn persp larger than the farthest, the middle is 1", () => {
   const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
   const k = [[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoDepthScale(s.basis, x, y, 0));
-  assert.ok(Math.abs(Math.max(...k) / Math.min(...k) - 1.2) < 1e-9);
+  assert.ok(Math.abs(Math.max(...k) / Math.min(...k) - (1 + L.ISO.persp)) < 1e-9);
   assert.ok(Math.abs(L.isoDepthScale(s.basis, vw / 2, vh / 2, 0) - 1) < 1e-9);
   assert.deepEqual(plain(L.isoPoint(s, vw / 2, vh / 2, 0)), [s.ox, s.oy]);
 });
@@ -4767,7 +4767,7 @@ test("iso perspective: figures grow with depth in steps of 0.05, never below the
   const far = L.isoFigure(s, [10, 10], 0).k, near = L.isoFigure(s, [vw - 20, vh - 20], 0).k;
   assert.ok(near > far);
   [far, near].forEach((k) => assert.ok(Math.abs(k / 0.05 - Math.round(k / 0.05)) < 1e-6, String(k)));
-  assert.ok(far >= s.figScale * 0.9 && near <= s.figScale * 1.2);
+  assert.ok(far >= s.figScale * (1 - L.ISO.persp) && near <= s.figScale * (1 + L.ISO.persp));
 });
 
 test("iso perspective: the scene still holds every corner and the walls of every room, the fitted view shows all rooms", () => {
@@ -5707,11 +5707,11 @@ test("tap polygons are projected again at the moved centre (150 units off, all f
 });
 
 test("persp setting: the address sets it, empty or out of range clears it, the stored text is used otherwise", () => {
-  assert.equal(L.perspSetting("", null), 0.2);
+  assert.equal(L.perspSetting("", null), 0.35);
   assert.equal(L.perspSetting("?persp=0.35", null), 0.35);
   assert.equal(L.perspSetting("?x=1&persp=0", "0.3"), 0);
   assert.equal(L.perspSetting("", "0.3"), 0.3);
-  assert.equal(L.perspSetting("?persp=", "0.3"), 0.2);
-  assert.equal(L.perspSetting("?persp=0.5", "0.3"), 0.2);
-  assert.equal(L.perspSetting("", "abc"), 0.2);
+  assert.equal(L.perspSetting("?persp=", "0.3"), 0.35);
+  assert.equal(L.perspSetting("?persp=0.5", "0.3"), 0.35);
+  assert.equal(L.perspSetting("", "abc"), 0.35);
 });

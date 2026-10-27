@@ -17,7 +17,7 @@
 var ISO = {
   azimuth: 45,          // degrees: the plan turned so that its top left corner points up
   tilt: 30,             // degrees above the horizon: sin 30° = 0.5, the classic 2:1 pixel-art isometric
-  persp: 0.2,           // depth strength: the nearest ground corner is drawn this much larger than the farthest (0 = orthographic; `?persp=` tunes it, see perspSetting)
+  persp: 0.35,          // depth strength: the nearest ground corner is drawn this much larger than the farthest (0 = orthographic; `?persp=` tunes it, see perspSetting)
   figScale: 1.35,       // the people sprites standing on the beds
   margin: 12,           // grass around the whole scene
   headroom: 84,         // map units above the ground the world may reach (roofs, chimneys, smoke)
