@@ -7,14 +7,15 @@
 # Retention: every archive of the last KEEP_DAYS days (today included), plus
 # the first archive of each month for the newest KEEP_MONTHS months.
 #
-# Usage: chrapa-poll-backup [APP_DIR] [DEST_DIR] [KEEP_DAYS] [KEEP_MONTHS]
+# Usage: [BACKUP_OWNER=user] chrapa-poll-backup [APP_DIR] [DEST_DIR] [KEEP_DAYS] [KEEP_MONTHS]
+# BACKUP_OWNER (default root) gets ownership of DEST_DIR and the archives.
 set -eu
 
 APP_DIR=${1:-/opt/chrapa-poll}
-DEST_DIR=${2:-/home/lukasvotypka/backups/chrapa-poll}
+DEST_DIR=${2:-/var/backups/chrapa-poll}
 KEEP_DAYS=${3:-30}
 KEEP_MONTHS=${4:-120}
-OWNER=lukasvotypka
+OWNER=${BACKUP_OWNER:-root}
 PREFIX=chrapa-poll-backup-
 
 mkdir -p "$DEST_DIR"

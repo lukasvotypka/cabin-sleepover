@@ -149,4 +149,4 @@ Verdict: APPROVED
 
 **Verdict:** all acceptance criteria pass, no regressions in `tasks/done/` (the full Node and pytest suites pass). Moved to `tasks/done/`. Not committed (the orchestrator commits).
 
-Trial link for the change on the phone: https://lukass-laptop-1.tail3bf463.ts.net:8443/ (after the orchestrator's restart).
+Trial link for the change on the phone: https://<tailnet-host>:8443/ (after the orchestrator's restart).

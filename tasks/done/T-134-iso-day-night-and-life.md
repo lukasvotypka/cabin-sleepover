@@ -131,4 +131,4 @@ Tester: Haiku 5.5 (tester), 27. 10. 2026. Working tree as left by T-133 commit p
 
 **Verdict: PASS.** No failures and no regressions found. Moved to `tasks/done/`.
 
-Link for the organizer: the T-134 changes are not committed yet, so the trial server at https://lukass-laptop-1.tail3bf463.ts.net:8443/ does not show them. The orchestrator should commit and restart it (or a preview port is needed for the uncommitted change).
+Link for the organizer: the T-134 changes are not committed yet, so the trial server at https://<tailnet-host>:8443/ does not show them. The orchestrator should commit and restart it (or a preview port is needed for the uncommitted change).

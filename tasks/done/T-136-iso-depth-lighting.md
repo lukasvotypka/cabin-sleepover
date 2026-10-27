@@ -101,7 +101,7 @@ Screenshots: phone 12:00 / 18.5 / 23:00, desktop 12:00 / 18.5 / 23:00, `crop-pho
 ### Manual checks added
 `tests/manual.md` section 18 (T-136): real-GPU shadows and corners at 12:00, dusk and 23:00 on iPhone Safari and Android Chrome; frame cost on a mid-range phone against T-135.
 
-Trial link (after the task is committed): https://lukass-laptop-1.tail3bf463.ts.net:8443/
+Trial link (after the task is committed): https://<tailnet-host>:8443/
 
 
 ## Dev log (fix round, test bug report 1)
@@ -125,7 +125,7 @@ Verdict: APPROVED
 
 ### Test report, round 2 (tester, 27. 10. 2026, after the shadow fix)
 
-**Result: PASS** (all criteria met, no regressions). Task moved to `done/`. Uncommitted in the worktree (`git status`), so no trial link yet; the trial link after the orchestrator's commit is https://lukass-laptop-1.tail3bf463.ts.net:8443/.
+**Result: PASS** (all criteria met, no regressions). Task moved to `done/`. Uncommitted in the worktree (`git status`), so no trial link yet; the trial link after the orchestrator's commit is https://<tailnet-host>:8443/.
 
 Method change from round 1: shadows are toggled with `iso3.sun.castShadow` (not `shadowMap.enabled`, which does not change the compiled shader). Each frame is rendered and read back with `readPixels` in the same task, with castShadow on and off, and the changed pixels are counted.
 

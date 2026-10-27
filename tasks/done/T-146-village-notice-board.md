@@ -66,7 +66,7 @@ Verdict: APPROVED (round 2 skipped, no blockers)
 ## Test report
 
 ### Tester (27. 10. 2026)
-Environment: temp `data/` in `/tmp/cabin-t146-test/data` (6 parties incl. a day visitor and a markup-like name `<img src=x onerror=…>`), own server on port 8155 with test secrets. Ports 8000, 8010, 8146, 8147 not touched. Exposed as tailnet preview `https://lukass-laptop-1.tail3bf463.ts.net:8448/` (8443 to 8447 already taken). Server left running for the organizer.
+Environment: temp `data/` in `/tmp/cabin-t146-test/data` (6 parties incl. a day visitor and a markup-like name `<img src=x onerror=…>`), own server on port 8155 with test secrets. Ports 8000, 8010, 8146, 8147 not touched. Exposed as tailnet preview `https://<tailnet-host>:8448/` (8443 to 8447 already taken). Server left running for the organizer.
 
 **Commands and results**
 - `node --test tests/js/` → 458 pass, 0 fail.

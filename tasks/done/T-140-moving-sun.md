@@ -51,7 +51,7 @@ Stylized sun path, not an astronomical one. The camera looks from the south-east
 - Browser: headless Chrome SwiftShader, own server :8140, script `/tmp/cabin-t140/shot.mjs`, phone 390x844 DPR 3, houses open. Screenshots `/tmp/cabin-t140/phone-{0800,1100,1200,1300,1530,2200}.png`: 08:00 long shadows to the west/north-west, 11:00/12:00/13:00 short, beds lit, 15:30 long toward the east, 22:00 weak short moon shadows. 08:00 wall shadows do fall partly over Konica dole (not in criteria).
 - Cost: shadow redraws while time stands still: 0 (reduced motion and normal motion; normal motion still renders ~7/s for campfire/smoke as before). Time-lapse 12:00 -> 36:00 (full day, 4.5 s window): 10 shadow renders, 64 total renders, avg rAF frame 16.9 ms, worst 49 ms (software GL, pessimistic). No page errors.
 - Reduced motion: sun jumps at once (the 6 screenshots were taken that way, one draw per hour change).
-- Trial link: not restarted (uncommitted; orchestrator restarts after commit): https://lukass-laptop-1.tail3bf463.ts.net:8443/ after restart.
+- Trial link: not restarted (uncommitted; orchestrator restarts after commit): https://<tailnet-host>:8443/ after restart.
 
 ## Review round 1
 

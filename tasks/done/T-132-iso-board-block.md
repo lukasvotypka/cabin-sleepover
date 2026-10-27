@@ -117,4 +117,4 @@ Tester: tests run on branch t3/isometric-threejs-map, uncommitted diff of T-132 
 
 **Result: PASS.** No regressions (tasks in `tasks/done/` still pass in the full suite). Moved to `tasks/done/`.
 
-Trial server (committed work, restart by orchestrator): https://lukass-laptop-1.tail3bf463.ts.net:8443/
+Trial server (committed work, restart by orchestrator): https://<tailnet-host>:8443/

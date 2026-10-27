@@ -89,4 +89,4 @@ Tester (27. 10. 2026, Claude Haiku 5.5). Result: **PASS**, no bugs. Moved to `do
 
 **Bugs:** none.
 
-**Trial link:** `https://lukass-laptop-1.tail3bf463.ts.net:8443/` (after commit and restart by the orchestrator). My own test server is stopped.
+**Trial link:** `https://<tailnet-host>:8443/` (after commit and restart by the orchestrator). My own test server is stopped.
