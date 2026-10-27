@@ -472,7 +472,8 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(pageFile, /<div id="bar" class="bothud">[\s\S]*<button id="crest"[\s\S]*<div id="tools"/, "Si and the tools in the bottom bar");
   assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.tophud \{ display: none; \}/);
   assert.ok(scriptTags.indexOf("static/js/app-tophud.js") > -1 && scriptTags.indexOf("static/js/app-tophud.js") < scriptTags.indexOf("static/js/app-start.js"));
-  assert.match(pageFile, /\.stamp \.dt \{ display: none; \}/, "the date line hides on low windows");
+  assert.match(pageFile, /max-height: 620px\) \{ \.stamp \.dt \{ font-size: 8px;/, "the date line shrinks on low windows");
+  assert.ok(!/\.stamp \.dt \{ display: none/.test(pageFile), "the date line never hides");
   assert.match(pageFile, /#toast \{[^}]*var\(--hud-h/);
   assert.ok(!/innerHTML/.test(readScripts("app-hud")), "human text goes in via textContent");
 });

@@ -314,7 +314,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .stamp .chip.over { background: #B4472F; border-color: #6E2414; color: #FFFFFF; }
 .stamp .chip.absent { border-color: transparent; color: #2E1F14; font-weight: 400; }
 .hud .stamp:active, .hud .tool:active, .hud .crest:active { transform: translateY(2px); }
-@media (max-height: 620px) { .stamp .dt { display: none; } .hud .stamp { min-height: 38px; } }
+@media (max-height: 620px) { .stamp .dt { font-size: 8px; line-height: 9px; } .hud .stamp { min-height: 44px; } }      /* short screens: tiny dates, never hidden */
 .rail-wrap { position: relative; height: 44px; margin-top: -6px; margin-bottom: -4px; cursor: pointer; touch-action: none; pointer-events: auto; }
 .rail-wrap::before { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
 .rail-wrap:focus-visible { outline: 3px solid #FFD54A; outline-offset: 1px; }
