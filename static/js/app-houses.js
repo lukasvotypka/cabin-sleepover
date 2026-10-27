@@ -2,8 +2,8 @@
 
 // App part: which houses are open (T-137). At the rest view every house is closed (roof on; its beds, figures and
 // labels are hidden and a sign on the ridge says how many places are free). A tap on a closed house opens it and
-// zooms to it; zooming to 1.6x the rest zoom opens all, back to 1.15x (or „Celá mapa“) closes all; the move mode
-// and keyboard focus on a bed open the house concerned. The 3D side (roofs, walls, steps) is app-iso-roof.js.
+// zooms to it; zooming to 1.6x the rest zoom opens all, back to 1.15x (or „Celá mapa“) closes all;
+// keyboard focus on a bed opens the house concerned. The 3D side (roofs, walls, steps) is app-iso-roof.js.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 var housesOpen = {};          // house id -> true: opened by a tap or the keyboard
@@ -15,7 +15,7 @@ var housesQuiet = false;      // set while render() syncs, so that it does not d
 
 // The 3D world asks while it builds: should this house start open?
 function isoHouseWant(id) {
-  return !!(app.move || housesAll || housesOpen[id]);
+  return !!(housesAll || housesOpen[id]);
 }
 
 function houseOfRoom(layout, roomId) {

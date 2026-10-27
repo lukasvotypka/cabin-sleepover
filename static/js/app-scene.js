@@ -6,13 +6,11 @@
 function forgetMyParty() {
   app.myParty = null;
   storage.remove(KEYS.party);
-  app.move = null;
   liveReopen();
 }
 
 function setMyParty(id) {
   var changed = app.myParty !== id;
-  if (changed) app.move = null;
   app.myParty = id;
   storage.set(KEYS.party, id);
   if (changed) liveReopen();

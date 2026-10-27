@@ -3,7 +3,7 @@
 // Plain script, shares the global scope with the other logic-*.js and app-*.js files (see index.html for the order).
 //
 // At the rest view every house is closed: tall walls all round and a gable roof (app-iso-roof.js builds it from isoRoofs).
-// A tap on a house, a zoom to 1.6x the rest zoom or the move mode opens it: the roof lifts away in steps, then the
+// A tap on a house, or a zoom to 1.6x the rest zoom opens it: the roof lifts away in steps, then the
 // front walls sink to the low wall. All geometry comes from the room rects of config/cabin.yaml; nothing is hardcoded per house.
 
 var ISO_ROOF = {

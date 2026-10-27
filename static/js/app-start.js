@@ -5,13 +5,7 @@
 
 // --- start ---
 
-$("moveThis").addEventListener("click", function () { if (app.move) { app.move.all = false; renderMoveBar(); } });
-$("moveAll").addEventListener("click", function () { if (app.move) { app.move.all = true; renderMoveBar(); } });
-$("moveCancel").addEventListener("click", cancelMove);
 $("toast").addEventListener("click", hideToast);
-document.addEventListener("keydown", function (e) {
-  if (e.key === "Escape" && app.move && !app.panel) cancelMove();
-});
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape" && e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") app.navKeyAt = Date.now();
 }, true);

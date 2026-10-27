@@ -162,4 +162,3 @@ window.addEventListener("resize", function () {
   });
 });
 
-// A move belongs to the party that started it, so a change of *moja partia* ends it.

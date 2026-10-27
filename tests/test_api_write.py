@@ -245,6 +245,50 @@ async def test_clear_errors(app, group_client):
     assert resp.status_code == 422 and error_of(resp)["params"]["night"] == SUN
 
 
+async def test_clear_nights_frees_all_under_one_audit_entry(app, group_client):
+    ivan = await mk_party(group_client)
+    await group_client.post("/api/assign-stay", json={"slots": [A1], "party_id": ivan["id"]})
+    before = snapshot(app)
+    resp = await group_client.post("/api/clear", json={"nights": [THU, FRI, SAT], "slot": A1})
+    assert resp.status_code == 200
+    assert not any(resp.json()["state"]["sleeping"].get(n) for n in (THU, FRI, SAT))
+    assert snapshot(app) == (before[0] + 1, before[1] + 1, before[2] + 1)  # one version, one backup, one audit entry
+    doc = audit_docs(app)[-1]
+    assert doc["action"] == "clear" and doc["party"] == ivan["id"] and doc["nights"] == [THU, FRI, SAT]
+    assert {c["night"] for c in doc["changes"]} == {THU, FRI, SAT}
+    assert all(c["before"] == ivan["id"] and c["after"] is None for c in doc["changes"])
+
+
+async def test_clear_nights_skips_free_nights_and_is_a_no_op_when_all_free(app, group_client):
+    ivan = await mk_party(group_client)
+    await group_client.post("/api/assign", json={"night": FRI, "slots": [A1], "party_id": ivan["id"]})
+    resp = await group_client.post("/api/clear", json={"nights": [THU, FRI], "slot": A1})
+    assert resp.status_code == 200 and not resp.json()["state"]["sleeping"].get(FRI)
+    before = snapshot(app)
+    resp = await group_client.post("/api/clear", json={"nights": [THU, FRI], "slot": A1})
+    assert resp.status_code == 200 and snapshot(app) == before
+
+
+async def test_clear_nights_is_all_or_nothing_on_bad_input(app, group_client):
+    ivan = await mk_party(group_client)
+    await group_client.post("/api/assign", json={"night": THU, "slots": [A1], "party_id": ivan["id"]})
+    before = snapshot(app)
+    resp = await group_client.post("/api/clear", json={"nights": [THU, SUN], "slot": A1})
+    assert resp.status_code == 422 and error_of(resp)["params"]["night"] == SUN
+    resp = await group_client.post("/api/clear", json={"nights": [THU], "slot": "nope"})
+    assert resp.status_code == 404
+    assert snapshot(app) == before and sleeping_of(app)[THU] == {A1: ivan["id"]}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"slot": A1}, {"night": THU, "nights": [THU], "slot": A1}, {"nights": [], "slot": A1}, {"nights": [THU, THU], "slot": A1}],
+)
+async def test_clear_needs_exactly_one_of_night_and_nights(app, group_client, body):
+    resp = await group_client.post("/api/clear", json=body)
+    assert resp.status_code == 422
+
+
 # --- move ------------------------------------------------------------------------------
 
 

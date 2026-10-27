@@ -404,8 +404,19 @@ class AssignStayRequest(_Model):
 
 
 class ClearRequest(_Model):
-    night: NightRef
+    night: NightRef | None = None  # exactly one of `night` and `nights`
+    nights: NightList | None = None  # release the slot in all these nights (the page's „celý pobyt“)
     slot: SlotRef
+
+    @model_validator(mode="after")
+    def _one_of_night_and_nights(self) -> "ClearRequest":
+        if (self.night is None) == (self.nights is None):
+            raise ValueError("send exactly one of `night` and `nights`")
+        return self
+
+    @property
+    def night_list(self) -> list[str]:
+        return [self.night] if self.night is not None else list(self.nights or [])
 
 
 class MoveRequest(_Model):

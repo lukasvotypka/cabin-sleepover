@@ -226,6 +226,15 @@ def check_clear(state: State, layout: Layout, night: str, slot: str) -> str | No
     return occupant(state, night, slot)
 
 
+def check_clear_nights(state: State, layout: Layout, nights: list[str], slot: str) -> dict[str, str]:
+    """All or nothing: returns {night: holder} for the nights in which the slot is held. Free nights are left out."""
+    for night in nights:
+        _check_night(layout, night)
+    _check_slots_known(layout, [slot])
+    held = {night: occupant(state, night, slot) for night in nights}
+    return {night: holder for night, holder in held.items() if holder is not None}
+
+
 def check_move(
     state: State, layout: Layout, party_id: str, from_slot: str, to_slot: str, nights: list[str]
 ) -> list[str]:

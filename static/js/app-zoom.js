@@ -56,10 +56,10 @@ function introActive() {
 }
 
 // At the start of the splash's fall: put the map on the start view under the splash, so there is no jump later.
-// Reduced motion or the move mode: no intro.
+// Reduced motion: no intro.
 function holdIntroZoom() {
   if (app.introZoom !== "idle") return;
-  if (prefersReducedMotion() || !app.bounds || !app.sceneSize || app.move) {
+  if (prefersReducedMotion() || !app.bounds || !app.sceneSize) {
     app.introZoom = "done";
     return;
   }
@@ -92,7 +92,7 @@ function introFrame() {
   app.introRaf = requestAnimationFrame(introFrame);
 }
 
-// A touch, wheel or key on the map, a resize or the move mode ends the intro where it is (no snap), so the touch
+// A touch, wheel or key on the map, or a resize ends the intro where it is (no snap), so the touch
 // that stopped it acts on what is under the finger. Still under the splash, it goes back to the fitted view.
 // A panel does not stop it: „Kto si?“ opens right after the splash and the map eases out behind its backdrop.
 function stopIntroZoom() {
@@ -118,13 +118,9 @@ function readInsets() {
     document.body.appendChild(app.insetProbe);
   }
   var cs = getComputedStyle(app.insetProbe);
-  // While the move bar shows, the scene must sit below it: the bar's height (it includes the safe-area top padding)
-  // is the top inset when that is larger.
-  // Otherwise the scene sits below the top HUD (night stamps and time rail) and the quest log under it (their bottom edges
+  // The scene sits below the top HUD (night stamps and time rail) and the quest log under it (their bottom edges
   // include the safe-area top).
-  var bar = $("moveBar"), top = parseFloat(cs.paddingTop);
-  if (!bar.hidden) top = Math.max(top, bar.offsetHeight);
-  else top = Math.max(top, questBottom(), topHudBottom());
+  var top = Math.max(parseFloat(cs.paddingTop), questBottom(), topHudBottom());
   // The bottom bar already includes the home-bar inset in its height; the scene must sit above it.
   var bottom = Math.max(parseFloat(cs.paddingBottom), hudHeight());
   return { top: top, right: parseFloat(cs.paddingRight), bottom: bottom, left: parseFloat(cs.paddingLeft) };
@@ -281,8 +277,7 @@ function setupZoom(host, svg, W, H) {
   function onResize() { refit(false); }
   window.addEventListener("resize", onResize);
   var observer = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
-  var moveBar = $("moveBar");
-  if (observer) { observer.observe(host); observer.observe(moveBar); }      // the bar shows, hides and wraps
+  if (observer) observer.observe(host);
   app.refit = function () { refit(false); };
   app.zoomCleanup = function () {
     window.removeEventListener("pointerup", release);

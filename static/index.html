@@ -79,7 +79,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .zoom-reset.above { bottom: calc(max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px)) + 10px + 44px + 8px); }      /* one row up while the turn buttons show (T-144) */
 /* The turn buttons (T-144): above the bottom HUD at the right, like „Celá mapa“ (fixed scene colors, never inverted). */
 .turn-bar { position: fixed; z-index: 5; right: calc(8px + env(safe-area-inset-right, 0px)); bottom: calc(max(var(--hud-h, 0px), env(safe-area-inset-bottom, 0px)) + 10px); display: flex; gap: 4px; }
-.turn-bar[hidden], .movebar:not([hidden]) ~ .turn-bar, #panelRoot:not(:empty) ~ .turn-bar { display: none; }
+.turn-bar[hidden], #panelRoot:not(:empty) ~ .turn-bar { display: none; }
 .turn-btn {
   width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   background: #F4EBD0; border: 3px solid #5C4033; border-radius: 0; box-shadow: 3px 3px 0 rgba(0, 0, 0, .28);
@@ -214,7 +214,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .legend-nights span { white-space: nowrap; }
 .sheet .note { color: var(--ink); background: var(--amber-soft); padding: 8px 12px; border-left: 4px solid var(--amber); }
 
-/* --- beds, figures, move bar, toast --- */
+/* --- beds, figures, toast --- */
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 #scene svg .pending { opacity: .5; }
 #scene svg .bed-tags { opacity: 0; transition: opacity .25s; }
@@ -237,7 +237,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .hud button { pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   font: inherit; color: inherit; background: none; border: 0; border-radius: 0; padding: 0; margin: 0; text-align: left; }
 .hud button:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
-#moveBar:not([hidden]) ~ .hud .quest { display: none; }      /* the move bar takes the top while it shows */
 .quest {
   position: absolute; pointer-events: auto; top: calc(max(var(--top-h, 0px), env(safe-area-inset-top, 0px)) + 18px); right: calc(12px + env(safe-area-inset-right, 0px));
   width: 150px; padding: 0 5px 2px; background: #F4EBD0; color: #2E1F14; border: 3px solid #5C4033; box-shadow: 3px 3px 0 rgba(0, 0, 0, .3);
@@ -294,7 +293,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .update-sign:focus-visible { outline: 3px solid #FFD54A; outline-offset: 2px; }
 /* Top HUD (T-145): the night stamps and the time rail, fixed to the top. The world darkens at night, never this bar. */
 .tophud { position: absolute; top: 0; left: 0; right: 0; padding: max(6px, env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) 0 calc(8px + env(safe-area-inset-left, 0px)); pointer-events: none; }
-#moveBar:not([hidden]) ~ .hud .tophud { display: none; }      /* the move bar takes the top while it shows */
 .tophud-in { pointer-events: auto; margin: 0 auto; max-width: 520px; background: #6B4426; border: 2px solid #5C4033; box-shadow: 0 3px 0 rgba(46, 31, 20, .45); padding: 6px 6px 2px; }
 .stamps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .hud .stamp {
@@ -427,14 +425,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .dn-in, #scene svg .dn-out { animation: none; }
 }
 
-.movebar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 560px;
-  margin: 0 auto; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); background: var(--surface); color: var(--ink); border-bottom: 4px solid #5C4033;
-}
-.movebar p { flex: 1 1 100%; margin: 0; font-weight: 700; overflow-wrap: anywhere; }
-.seg { display: flex; flex: 1 1 auto; }
-.seg .btn { flex: 1 1 0; padding: 8px 10px; }
-.seg .btn + .btn { border-left-width: 0; }
 .btn[aria-pressed="true"] { background: var(--forest); color: var(--surface); }
 .btn.secondary[aria-pressed="false"] { background: transparent; color: var(--forest); }
 
@@ -454,27 +444,52 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #toast.info { border-left-color: var(--moss); }
 
 .sheet .sub { margin: 0 0 8px; }
-section.night { margin: 0 0 10px; padding: 4px 0 8px; border-top: 2px solid var(--line); }
-.night-head {
-  display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 6px 10px; text-align: left;
-  background: transparent; border: 0; border-radius: 0; font-weight: 700; color: var(--forest); cursor: pointer; touch-action: manipulation;
+/* night tabs: three cells with a square per place (party colour; mine = amber outline; free = dashed) */
+.bed-nights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0 0 10px; border-bottom: 2px solid var(--line); }
+.bn-tab {
+  min-height: 52px; padding: 6px 4px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  background: transparent; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; border-radius: 0; cursor: pointer;
+  touch-action: manipulation; color: var(--forest); font: inherit;
 }
-section.night.on .night-head { background: var(--surface2); border-left: 4px solid var(--moss); }
-.night-head:focus-visible, .slot-row .btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
-.slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 10px; min-height: 36px; }
+.bn-tab[aria-pressed="true"] { background: var(--surface2); border-bottom-color: var(--moss); }
+.bn-tab:focus-visible { outline: 3px solid var(--amber); outline-offset: -3px; }
+.bn-tab.press { animation: tabpress 80ms steps(2) 1; }
+@keyframes tabpress { 0% { transform: translateY(1px); } 100% { transform: none; } }
+.bn-label { font-weight: 700; font-size: 15px; line-height: 1; }
+.bn-dots { display: flex; gap: 3px; height: 12px; align-items: center; }
+.bn-dot { width: 8px; height: 8px; display: block; }
+.bn-dot.free { outline: 1px dashed var(--muted); outline-offset: -1px; }
+.bn-dot.mine { outline: 2px solid var(--amber); outline-offset: 0; }
+.sheet-status { margin: 0 0 6px; font-size: 14px; color: var(--muted); min-height: 1.3em; }
+.sheet-rows { margin: 0 0 4px; }
+.sheet-rows.pending { opacity: .5; }
+.slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 2px 0; min-height: 48px; border-bottom: 1px solid var(--line); }
+.slot-row:last-child { border-bottom: 0; }
 .slot-row .place { flex: none; width: 64px; font-size: 13px; color: var(--muted); }
-.slot-row .who { flex: 1 1 120px; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.slot-row .who { flex: 1 1 120px; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; min-width: 0; }
 .slot-row .who .name { font-weight: 700; }
 .slot-row .fig { flex: none; }
+.slot-row .fig.out { animation: blinkout 180ms steps(3) 1 forwards; }
+@keyframes blinkout { 0% { opacity: 1; } 33% { opacity: 0; } 66% { opacity: 1; } 100% { opacity: 0; } }
 .slot-row .free-tag { padding: 1px 10px; border: 1px dashed var(--muted); border-radius: 999px; font-size: 13px; color: var(--muted); }
 .slot-row .tight { color: var(--amber); font-weight: 700; font-size: 13px; }
-.slot-row .btn.take {      /* „Ľahnúť si sem na celý pobyt“, the party name under it */
+.slot-row .btn.take {      /* „+ Ľahnúť si sem“, „na celý pobyt“ under it */
   flex: 1 1 160px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-height: 44px; text-align: left;
+  background: transparent; color: var(--forest); border: 2px dashed var(--moss);
 }
-.slot-row .take-who { font-weight: 400; font-size: 14px; overflow-wrap: anywhere; text-align: left; }
-.slot-row .confirm { flex: 1 1 100%; margin: 0; color: var(--ink); font-weight: 700; }
-.slot-row .btn { padding: 6px 12px; }
+.slot-row .btn.take:hover { background: var(--surface2); }
+.slot-row .take small { font-weight: 400; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.slot-row .btn { padding: 6px 12px; min-height: 44px; }
 .slot-row .btn.secondary { border-width: 2px; }
+.slot-row .btn.release { flex: none; }
+.slot-row .btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.slot-row .note { flex: 1 1 100%; margin: 0 0 4px; }
+.confirm-box { flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; margin: 2px 0 6px; background: var(--amber-soft); border-left: 4px solid var(--amber); }
+.confirm-box p { margin: 0; font-weight: 700; color: var(--ink); }
+.confirm-box .two { display: flex; gap: 6px; flex-wrap: wrap; }
+.confirm-box .two .btn { flex: 1 1 140px; }
+.confirm-box .link-btn { align-self: center; }
+@media (prefers-reduced-motion: reduce) { .bn-tab.press, .slot-row .fig.out { animation: none; } }
 .sheet .admin-line { margin: 14px 0 0; font-size: 12px; text-align: center; color: var(--muted); }
 .sheet .link-btn { background: none; border: 0; padding: 12px 8px; min-height: 44px; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
 .sheet .version-line { margin: 14px 0 0; font-size: 11px; line-height: 1.3; color: var(--muted); text-align: center; }
@@ -765,14 +780,6 @@ section.night.on .night-head { background: var(--surface2); border-left: 4px sol
   <canvas id="bootCanvas" aria-hidden="true"></canvas>
   <p id="bootText">Načítavam…</p>
 </div>
-<div id="moveBar" class="movebar" role="region" aria-label="Presun" hidden>
-  <p id="moveText"></p>
-  <div class="seg" role="group" aria-label="Ktoré noci presunúť">
-    <button id="moveThis" class="btn secondary" type="button" aria-pressed="true">Táto noc</button>
-    <button id="moveAll" class="btn secondary" type="button" aria-pressed="false">Všetky noci</button>
-  </div>
-  <button id="moveCancel" class="btn secondary" type="button">Zrušiť</button>
-</div>
 <main id="scene" hidden></main>
 <!-- HUD: fixed to the viewport (not part of the zoomable svg). Filled by app-hud.js; shown only with the map. -->
 <div id="hud" class="hud" role="group" aria-label="Noci, úlohy a kto si" hidden>
@@ -809,7 +816,7 @@ section.night.on .night-head { background: var(--surface2); border-left: 4px sol
 
 <div id="adventure" class="adventure" role="region" aria-label="Pred cestou" hidden></div>
 <div id="panelRoot"></div>
-<!-- The pair of turn buttons (app-turn.js, T-144): scene UI in fixed colors; hidden by CSS under panels and the move bar -->
+<!-- The pair of turn buttons (app-turn.js, T-144): scene UI in fixed colors; hidden by CSS under panels -->
 <div id="turnBar" class="turn-bar" role="group" aria-label="Otočenie mapy" hidden></div>
 <p id="turnStatus" class="sr-only" role="status" aria-live="polite"></p>
 

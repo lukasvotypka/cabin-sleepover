@@ -17,8 +17,6 @@ var ISO_PEOPLE = {
   fadeMs: 375,                 // the 06:00 swap (opacity 0.25 to 1 and back)
   hopEveryMs: 4000,            // a meadow waiter hops every 4 s ...
   hopMs: 250,                  // ... for 250 ms
-  liftMs: 250,                 // the figure picked in the move mode bobs once in this time
-  lift: 3,                     // the figure picked in the move mode
   walkMs: 1600                 // the walk from the meadow to a bed in 3D (at most)
 };
 
@@ -98,11 +96,6 @@ function isoWaiterHop(clock, index, count) {
   if (count < 1 || at >= P.hopMs) return 0;
   if (Math.floor(isoNoise(Math.floor(clock / P.hopEveryMs), 71) * count) !== index) return 0;
   return Math.sin(at / P.hopMs * Math.PI);
-}
-
-// The height offset of the figure picked in the move mode: lifted 3 units and bobbing 1 unit up and down.
-function isoLiftOffset(clock) {
-  return ISO_PEOPLE.lift + 0.5 - 0.5 * Math.cos(clock / ISO_PEOPLE.liftMs * 2 * Math.PI);
 }
 
 // The bed (with its room) that holds `slot`, or null.

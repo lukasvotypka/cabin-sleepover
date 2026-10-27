@@ -1,6 +1,6 @@
 "use strict";
 
-// App part 8: slot actions with optimistic UI, the walk to a bed, move mode.
+// App part 8: slot actions with optimistic UI, the walk to a bed.
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 // --- slot actions with optimistic UI ---
@@ -163,66 +163,20 @@ function assignHere(bed, stay, only, stayOnly) {
   });
 }
 
-function clearSlot(slot) {
-  var night = app.night;
-  closePanel();
-  cancelWalkersAt(night, slot);
-  runWrite("api/clear", { night: night, slot: slot }, [{ night: night, slot: slot, party_id: null }]);
-}
-
-// --- move mode ---
-
-function renderMoveBar() {
-  if (app.move && !canWrite(app.state, app.role)) app.move = null;      // signup was locked meanwhile
-  var bar = $("moveBar"), m = app.move;
-  bar.hidden = !m;
-  if (m && app.state) {
-    var party = myParty(app.state);
-    $("moveText").textContent = moveBarText(party ? party.name : "");
-    $("moveThis").setAttribute("aria-pressed", m.all ? "false" : "true");
-    $("moveAll").setAttribute("aria-pressed", m.all ? "true" : "false");
-  }
-  if (app.refit) app.refit();      // the scene makes room for the bar (or takes it back)
-  housesSync();      // move mode opens all houses, and closes them again when it ends
-}
-
-function startMove(slot) {
-  stopIntroZoom();
-  if (!canWrite(app.state, app.role)) return;
-  app.move = { partyId: app.myParty, fromSlot: slot, all: false };
-  closePanel();
-  renderMoveBar();
-  renderBeds();      // the picked figure lifts in 3D
-  $("moveThis").focus({ preventScroll: true });
-}
-
-function cancelMove() {
-  app.move = null;
-  renderMoveBar();
-  renderBeds();
-}
-
-function moveTo(bed) {
-  var m = app.move, st = viewState().state;
-  var plan = planMove(st, m, bed, app.night);
-  if (plan.error) {
-    showToast(plan.error, "error");
-    return;
-  }
-  var ops = [];
-  plan.nights.forEach(function (n) {
-    ops.push({ night: n, slot: m.fromSlot, party_id: null });
-    ops.push({ night: n, slot: plan.target, party_id: m.partyId });
-  });
-  app.move = null;
-  renderMoveBar();
-  plan.nights.forEach(function (n) { cancelWalkersAt(n, m.fromSlot); });
-  runWrite("api/move", { party_id: m.partyId, from_slot: m.fromSlot, to_slot: plan.target, nights: plan.nights }, ops);
+// Releases one place in the shown night, or (`nights`, my own place held in 2+ nights) in all of them in one write.
+// The bed sheet stays open and shows the free place; `mine` adds the hint how to move now.
+function clearSlot(slot, nights, mine) {
+  var list = nights && nights.length ? nights : [app.night];
+  list.forEach(function (n) { cancelWalkersAt(n, slot); });
+  var ops = list.map(function (n) { return { night: n, slot: slot, party_id: null }; });
+  var body = list.length > 1 ? { nights: list, slot: slot } : { night: list[0], slot: slot };
+  var run = runWrite("api/clear", body, ops);
+  if (app.panel && app.panel.refresh) app.panel.refresh();      // the pending release shows at once
+  if (mine) run.then(function (res) { if (res.ok) showToast(RELEASE_TEXTS.toast, "info", RELEASE_TOAST_MS); });
 }
 
 function onBedTap(room, bed) {
-  if (app.move) moveTo(bed);
-  else openBedSheet(room, bed);
+  openBedSheet(room, bed);
 }
 
 // --- fewer places for one night (T-033) ---

@@ -14,7 +14,7 @@ function isoPeopleBegin() {
   isoPeopleSpecs = isoActive() ? [] : null;
 }
 
-// spec: {key, kind, color, ch, x, z (the feet), h, pose "bed" | "stand", pending, mine, lift, scale, fade {dir, start}, hop {index, count}}
+// spec: {key, kind, color, ch, x, z (the feet), h, pose "bed" | "stand", pending, mine, scale, fade {dir, start}, hop {index, count}}
 function isoPeopleAdd(spec) {
   if (isoPeopleSpecs) isoPeopleSpecs.push(spec);
 }
@@ -24,7 +24,7 @@ function isoBedSpec(bed, index, who, extra) {
   var pos = figurePosition(bed, index), spec = {
     key: "", kind: who.kind, color: who.party ? who.party.color : COLORS.mat, ch: who.party ? shirtChar(who.party.name) : null,
     x: pos[0] + 5, z: pos[1] + 7, h: isoSlotHeight(bed, index), pose: "bed",
-    scale: isoSitScale(bed, index, who.kind, app.iso.figScale), pending: false, mine: false, lift: false, fade: null, hop: null
+    scale: isoSitScale(bed, index, who.kind, app.iso.figScale), pending: false, mine: false, fade: null, hop: null
   };
   Object.keys(extra).forEach(function (k) { spec[k] = extra[k]; });
   return spec;
@@ -161,9 +161,9 @@ function isoPeopleApply(me, entry) {
     entry.sit.visible = !sleep;
     entry.lie.visible = sleep;
   }
-  var lift = s.lift ? isoLiftOffset(clock) : 0, hop = s.hop ? isoWaiterHop(clock, s.hop.index, s.hop.count) : 0;
+  var hop = s.hop ? isoWaiterHop(clock, s.hop.index, s.hop.count) : 0;
   var shake = entry.shakeAt >= 0 ? isoShakeOffset(clock - entry.shakeAt) : 0;
-  entry.root.position.set(s.x + shake, s.h + lift + hop, s.z);
+  entry.root.position.set(s.x + shake, s.h + hop, s.z);
   var pop = isoPopScale(entry.popAt >= 0 ? clock - entry.popAt : null) * me.sc.figScale * (s.scale || 1);
   entry.root.scale.setScalar(pop);
 }
@@ -198,7 +198,7 @@ function isoPeoplePose(me) {
   P.entries.forEach(function (e) { isoPeopleApply(me, e); });
 }
 
-// One update: pops, shakes, the 06:00 fade, hops, the lifted figure and the blinking frames.
+// One update: pops, shakes, the 06:00 fade, hops and the blinking frames.
 function isoPeopleTick(me) {
   var P = me.people;
   if (!P) return;
@@ -207,7 +207,7 @@ function isoPeopleTick(me) {
   P.entries.forEach(function (e) {
     if (e.ringMat) e.ringMat.opacity = P.ringMat.opacity * Math.max(e.opacity, 0);
     if (e.popAt >= 0 && me.clock - e.popAt >= ISO_PEOPLE.popMs) e.popAt = -1;
-    if (e.popAt >= 0 || e.spec.fade || e.spec.lift || e.spec.hop) isoPeopleApply(me, e);
+    if (e.popAt >= 0 || e.spec.fade || e.spec.hop) isoPeopleApply(me, e);
   });
   P.dying = P.dying.filter(function (e) {
     if (me.clock - e.shakeAt >= ISO_PEOPLE.shakeMs) { P.group.remove(e.root); return false; }

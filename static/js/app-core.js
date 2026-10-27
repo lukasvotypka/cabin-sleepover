@@ -14,6 +14,7 @@ var WRITE_TIMEOUT_MS = 20000;
 var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound", fps: "cabin.fps", persp: "cabin.persp", angle: "cabin-view-angle" };
 var LONG_PRESS_MS = 500;
 var TOAST_MS = 6000;
+var RELEASE_TOAST_MS = TOAST_MS / 2;   // the hint after releasing my own place
 // The grass around the scene: a tile with a few tufts, the same look as the code screen.
 var GRASS_TILE = 96;
 var GRASS_TUFTS = [[8, 12], [52, 4], [76, 40], [28, 56], [64, 80], [12, 84], [40, 32]];
@@ -98,7 +99,6 @@ var app = {
   walks: [],           // the walks in progress, one per tap: {start, items: [{key, node, from, to}]}
   walkFrame: 0,        // id of the requested animation frame, 0 when none
   selectedBed: null,   // id of the bed whose sheet is open
-  move: null,          // move mode: {partyId, fromSlot, all}
   suppressClick: false, // set by a long press so that its click does not open the sheet
   tipTimer: null,
   toastTimer: null,
@@ -109,7 +109,7 @@ var app = {
   view: null,          // the visible window of the map (zoom and pan), see the zoom functions in the logic script
   bounds: null,        // the whole viewport in scene units: the scene plus the grass around it (fitBounds)
   insetProbe: null,
-  refit: null,         // recomputes the bounds after the viewport or the move bar changed
+  refit: null,         // recomputes the bounds after the viewport changed
   svg: null,
   zoomReset: null,
   zoomCleanup: null,
@@ -309,7 +309,6 @@ function applyState(state) {
     forgetMyParty();
     app.askWho = true;
   }
-  if (app.move && !partyById(state, app.move.partyId)) app.move = null;
   if (!app.introDone) {
     revealWhenReady();
     return;

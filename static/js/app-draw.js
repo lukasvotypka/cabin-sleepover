@@ -110,7 +110,7 @@ function render() {
   ensureScene();
   dnSync();
   housesQuiet = true;
-  housesSync();      // the move mode opens every house
+  housesSync();
   housesQuiet = false;
   keepFocus($("scene"), function () {
     drawBoards();
@@ -119,7 +119,6 @@ function render() {
   renderStamps();
   renderHud();
   renderSummary();
-  renderMoveBar();
   syncTurnBar();
 }
 

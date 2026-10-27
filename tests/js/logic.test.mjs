@@ -462,7 +462,6 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(pageFile, /<div id="quest" class="quest">/);
   assert.match(pageFile, /<button id="crest"[^>]*type="button" data-key="who"/);
   assert.ok(!pageFile.includes("compass"), "no compass: the ? icon in the scene opens „Návod“");
-  assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.quest \{ display: none; \}/);
   assert.match(pageFile, /\.quest-row \{[^}]*min-height: 30px/);
   assert.match(readScripts("app-hud"), /return storage\.get\(QUEST_KEY\) === "1";/, "folded by default");
   assert.ok(scriptTags.indexOf("static/js/app-hud.js") > -1 && scriptTags.indexOf("static/js/app-hud.js") < scriptTags.indexOf("static/js/app-start.js"));
@@ -470,7 +469,6 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(pageFile, /\.zoom-reset \{[^}]*bottom: calc\(max\(var\(--hud-h, 0px\), env\(safe-area-inset-bottom, 0px\)\) \+ 10px\)/, "above the bottom bar");
   assert.match(pageFile, /<div id="tophud" class="tophud">[\s\S]*<div id="stamps"[^>]*>[\s\S]*<div id="rail" class="rail-wrap" role="slider" tabindex="0" aria-label="Čas"/, "night stamps and the time rail in the top HUD");
   assert.match(pageFile, /<div id="bar" class="bothud">[\s\S]*<button id="crest"[\s\S]*<div id="tools"/, "Si and the tools in the bottom bar");
-  assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.tophud \{ display: none; \}/);
   assert.ok(scriptTags.indexOf("static/js/app-tophud.js") > -1 && scriptTags.indexOf("static/js/app-tophud.js") < scriptTags.indexOf("static/js/app-start.js"));
   assert.match(pageFile, /max-height: 620px\) \{ \.stamp \.dt \{ font-size: 8px;/, "the date line shrinks on low windows");
   assert.ok(!/\.stamp \.dt \{ display: none/.test(pageFile), "the date line never hides");
@@ -850,13 +848,47 @@ test("nights plural and accusative day names", () => {
     ["štvrtok", "piatok", "sobotu", "nedeľu", "pondelok", "utorok", "stredu"]);
 });
 
-test("move target is the first slot free in every night of the move", () => {
+test("release: asks only when my place is held in two or more nights", () => {
+  const p = party();
+  const s = realState([p], { [THU]: hold(p.id, ["left-window-1"]), [FRI]: hold(p.id, ["left-window-1"]), [SAT]: hold(p.id, ["hallway-sofa-1"]) });
+  assert.deepEqual(plain(L.releaseChoice(s, p.id, "left-window-1")), { ask: true, nights: [THU, FRI] });
+  assert.deepEqual(plain(L.releaseChoice(s, p.id, "hallway-sofa-1")), { ask: false, nights: [SAT] });
+  assert.deepEqual(plain(L.releaseChoice(s, p.id, "left-double-1")), { ask: false, nights: [] });
+  assert.equal(L.RELEASE_TEXTS.all(3), "Celý pobyt (3 noci)");
+  assert.equal(L.RELEASE_TEXTS.all(2), "Celý pobyt (2 noci)");
+  assert.equal(L.RELEASE_TEXTS.only(FRI), "Len v piatok");
+  assert.equal(L.RELEASE_TEXTS.only(THU), "Len vo štvrtok");
+});
+
+test("night tab: one dot per slot, mine marked, free without colour", () => {
+  const p = party({ color: "#e6194b" });
+  const o = party({ id: "p-eva000", name: "Eva", color: "#3cb44b" });
   const bed = bedById("left-double");
-  const s = realState([], { [THU]: hold("p-x", ["left-double-1"]), [FRI]: hold("p-y", ["left-double-2"]) });
-  assert.equal(L.moveTarget(s, bed, [THU]), "left-double-2");
-  assert.equal(L.moveTarget(s, bed, [FRI]), "left-double-1");
-  assert.equal(L.moveTarget(s, bed, [THU, FRI]), null);
-  assert.equal(L.moveTarget(s, bed, [SAT]), "left-double-1");
+  const s = realState([p, o], { [THU]: { "left-double-1": p.id, "left-double-2": o.id }, [FRI]: { "left-double-2": "p-gone" } });
+  const dots = (n) => plain(L.nightTabDots(s, bed, n, p.id));
+  assert.deepEqual(dots(THU), [{ free: false, mine: true, color: "#e6194b" }, { free: false, mine: false, color: "#3cb44b" }]);
+  assert.deepEqual(dots(FRI), [{ free: true, mine: false, color: null }, { free: false, mine: false, color: null }]);
+  assert.deepEqual(dots(SAT).map((d) => d.free), [true, true]);
+  assert.equal(L.nightTabLabel(FRI, L.nightTabDots(s, bed, FRI, p.id)), L.nightInfo(FRI).label + ", voľné: 1 z 2");
+});
+
+test("bed sheet lines: sub line, status line and when the main assign block hides", () => {
+  assert.equal(L.bedSubLine({ name: "Veľká izba" }, { slots: ["a", "b", "c"], tight: ["c"] }), "Veľká izba · 3 miesta, 1 tesné");
+  assert.equal(L.bedSubLine({ name: "Izba" }, { slots: ["a"], tight: [] }), "Izba · 1 miesto");
+  const p = party({ adults: 2 });
+  const s = realState([p], { [FRI]: hold(p.id, ["left-double-1", "left-double-2"]), [SAT]: hold(p.id, ["left-double-1"]) });
+  assert.equal(L.sheetStatusLine(s, null, THU), "");
+  assert.equal(L.sheetStatusLine(s, p, THU), "Vo štvrtok ti chýbajú 2 miesta.");
+  assert.equal(L.sheetStatusLine(s, p, SAT), "V sobotu ti chýba 1 miesto.");
+  assert.equal(L.sheetStatusLine(s, p, FRI), "V piatok máš všetko.");
+  const gone = party({ arrive: FRI, leave: "2026-11-01" });
+  assert.equal(L.sheetStatusLine(s, gone, THU), L.notPresentNote(gone, THU));
+  const bed = bedById("left-double");
+  assert.equal(L.showMainAssign(s, p, SAT, ["left-double-2"]), false);      // misses exactly one: the row offers it
+  assert.equal(L.showMainAssign(s, p, THU, ["left-double-1", "left-double-2"]), true);
+  assert.equal(L.showMainAssign(s, null, THU, ["left-double-1"]), true);
+  assert.equal(L.showMainAssign(s, p, SAT, []), true);
+  assert.ok(bed);
 });
 
 test("pending changes are drawn on top of the state without changing it", () => {
@@ -910,7 +942,6 @@ test("reasons and confirmations in Slovak", () => {
   assert.equal(L.notPresentText(SAT), "V sobotu nie si na chate.");
   assert.equal(L.notPresentText(THU), "Vo štvrtok nie si na chate.");
   assert.equal(L.releaseConfirmText("Riso a Ben"), "Toto miesto má Riso a Ben. Naozaj ho uvoľniť?");
-  assert.equal(L.moveBarText("Ivan a Eva"), "Ťukni na nové miesto pre Ivan a Eva");
 });
 
 test("skipped nights of assign-stay are reported in Slovak", () => {
@@ -918,24 +949,6 @@ test("skipped nights of assign-stay are reported in Slovak", () => {
   assert.equal(L.skippedText([THU, SAT]), "Vo štvrtok a v sobotu je to tu obsadené, tie noci sme vynechali.");
   assert.equal(L.skippedText([THU, FRI, SAT]), "Vo štvrtok, v piatok a v sobotu je to tu obsadené, tie noci sme vynechali.");
   assert.equal(L.skippedText([]), "");
-});
-
-// --- move mode ---
-
-test("move plan: one night, all nights and the two reasons it fails", () => {
-  const p = party();
-  const s = realState([p], { [THU]: hold(p.id, ["left-window-1"]), [SAT]: hold(p.id, ["left-window-1"]) });
-  const move = { partyId: p.id, fromSlot: "left-window-1", all: false };
-  const target = bedById("left-double");
-  assert.deepEqual(plain(L.planMove(s, move, target, THU)), { nights: [THU], target: "left-double-1" });
-  assert.deepEqual(plain(L.planMove(s, { ...move, all: true }, target, FRI)), { nights: [THU, SAT], target: "left-double-1" });
-  // not sleeping in the old place on the selected night
-  assert.equal(L.planMove(s, move, target, FRI).error, "Tú noc na pôvodnom mieste nespíš. Prepni noc alebo zvoľ „Všetky noci“.");
-  // the old place is not held on any night
-  assert.equal(L.planMove(s, { ...move, fromSlot: "hallway-sofa-1", all: true }, target, THU).error, L.MOVE_TEXTS.not_held);
-  // no free slot in every night
-  const busy = realState([p], { [THU]: { ...hold(p.id, ["left-window-1"]), ...hold("p-x", ["left-double-1", "left-double-2"]) } });
-  assert.equal(L.planMove(busy, move, target, THU).error, "Tu nie je voľné miesto.");
 });
 
 test("a finger may move up to the slop during a long press", () => {
@@ -2260,7 +2273,6 @@ test("page: the map fills the viewport (fixed full-height scene, safe areas, gra
   assert.match(html, /<meta name="theme-color" content="#8E9B48">/);
   assert.match(html, /\.zoom-reset \{[^}]*safe-area-inset-bottom/);
   assert.match(html, /#toast \{[^}]*safe-area-inset-bottom/);
-  assert.match(html, /\.movebar \{[^}]*position: fixed;[^}]*safe-area-inset-top/);
   assert.match(app, /fitBounds\(r\.width, r\.height, W, H, readInsets\(\)\)/);
   assert.match(app, /new ResizeObserver\(/);
   assert.match(app, /addEventListener\("resize", onResize\)/);
@@ -2310,12 +2322,10 @@ test("fit: an extra top inset the size of the move bar keeps the whole scene bel
   near(zz.y + zz.h / 2, z.y + z.h / 2);
 });
 
-test("page: the move bar's height is a top inset while it shows, and the scene refits when it shows or hides", () => {
+test("page: the scene sits below the top HUD, and panels do not chain overscroll", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
-  assert.match(app, /if \(!bar\.hidden\) top = Math\.max\(top, bar\.offsetHeight\);/);
-  assert.match(app, /else top = Math\.max\(top, questBottom\(\), topHudBottom\(\)\);/);
-  assert.match(app, /observer\.observe\(moveBar\)/);
-  assert.match(app, /if \(app\.refit\) app\.refit\(\);/);
+  assert.match(app, /var top = Math\.max\(parseFloat\(cs\.paddingTop\), questBottom\(\), topHudBottom\(\)\);/);
+  assert.doesNotMatch(app, /moveBar/);
   // panels: no overscroll chaining, a long sheet stays below the status bar, a tall code board scrolls from its top
   assert.match(html, /html \{[^}]*overscroll-behavior: none;/);
   assert.doesNotMatch(html, /body \{[^}]*overscroll-behavior/);
@@ -2505,7 +2515,8 @@ test("page: the splash looks the same in dark mode (fixed colors, no CSS variabl
 function introSource() {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   const a = app.indexOf("  function revealWhenReady()");
-  const b = app.indexOf("  // A move belongs to the party that started it");
+  const tail = "      splash.resizeFrame = 0;\n      drawSplash();\n    });\n  });\n";
+  const b = app.indexOf(tail, a) + tail.length;
   assert.ok(a > 0 && b > a);
   return app.slice(a, b);
 }
@@ -2772,8 +2783,7 @@ test("page: a night switch, the code screen and a rejected write cancel the walk
   assert.match(body("assignHere"), /!res\.ok && !isOwnSlotTaken\(res\.error\)/);
   assert.match(body("assignHere"), /cancelWalks\(walk\)/);
   // Releasing or moving away a place that is still being walked to takes its walker away.
-  assert.match(body("clearSlot"), /cancelWalkersAt\(night, slot\)/);
-  assert.match(body("moveTo"), /cancelWalkersAt\(n, m\.fromSlot\)/);
+  assert.match(body("clearSlot"), /cancelWalkersAt\(n, slot\)/);
 });
 
 test("page: the bed panel warns before a tap would overfill an already-complete party", () => {
@@ -2846,14 +2856,14 @@ test("guard, text producers: no function or table of the logic block yields a pl
   [THU, FRI, SAT].forEach((n) => add(L.notPresentText(n)));
   add([[FRI], [THU, SAT], [THU, FRI, SAT], []].map((n) => L.skippedText(n)));
   add(L.releaseConfirmText("Riso a Ben"));
-  add(L.moveBarText("Ivan a Eva"));
+  add([L.RELEASE_TEXTS.ask, L.RELEASE_TEXTS.no, L.RELEASE_TEXTS.toast, L.RELEASE_TEXTS.all(3), L.RELEASE_TEXTS.only(FRI)]);
+  [THU, FRI, SAT].forEach((n) => add(L.sheetStatusLine(stateWith([party({ adults: 2 })]), party({ adults: 2 }), n)));
   add([null, party()].map((x) => L.whoText(x)));
   [0, 1, 2, 5].forEach((n) => add(L.assignLabel(n)));
   [0, 1, 2, 5].forEach((n) => add(L.assignLabel(n, "Ivan a Eva")));
   add(L.enoughAlreadyText("Ivan a Eva"));
 
   add(L.NOTICE_LINES);
-  add(L.MOVE_TEXTS);
   add(L.FREED_TEXTS);
   add(L.REASON_TEXTS);
   add(L.FIELD_NAMES);
@@ -3070,13 +3080,16 @@ test("roofRect and chimneyRect follow the outline", () => {
   assert.deepEqual(plain(L.chimneyRect([118, 212, 254, 124], 164)), [164, 192, 6, 10]);
 });
 
-test("page: bed buttons keep the tap hint and move mode syncs the houses", () => {
+test("page: bed buttons keep the tap hint and move mode is gone", () => {
   const beds = fs.readFileSync(path.join(root, "static", "js", "app-beds.js"), "utf8");
   const hints = beds.match(/bedLabel\(st, room, bed, night\) \+ "\. Ťuknutím otvoríš\."/g) || [];
   assert.equal(hints.length, 2, "both bed buttons keep the hint");
   assert.doesNotMatch(beds, /makeButton\(g, bedLabel\(st, room, bed, night\), /);
-  const actions = fs.readFileSync(path.join(root, "static", "js", "app-actions.js"), "utf8");
-  assert.match(actions.match(/function renderMoveBar\(\) \{[\s\S]*?\n\}/)[0], /housesSync\(\)/);
+  const gone = /app\.move\b|startMove|cancelMove|moveTo\b|planMove|moveTarget|moveBarText|MOVE_TEXTS|isoLiftOffset|renderMoveBar|moveBar|movebar/;
+  for (const file of fs.readdirSync(path.join(root, "static", "js"))) {
+    assert.doesNotMatch(fs.readFileSync(path.join(root, "static", "js", file), "utf8"), gone, file);
+  }
+  assert.doesNotMatch(pageFile, gone, "index.html");
 });
 
 test("page: every script file parses on its own and the page keeps no inline script", () => {
@@ -3659,7 +3672,6 @@ test("intro zoom: the app wires it to the splash, stops on input and skips reduc
   assert.match(appSource, /\["pointerdown", "touchstart", "wheel", "keydown"\]/);
   const openPanelSource = appSource.match(/function openPanel\(title, build, opts\) \{[\s\S]*?\n\}\n/)[0];
   assert.doesNotMatch(openPanelSource, /IntroZoom/, "a panel must not stop the intro");
-  assert.match(appSource, /function startMove\(slot\) \{\n  stopIntroZoom\(\);/);
 });
 
 test("intro zoom: the code screen (a 401) ends the intro, so the map is never stuck at 2x", () => {
@@ -5148,10 +5160,6 @@ test("dolls: colours, sit scale under a bunk berth, pop, fade and the other tick
   near(L.isoFadeAlpha(1, 125), 0.5);
   assert.ok(L.isoFadeAlpha(1, 40) > L.isoFadeAlpha(1, 20));
   assert.equal(L.isoOpacityStep(0.6), 0.625);
-  // the lifted figure bobs between 3 and 4 units once per 250 ms
-  near(L.isoLiftOffset(0), 3);
-  near(L.isoLiftOffset(125), 4);
-  near(L.isoLiftOffset(250), 3);
   // exactly one waiter of three hops for 250 ms at the start of each 4 s period, and none in between
   for (let round = 0; round < 6; round++) {
     const at = (t) => [0, 1, 2].map((i) => L.isoWaiterHop(round * 4000 + t, i, 3)).reduce((a, b) => a + b, 0);

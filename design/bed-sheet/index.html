@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="sk" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Návrh: panel postele s nocami (T-149)</title>
+<!-- Design prototype for T-149 only. Self-contained, no requests, fake data. Never served by the app. -->
+<style>
+:root{--bg:#EFE5D3;--surface:#FBF6EC;--surface2:#F4EBDB;--ink:#2B1D14;--muted:#6B5644;--line:#DCC9AE;--forest:#4A2C1A;--moss:#5E6B24;--amber:#96540F;--amber-soft:#F6DFB8;--warn:#A3361E;--warn-soft:#F6D6C8;--ok:#3F6E2C;
+  --font-head:"Alegreya",Georgia,"Times New Roman",serif;--font-body:"Alegreya Sans","Gill Sans",system-ui,sans-serif}
+:root[data-theme=dark]{--bg:#1A1410;--surface:#241C16;--surface2:#2D231B;--ink:#F1E7D9;--muted:#B9A38C;--line:#47382B;--forest:#F2DBB8;--moss:#B9C46F;--amber:#EDA94E;--amber-soft:#3F2C16;--warn:#F08C70;--warn-soft:#43241A;--ok:#93C67E}
+@media (prefers-color-scheme:dark){:root[data-theme=auto]{--bg:#1A1410;--surface:#241C16;--surface2:#2D231B;--ink:#F1E7D9;--muted:#B9A38C;--line:#47382B;--forest:#F2DBB8;--moss:#B9C46F;--amber:#EDA94E;--amber-soft:#3F2C16;--warn:#F08C70;--warn-soft:#43241A;--ok:#93C67E}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--font-body);font-size:16px;color:var(--ink);overflow:hidden}
+button{font:inherit;color:inherit}
+
+/* ---------- prototype toolbar (not part of the app) ---------- */
+.proto{position:fixed;z-index:60;left:6px;right:6px;top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;
+  font:12px/1.2 ui-monospace,Menlo,Consolas,monospace;color:#e9dccb}
+.proto select,.proto button{background:#3a2e25;color:#e9dccb;border:1px solid #5c4a3c;padding:6px 6px;font:inherit;border-radius:0}
+.proto label{display:flex;gap:4px;align-items:center;background:rgba(0,0,0,.55);padding:2px 4px}
+
+/* ---------- map stand-in (fixed scene colours, not inverted in dark mode) ---------- */
+.map{position:fixed;inset:0;background:#8E9B48;image-rendering:pixelated;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' shape-rendering='crispEdges'%3E%3Crect x='8' y='12' width='4' height='4' fill='%2376823A'/%3E%3Crect x='52' y='4' width='4' height='4' fill='%23B5532A'/%3E%3Crect x='76' y='40' width='4' height='4' fill='%2376823A'/%3E%3Crect x='28' y='56' width='4' height='4' fill='%23D69A2E'/%3E%3Crect x='64' y='80' width='4' height='4' fill='%2376823A'/%3E%3Crect x='12' y='84' width='4' height='4' fill='%238E3424'/%3E%3C/svg%3E")}
+.map svg{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);width:min(380px,100vw);height:auto;aspect-ratio:380/300}
+.hud-top{position:fixed;z-index:5;left:0;right:0;top:84px;display:flex;justify-content:center;gap:6px;pointer-events:none}
+.stamp{padding:4px 8px;background:#F4EBD0;color:#2E1F14;border:3px solid #5C4033;font:700 13px ui-monospace,Menlo,monospace}
+.stamp.on{background:#D69A2E}
+.hud-bottom{position:fixed;z-index:5;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:#8A5A34;border-top:4px solid #5C4033;color:#F4EBD0;font:700 14px ui-monospace,Menlo,monospace}
+.bed-hit{cursor:pointer}
+.bed-hit:focus-visible{outline:3px solid #D69A2E}
+
+/* ---------- panel ---------- */
+.backdrop{position:fixed;inset:0;z-index:20;background:rgba(26,20,16,.5)}
+.sheet:focus{outline:none}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-width:560px;margin:0 auto;max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;
+  padding:16px calc(16px + env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) calc(16px + env(safe-area-inset-left,0px));
+  background:var(--surface);color:var(--ink);border:4px solid #5C4033;border-bottom:0;transform:translateY(100%);transition:transform .2s ease-out}
+.sheet.open{transform:none}
+@media (min-width:900px){
+  .sheet{left:50%;right:auto;bottom:auto;top:50%;width:440px;margin:0;border-bottom:4px solid #5C4033;max-height:calc(100dvh - 120px);
+    transform:translate(-50%,-50%);opacity:0;transition:opacity .15s ease-out}
+  .sheet.open{transform:translate(-50%,-50%);opacity:1}
+}
+.sheet-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.sheet h2{margin:0;font-family:var(--font-head);font-weight:700;font-size:26px;color:var(--forest)}
+.sheet .sub{margin:0 0 12px;color:var(--muted);font-size:15px}
+.close{flex:none;width:44px;height:44px;background:transparent;border:3px solid var(--line);color:var(--forest);font-weight:700;font-size:20px;cursor:pointer}
+
+/* night tabs */
+.bed-nights{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:0 0 10px;border-bottom:2px solid var(--line)}
+.bn-tab{min-height:52px;padding:6px 4px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  background:transparent;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:0;cursor:pointer;touch-action:manipulation;color:var(--forest)}
+.bn-tab[aria-pressed=true]{background:var(--surface2);border-bottom-color:var(--moss)}
+.bn-tab:focus-visible{outline:3px solid var(--amber);outline-offset:-3px}
+.bn-label{font-weight:700;font-size:15px;line-height:1}
+.bn-dots{display:flex;gap:3px;height:12px;align-items:center}
+.bn-dot{width:8px;height:8px;display:block}
+.bn-dot.free{outline:1px dashed var(--muted);outline-offset:-1px}
+.bn-dot.mine{outline:2px solid var(--amber);outline-offset:0}
+.bn-tab.press{animation:tabpress 80ms steps(2) 1}
+@keyframes tabpress{0%{transform:translateY(1px)}100%{transform:none}}
+
+.status{margin:0 0 6px;font-size:14px;color:var(--muted);min-height:1.3em}
+.status.miss{color:var(--warn);font-weight:700}
+.status.ok{color:var(--ok);font-weight:700}
+
+/* place rows */
+.rows{margin:0 0 4px}
+.rows.pending{opacity:.5}
+.slot-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:2px 0;min-height:48px;border-bottom:1px solid var(--line)}
+.slot-row:last-child{border-bottom:0}
+.slot-row .place{flex:none;width:64px;font-size:13px;color:var(--muted);line-height:1.15}
+.slot-row .tight{display:block;color:var(--amber);font-weight:700;font-size:12px}
+.slot-row .who{flex:1 1 120px;display:flex;align-items:center;gap:8px;overflow-wrap:anywhere;min-width:0}
+.slot-row .who .name{font-weight:700}
+.slot-row .who .me-tag{font-size:12px;color:var(--amber);font-weight:700}
+.fig{flex:none;width:18px;height:24px}
+.fig.out{animation:blinkout 180ms steps(3) 1 forwards}
+.fig.in{animation:popin 180ms steps(3) 1}
+@keyframes blinkout{0%{opacity:1}33%{opacity:0}66%{opacity:1}100%{opacity:0}}
+@keyframes popin{0%{transform:scale(.4)}100%{transform:scale(1)}}
+.free-tag{padding:1px 10px;border:1px dashed var(--muted);border-radius:999px;font-size:13px;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 14px;background:var(--forest);color:var(--surface);
+  border:3px solid var(--forest);border-radius:0;font-weight:700;cursor:pointer;touch-action:manipulation}
+.btn.secondary{background:transparent;color:var(--forest);border-width:2px}
+.btn:disabled{opacity:.6;cursor:default}
+.btn:focus-visible,.link-btn:focus-visible,.close:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.slot-row .btn.release{flex:none}
+.slot-row .take{flex:1 1 160px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:0;min-height:44px;padding:4px 12px;text-align:left;
+  background:transparent;color:var(--forest);border:2px dashed var(--moss);border-radius:0;font-weight:700;cursor:pointer;touch-action:manipulation}
+.slot-row .take:hover{background:var(--surface2)}
+.slot-row .take:active{transform:translateY(1px)}
+.slot-row .take:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.slot-row .take small{font-weight:400;font-size:13px;color:var(--muted)}
+.slot-row .lock-note{flex:1 1 100%;margin:0 0 4px 72px;font-size:13px;color:var(--muted)}
+.confirm-box{flex:1 1 100%;display:flex;flex-direction:column;gap:6px;padding:8px 10px 10px;margin:2px 0 6px;background:var(--amber-soft);border-left:4px solid var(--amber)}
+.confirm-box p{margin:0;font-weight:700;color:var(--ink)}
+.confirm-box .two{display:flex;gap:6px;flex-wrap:wrap}
+.confirm-box .two .btn{flex:1 1 140px}
+.link-btn{background:none;border:0;padding:10px 8px;min-height:44px;font:inherit;color:var(--forest);text-decoration:underline;cursor:pointer;align-self:center}
+
+.note{margin:8px 0 0;padding:8px 12px;color:var(--ink);background:var(--amber-soft);border-left:4px solid var(--amber);font-size:14px}
+.actions{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.actions .btn{width:100%}
+.actions .btn.has-sub{flex-direction:column;gap:0}
+.actions .sub-line{display:block;font-size:.8em;font-weight:400;opacity:.9}
+.actions .links{display:flex;justify-content:space-between;flex-wrap:wrap}
+
+#toast{position:fixed;left:12px;right:12px;bottom:64px;z-index:40;max-width:536px;margin:0 auto;padding:12px 14px;background:var(--surface);color:var(--ink);
+  border:4px solid #5C4033;border-left-width:8px;font-weight:500;box-shadow:4px 4px 0 rgba(0,0,0,.28);cursor:pointer}
+#toast.error{border-left-color:var(--warn)}
+#toast.info{border-left-color:var(--moss)}
+#toast[hidden]{display:none}
+@media (min-width:900px){#toast{bottom:24px;max-width:440px}}
+
+@media (prefers-reduced-motion:reduce){
+  .sheet{transition:none}
+  .bn-tab.press,.fig.out,.fig.in{animation:none}
+  .slot-row .take:active{transform:none}
+}
+:root.rm .sheet{transition:none}
+:root.rm .bn-tab.press,:root.rm .fig.out,:root.rm .fig.in{animation:none}
+</style>
+</head>
+<body>
+
+<div class="map" aria-hidden="false">
+  <svg width="380" height="300" viewBox="0 0 380 300" shape-rendering="crispEdges" role="img" aria-label="Náhrada mapy">
+    <rect x="40" y="40" width="300" height="220" fill="#5C4033"/>
+    <rect x="48" y="48" width="140" height="204" fill="#C9A77A"/>
+    <rect x="196" y="48" width="136" height="204" fill="#B9A5C9"/>
+    <rect x="186" y="140" width="12" height="28" fill="#8A6A4A"/>
+    <g class="bed-hit" id="bedHit" tabindex="0" role="button" aria-label="Veľká posteľ, otvoriť">
+      <rect x="64" y="70" width="104" height="80" fill="#6B4A2E"/>
+      <rect x="68" y="74" width="96" height="72" fill="#EFE5D3"/>
+      <rect x="68" y="74" width="96" height="14" fill="#FFFFFF"/>
+      <g id="mapFigs"></g>
+    </g>
+    <rect x="216" y="70" width="40" height="80" fill="#6B4A2E"/>
+    <rect x="270" y="70" width="40" height="80" fill="#6B4A2E"/>
+    <rect x="70" y="190" width="90" height="40" fill="#7A5A3A"/>
+  </svg>
+</div>
+<div class="hud-top" id="hudTop"></div>
+<div class="hud-bottom" id="hudBottom"></div>
+
+<div class="proto" aria-label="Prototyp">
+  <label>Scenár <select id="scen">
+    <option value="miss">Chýbajú ti miesta</option>
+    <option value="full">Máš všetko</option>
+    <option value="busy">Posteľ plná</option>
+    <option value="late">Prídete v piatok</option>
+    <option value="none">Bez partie</option>
+    <option value="locked">Zápis zatvorený</option>
+  </select></label>
+  <label>Téma <select id="theme"><option value="auto">auto</option><option value="light">svetlá</option><option value="dark">tmavá</option></select></label>
+  <label><input type="checkbox" id="fail"> chyba pri uložení</label>
+  <label><input type="checkbox" id="rm"> bez animácií</label>
+</div>
+
+<div id="panelRoot"></div>
+<div id="toast" hidden role="status"></div>
+
+<script>
+'use strict';
+/* ---------------- fake data ---------------- */
+const NIGHTS = [
+  { id: '2026-11-05', tab: 'Št → Pi', loc: 'vo štvrtok', on: 'štvrtok', stamp: 'Št 5.' },
+  { id: '2026-11-06', tab: 'Pi → So', loc: 'v piatok',   on: 'piatok',  stamp: 'Pi 6.' },
+  { id: '2026-11-07', tab: 'So → Ne', loc: 'v sobotu',   on: 'sobotu',  stamp: 'So 7.' },
+];
+const BED = { name: 'Veľká posteľ', room: 'Izba vľavo', slots: [
+  { id: 'L-bed-1', label: 'Miesto 1' }, { id: 'L-bed-2', label: 'Miesto 2' }, { id: 'L-bed-3', label: 'Miesto 3', tight: true } ] };
+const PARTIES = {
+  me:   { id: 'p-me', name: 'Novákovci', color: '#2F7D6D', need: 2 },
+  mar:  { id: 'p-mar', name: 'Marek', color: '#D07A2B' },
+  zp:   { id: 'p-zp', name: 'Zuzka a Peťo', color: '#6D5BA8' },
+  kov:  { id: 'p-kov', name: 'Kováčovci', color: '#3E6FB0', phone: true },
+};
+// per scenario: sleeping on this bed (night -> slot -> party key), my places elsewhere per night, presence
+const SCENARIOS = {
+  miss:   { me: 'me', present: [1,1,1], elsewhere: [0,0,0], beds: [
+            { 'L-bed-1': 'me', 'L-bed-3': 'mar' }, { 'L-bed-1': 'me', 'L-bed-2': 'zp' }, {} ] },
+  full:   { me: 'me', present: [1,1,1], elsewhere: [0,0,0], beds: [
+            { 'L-bed-1': 'me', 'L-bed-2': 'me', 'L-bed-3': 'mar' }, { 'L-bed-1': 'me', 'L-bed-2': 'me', 'L-bed-3': 'mar' }, { 'L-bed-1': 'me', 'L-bed-2': 'me' } ] },
+  busy:   { me: 'me', present: [1,1,1], elsewhere: [1,1,0], beds: [
+            { 'L-bed-1': 'kov', 'L-bed-2': 'kov', 'L-bed-3': 'mar' }, { 'L-bed-1': 'kov', 'L-bed-2': 'kov', 'L-bed-3': 'zp' }, { 'L-bed-1': 'kov', 'L-bed-2': 'kov', 'L-bed-3': 'zp' } ] },
+  late:   { me: 'me', present: [0,1,1], elsewhere: [0,0,0], beds: [
+            { 'L-bed-1': 'mar' }, { 'L-bed-1': 'mar' }, {} ] },
+  none:   { me: null, present: [0,0,0], elsewhere: [0,0,0], beds: [
+            { 'L-bed-1': 'mar' }, { 'L-bed-1': 'zp', 'L-bed-2': 'zp' }, {} ] },
+  locked: { me: 'me', present: [1,1,1], elsewhere: [0,0,0], locked: true, beds: [
+            { 'L-bed-1': 'me', 'L-bed-3': 'mar' }, { 'L-bed-1': 'me' }, {} ] },
+};
+const LOCKED_NOTE = 'Zápis je zatvorený. Zmeny už robí len organizátor.';
+
+let S;           // current fake state
+let night = 1;   // selected night index (app.night)
+let pending = false;
+let confirmFor = null; // slot id whose release confirm is open
+let fx = null;   // { slot, kind: 'out'|'in' } one-shot animation
+
+function load(key) {
+  const sc = SCENARIOS[key];
+  S = { me: sc.me, present: sc.present.slice(), elsewhere: sc.elsewhere.slice(), locked: !!sc.locked,
+        beds: sc.beds.map(o => Object.assign({}, o)) };
+  confirmFor = null; pending = false; fx = null;
+  if (S.me && !S.present[night]) night = S.present.indexOf(1);
+}
+
+/* ---------------- pure-ish helpers (what logic-beds.js would hold) ---------------- */
+function held(n) { return S.me ? Object.values(S.beds[n]).filter(p => p === S.me).length + S.elsewhere[n] : 0; }
+function missing(n) { return S.me && S.present[n] ? Math.max(0, PARTIES[S.me].need - held(n)) : 0; }
+function places(k) { return k === 1 ? '1 miesto' : (k >= 2 && k <= 4 ? k + ' miesta' : k + ' miest'); }
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function statusText(n) {
+  if (!S.me) return null;
+  if (!S.present[n]) return { cls: '', text: cap(NIGHTS[n].loc) + ' ešte nie ste na chate.' };
+  const m = missing(n);
+  if (m === 0) return { cls: 'ok', text: cap(NIGHTS[n].loc) + ' máte všetko.' };
+  return { cls: 'miss', text: cap(NIGHTS[n].loc) + (m === 1 ? ' vám chýba ' : ' vám chýbajú ') + places(m) + '.' };
+}
+// takeSlotNights (e9939d5): the shown night plus every other night where I miss a place and this slot is free
+function takeSlotNights(slot, n) {
+  return NIGHTS.map((_, i) => i).filter(i => i === n || (S.present[i] && missing(i) > 0 && !S.beds[i][slot]));
+}
+function holdingNights(slot) { return NIGHTS.map((_, i) => i).filter(i => S.beds[i][slot] === S.me); }
+// main „whole stay“ plan: per night, how many free places of this bed it would take
+function mainPlan() {
+  return NIGHTS.map((_, i) => Math.min(missing(i), BED.slots.filter(s => !S.beds[i][s.id]).length));
+}
+function nightList(idx) { return idx.map(i => NIGHTS[i].on).join(', '); }
+
+/* ---------------- DOM helpers (textContent only) ---------------- */
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+const SVGNS = 'http://www.w3.org/2000/svg';
+function figure(color) {
+  const s = document.createElementNS(SVGNS, 'svg');
+  s.setAttribute('viewBox', '0 0 6 8'); s.setAttribute('shape-rendering', 'crispEdges'); s.setAttribute('class', 'fig'); s.setAttribute('aria-hidden', 'true');
+  [['2','0','2','2','#E8B98A'], ['1','2','4','3',color], ['1','5','1','3','#4A2C1A'], ['4','5','1','3','#4A2C1A'], ['0','2','1','2',color], ['5','2','1','2',color]]
+    .forEach(([x,y,w,h,f]) => { const r = document.createElementNS(SVGNS, 'rect'); r.setAttribute('x',x); r.setAttribute('y',y); r.setAttribute('width',w); r.setAttribute('height',h); r.setAttribute('fill',f); s.appendChild(r); });
+  return s;
+}
+
+/* ---------------- map + HUD stand-in ---------------- */
+function drawHud() {
+  const top = document.getElementById('hudTop'); top.replaceChildren();
+  NIGHTS.forEach((n, i) => top.appendChild(el('span', 'stamp' + (i === night ? ' on' : ''), n.stamp)));
+  const b = document.getElementById('hudBottom');
+  b.textContent = S.me ? 'Si: ' + PARTIES[S.me].name + (missing(night) ? ' · chýba ' + places(missing(night)) : ' · ok') : 'Si: ? (ťukni)';
+  const g = document.getElementById('mapFigs'); g.replaceChildren();
+  BED.slots.forEach((s, i) => {
+    const p = S.beds[night][s.id]; if (!p) return;
+    const r = document.createElementNS(SVGNS, 'rect');
+    r.setAttribute('x', 76 + i * 30); r.setAttribute('y', 92); r.setAttribute('width', 20); r.setAttribute('height', 46); r.setAttribute('fill', PARTIES[p].color);
+    g.appendChild(r);
+    const h = document.createElementNS(SVGNS, 'rect');
+    h.setAttribute('x', 80 + i * 30); h.setAttribute('y', 78); h.setAttribute('width', 12); h.setAttribute('height', 12); h.setAttribute('fill', '#E8B98A');
+    g.appendChild(h);
+  });
+}
+
+/* ---------------- the sheet ---------------- */
+let sheet = null, backdrop = null;
+function openSheet() {
+  const root = document.getElementById('panelRoot'); root.replaceChildren();
+  backdrop = el('div', 'backdrop'); backdrop.addEventListener('click', closeSheet);
+  sheet = el('div', 'sheet'); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-labelledby', 'bsTitle');
+  root.append(backdrop, sheet);
+  fillSheet();
+  requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('open')));
+  sheet.tabIndex = -1; sheet.focus({ preventScroll: true });
+}
+function closeSheet() { document.getElementById('panelRoot').replaceChildren(); sheet = null; document.getElementById('bedHit').focus(); }
+
+function selectNight(i) { night = i; confirmFor = null; drawHud(); fillSheet(); }
+
+function fillSheet() {
+  if (!sheet) return;
+  const keepFocus = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.key : null;
+  sheet.replaceChildren();
+
+  // 1. head
+  const head = el('div', 'sheet-head');
+  const h = el('h2', null, BED.name); h.id = 'bsTitle';
+  const x = el('button', 'close', '×'); x.setAttribute('aria-label', 'Zavrieť'); x.addEventListener('click', closeSheet);
+  head.append(h, x);
+  const tight = BED.slots.filter(s => s.tight).length;
+  sheet.append(head, el('p', 'sub', BED.room + ' · ' + places(BED.slots.length) + (tight ? ', ' + tight + ' tesné' : '')));
+
+  // 2. night tabs
+  const tabs = el('div', 'bed-nights'); tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', 'Noc');
+  NIGHTS.forEach((n, i) => {
+    const t = el('button', 'bn-tab'); t.type = 'button'; t.dataset.key = 'tab' + i;
+    t.setAttribute('aria-pressed', String(i === night));
+    const free = BED.slots.filter(s => !S.beds[i][s.id]).length;
+    t.setAttribute('aria-label', 'Noc ' + n.tab.replace('→', 'na') + ', voľné ' + free + ' z ' + BED.slots.length);
+    t.append(el('span', 'bn-label', n.tab));
+    const dots = el('span', 'bn-dots');
+    BED.slots.forEach(s => {
+      const p = S.beds[i][s.id]; const d = el('span', 'bn-dot');
+      if (!p) d.classList.add('free'); else { d.style.background = PARTIES[p].color; if (p === S.me) d.classList.add('mine'); }
+      dots.append(d);
+    });
+    t.append(dots);
+    t.addEventListener('pointerdown', () => { t.classList.remove('press'); void t.offsetWidth; t.classList.add('press'); });
+    t.addEventListener('click', () => selectNight(i));
+    tabs.append(t);
+  });
+  sheet.append(tabs);
+
+  // 3. status line
+  const st = statusText(night);
+  if (pending) sheet.append(el('p', 'status', 'ukladám…'));
+  else if (st) sheet.append(el('p', 'status ' + st.cls, st.text));
+
+  // 4. rows of the selected night
+  const rows = el('div', 'rows' + (pending ? ' pending' : ''));
+  const canWrite = !S.locked && !pending;
+  BED.slots.forEach((s, si) => {
+    const row = el('div', 'slot-row');
+    const pl = el('span', 'place', s.label); if (s.tight) pl.append(el('span', 'tight', 'tesné'));
+    row.append(pl);
+    const p = S.beds[night][s.id];
+    if (p) {
+      const who = el('span', 'who'); const f = figure(PARTIES[p].color);
+      if (fx && fx.slot === s.id && fx.kind === 'in') f.classList.add('in');
+      if (fx && fx.slot === s.id && fx.kind === 'out') f.classList.add('out');
+      who.append(f, el('span', 'name', PARTIES[p].name));
+      if (p === S.me) who.append(el('span', 'me-tag', 'vy'));
+      row.append(who);
+      const blocked = PARTIES[p].phone && p !== S.me;
+      if (S.locked) { /* note below rows */ }
+      else if (blocked) row.append(el('p', 'lock-note', 'Toto miesto zmení len „' + PARTIES[p].name + '“ po prihlásení.'));
+      else if (confirmFor !== s.id) {
+        const b = el('button', 'btn secondary release', 'Uvoľniť'); b.type = 'button'; b.dataset.key = 'rel' + si; b.disabled = !canWrite;
+        b.setAttribute('aria-label', 'Uvoľniť ' + s.label.toLowerCase() + ': ' + PARTIES[p].name + ', ' + NIGHTS[night].on);
+        b.addEventListener('click', () => onRelease(s.id, p));
+        row.append(b);
+      }
+      if (confirmFor === s.id) row.append(confirmBox(s, p));
+    } else if (S.locked || (S.me && !S.present[night])) {
+      row.append(el('span', 'who', '')); row.lastChild.append(el('span', 'free-tag', 'voľné'));
+    } else {
+      const b = el('button', 'take'); b.type = 'button'; b.dataset.key = 'take' + si; b.disabled = !canWrite;
+      b.append(el('span', null, '+ Ľahnúť si sem'));
+      const nn = S.me ? takeSlotNights(s.id, night) : [night];
+      const whole = nn.length > 1;
+      if (whole) b.append(el('small', null, nn.length === S.present.reduce((a, c) => a + c, 0) ? 'na celý pobyt' : 'aj v ' + nightList(nn.filter(i => i !== night))));
+      b.setAttribute('aria-label', S.me ? 'Ľahnúť si sem: ' + PARTIES[S.me].name + ', ' + s.label.toLowerCase() + (whole ? ', na celý pobyt' : ', ' + NIGHTS[night].on) : 'Ľahnúť si sem, najprv vyber, kto si');
+      b.addEventListener('click', () => onTake(s.id));
+      row.append(b);
+    }
+    rows.append(row);
+  });
+  sheet.append(rows);
+  if (S.locked) sheet.append(el('p', 'note', LOCKED_NOTE));
+
+  // 5. actions
+  const act = el('div', 'actions');
+  if (S.me && !S.locked && S.present[night]) {
+    const plan = mainPlan(); const total = plan.reduce((a, c) => a + c, 0);
+    const firstFree = BED.slots.find(s => !S.beds[night][s.id]);
+    const rowOffer = firstFree ? takeSlotNights(firstFree.id, night) : [];
+    const sameAsRow = plan.every((c, i) => c === (rowOffer.includes(i) ? 1 : 0));
+    if (total > 0 && !sameAsRow) {
+      const m = el('button', 'btn has-sub'); m.type = 'button'; m.disabled = pending; m.dataset.key = 'main';
+      m.append(el('span', null, 'Zapísať „' + PARTIES[S.me].name + '“ na celý pobyt'));
+      m.append(el('span', 'sub-line', 'zaberie ' + places(total) + ' v tejto posteli (' + NIGHTS.filter((_, i) => plan[i]).map((n, k) => n.tab.slice(0, 2)).join(', ') + ')'));
+      m.addEventListener('click', () => write(() => { NIGHTS.forEach((_, i) => { let k = plan[i]; BED.slots.forEach(s => { if (k > 0 && !S.beds[i][s.id]) { S.beds[i][s.id] = S.me; k--; } }); }); }, null, 'in'));
+      act.append(m);
+      if (missing(night) > 0 && plan.filter(Boolean).length > 1) {
+        const one = el('button', 'btn secondary', 'Len na ' + NIGHTS[night].on); one.type = 'button'; one.disabled = pending;
+        one.addEventListener('click', () => write(() => { let k = missing(night); BED.slots.forEach(s => { if (k > 0 && !S.beds[night][s.id]) { S.beds[night][s.id] = S.me; k--; } }); }, null, 'in'));
+        act.append(one);
+      }
+    }
+  }
+  const links = el('div', 'links');
+  if (S.me) {
+    const e = el('button', 'link-btn', 'Upraviť príchod a odchod'); e.type = 'button'; e.addEventListener('click', () => toast('Prototyp: tu sa otvorí formulár partie.', 'info'));
+    const o = el('button', 'link-btn', 'Som niekto iný'); o.type = 'button'; o.addEventListener('click', () => toast('Prototyp: tu sa otvorí „Kto si?“.', 'info'));
+    links.append(e, o);
+  } else {
+    const k = el('button', 'btn', 'Kto si?'); k.type = 'button'; k.style.width = '100%';
+    k.addEventListener('click', () => toast('Prototyp: tu sa otvorí „Kto si?“.', 'info'));
+    act.append(k);
+  }
+  act.append(links);
+  sheet.append(act);
+
+  fx = null;
+  if (keepFocus) { const f = sheet.querySelector('[data-key="' + keepFocus + '"]'); if (f) f.focus({ preventScroll: true }); }
+}
+
+function confirmBox(s, p) {
+  const box = el('div', 'confirm-box'); box.setAttribute('role', 'group');
+  if (p === S.me) {
+    const hn = holdingNights(s.id);
+    box.append(el('p', null, 'Uvoľniť toto miesto?'));
+    const two = el('div', 'two');
+    const all = el('button', 'btn', 'Celý pobyt (' + hn.length + (hn.length >= 5 ? ' nocí)' : hn.length === 1 ? ' noc)' : ' noci)')); all.type = 'button'; all.dataset.key = 'cAll';
+    all.addEventListener('click', () => release(s.id, hn, true));
+    const one = el('button', 'btn secondary', 'Len ' + NIGHTS[night].loc); one.type = 'button';
+    one.addEventListener('click', () => release(s.id, [night], true));
+    two.append(all, one); box.append(two);
+  } else {
+    box.append(el('p', null, 'Uvoľniť miesto „' + PARTIES[p].name + '“ ' + NIGHTS[night].loc + '?'));
+    const two = el('div', 'two');
+    const yes = el('button', 'btn', 'Áno, uvoľniť'); yes.type = 'button'; yes.dataset.key = 'cAll';
+    yes.addEventListener('click', () => release(s.id, [night], false));
+    two.append(yes); box.append(two);
+  }
+  const no = el('button', 'link-btn', 'Nie'); no.type = 'button';
+  no.addEventListener('click', () => { confirmFor = null; fillSheet(); });
+  box.append(no);
+  setTimeout(() => { const f = box.querySelector('[data-key=cAll]'); if (f) f.focus(); }, 0);
+  return box;
+}
+
+function onRelease(slot, p) {
+  if (p === S.me && holdingNights(slot).length < 2) return release(slot, [night], true);
+  confirmFor = slot; fillSheet();
+}
+function onTake(slot) {
+  if (!S.me) return toast('Prototyp: tu sa otvorí „Kto si?“.', 'info');
+  const nn = takeSlotNights(slot, night);
+  write(() => nn.forEach(i => { S.beds[i][slot] = S.me; }), slot, 'in');
+}
+function release(slot, nights, mine) {
+  confirmFor = null;
+  // figure blinks out (steps(3), 180 ms), then the write goes optimistic
+  const reduce = document.documentElement.classList.contains('rm') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const go = () => write(() => nights.forEach(i => { delete S.beds[i][slot]; }), null, null,
+    mine ? 'Uvoľnené. Ťukni na nové miesto na mape.' : null);
+  if (reduce) return go();
+  fx = { slot, kind: 'out' }; fillSheet(); setTimeout(go, 180);
+}
+
+/* optimistic write: apply now, „ukladám…“, then confirm or roll back */
+function write(apply, slot, kind, okText) {
+  const before = JSON.stringify(S.beds);
+  apply(); pending = true; drawHud(); fillSheet();
+  setTimeout(() => {
+    pending = false;
+    if (document.getElementById('fail').checked) {
+      S.beds = JSON.parse(before); drawHud(); fillSheet();
+      toast('Nepodarilo sa uložiť. Skús to znova.', 'error');
+      return;
+    }
+    if (slot && kind) fx = { slot, kind };
+    drawHud(); fillSheet();
+    if (okText) toast(okText, 'info');
+  }, 650);
+}
+
+let toastTimer = 0;
+function toast(text, kind) {
+  const t = document.getElementById('toast'); t.textContent = text; t.className = kind; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, kind === 'error' ? 5000 : 3000);
+}
+document.getElementById('toast').addEventListener('click', e => { e.currentTarget.hidden = true; });
+
+/* ---------------- wiring ---------------- */
+const bedHit = document.getElementById('bedHit');
+bedHit.addEventListener('click', openSheet);
+bedHit.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet) closeSheet(); });
+document.getElementById('scen').addEventListener('change', e => { load(e.target.value); drawHud(); if (sheet) fillSheet(); else openSheet(); });
+document.getElementById('theme').addEventListener('change', e => { document.documentElement.dataset.theme = e.target.value; });
+document.getElementById('rm').addEventListener('change', e => { document.documentElement.classList.toggle('rm', e.target.checked); });
+
+load('miss'); drawHud(); openSheet();
+</script>
+</body>
+</html>

@@ -49,7 +49,6 @@ function openPanel(title, build, opts) {
     refresh: null, onKey: null
   };
   panel.onKey = function (e) {
-    // One Escape closes only the panel: it must not reach the move mode handler below.
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePanel(); return; }
     if (e.key !== "Tab") return;
     var items = Array.prototype.filter.call(
@@ -81,12 +80,12 @@ function hideToast() {
   placeBriefingOffer();
 }
 
-function showToast(text, kind) {
+function showToast(text, kind, ms) {
   var node = $("toast");
   node.textContent = text;
   node.className = kind || "info";
   node.hidden = false;
   placeBriefingOffer();
   clearTimeout(app.toastTimer);
-  app.toastTimer = setTimeout(hideToast, TOAST_MS);
+  app.toastTimer = setTimeout(hideToast, ms || TOAST_MS);
 }

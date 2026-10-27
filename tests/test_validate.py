@@ -270,6 +270,14 @@ def test_clear_free_slot_is_noop_marker(layout, make_state, ivan):
     assert v.check_clear(make_state([ivan]), layout, FRI, A1) is None
 
 
+def test_clear_nights_returns_holders_and_skips_free_nights(layout, make_state, ivan):
+    state = make_state([ivan], {FRI: {A1: ivan.id}, SAT: {A1: ivan.id}})
+    assert v.check_clear_nights(state, layout, [THU, FRI, SAT], A1) == {FRI: ivan.id, SAT: ivan.id}
+    assert v.check_clear_nights(state, layout, [THU], A1) == {}
+    assert err(v.check_clear_nights, state, layout, [FRI, SUN], A1).code == "invalid"
+    assert err(v.check_clear_nights, state, layout, [FRI], "no-such-slot").code == "unknown_slot"
+
+
 def test_clear_unknown_slot_or_night(layout, make_state):
     state = make_state()
     e = err(v.check_clear, state, layout, FRI, "no-such-slot")
@@ -776,3 +784,4 @@ def test_phone_verify_off_unprotects_parties_with_a_phone(make_party):
     with pytest.raises(RuleError):
         v.check_party_access(protected, {}, False, True)
     v.check_party_access(protected, {}, True, True)
+

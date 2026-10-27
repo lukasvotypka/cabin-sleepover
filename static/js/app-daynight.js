@@ -104,7 +104,7 @@ function dnSliderPaint(h) {
   var nights = app.state.event.nights;
   if (!s.w) {
     s.w = s.el.clientWidth;
-    if (!s.w) return;      // hidden (the move bar, or before the scene): painted again when it shows
+    if (!s.w) return;      // hidden (before the scene): painted again when it shows
     s.segs = sliderSegments([0, 0, s.w, 1], nights, DN_RAIL_GAP);
   }
   s.knob.style.left = hourToSceneX(h, s.segs).toFixed(1) + "px";
@@ -132,7 +132,7 @@ function dnRailEvents() {
   var s = dn.sl, el = s.el;
   if (el.dataset.bound) return;      // the element lives on; its handlers read `dn.sl`
   el.dataset.bound = "1";
-  function over() { return !app.state || app.move || !dn.sl || !dn.sl.segs; }
+  function over() { return !app.state || !dn.sl || !dn.sl.segs; }
   function localX(e) { return e.clientX - el.getBoundingClientRect().left; }
   el.addEventListener("pointerdown", function (e) {
     if (e.button > 0 || dn.drag) return;

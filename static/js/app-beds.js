@@ -181,7 +181,7 @@ function drawMeadow(parent, view) {
     .forEach(function (e) {
       if (isoPeopleSpecs) {      // a 3D doll standing on the meadow
         isoPeopleAdd({ key: "w|" + e.i, kind: e.kind, color: party.color, ch: ch, x: e.cell[0] + 5, z: e.cell[1] + 7, h: 0, pose: "stand", scale: 1,
-          pending: false, mine: false, lift: false, fade: null, hop: { index: e.i, count: spot.cells.length } });
+          pending: false, mine: false, fade: null, hop: { index: e.i, count: spot.cells.length } });
         return;
       }
       var fg = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, e.cell, 0)) });
@@ -235,7 +235,7 @@ function drawBed(parent, layout, view, room, bed) {
       var color = who.party ? who.party.color : COLORS.mat, mine = !!(who.party && who.party.id === app.myParty);
       if (three) {
         isoPeopleAdd(isoBedSpec(bed, i, who, { key: night + "|" + slot + "|" + (who.party ? who.party.id : "?") + "|" + who.kind, pending: pend, mine: mine,
-          lift: !!(app.move && app.move.fromSlot === slot), fade: fx && fx.inn ? { dir: 1, start: dn.swap.start } : null }));
+          fade: fx && fx.inn ? { dir: 1, start: dn.swap.start } : null }));
       } else {
         if (mine) rect(sg, -1, -1, 12, 14, "none", { stroke: COLORS.highlight, "stroke-width": 2 });      // the yellow frame of my party
         drawFigure(sg, 0, 0, color, who.kind, who.party ? shirtChar(who.party.name) : null);

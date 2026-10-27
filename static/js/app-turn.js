@@ -48,9 +48,9 @@ function turnButton(side, label, steps) {
 $("turnBar").appendChild(turnButton("ccw", "Otočiť mapu doľava", -1));
 $("turnBar").appendChild(turnButton("cw", "Otočiť mapu doprava", 1));
 
-// The buttons show with the map once the intro zoom is over, and not in the move mode (panels hide them by CSS).
+// The buttons show with the map once the intro zoom is over (panels hide them by CSS).
 function turnBarShown() {
-  return !!app.iso && !!app.view && app.introDone && !$("scene").hidden && !introActive() && !app.move;
+  return !!app.iso && !!app.view && app.introDone && !$("scene").hidden && !introActive();
 }
 
 function syncTurnBar() {

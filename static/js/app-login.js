@@ -30,7 +30,6 @@ function checkStoredLogin() {
   var party = partyById(app.state, app.myParty);
   if (!party || !needsLogin(party, sessionVerified(), app.state.phone_verify)) return;
   app.myParty = null;
-  app.move = null;
   liveReopen();
   app.loginPending = party.id;
   app.askWho = true;

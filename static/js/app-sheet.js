@@ -7,11 +7,13 @@
 
 function openBedSheet(room, bed) {
   openPanel(bed.name, function (body, panel) {
-    var confirm = null;     // {slot, partyId, night} while „Naozaj ho uvoľniť?“ is asked
+    var confirm = null;     // {slot, partyId, night, mine} while the release of a place is asked
+    var busy = false;       // a write for this bed is on its way: the rows are dimmed and the buttons off
 
     function button(text, key, onClick, secondary, label) {
       var b = htmlEl("button", { "class": "btn" + (secondary ? " secondary" : ""), type: "button", "data-key": key }, text);
       if (label) b.setAttribute("aria-label", label);
+      if (busy) b.disabled = true;
       b.addEventListener("click", onClick);
       return b;
     }
@@ -21,9 +23,37 @@ function openBedSheet(room, bed) {
       if (node) node.focus({ preventScroll: true });
     }
 
+    // The tabs: one per night, with a square per place; a tap shows that night (the map and the HUD follow).
+    function nightTabs(st) {
+      var tabs = htmlEl("div", { "class": "bed-nights", role: "group", "aria-label": "Noc" });
+      st.event.nights.forEach(function (night) {
+        var dots = nightTabDots(st, bed, night, app.myParty);
+        var tab = htmlEl("button", {
+          "class": "bn-tab", type: "button", "data-key": "night-" + night, "aria-pressed": night === app.night ? "true" : "false",
+          "aria-label": nightTabLabel(night, dots)
+        });
+        tab.appendChild(htmlEl("span", { "class": "bn-label" }, (nightInfo(night) || { label: night }).label));
+        var row = htmlEl("span", { "class": "bn-dots", "aria-hidden": "true" });
+        dots.forEach(function (d) {
+          var dot = htmlEl("span", { "class": "bn-dot" + (d.free ? " free" : "") + (d.mine ? " mine" : "") });
+          if (!d.free) dot.style.background = d.color || COLORS.mat;
+          row.appendChild(dot);
+        });
+        tab.appendChild(row);
+        tab.addEventListener("click", function () {
+          selectNight(night);
+          var again = byKey(body, "night-" + night);      // the sheet was refilled
+          if (again && !prefersReducedMotion()) again.classList.add("press");
+        });
+        tabs.appendChild(tab);
+      });
+      return tabs;
+    }
+
     // One place: „Miesto N“ as a quiet label, then the figure and name of who sleeps there, or for a free place
     // the „voľné“ tag (no box that looks like a checkbox), or a button that takes exactly this place.
-    function slotRow(st, slot, i, night) {
+    function slotRow(st, slot, i) {
+      var night = app.night;
       var who = slotOccupant(st, slot, night), name = who ? (who.party ? who.party.name : UNKNOWN_PARTY) : "voľné";
       var place = bed.slots.length > 1 ? "Miesto " + (i + 1) : "";
       var rowText = (place ? place + ": " : "") + name;
@@ -31,12 +61,12 @@ function openBedSheet(room, bed) {
       var row = htmlEl("div", { "class": "slot-row" });
       if (place) row.appendChild(htmlEl("span", { "class": "place", "aria-hidden": "true" }, place));
       var party = myParty(st);
-      if (!who && freeSlotTakes(st, party, night, app.night, canWrite(st, app.role))) {
+      if (!who && freeSlotTakes(st, party, night, night, canWrite(st, app.role))) {
         var nights = takeSlotNights(st, party, slot, night);
         var t = takeSlotTexts(party, place, nights.length);
-        var take = button(t.main, "take-" + slot, function () { assignHere(bed, nights.length > 1, [slot], nights); }, true, t.label + (tight ? " Tesné miesto." : ""));
+        var take = button("+ Ľahnúť si sem", "take-" + slot, function () { assignHere(bed, nights.length > 1, [slot], nights); }, true, t.label + (tight ? " Tesné miesto." : ""));
         take.classList.add("take");
-        if (t.who) take.appendChild(htmlEl("small", { "class": "take-who" }, t.who));
+        if (nights.length > 1) take.appendChild(htmlEl("small", null, "na celý pobyt"));
         row.appendChild(take);
         if (tight) row.appendChild(htmlEl("span", { "class": "tight", "aria-hidden": "true" }, "tesné"));      // the label says it
         return row;
@@ -51,7 +81,7 @@ function openBedSheet(room, bed) {
         if (tight) label.appendChild(htmlEl("span", { "class": "tight", "aria-hidden": "true" }, "tesné"));
       }
       row.appendChild(label);
-      if (who && night === app.night && canWrite(st, app.role)) {
+      if (who && canWrite(st, app.role)) {
         if (who.party && !canEditParty(who.party, sessionVerified(), isAdmin(app.role), st.phone_verify)) {
           // A protected party this device has not verified: no actions, only the reason.
           row.appendChild(htmlEl("p", { "class": "note" },
@@ -63,32 +93,57 @@ function openBedSheet(room, bed) {
       return row;
     }
 
-    function slotActions(row, st, slot, who, rowText) {
-      var pid = who.party ? who.party.id : null, mine = pid !== null && pid === app.myParty;
-      var name = who.party ? who.party.name : UNKNOWN_PARTY;
-      if (confirm && confirm.slot === slot && confirm.partyId === pid && confirm.night === app.night) {
-        row.appendChild(htmlEl("p", { "class": "confirm" }, releaseConfirmText(name)));
-        row.appendChild(button("Uvoľniť", "yes-" + slot, function () { clearSlot(slot); }, false, "Naozaj uvoľniť: " + rowText));
-        row.appendChild(button("Nie", "no-" + slot, function () { confirm = null; panel.refresh(); focusKey("clear-" + slot); }, true));
-        return;
-      }
-      row.appendChild(button("Uvoľniť", "clear-" + slot, function () {
-        if (mine) clearSlot(slot);
-        else { confirm = { slot: slot, partyId: pid, night: app.night }; panel.refresh(); focusKey("no-" + slot); }
-      }, true, "Uvoľniť " + rowText));
-      if (mine) row.appendChild(button("Presunúť", "move-" + slot, function () { startMove(slot); }, true, "Presunúť " + rowText));
+    // Frees my own place at once; the figure blinks out first (not with reduced motion).
+    function releaseNow(row, slot, nights, mine) {
+      var fig = row.querySelector(".fig");
+      if (!fig || prefersReducedMotion() || busy) { clearSlot(slot, nights, mine); return; }
+      busy = true;
+      fig.classList.add("out");
+      setTimeout(function () { busy = false; clearSlot(slot, nights, mine); }, 180);
     }
 
-    function nightSection(st, night) {
-      var info = nightInfo(night) || { label: night, dates: "" };
-      var sec = htmlEl("section", { "class": "night" + (night === app.night ? " on" : "") });
-      var head = htmlEl("button", {
-        "class": "night-head", type: "button", "data-key": "night-" + night, "aria-pressed": night === app.night ? "true" : "false"
-      }, info.label + " · " + info.dates);
-      head.addEventListener("click", function () { selectNight(night); });
-      sec.appendChild(head);
-      bed.slots.forEach(function (slot, i) { sec.appendChild(slotRow(st, slot, i, night)); });
-      return sec;
+    function slotActions(row, st, slot, who, rowText) {
+      var night = app.night, pid = who.party ? who.party.id : null, mine = pid !== null && pid === app.myParty;
+      var name = who.party ? who.party.name : UNKNOWN_PARTY;
+      var choice = mine ? releaseChoice(st, pid, slot) : null;
+      if (confirm && confirm.slot === slot && confirm.partyId === pid && confirm.night === night) {
+        var box = htmlEl("div", { "class": "confirm-box", role: "group" });
+        if (confirm.mine) {
+          box.appendChild(htmlEl("p", null, RELEASE_TEXTS.ask));
+          var two = htmlEl("div", { "class": "two" });
+          two.appendChild(button(RELEASE_TEXTS.all(choice.nights.length), "release-all-" + slot, function () { clearSlot(slot, choice.nights, true); }, false));
+          two.appendChild(button(RELEASE_TEXTS.only(night), "release-one-" + slot, function () { clearSlot(slot, [night], true); }, true));
+          box.appendChild(two);
+        } else {
+          box.appendChild(htmlEl("p", null, releaseConfirmText(name)));
+          var yes = htmlEl("div", { "class": "two" });
+          yes.appendChild(button("Uvoľniť", "yes-" + slot, function () { clearSlot(slot, [night], false); }, false, "Naozaj uvoľniť: " + rowText));
+          box.appendChild(yes);
+        }
+        var no = htmlEl("button", { "class": "link-btn", type: "button", "data-key": "no-" + slot }, RELEASE_TEXTS.no);
+        no.addEventListener("click", function () { confirm = null; panel.refresh(); focusKey("clear-" + slot); });
+        box.appendChild(no);
+        row.appendChild(box);
+        return;
+      }
+      var rel = button("Uvoľniť", "clear-" + slot, function () {
+        if (mine && !choice.ask) { releaseNow(row, slot, [night], true); return; }
+        confirm = { slot: slot, partyId: pid, night: night, mine: mine };
+        panel.refresh();
+        focusKey(mine ? "release-all-" + slot : "yes-" + slot);
+      }, true, "Uvoľniť " + rowText);
+      rel.classList.add("release");
+      row.appendChild(rel);
+    }
+
+    // The main button: the whole stay (or the places) of my party on this bed.
+    function mainAssign(t, blocked) {
+      var assign = button(t.main, "assign", function () { assignHere(bed, !t.single); });
+      if (t.sub) assign.classList.add("has-sub");
+      if (t.sub) assign.appendChild(htmlEl("small", { "class": "sub-line" }, t.sub));
+      if (t.sub) assign.setAttribute("aria-label", t.main + ", " + t.sub);
+      assign.disabled = assign.disabled || blocked;
+      return assign;
     }
 
     function addActions(st) {
@@ -97,18 +152,12 @@ function openBedSheet(room, bed) {
       var take = party && present ? slotsToTake(st, party, bed, night) : [];
       var blocked = !!party && take.length === 0;
       var t = bedActionTexts(st, party, bed, night, take);
-      var assign = button(t.main, "assign", function () { assignHere(bed, !t.single); });
-      if (t.sub) assign.classList.add("has-sub");
-      if (t.sub) assign.appendChild(htmlEl("small", { "class": "sub-line" }, t.sub));
-      if (t.sub) assign.setAttribute("aria-label", t.main + ", " + t.sub);
-      assign.disabled = blocked;
-      box.appendChild(assign);
+      if (showMainAssign(st, party, night, take)) box.appendChild(mainAssign(t, blocked));
       var only = t.single ? null : button(t.only, "stay", function () { assignHere(bed, false); }, true);
-      if (only) only.disabled = blocked;
+      if (only) only.disabled = only.disabled || blocked;
       if (only) box.appendChild(only);
       if (t.note && !blocked && present) box.appendChild(htmlEl("p", { "class": "note" }, t.note));
       if (party && !present) {
-        box.appendChild(htmlEl("p", { "class": "note" }, notPresentNote(party, night)));
         box.appendChild(button("Upraviť príchod a odchod", "edit-party", function () {
           closePanel();
           openPartyForm(party, { returnKey: "bed-" + bed.id });
@@ -127,18 +176,25 @@ function openBedSheet(room, bed) {
 
     function fill() {
       clearNode(body);
-      var st = viewState().state;
-      if (confirm) {      // drop the question when the place changed hands or the night changed
-        var who = slotOccupant(st, confirm.slot, app.night), pid = who && who.party ? who.party.id : null;
-        if (confirm.night !== app.night || pid !== confirm.partyId) confirm = null;
-      }
-      body.appendChild(htmlEl("p", { "class": "sub" }, room.name));
-      st.event.nights.forEach(function (night) { body.appendChild(nightSection(st, night)); });
+      var view = viewState(), st = view.state, night = app.night;
+      busy = busy || st.event.nights.some(function (n) {
+        return bed.slots.some(function (slot) { return view.pending[n + "|" + slot]; });
+      });
+      var who = confirm ? slotOccupant(st, confirm.slot, night) : null, pid = who && who.party ? who.party.id : null;
+      if (confirm && (confirm.night !== night || pid !== confirm.partyId)) confirm = null;      // the place changed hands or the night changed
+      body.appendChild(htmlEl("p", { "class": "sub" }, bedSubLine(room, bed)));
+      body.appendChild(nightTabs(st));
+      var status = busy ? "ukladám…" : sheetStatusLine(st, myParty(st), night);
+      if (status) body.appendChild(htmlEl("p", { "class": "sheet-status" }, status));
+      var rows = htmlEl("div", { "class": "sheet-rows" + (busy ? " pending" : "") });
+      bed.slots.forEach(function (slot, i) { rows.appendChild(slotRow(st, slot, i)); });
+      body.appendChild(rows);
       if (canWrite(st, app.role)) addActions(st);
       else body.appendChild(htmlEl("p", { "class": "note" }, LOCKED_TEXTS.note));
     }
 
     panel.refresh = function () {
+      busy = false;
       keepFocus(body, fill, function () { return body.querySelector("button:not([disabled])"); });
     };
     app.selectedBed = bed.id;

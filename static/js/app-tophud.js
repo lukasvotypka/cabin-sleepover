@@ -6,7 +6,7 @@
 
 var TOP_GAP = 8;      // between the top HUD and the fitted scene, CSS px
 
-// Bottom edge of the top HUD in CSS px (plus a small gap), 0 while it is hidden (before the scene, or under the move bar).
+// Bottom edge of the top HUD in CSS px (plus a small gap), 0 while it is hidden (before the scene).
 // Also published as `--top-h` for the quest log.
 function topHudBottom() {
   var box = $("tophud"), inner = box.firstElementChild, b = 0;

@@ -63,8 +63,6 @@ function showCodeScreen(voluntary) {
   cancelWalks();
   closePanel();
   hideToast();
-  app.move = null;
-  renderMoveBar();
   if (app.introTimer !== null) {
     clearTimeout(app.introTimer);
     app.introTimer = null;

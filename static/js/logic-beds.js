@@ -1,4 +1,4 @@
-// Pure page logic, part 2: beds, figures, people waiting on the meadow, the walk to a bed, move mode.
+// Pure page logic, part 2: beds, figures, people waiting on the meadow, the walk to a bed, the bed sheet.
 // No DOM, no browser globals: tests/js/logic.test.mjs loads all logic-*.js files into one Node vm context.
 // Plain script, shares the global scope with the other logic-*.js and app-*.js files (see index.html for the order).
 
@@ -258,7 +258,7 @@ function takeSlotTexts(party, placeText, nights) {
   };
 }
 
-// The nights in which the party holds a slot (used by move with all nights), in event order.
+// The nights in which the party holds a slot, in event order: the choice of the release („Celý pobyt“ / „Len …“).
 function holdingNights(state, partyId, slot) {
   return state.event.nights.filter(function (night) {
     return ((state.sleeping && state.sleeping[night]) || {})[slot] === partyId;
@@ -271,15 +271,6 @@ function stayNights(state, party, slots) {
   return state.event.nights.filter(function (night) {
     return isPresent(party, night) && slots.every(function (slot) { return isFreeSlot(state, slot, night); });
   });
-}
-
-// The first slot of a bed that is free in every one of the nights (the target of a move), or null.
-function moveTarget(state, bed, nights) {
-  for (var i = 0; i < bed.slots.length; i++) {
-    var slot = bed.slots[i];
-    if (nights.every(function (night) { return isFreeSlot(state, slot, night); })) return slot;
-  }
-  return null;
 }
 
 // The state with unconfirmed changes drawn on top: ops are {night, slot, party_id} and party_id null
@@ -441,26 +432,59 @@ function releaseConfirmText(partyName) {
   return "Toto miesto má " + partyName + ". Naozaj ho uvoľniť?";
 }
 
-function moveBarText(partyName) {
-  return "Ťukni na nové miesto pre " + partyName;
-}
+// --- the bed sheet: night tabs, status line, release of my own place ---
 
-// --- move mode ---
-
-var MOVE_TEXTS = {
-  not_held: "Tú noc na pôvodnom mieste nespíš. Prepni noc alebo zvoľ „Všetky noci“.",
-  no_free: "Tu nie je voľné miesto."
+var RELEASE_TEXTS = {
+  ask: "Uvoľniť toto miesto?",
+  no: "Nie",
+  toast: "Uvoľnené. Ťukni na nové miesto na mape.",
+  all: function (n) { return "Celý pobyt (" + nightsCount(n) + ")"; },
+  only: function (night) { return "Len " + dayLocative(night); }
 };
 
-// What a tap on `bed` does in move mode: {nights, target}, or {error} with the Slovak reason. `move` is
-// {partyId, fromSlot, all}; a single-night move uses `night`, an all-nights move the nights the party holds.
-function planMove(state, move, bed, night) {
-  var held = holdingNights(state, move.partyId, move.fromSlot);
-  var nights = move.all ? held : [night];
-  if (!nights.length || nights.some(function (n) { return held.indexOf(n) === -1; })) return { error: MOVE_TEXTS.not_held };
-  var target = moveTarget(state, bed, nights);
-  if (!target) return { error: MOVE_TEXTS.no_free };
-  return { nights: nights, target: target };
+// The nights my party's place `slot` is released in when the sheet asks: {ask, nights}. `ask` is true when it is
+// held in 2+ nights (then „Celý pobyt“ or „Len …“), otherwise it frees at once in the shown night.
+function releaseChoice(state, partyId, slot) {
+  var nights = holdingNights(state, partyId, slot);
+  return { ask: nights.length >= 2, nights: nights };
+}
+
+// One square per slot of the bed on `night` for the night tab: {free, mine, color}; `color` is null for free
+// places and for a holder that is not in the list.
+function nightTabDots(state, bed, night, myPartyId) {
+  return bed.slots.map(function (slot) {
+    var id = ((state.sleeping && state.sleeping[night]) || {})[slot] || null;
+    var party = id ? partyById(state, id) : null;
+    return { free: !id, mine: !!id && id === myPartyId, color: party ? party.color : null };
+  });
+}
+
+// The accessible name of a night tab: "Št → Pi, voľné: 2 z 3".
+function nightTabLabel(night, dots) {
+  var info = nightInfo(night) || { label: night };
+  var free = dots.filter(function (d) { return d.free; }).length;
+  return info.label + ", voľné: " + free + " z " + dots.length;
+}
+
+// The line under the title: "Veľká izba · 3 miesta, 1 tesné".
+function bedSubLine(room, bed) {
+  var tight = bed.tight ? bed.tight.length : 0;
+  return room.name + " · " + pluralPlaces(bed.slots.length) + (tight ? ", " + tight + " tesné" : "");
+}
+
+// The status line of the sheet for the shown night: "" without a party, the not-present note, or what my party misses.
+function sheetStatusLine(state, party, night) {
+  if (!party) return "";
+  if (!isPresent(party, night)) return notPresentNote(party, night);
+  var missing = missingPlaces(state, party, night), when = capitalize(dayLocative(night));
+  if (missing > 0) return when + " ti " + missingVerb(missing) + " " + pluralPlaces(missing) + ".";
+  return when + " máš všetko.";
+}
+
+// The main assign block of the sheet is left out when the party misses exactly one place and a row button
+// already offers it (two identical choices). `take` is `slotsToTake`.
+function showMainAssign(state, party, night, take) {
+  return !(party && isPresent(party, night) && take.length > 0 && missingPlaces(state, party, night) === 1);
 }
 
 // True when a finger moved farther than `limit` px: a long press then turns into a scroll or drag.

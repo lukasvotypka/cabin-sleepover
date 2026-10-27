@@ -75,7 +75,7 @@ from app.validate import (
     RuleError,
     check_assign,
     check_assign_stay,
-    check_clear,
+    check_clear_nights,
     check_move,
     check_party_access,
     check_party_create,
@@ -1041,14 +1041,23 @@ def create_app(
             action="clear", source=audit_source(auth, "map"), client_id=client_id_of(request)
         ) as tx:
             check_signup_open(tx.state, auth.is_admin)
-            holder = check_clear(tx.state, rt.layout, body.night, body.slot)
-            if holder is not None:
+            holders = check_clear_nights(tx.state, rt.layout, body.night_list, body.slot)
+            for holder in dict.fromkeys(holders.values()):
                 guard_party(request, tx.state, holder, auth)
-            if holder is None:
+            if not holders:
                 tx.skip()  # already free: 200 without a write (Q5)
             else:
-                release_slot(tx.state, body.night, body.slot)
-                tx.audit(party=holder, nights=[body.night], slots=[body.slot], before=holder, after=None)
+                for night in holders:
+                    release_slot(tx.state, night, body.slot)
+                parties = list(dict.fromkeys(holders.values()))
+                tx.audit(
+                    party=parties[0] if len(parties) == 1 else None,
+                    nights=list(holders),
+                    slots=[body.slot],
+                    before=parties[0] if len(parties) == 1 else None,
+                    after=None,
+                    changes=[{"night": n, "slot": body.slot, "before": h, "after": None} for n, h in holders.items()],
+                )
         return ok_response(rt, tx.state)
 
     @app.post("/api/move", dependencies=[Limited])
