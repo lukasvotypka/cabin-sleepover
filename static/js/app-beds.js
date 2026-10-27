@@ -99,12 +99,12 @@ function drawFeatureTreeHit(parent) {
     .addEventListener("click", function () { rustleTree(); isoRustle(); });
 }
 
-// The room names on small wooden signs hanging upright on the north wall of each room (never over a bed). Signs
+// The room names on small wooden signs hanging upright on the far wall of each room (the north one, or the south one when the camera is in the north) (never over a bed). Signs
 // that would overlap move up. Decor in the same layer, ignoring taps.
 function drawRoomPlates(parent, layout) {
   var sc = app.iso, k = sc.figScale;
   var plates = layout.rooms.filter(function (room) { return !roomClosed(layout, room.id); }).map(function (room) {
-    var size = roomSignSize(room), r = room.rect, at = isoPoint(sc, r[0] + r[2] / 2, r[1], roomWallTop(layout, room));
+    var size = roomSignSize(room), r = room.rect, at = isoPoint(sc, r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room));
     return { room: room, rect: [Math.round(at[0] - size[0] * k / 2), Math.round(at[1] - size[1] * k), size[0] * k, size[1] * k] };
   });
   var dy = isoPlateShifts(plates.map(function (p) { return p.rect; }));
@@ -115,15 +115,16 @@ function drawRoomPlates(parent, layout) {
   });
 }
 
-// The height of the north wall of a room at its middle, as the 3D world builds it (tall on the outline of a
-// house unless cut low, app-iso.js): the plate hangs on its top.
+// The height of the far wall (north or south, see drawRoomPlates) of a room at its middle, as the 3D world builds it (tall on
+// the outline of a house unless cut low, app-iso.js): the plate hangs on its top.
 function roomWallTop(layout, room) {
   var house = (layout.houses || []).filter(function (h) { return h.rooms.indexOf(room.id) >= 0; })[0] || { id: room.id, rooms: [room.id], chimney: null };
   var rooms = layout.rooms.filter(function (r) { return house.rooms.indexOf(r.id) >= 0; });
-  var walls = isoCutWalls(isoWalls(rooms, houseOutline(house, layout.rooms), layout.map.doors || []), house, layout);
+  var azimuth = app.iso.azimuth, side = isoBackSides(azimuth).n ? "n" : "s";
+  var walls = isoCutWalls(isoWalls(rooms, houseOutline(house, layout.rooms), layout.map.doors || [], Object.assign({}, ISO, { azimuth: azimuth })), house, layout);
   var mid = room.rect[0] + room.rect[2] / 2, top = ISO.lowWall;
   walls.forEach(function (w) {
-    if (w.h0 === 0 && w.w >= w.d && w.y === room.rect[1] && w.x <= mid && mid <= w.x + w.w) top = Math.max(top, w.h);
+    if (w.h0 === 0 && w.side === side && w.x <= mid && mid <= w.x + w.w && w.y >= room.rect[1] && w.y < room.rect[1] + room.rect[3]) top = Math.max(top, w.h);
   });
   return top;
 }

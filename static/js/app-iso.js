@@ -39,7 +39,7 @@ var ISO_FACES = [
 ];
 
 var ISO_SUN_ELEV = 24 * Math.PI / 180;      // the noon sun; later positions come from sunAt() (isoSunStep)
-var ISO_SUN_AZ = -20 * Math.PI / 180;       // west of south: shadows fall north-north-east, beside the objects as the south-east camera sees them (a sun east of south throws them straight behind the objects, out of sight)
+var ISO_SUN_AZ = ISO_NOON_SUN_AZ * Math.PI / 180;       // at the default view: west of south: shadows fall north-north-east, beside the objects as the south-east camera sees them (a sun east of south throws them straight behind the objects, out of sight)
 
 function IsoBoxes() {
   this.pos = [];
@@ -205,8 +205,8 @@ function isoWindow(b, glass, w) {
   }
 }
 
-function isoChimney(b, outline, x, top) {
-  var y = outline[1] - 3, h;
+function isoChimney(b, y, x, top) {
+  var h;
   for (h = 0; h < top; h += 3) b.box(x, y, 6, 7, h, Math.min(top, h + 3), (h / 3) % 2 ? ISO_C.mortar : ISO_C.brick);
   b.box(x - 1, y - 1, 8, 9, top, top + 1.5, ISO_C.chimneyCap);
 }
@@ -414,13 +414,13 @@ function isoActive() {
 }
 
 // The tall walls of a house are cut low where another house stands closer than ISO_CUT_NEAR units behind them
-// (north of a north wall, west of a west wall), so a tall wall never hides the rooms of its neighbour.
+// (behind it, on its outer side), so a tall wall never hides the rooms of its neighbour.
 var ISO_CUT_NEAR = 30;
 function isoCutWalls(walls, house, layout) {
   var others = layout.rooms.filter(function (r) { return house.rooms.indexOf(r.id) < 0; });
   return walls.filter(function (w) {
     if (!w.tall) return true;
-    var probe = w.w >= w.d ? [w.x, w.y - ISO_CUT_NEAR, w.w, ISO_CUT_NEAR] : [w.x - ISO_CUT_NEAR, w.y, ISO_CUT_NEAR, w.d];
+    var N = ISO_CUT_NEAR, probe = { n: [w.x, w.y - N, w.w, N], s: [w.x, w.y + w.d, w.w, N], w: [w.x - N, w.y, N, w.d], e: [w.x + w.w, w.y, N, w.d] }[w.side];
     if (!others.some(function (r) { return rectsOverlap(probe, r.rect); })) return true;
     w.tall = false;
     if (w.h0 >= ISO.lowWall) return false;       // a lintel above a door: nothing left of it
@@ -429,12 +429,13 @@ function isoCutWalls(walls, house, layout) {
   });
 }
 
-// The corner posts of a room: tall on the north and west outline of the house (`b`, always there). The others are
-// low once the house is open (`open`) and tall while it is closed (`closed`).
-function isoPosts(b, room, outline, open, closed) {
-  var r = room.rect, T = 4;
+// The corner posts of a room: tall on the outline of the house on the two sides facing away from the camera (`b`, always
+// there). The others are low once the house is open (`open`) and tall while it is closed (`closed`).
+function isoPosts(b, room, outline, open, closed, azimuth) {
+  var r = room.rect, T = 4, back = isoBackSides(azimuth);
   [[r[0], r[1]], [r[0] + r[2] - T, r[1]], [r[0], r[1] + r[3] - T], [r[0] + r[2] - T, r[1] + r[3] - T]].forEach(function (p) {
-    if (p[0] === outline[0] || p[1] === outline[1]) {
+    if ((back.w && p[0] === outline[0]) || (back.e && p[0] + T === outline[0] + outline[2]) ||
+        (back.n && p[1] === outline[1]) || (back.s && p[1] + T === outline[1] + outline[3])) {
       b.box(p[0], p[1], T, T, 0, ISO.wallH + 1, ISO_C.post);
     } else {
       open.box(p[0], p[1], T, T, 0, ISO.lowWall + 1, ISO_C.post);
@@ -483,7 +484,8 @@ function isoBuild(host, layout, sc) {
   var hemi = new THREE.HemisphereLight("#FFF4DC", "#5A6A30", 0.9);
   scene.add(hemi);
   var sun = new THREE.DirectionalLight("#FFFFFF", 0.9);
-  sun.position.set(cx + 600 * Math.cos(ISO_SUN_ELEV) * Math.sin(ISO_SUN_AZ), 600 * Math.sin(ISO_SUN_ELEV), cy + 600 * Math.cos(ISO_SUN_ELEV) * Math.cos(ISO_SUN_AZ));
+  var sunAz = ISO_SUN_AZ + (sc.azimuth - 45) * Math.PI / 180;      // the light turns with the view (isoSunAzimuth), so the shadows look the same from every side
+  sun.position.set(cx + 600 * Math.cos(ISO_SUN_ELEV) * Math.sin(sunAz), 600 * Math.sin(ISO_SUN_ELEV), cy + 600 * Math.cos(ISO_SUN_ELEV) * Math.cos(sunAz));
   sun.target.position.set(cx, 0, cy);
   sun.castShadow = true;
   var reach = Math.hypot(vb[0], vb[1]) / 2 + 70;      // the plan and its rim of trees, as tight as the turned light camera allows
@@ -523,13 +525,14 @@ function isoBuild(host, layout, sc) {
       isoFloor(b, room);
       floors.push([room.rect[0] + 4, room.rect[1] + 4, room.rect[2] - 8, room.rect[3] - 8]);
       room.beds.forEach(function (bed) { isoFurniture(b, bed); aoFurn.push(isoRectPoly(isoGrowRect(bed.rect, 1))); });
-      isoPosts(b, room, outline, openFront, closedFront);
+      isoPosts(b, room, outline, openFront, closedFront, sc.azimuth);
     });
-    var walls = isoCutWalls(isoWalls(rooms, outline, layout.map.doors || []), house, layout);
+    var wo = Object.assign({}, ISO, { azimuth: sc.azimuth });      // the walls on the two sides facing away from the camera are tall
+    var walls = isoCutWalls(isoWalls(rooms, outline, layout.map.doors || [], wo), house, layout);
     var tallKeys = {};
     walls.forEach(function (wall) { if (wall.tall) tallKeys[isoWallKey(wall)] = true; });
     // closed: every wall at full height; the ones that are not tall when open make up the "front" that sinks
-    isoWalls(rooms, outline, layout.map.doors || [], Object.assign({}, ISO, { lowWall: ISO.wallH })).forEach(function (wall) {
+    isoWalls(rooms, outline, layout.map.doors || [], Object.assign({}, wo, { lowWall: ISO.wallH })).forEach(function (wall) {
       if (!tallKeys[isoWallKey(wall)]) { wall.tall = true; isoWall(closedFront, wall, house.roof); }
     });
     walls.forEach(function (wall) {
@@ -543,10 +546,11 @@ function isoBuild(host, layout, sc) {
     });
     if (typeof house.chimney === "number") {
       var chimneyTop = isoChimneyTop(roofs, house.chimney);
-      isoChimney(b, outline, house.chimney, chimneyTop);
-      chimneys.push([house.chimney + 3, outline[1] - 3 + 3.5, chimneyTop + 1.5]);      // where the smoke starts
+      var chimneyY = isoBackSides(sc.azimuth).n ? outline[1] - 3 : outline[1] + outline[3] - 4;      // on the wall at the back, whichever side that is
+      isoChimney(b, chimneyY, house.chimney, chimneyTop);
+      chimneys.push([house.chimney + 3, chimneyY + 3.5, chimneyTop + 1.5]);      // where the smoke starts
     }
-    houseMeshes.push(isoHouseMeshes(scene, house, roofs, openFront, closedFront));
+    houseMeshes.push(isoHouseMeshes(scene, house, roofs, openFront, closedFront, sc.azimuth));
   });
   (layout.map.windows || []).forEach(function (w) { isoWindow(b, glass, w); });
 
@@ -809,7 +813,7 @@ function isoSunStep(me) {
   if (got && !still && me.sunClock === me.clock) return;      // already moved on this tick; the next tick picks it up
   me.sunDrawn = { az: want.az, elev: want.elev };
   me.sunClock = me.clock;
-  var az = want.az * Math.PI / 180, el = want.elev * Math.PI / 180, t = me.sun.target.position;
+  var az = isoSunAzimuth(want.az, me.sc.azimuth) * Math.PI / 180, el = want.elev * Math.PI / 180, t = me.sun.target.position;
   me.sun.position.set(t.x + 600 * Math.cos(el) * Math.sin(az), 600 * Math.sin(el), t.z + 600 * Math.cos(el) * Math.cos(az));
   me.renderer.shadowMap.needsUpdate = true;
   me.shadowDraws = (me.shadowDraws || 0) + 1;

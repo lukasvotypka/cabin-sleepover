@@ -34,6 +34,38 @@ var ISO = {
 // The icon signs in the grid left of the boards, row by row: [key, column, row].
 var ISO_ICON_CELLS = [["notice", 0, 0], ["legend", 1, 0], ["letter", 0, 1], ["briefing", 1, 1], ["key", 0, 2], ["locked", 1, 2]];
 
+// --- the four view angles (T-143) ---
+
+// The camera azimuths the map can be turned to: from the south-east (the default), north-east, north-west and
+// south-west. +90 turns the map clockwise on screen.
+var ISO_ANGLES = [45, 135, 225, 315];
+var ISO_ANGLE_NAMES = { 45: "juhovýchodu", 135: "severovýchodu", 225: "severozápadu", 315: "juhozápadu" };
+var ISO_NOON_SUN_AZ = -20;      // degrees from the camera axis at 45: the noon sun, shadows beside the objects (T-136)
+
+// A stored or given angle as one of ISO_ANGLES; anything else is 45.
+function isoAngle(v) {
+  var n = typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v;
+  return ISO_ANGLES.indexOf(n) >= 0 ? n : 45;
+}
+
+// The angle after `steps` quarter turns (+1 = the map turns clockwise on screen).
+function isoTurnAngle(angle, steps) {
+  var i = ISO_ANGLES.indexOf(isoAngle(angle));
+  return ISO_ANGLES[(((i + steps) % 4) + 4) % 4];
+}
+
+// The sun's azimuth for a view: `az` is the sun path's value (degrees from south at the default view), turned with the view so that
+// the shadows look the same from every side.
+function isoSunAzimuth(az, viewAzimuth) {
+  return az + (isoAngle(viewAzimuth) - 45);
+}
+
+// Which sides of a house face away from the camera at this azimuth: {n, s, w, e}. Their walls stand tall when the house is open.
+function isoBackSides(azimuth) {
+  var a = (azimuth === undefined ? ISO.azimuth : azimuth) * Math.PI / 180, dx = Math.sin(a), dy = Math.cos(a), E = 1e-9;      // (dx, dy): the plan direction toward the camera
+  return { n: dy > E, s: dy < -E, w: dx > E, e: dx < -E };
+}
+
 // The top surface of each bed kind above the floor, and the height of each slot (bunk: the top berth is slot 0).
 var ISO_BED_TOP = { bed2: 7, bed1: 7, cot: 6, mats: 2, sofa: 7, sofa1: 7, stove: 13, bunk: 5 };
 var ISO_BUNK_TOP = 23;
@@ -86,7 +118,7 @@ function unionRect(rects) {
 // `src` is the block's own rect in block units (the units of map.scene); on the scene it is drawn by
 // translate(x y) scale(k) translate(−src.x −src.y).
 function isoScene(layout, opts) {
-  var o = opts || ISO;
+  var o = Object.assign({}, ISO, opts || {});
   var basis = isoBasis(o.azimuth, o.tilt, o.persp, layout.map.viewbox);
   var sc = layout.map.scene, vb = layout.map.viewbox;
   var boards = ["title", "time", "nights", "parties"].filter(function (k) { return sc[k]; }).map(function (k) { return sc[k]; });
@@ -109,6 +141,7 @@ function isoScene(layout, opts) {
   var H = Math.ceil(top + (vMax - vMin) + o.margin);
   return {
     basis: basis,
+    azimuth: o.azimuth,
     ox: (W - worldW) / 2 - uMin,
     oy: top - vMin,
     W: W, H: H,
@@ -122,6 +155,29 @@ function isoScene(layout, opts) {
 function isoPoint(scene, x, y, h) {
   var p = isoRaw(scene.basis, x, y, h);
   return [p[0] + scene.ox, p[1] + scene.oy];
+}
+
+// The ground point [x, y] (height 0) under a scene point; the inverse of isoPoint at height 0. A perspective scene
+// is inverted by a few rounds of correcting the depth scale.
+function isoUnpoint(scene, px, py) {
+  var b = scene.basis, u = px - scene.ox, v = py - scene.oy, f = 1, x = 0, y = 0, i;
+  for (i = 0; i < 8; i++) {
+    var a = u / f, c = v / f / b.sp;
+    x = b.tx + a * b.c + c * b.s;
+    y = b.ty - a * b.s + c * b.c;
+    f = isoDepthScale(b, x, y, 0);
+  }
+  return [x, y];
+}
+
+// The view (see logic-view.js) after the map turned from scene `from` to scene `to`. A map at rest (`oldView` is `oldRest`)
+// lands on the new rest view; otherwise the plan point under the middle of the screen stays there and the zoom
+// relative to the rest zoom stays, clamped to the new bounds.
+function isoTurnView(from, to, oldView, oldRest, newRest, newBounds) {
+  if (!oldView || !oldRest || sameView(oldView, oldRest)) return newRest;
+  var p = isoUnpoint(from, oldView.x + oldView.w / 2, oldView.y + oldView.h / 2);
+  var c = isoPoint(to, p[0], p[1], 0), w = newRest.w * oldView.w / oldRest.w, h = w * newRest.h / newRest.w;
+  return clampView({ x: c[0] - w / 2, y: c[1] - h / 2, w: w, h: h }, newBounds);
 }
 
 // The part of the scene a phone's rest view fits: [x, y, w, h], the board block plus every room with its walls
@@ -216,22 +272,22 @@ function isoFigureTransform(f) {
 // --- walls of the 3D world ---
 
 // The walls of a house as boxes in map units: {x, y, w, d, h, kind}. Each room edge becomes a wall (4 units thick,
-// the room rect border); the north and west edges of the house outline are tall, every other edge low. Doors cut
+// the room rect border); the edges of the house outline on the two sides facing away from the camera (isoBackSides, north and west at the default view) are tall, every other edge low. Doors cut
 // gaps: the gap of a door on a tall wall keeps a lintel above `doorH`. `doors` are layout.map.doors rects.
 // Pure geometry, so tests can check that no wall covers a bed.
 function isoWalls(rooms, outline, doors, o) {
   o = o || ISO;
-  var out = [], T = 4;
+  var out = [], T = 4, back = isoBackSides(o.azimuth);
   rooms.forEach(function (room) {
     var r = room.rect;
     var edges = [
-      { x: r[0], y: r[1], w: r[2], d: T, axis: "x", outer: r[1] === outline[1] },               // north
-      { x: r[0], y: r[1] + r[3] - T, w: r[2], d: T, axis: "x", outer: false },                    // south
-      { x: r[0], y: r[1], w: T, d: r[3], axis: "y", outer: r[0] === outline[0] },                 // west
-      { x: r[0] + r[2] - T, y: r[1], w: T, d: r[3], axis: "y", outer: false }                     // east
+      { x: r[0], y: r[1], w: r[2], d: T, axis: "x", side: "n", outer: r[1] === outline[1] },
+      { x: r[0], y: r[1] + r[3] - T, w: r[2], d: T, axis: "x", side: "s", outer: r[1] + r[3] === outline[1] + outline[3] },
+      { x: r[0], y: r[1], w: T, d: r[3], axis: "y", side: "w", outer: r[0] === outline[0] },
+      { x: r[0] + r[2] - T, y: r[1], w: T, d: r[3], axis: "y", side: "e", outer: r[0] + r[2] === outline[0] + outline[2] }
     ];
     edges.forEach(function (e) {
-      var tall = e.outer, h = tall ? o.wallH : o.lowWall;
+      var tall = e.outer && back[e.side], h = tall ? o.wallH : o.lowWall;
       var gaps = doors.filter(function (d) { return rectsOverlap(d, [e.x, e.y, e.w, e.d]); }).map(function (d) {
         return e.axis === "x" ? [d[0], d[0] + d[2]] : [d[1], d[1] + d[3]];
       }).sort(function (a, b) { return a[0] - b[0]; });
@@ -249,6 +305,7 @@ function isoWalls(rooms, outline, doors, o) {
         box.h0 = p[2];
         box.h = p[3];
         box.tall = tall;
+        box.side = e.side;
         out.push(box);
       });
     });
@@ -364,9 +421,10 @@ function isoGrowHit(base, others, bound) {
 
 // The tap polygons of all beds of a layout: {bed id: polygon}. Each is grown at most halfway toward the others.
 function isoBedHits(scene, layout) {
-  var all = [];
+  var all = [], back = isoBackSides(scene.azimuth);
   layout.rooms.forEach(function (room) {
-    var r = room.rect, bound = convexHull(isoBoxOutline(scene, [r[0], r[1], r[2] + 8, r[3] + 8], 0, ISO.wallH + 16));      // the south and east walls are low, so a tap area may reach over them
+    var r = room.rect, gw = back.w ? 0 : 8, ge = back.e ? 0 : 8, gn = back.n ? 0 : 8, gs = back.s ? 0 : 8;
+    var bound = convexHull(isoBoxOutline(scene, [r[0] - gw, r[1] - gn, r[2] + gw + ge, r[3] + gn + gs], 0, ISO.wallH + 16));      // the walls on the camera's side are low, so a tap area may reach over them
     room.beds.forEach(function (bed) {
       var shape = isoBedShape(scene, bed), box = polyBox(shape);
       all.push({ id: bed.id, shape: shape, bound: bound, gx: Math.max(0, (ISO_HIT_TARGET - box[2]) / 2), gy: Math.max(0, (ISO_HIT_TARGET - box[3]) / 2) });
@@ -442,11 +500,13 @@ function isoSlotOrder(scene, bed) {
   return idx.sort(function (a, b) { return v(a) - v(b) || a - b; });
 }
 
-// The front rail of the top berth of a bunk, two strips (east and south side) 2 units high at 21 ... 23, as
-// scene polygons. They draw over the bottom sleeper.
+// The front rail of the top berth of a bunk, two strips (the two sides facing the camera: east and south at the default
+// view) 2 units high at 21 ... 23, as scene polygons. They draw over the bottom sleeper.
 function isoBunkRail(scene, bed) {
-  var r = bed.rect, lo = ISO_BUNK_TOP - 2;
-  return [[r[0] + r[2] - 2, r[1], 2, r[3]], [r[0], r[1] + r[3] - 2, r[2], 2]].map(function (s) {
+  var r = bed.rect, lo = ISO_BUNK_TOP - 2, back = isoBackSides(scene.azimuth);
+  var xStrip = back.w ? [r[0] + r[2] - 2, r[1], 2, r[3]] : [r[0], r[1], 2, r[3]];
+  var yStrip = back.n ? [r[0], r[1] + r[3] - 2, r[2], 2] : [r[0], r[1], r[2], 2];
+  return [xStrip, yStrip].map(function (s) {
     return isoBoxOutline(scene, s, lo, ISO_BUNK_TOP);
   });
 }
@@ -641,30 +701,45 @@ function fpsText(stats, pixelRatio, gpu, quality) {
 var ISO_QUALITY = [{ px: 1.5, soft: true }, { px: 1.25, soft: true }, { px: 1, soft: true }, { px: 1, soft: false }];
 var ISO_QUALITY_BUDGET_MS = 40;         // a frame interval above this is slow (the 30 fps budget is 33 ms, with some slack)
 var ISO_QUALITY_SLOW_MS = 2000;         // this long in a row over budget steps the quality down
-var ISO_QUALITY_GOOD_MS = 20000;        // this long in a row within budget (doubling after each step down, up to 8x) steps it up
+var ISO_QUALITY_GOOD_MS = 20000;        // a step up is tried after this long of animating at the current level ...
+var ISO_QUALITY_GOOD_SHARE = 0.9;       // ... if at least this share of the frames in that stretch was within budget (a few slow frames do not matter)
 var ISO_QUALITY_GAP_MS = 400;           // an interval longer than this is a pause (idle, hidden tab), not a slow frame
 
 function isoQualityStart() {
-  return { level: 0, slow: 0, good: 0, upAfter: ISO_QUALITY_GOOD_MS };
+  return { level: 0, slow: 0, win: 0, frames: 0, late: 0, upAfter: ISO_QUALITY_GOOD_MS, probation: 0 };
 }
 
 // Pure decision, one call per drawn frame while things move. `ms` is the time since the previous drawn frame.
 // Returns {state, change}: change is -1 (a step down), +1 (a step up) or 0; state is a new object.
+// After a step up the new level is on probation for ISO_QUALITY_GOOD_MS: a step down within it was a failed climb and doubles
+// the wait for the next one (up to 8x, no flapping); once the probation passes, the wait is back at the base.
 function isoQualityStep(state, ms) {
-  var s = { level: state.level, slow: state.slow, good: state.good, upAfter: state.upAfter };
-  if (!(ms > 0) || ms > ISO_QUALITY_GAP_MS) { s.slow = 0; s.good = 0; return { state: s, change: 0 }; }      // a pause breaks both streaks
-  if (ms > ISO_QUALITY_BUDGET_MS) { s.slow += ms; s.good = 0; } else { s.good += ms; s.slow = 0; }
+  var s = Object.assign({}, state);
+  if (!(ms > 0) || ms > ISO_QUALITY_GAP_MS) { s.slow = s.win = s.frames = s.late = 0; return { state: s, change: 0 }; }      // a pause breaks the streak and the stretch
+  var late = ms > ISO_QUALITY_BUDGET_MS;
+  s.slow = late ? s.slow + ms : 0;
+  s.win += ms;
+  s.frames++;
+  if (late) s.late++;
+  if (s.probation > 0) {
+    s.probation -= ms;
+    if (s.probation <= 0) { s.probation = 0; s.upAfter = ISO_QUALITY_GOOD_MS; }
+  }
   if (s.slow >= ISO_QUALITY_SLOW_MS && s.level < ISO_QUALITY.length - 1) {
+    if (s.probation > 0) s.upAfter = Math.min(s.upAfter * 2, ISO_QUALITY_GOOD_MS * 8);
     s.level++;
-    s.slow = 0;
-    s.upAfter = Math.min(s.upAfter * 2, ISO_QUALITY_GOOD_MS * 8);      // each failed climb makes the next one wait longer: no flapping
+    s.slow = s.win = s.frames = s.late = s.probation = 0;
     return { state: s, change: -1 };
   }
   if (s.slow >= ISO_QUALITY_SLOW_MS) s.slow = 0;
-  if (s.good >= s.upAfter && s.level > 0) {
-    s.level--;
-    s.good = 0;
-    return { state: s, change: 1 };
+  if (s.win >= s.upAfter) {
+    var climb = s.level > 0 && s.late <= s.frames * (1 - ISO_QUALITY_GOOD_SHARE);
+    s.win = s.frames = s.late = 0;
+    if (climb) {
+      s.level--;
+      s.probation = ISO_QUALITY_GOOD_MS;
+      return { state: s, change: 1 };
+    }
   }
   return { state: s, change: 0 };
 }

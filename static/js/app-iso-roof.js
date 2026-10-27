@@ -34,22 +34,23 @@ function isoSlope(b, e0, e1, r0, r1, color) {
   }
 }
 
-// The gable roofs of a house with the colours `colors` = {face, dark, ridge} (the sunny slope is the south one, or the west one for a ridge along y).
-function isoRoofBoxes(roofs, colors) {
+// The gable roofs of a house with the colours `colors` = {face, dark, ridge}. `sunny` (isoSunSlope) says which slope is the
+// bright one: at the default view the south one, or the west one for a ridge along y.
+function isoRoofBoxes(roofs, colors, sunny) {
   var b = new IsoBoxes();
   roofs.forEach(function (r) {
     var x0 = r.x, x1 = r.x + r.w, y0 = r.y, y1 = r.y + r.d, e = r.h0, t = r.h1;
     if (r.along === "x") {
       var ym = (y0 + y1) / 2;
-      isoSlope(b, [x1, e, y1], [x0, e, y1], [x1, t, ym], [x0, t, ym], colors.face);      // south, towards the sun
-      isoSlope(b, [x0, e, y0], [x1, e, y0], [x0, t, ym], [x1, t, ym], colors.dark);
+      isoSlope(b, [x1, e, y1], [x0, e, y1], [x1, t, ym], [x0, t, ym], sunny.y > 0 ? colors.face : colors.dark);      // south
+      isoSlope(b, [x0, e, y0], [x1, e, y0], [x0, t, ym], [x1, t, ym], sunny.y > 0 ? colors.dark : colors.face);      // north
       b.poly([[x0, e, y1], [x0, e, y0], [x0, t, ym]], ISO_C.log);      // gable ends
       b.poly([[x1, e, y0], [x1, e, y1], [x1, t, ym]], ISO_C.log);
       b.box(x0, ym - ISO_ROOF.cap / 2, r.w, ISO_ROOF.cap, t - 0.5, t + 1.5, colors.ridge);
     } else {
       var xm = (x0 + x1) / 2;
-      isoSlope(b, [x0, e, y1], [x0, e, y0], [xm, t, y1], [xm, t, y0], colors.face);      // west, towards the sun
-      isoSlope(b, [x1, e, y0], [x1, e, y1], [xm, t, y0], [xm, t, y1], colors.dark);
+      isoSlope(b, [x0, e, y1], [x0, e, y0], [xm, t, y1], [xm, t, y0], sunny.x < 0 ? colors.face : colors.dark);      // west
+      isoSlope(b, [x1, e, y0], [x1, e, y1], [xm, t, y0], [xm, t, y1], sunny.x < 0 ? colors.dark : colors.face);      // east
       b.poly([[x0, e, y0], [x1, e, y0], [xm, t, y0]], ISO_C.log);
       b.poly([[x1, e, y1], [x0, e, y1], [xm, t, y1]], ISO_C.log);
       b.box(xm - ISO_ROOF.cap / 2, y0, ISO_ROOF.cap, r.d, t - 0.5, t + 1.5, colors.ridge);
@@ -59,12 +60,12 @@ function isoRoofBoxes(roofs, colors) {
 }
 
 // The meshes of one house: the roof, the tall front walls (closed) and the low ones (open). `house.roof` has the colours.
-function isoHouseMeshes(scene, house, roofs, openFront, closedFront) {
+function isoHouseMeshes(scene, house, roofs, openFront, closedFront, azimuth) {
   var colors = house.roof || { face: "#8E3424", dark: "#5A1F14", ridge: "#B5532A" };
   var roofMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   var h = {
     id: house.id, roofs: roofs, step: 0, target: 0, shown: null, svgWas: false,
-    roof: isoRoofBoxes(roofs, colors).mesh(roofMat), roofMat: roofMat,
+    roof: isoRoofBoxes(roofs, colors, isoSunSlope(azimuth)).mesh(roofMat), roofMat: roofMat,
     openFront: openFront.mesh(), closedFront: closedFront.mesh()
   };
   scene.add(h.roof);

@@ -11,7 +11,7 @@ var CREST_CHIPS_MAX = 6;   // online chips under „Si: …“ (what fits at 380
 // so the next poll can run. Without it a hung poll blocked all later ones and the page stayed stale.
 var POLL_TIMEOUT_MS = 10000;
 var WRITE_TIMEOUT_MS = 20000;
-var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound", fps: "cabin.fps" };
+var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound", fps: "cabin.fps", angle: "cabin-view-angle" };
 var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
 var LONG_PRESS_MS = 500;
 var TOAST_MS = 6000;
@@ -105,6 +105,7 @@ var app = {
   toastTimer: null,
   panel: null,
   layoutKey: null,
+  viewAngle: isoAngle(storage.get(KEYS.angle)),   // the camera azimuth of the map: 45, 135, 225 or 315 (logic-iso.js, app-turn.js)
   layers: null,
   view: null,          // the visible window of the map (zoom and pan), see the zoom functions in the logic script
   bounds: null,        // the whole viewport in scene units: the scene plus the grass around it (fitBounds)

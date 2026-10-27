@@ -5210,24 +5210,43 @@ test("quality: good frames and pauses do not step down, and a good frame breaks 
   assert.equal(L.isoQualityStep(s, 0).change, 0);
 });
 
-test("quality: steps back up only after a long good stretch, and waits longer after each step down (no flapping)", () => {
+test("quality: steps back up after a good stretch, tolerates a few slow frames, and a failed climb doubles the wait", () => {
   let r = runQuality(L.isoQualityStart(), 60, 2.2);
   assert.equal(r.state.level, 1);
-  assert.equal(r.state.upAfter, 2 * L.ISO_QUALITY_GOOD_MS, "the first step down already doubles the wait");
-  assert.equal(runQuality(r.state, 33, 39).state.level, 1, "39 s of good frames is not enough");
-  const up = runQuality(r.state, 33, 41);
+  assert.equal(r.state.upAfter, L.ISO_QUALITY_GOOD_MS, "a plain step down keeps the base wait");
+  assert.equal(runQuality(r.state, 33, 19).state.level, 1, "19 s of good frames is not enough");
+  const up = runQuality(r.state, 33, 21);
   assert.equal(up.state.level, 0);
   assert.deepEqual(plain(up.changes.map((c) => c[1])), [1]);
-  // slow again right away: down again, and now the climb needs twice as long
+  // slow again right away (within the probation of the climb): a failed climb, so the next one needs twice as long
   const down = runQuality(up.state, 60, 2.2);
   assert.equal(down.state.level, 1);
-  assert.ok(down.state.upAfter > r.state.upAfter);
-  assert.equal(runQuality(down.state, 33, 79).state.level, 1);
-  assert.equal(runQuality(down.state, 33, 85).state.level, 0);
+  assert.equal(down.state.upAfter, 2 * L.ISO_QUALITY_GOOD_MS);
+  assert.equal(runQuality(down.state, 33, 39).state.level, 1);
+  const again = runQuality(down.state, 33, 41);
+  assert.equal(again.state.level, 0);
+  // a climb that holds for the probation resets the wait to the base
+  const held = runQuality(again.state, 33, L.ISO_QUALITY_GOOD_MS / 1000 + 1);
+  assert.equal(held.state.level, 0);
+  assert.equal(held.state.upAfter, L.ISO_QUALITY_GOOD_MS);
   // a bounded wait: never more than 8x the base
   let s = L.isoQualityStart();
-  for (let i = 0; i < 10; i++) { s = runQuality(s, 60, 2.2).state; s = runQuality(s, 33, 200).state; }
+  for (let i = 0; i < 12; i++) { s = runQuality(s, 60, 2.2).state; s = runQuality(s, 33, 200).state; }
   assert.ok(s.upAfter <= L.ISO_QUALITY_GOOD_MS * 8);
+});
+
+test("quality: a few slow frames in the stretch do not stop a step up, many do", () => {
+  const down = runQuality(L.isoQualityStart(), 60, 2.2).state;
+  const run = (state, slowEvery) => {
+    for (let t = 0, i = 0; t < 25000; i++) {
+      const ms = i % slowEvery === slowEvery - 1 ? 45 : 33;
+      t += ms;
+      state = L.isoQualityStep(state, ms).state;
+    }
+    return state;
+  };
+  assert.equal(run(down, 20).level, 0, "1 slow frame in 20 (5 %) still climbs");
+  assert.equal(run(down, 5).level, 1, "1 slow frame in 5 (20 %) does not");
 });
 
 test("quality: the meter shows the level; the loop feeds frame intervals only while things move", () => {
@@ -5243,4 +5262,219 @@ test("static mesh: boxes drop faces another box covers, and the crown builds mer
   const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
   assert.match(src, /IsoBoxes\.prototype\.flush/);
   assert.match(src, /greedy merge/);
+});
+
+// --- four view angles (T-143) ---
+
+const isoAngles = [45, 135, 225, 315];
+const isoSceneAt = (azimuth, extra = {}) => L.isoScene(isoLayout, { azimuth, ...extra });
+
+test("view angle: only 45, 135, 225 and 315 are valid, a stored string works, anything else is 45; turns wrap", () => {
+  assert.deepEqual(plain(L.ISO_ANGLES), isoAngles);
+  assert.equal(L.isoAngle("135"), 135);
+  assert.equal(L.isoAngle(315), 315);
+  [null, undefined, "", "abc", "90", 0, 46, "45.5", "-45", NaN].forEach((v) => assert.equal(L.isoAngle(v), 45, String(v)));
+  assert.equal(L.isoTurnAngle(45, 1), 135);
+  assert.equal(L.isoTurnAngle(315, 1), 45);
+  assert.equal(L.isoTurnAngle(45, -1), 315);
+  assert.equal(L.isoTurnAngle(135, -1), 45);
+  assert.equal(L.isoTurnAngle(225, 4), 225);
+  assert.equal(L.ISO.azimuth, 45, "the default view is unchanged");
+  assert.equal(L.isoScene(isoLayout).azimuth, 45);
+  assert.deepEqual(plain(L.isoScene(isoLayout)), plain(isoSceneAt(45)));
+});
+
+test("view angle: +90 turns the map clockwise on screen (the east edge of the plan goes from right-down to left-down)", () => {
+  const dir = (az) => { const s = isoSceneAt(az, { persp: 0 }); const a = L.isoPoint(s, 0, 0, 0), b = L.isoPoint(s, 100, 0, 0); return [b[0] - a[0], b[1] - a[1]]; };
+  const e45 = dir(45), e135 = dir(135);
+  assert.ok(e45[0] > 0 && e45[1] > 0, "at 45 the plan's x axis runs right and down");
+  assert.ok(e135[0] < 0 && e135[1] > 0, "at 135 it runs left and down (clockwise by a quarter)");
+});
+
+test("view angle: the back sides of a house are the two facing away from the camera", () => {
+  const sides = (az) => { const b = L.isoBackSides(az); return Object.keys(b).filter((k) => b[k]).sort().join(""); };
+  assert.equal(sides(45), "nw");
+  assert.equal(sides(135), "sw");
+  assert.equal(sides(225), "es");
+  assert.equal(sides(315), "en");
+});
+
+test("view angle: the sun and the roof colours turn with the view, so the bright side is the same on screen", () => {
+  assert.equal(L.isoSunAzimuth(-20, 45), -20);
+  assert.equal(L.isoSunAzimuth(-20, 135), 70);
+  assert.equal(L.isoSunAzimuth(95, 315), 365);
+  assert.deepEqual(plain(L.isoSunSlope(45)), { x: -1, y: 1 }, "south and west at the default view, as before");
+  isoAngles.forEach((az) => {
+    // the horizontal direction to the sun, seen on screen: its u component (left-right) has the same sign from every side
+    const s = isoSceneAt(az, { persp: 0 }), a = L.isoSunAzimuth(L.ISO_NOON_SUN_AZ, az) * Math.PI / 180;
+    const o = L.isoPoint(s, 100, 100, 0), t = L.isoPoint(s, 100 + 50 * Math.sin(a), 100 + 50 * Math.cos(a), 0);
+    const base = isoSceneAt(45, { persp: 0 }), a0 = L.ISO_NOON_SUN_AZ * Math.PI / 180;
+    const o0 = L.isoPoint(base, 100, 100, 0), t0 = L.isoPoint(base, 100 + 50 * Math.sin(a0), 100 + 50 * Math.cos(a0), 0);
+    assert.ok(Math.abs((t[0] - o[0]) - (t0[0] - o0[0])) < 1e-6 && Math.abs((t[1] - o[1]) - (t0[1] - o0[1])) < 1e-6, `${az}: same screen direction`);
+    // and the slope picked faces that direction: a slope normal (the sun slope's side) has a positive dot product with the sun direction
+    const sl = L.isoSunSlope(az);
+    assert.ok(Math.sin(a) * sl.x >= 0 && Math.cos(a) * sl.y >= 0, `${az}: sunny slope faces the sun`);
+  });
+});
+
+test("view angle: every angle holds all corners, tops, the board block and every room's walls in the scene and in the fitted view", () => {
+  const [vw, vh] = isoLayout.map.viewbox;
+  isoAngles.forEach((az) => {
+    const s = isoSceneAt(az), c = plain(L.isoContentRect(s, isoLayout));
+    [[0, 0], [vw, 0], [0, vh], [vw, vh]].forEach(([x, y]) => [0, L.ISO.headroom].forEach((h) => assert.ok(isoInside(L.isoPoint(s, x, y, h), s.W, s.H), `${az}: ${x},${y},${h}`)));
+    const b = s.block, bh = b.src[3] * b.k;
+    const lowest = Math.min(...[[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoPoint(s, x, y, L.ISO.headroom)[1]));
+    assert.ok(b.y + bh < lowest, `${az}: the block ends above the highest point of the world`);
+    isoLayout.rooms.forEach((room) => {
+      const [x, y, w, h] = room.rect;
+      [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => [0, L.ISO.wallH].forEach((hh) => {
+        const p = L.isoPoint(s, px, py, hh);
+        assert.ok(isoInside(p, s.W, s.H) && p[0] >= c[0] && p[0] <= c[0] + c[2] && p[1] >= c[1] && p[1] <= c[1] + c[3], `${az}: ${room.id}`);
+      }));
+    });
+    assert.ok(c[2] < s.W, `${az}: narrower than the scene, so a phone zooms in on it`);
+  });
+});
+
+test("view angle: the tall outline walls follow the back sides, doors keep a lintel, and no wall stands over a bed", () => {
+  const O = L.ISO, beds = allIsoBeds();
+  isoAngles.forEach((az) => {
+    const back = L.isoBackSides(az), o = { ...O, azimuth: az };
+    isoLayout.houses.forEach((house) => {
+      const rooms = house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+      const outline = isoHouseOutline(house), walls = L.isoWalls(rooms, outline, isoLayout.map.doors, o);
+      assert.ok(walls.some((w) => w.tall), `${az} ${house.id}: has tall walls`);
+      walls.forEach((w) => {
+        const edge = { n: w.y === outline[1], s: w.y + w.d === outline[1] + outline[3], w: w.x === outline[0], e: w.x + w.w === outline[0] + outline[2] };
+        if (w.tall) {
+          assert.ok(back[w.side] && edge[w.side], `${az}: a tall ${w.side} wall is on a back side of the outline`);
+          assert.equal(w.h, O.wallH);
+        } else assert.equal(w.h, O.lowWall);
+        assert.ok(["n", "s", "w", "e"].includes(w.side));
+        beds.forEach(({ room, bed }) => assert.ok(!L.rectsOverlap([w.x, w.y, w.w, w.d], bed.rect), `${az}: ${room.id}/${bed.id}`));
+        if (w.tall && isoLayout.map.doors.some((d) => L.rectsOverlap([w.x, w.y, w.w, w.d], d))) assert.ok(w.h0 === 0 || w.h0 === O.doorH, "a piece over a door is a lintel");
+      });
+      // each room's outline edges on a back side are tall somewhere, those on a front side never
+      rooms.forEach((r) => {
+        const q = r.rect, onOutline = { n: q[1] === outline[1], s: q[1] + q[3] === outline[1] + outline[3], w: q[0] === outline[0], e: q[0] + q[2] === outline[0] + outline[2] };
+        ["n", "s", "w", "e"].forEach((side) => {
+          if (!onOutline[side] || !back[side]) assert.ok(!walls.some((w) => w.tall && w.side === side && L.rectsOverlap([w.x, w.y, w.w, w.d], q) && (side === "n" ? w.y === q[1] : side === "s" ? w.y + w.d === q[1] + q[3] : side === "w" ? w.x === q[0] : w.x + w.w === q[0] + q[2])), `${az} ${r.id}: no tall ${side} wall`);
+        });
+      });
+    });
+  });
+});
+
+test("view angle: every bed's furniture and figures hit that bed from every angle, and hit areas never overlap", () => {
+  isoAngles.forEach((az) => {
+    const s = isoSceneAt(az), hits = plain(L.isoBedHits(s, isoLayout)), regions = L.isoHitRegions(s, isoLayout), beds = allIsoBeds();
+    assert.equal(Object.keys(hits).length, beds.length);
+    beds.forEach(({ bed }) => {
+      const r = bed.rect, top = L.ISO_BED_TOP[bed.kind] === undefined ? 6 : L.ISO_BED_TOP[bed.kind];
+      assert.equal(L.isoHitAt(regions, L.isoPoint(s, r[0] + r[2] / 2, r[1] + r[3] / 2, top)), bed.id, `${az} ${bed.id}: furniture centre`);
+      bed.slots.forEach((slot, i) => {
+        const f = L.isoFigure(s, L.figurePosition(bed, i), L.isoSlotHeight(bed, i));
+        assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 11 * f.k]), bed.id, `${az} ${slot}: figure feet`);
+        assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 6 * f.k]), bed.id, `${az} ${slot}: figure body`);
+      });
+      const shape = plain(L.isoBedShape(s, bed));
+      shape.forEach((p) => assert.ok(L.isoPointIn(hits[bed.id], p), `${az} ${bed.id}: the shape is inside its hit polygon`));
+      beds.forEach((o) => {
+        if (o.bed !== bed && !L.isoPolysOverlap(shape, L.isoBedShape(s, o.bed))) assert.ok(!L.isoPolysOverlap(hits[bed.id], hits[o.bed.id]), `${az}: ${bed.id} overlaps ${o.bed.id}`);
+      });
+    });
+    const bunk = beds.find((e) => e.bed.kind === "bunk").bed;
+    assert.deepEqual(plain(L.isoSlotOrder(s, bunk)), [1, 0]);
+    assert.equal(L.isoBunkRail(s, bunk).length, 2);
+  });
+});
+
+test("view angle: the bunk rail lies on the two sides that face the camera", () => {
+  const bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed, r = bunk.rect;
+  const rail = (az) => plain(L.isoBunkRail(isoSceneAt(az), bunk).map((poly) => L.polyBox(poly)));
+  [[45, [r[0] + r[2] - 2, r[1] + r[3] - 2]], [135, [r[0] + r[2] - 2, r[1]]], [225, [r[0], r[1]]], [315, [r[0], r[1] + r[3] - 2]]].forEach(([az, [x, y]]) => {
+    const s = isoSceneAt(az), want = [[x, r[1], 2, r[3]], [r[0], y, r[2], 2]].map((q) => plain(L.polyBox(L.isoBoxOutline(s, q, L.ISO_BUNK_TOP - 2, L.ISO_BUNK_TOP))));
+    assert.deepEqual(rail(az), want, String(az));
+  });
+});
+
+test("view angle: isoUnpoint inverts isoPoint on the ground, with and without perspective", () => {
+  isoAngles.forEach((az) => [0, 0.12].forEach((persp) => {
+    const s = isoSceneAt(az, { persp });
+    [[10, 20], [200, 300], [370, 480], [90, 410]].forEach(([x, y]) => {
+      const p = L.isoPoint(s, x, y, 0), q = L.isoUnpoint(s, p[0], p[1]);
+      assert.ok(Math.abs(q[0] - x) < 1e-6 && Math.abs(q[1] - y) < 1e-6, `${az} ${persp}: ${x},${y} -> ${q}`);
+    });
+  }));
+});
+
+test("view angle: a turned map at rest lands on the new rest view; a zoomed one keeps its centre point and relative zoom", () => {
+  const vw = 380, vh = 740;
+  const prep = (az) => { const s = isoSceneAt(az), c = plain(L.isoContentRect(s, isoLayout)), b = L.fitBounds(vw, vh, s.W, s.H, {}); return { s, b, rest: plain(L.restView(b, s.W, s.H, vw, vh, c)) }; };
+  const a = prep(45), b = prep(135);
+  assert.deepEqual(plain(L.isoTurnView(a.s, b.s, a.rest, a.rest, b.rest, b.b)), b.rest);
+  assert.deepEqual(plain(L.isoTurnView(a.s, b.s, null, a.rest, b.rest, b.b)), b.rest);
+  // zoomed 2x on the plan point (250, 300)
+  const c = L.isoPoint(a.s, 250, 300, 0), w = a.rest.w / 2, h = a.rest.h / 2;
+  const zoomed = { x: c[0] - w / 2, y: c[1] - h / 2, w, h };
+  isoAngles.slice(1).forEach((az) => {
+    const t = prep(az), v = plain(L.isoTurnView(a.s, t.s, zoomed, a.rest, t.rest, t.b));
+    assert.ok(Math.abs(v.w - t.rest.w / 2) < 1e-6, `${az}: same zoom relative to the rest`);
+    const p = L.isoUnpoint(t.s, v.x + v.w / 2, v.y + v.h / 2);
+    assert.ok(Math.abs(p[0] - 250) < 1.5 && Math.abs(p[1] - 300) < 1.5, `${az}: the plan point stays in the middle (${p})`);
+  });
+});
+
+test("view angle: the page keeps the angle in storage, rebuilds on a change and lists app-turn.js", () => {
+  const read = (f) => fs.readFileSync(path.join(root, "static", "js", f), "utf8");
+  assert.ok(pageFile.includes("static/js/app-turn.js?v=__ASSET_VERSION__"));
+  assert.ok(read("app-core.js").includes('angle: "cabin-view-angle"'));
+  assert.match(read("app-core.js"), /viewAngle: isoAngle\(storage\.get\(KEYS\.angle\)\)/);
+  assert.match(read("app-scene.js"), /layout\.houses, app\.viewAngle\]/, "the angle is part of the layout key");
+  assert.match(read("app-scene.js"), /isoScene\(layout, \{ azimuth: app\.viewAngle \}\)/);
+  assert.ok(!read("app-turn.js").includes("innerHTML"));
+  assert.match(read("app-turn.js"), /storage\.set\(KEYS\.angle/);
+});
+
+// T-143: the tap regions of the closed houses follow the visible silhouette and the order of the angle.
+test("iso houses: at every angle a visible point of a closed house resolves to that house", () => {
+  const houses = L.isoHouseList(isoLayout).map((h) => {
+    const rooms = isoLayout.rooms.filter((r) => h.rooms.includes(r.id));
+    return { id: h.id, rooms, outline: L.houseOutline(h, isoLayout.rooms), roofs: null };
+  });
+  houses.forEach((h) => { h.roofs = L.isoRoofs(h.rooms, h.outline); });
+  const inRect = (r, x, y) => x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3];
+  // is the 3D point (x, y, z) inside the solid of house h (walls up to the eaves, roof over them)
+  const solid = (h, x, y, z) => h.rooms.some((r) => inRect(r.rect, x, y) && z <= L.ISO.wallH) || (z > L.ISO.wallH && z <= L.isoRoofHeightAt(h.roofs, x, y));
+  let checked = 0;
+  [45, 135, 225, 315].forEach((az) => {
+    const s = isoSceneAt(az, { persp: 0 }), a = az * Math.PI / 180;
+    const order = L.isoHouseOrder(s, houses);
+    const polys = {};
+    houses.forEach((h) => { polys[h.id] = L.isoHouseSilhouette(s, h.rooms, h.outline); });
+    const resolve = (p) => { let hit = null; order.forEach((h) => { if (polys[h.id].some((q) => L.isoPointIn(q, p))) hit = h.id; }); return hit; };
+    houses.forEach((h) => {
+      // sample the top surface of the roofs and the tops of the walls
+      const pts = [];
+      h.roofs.forEach((r) => {
+        for (let i = 0; i <= 12; i++) for (let j = 0; j <= 12; j++) {
+          const x = r.x + r.w * i / 12, y = r.y + r.d * j / 12;
+          pts.push([x, y, L.isoRoofHeightAt([r], x, y)]);
+        }
+      });
+      h.rooms.forEach((r) => {
+        for (let i = 1; i < 12; i++) for (let j = 1; j < 12; j++) pts.push([r.rect[0] + r.rect[2] * i / 12, r.rect[1] + r.rect[3] * j / 12, L.ISO.wallH]);
+      });
+      pts.forEach(([x, y, z]) => {
+        if (z <= 0) return;
+        // hidden when a solid of another house stands on the ray to the camera
+        const hidden = houses.some((o) => o !== h && (() => { for (let t = 0.5; t < 400; t += 0.5) if (solid(o, x + t * Math.sin(a), y + t * Math.cos(a), z + t * Math.tan(30 * Math.PI / 180))) return true; return false; })());
+        if (hidden) return;
+        const sp = L.isoPoint(s, x, y, z);
+        assert.equal(resolve([sp[0], sp[1]]), h.id, `${az} ${h.id}: visible point (${x.toFixed(0)}, ${y.toFixed(0)}, ${z.toFixed(0)}) resolves to its house`);
+        checked++;
+      });
+    });
+  });
+  assert.ok(checked > 1000, "enough points were checked");
 });

@@ -111,14 +111,14 @@ function board(parent, r, face, edge) {
 
 function ensureScene() {
   var layout = app.state.layout;
-  var key = JSON.stringify([layout.map, layout.rooms, layout.houses]);
+  var key = JSON.stringify([layout.map, layout.rooms, layout.houses, app.viewAngle]);
   showScene(true);     // visible first: text is measured while drawing
   if (app.layoutKey === key) return;
   app.layoutKey = key;
   cancelWalks();      // the old walk layer goes away with the old svg
   var host = $("scene");
   clearNode(host);
-  app.iso = isoScene(layout);      // the isometric projection and scene size (logic-iso.js); the svg is as big as the scene
+  app.iso = isoScene(layout, { azimuth: app.viewAngle });      // the isometric projection and scene size (logic-iso.js); the svg is as big as the scene
   app.sceneContent = isoContentRect(app.iso, layout);      // what the rest view of a phone fits (restView)
   isoBuild(host, layout, app.iso);      // the 3D world goes under the svg; false = no WebGL, drawBase draws a flat fallback
   var svg = svgEl(host, "svg", {

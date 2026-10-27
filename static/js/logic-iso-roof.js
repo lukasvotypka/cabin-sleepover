@@ -39,6 +39,14 @@ function isoRoofs(rooms, outline, o) {
   });
 }
 
+// The slopes that face the sun used for a view (T-143): {x: -1 (west) | 1 (east), y: -1 (north) | 1 (south)}. The sun
+// of the roof colours is the noon sun, turned with the view like the light (isoSunAzimuth), so the bright slope is the same
+// one on screen from every side. At the default view it is the south and the west slope.
+function isoSunSlope(azimuth) {
+  var az = isoSunAzimuth(ISO_NOON_SUN_AZ, azimuth) * Math.PI / 180;
+  return { x: Math.sin(az) < 0 ? -1 : 1, y: Math.cos(az) >= 0 ? 1 : -1 };
+}
+
 // The height of the roofs over a plan point, or 0 outside them.
 function isoRoofHeightAt(roofs, x, y) {
   var best = 0;
@@ -128,4 +136,45 @@ function isoHouseList(layout) {
   houses.forEach(function (h) { h.rooms.forEach(function (id) { housed[id] = true; }); });
   layout.rooms.forEach(function (r) { if (!housed[r.id]) houses.push({ id: r.id, rooms: [r.id], chimney: null }); });
   return houses;
+}
+
+// --- the tap regions of the closed houses (T-143) ---
+
+// The screen polygons (convex, one per wall block and per roof) that a closed house covers on the scene: every room
+// as a box up to the eaves, and every roof as the hull of its eaves corners and its ridge ends. Together they are the
+// visible silhouette of the house at the current angle.
+function isoHouseSilhouette(scene, rooms, outline, o) {
+  o = o || ISO;
+  var polys = rooms.map(function (r) { return isoBoxOutline(scene, r.rect, 0, o.wallH); });
+  isoRoofs(rooms, outline, o).forEach(function (r) {
+    var pts = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.d], [r.x, r.y + r.d]].map(function (p) { return isoPoint(scene, p[0], p[1], r.h0); });
+    var ends = r.along === "x" ? [[r.x, r.y + r.d / 2], [r.x + r.w, r.y + r.d / 2]] : [[r.x + r.w / 2, r.y], [r.x + r.w / 2, r.y + r.d]];
+    ends.forEach(function (p) { pts.push(isoPoint(scene, p[0], p[1], r.h1)); });
+    polys.push(convexHull(pts));
+  });
+  return polys;
+}
+
+// How far toward the camera a ground point lies (the plan axis the view looks along).
+function isoPlanDepth(scene, x, y) {
+  var a = scene.azimuth * Math.PI / 180;
+  return x * Math.sin(a) + y * Math.cos(a);
+}
+
+// The closed houses `list` ({id, rooms (room objects), outline}) ordered back to front for the scene, so that drawing them
+// in this order puts the nearer house on top. A house is in front of another when its footprint lies wholly nearer
+// along the view axis; houses that overlap in depth fall back to the depth of the footprint centre.
+function isoHouseOrder(scene, list) {
+  function span(h) {
+    var o = h.outline, d = [[o[0], o[1]], [o[0] + o[2], o[1]], [o[0], o[1] + o[3]], [o[0] + o[2], o[1] + o[3]]].map(function (p) { return isoPlanDepth(scene, p[0], p[1]); });
+    return { lo: Math.min.apply(null, d), hi: Math.max.apply(null, d), mid: isoPlanDepth(scene, o[0] + o[2] / 2, o[1] + o[3] / 2) };
+  }
+  var sp = {};
+  list.forEach(function (h) { sp[h.id] = span(h); });
+  return list.slice().sort(function (a, b) {
+    var p = sp[a.id], q = sp[b.id];
+    if (p.hi <= q.lo) return -1;
+    if (q.hi <= p.lo) return 1;
+    return p.mid - q.mid;
+  });
 }

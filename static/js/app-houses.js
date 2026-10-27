@@ -128,19 +128,24 @@ $("scene").addEventListener("focusin", function (e) {
 // The tap areas and ridge signs of the closed houses, nearest house last so that it wins where hulls overlap.
 function drawHouseHits(parent, view) {
   var layout = view.state.layout, sc = app.iso;
-  var list = isoHouseList(layout).filter(function (h) { return !isoHouseSvgOpen(h.id); }).map(function (h) {
-    var box = houseBox(layout, h), o = box.outline;
-    return { house: h, box: box, depth: isoPoint(sc, o[0] + o[2] / 2, o[1] + o[3] / 2, 0)[1] };
-  }).sort(function (a, b) { return a.depth - b.depth; });
+  var closed = isoHouseList(layout).filter(function (h) { return !isoHouseSvgOpen(h.id); }).map(function (h) {
+    var box = houseBox(layout, h);
+    return { house: h, box: box, id: h.id, outline: box.outline };
+  });
+  var list = isoHouseOrder(sc, closed);
   list.forEach(function (e) {
     var g = svgEl(parent, "g", { "class": "house", "aria-hidden": "true" });
-    var hit = svgEl(g, "polygon", { points: pointsText(e.box.poly), fill: "transparent", "class": "house-hit", "data-house": e.house.id });
-    hit.addEventListener("click", function () {
-      if (app.suppressClick) { app.suppressClick = false; return; }
-      openHouse(e.house.id, true);
+    var hits = isoHouseSilhouette(sc, e.box.rooms, e.box.outline).map(function (poly) {
+      return svgEl(g, "polygon", { points: pointsText(poly), fill: "transparent", "class": "house-hit", "data-house": e.house.id });
     });
-    hit.addEventListener("pointerenter", function (ev) { if (ev.pointerType === "mouse") isoHouseHover(e.house.id, true); });
-    hit.addEventListener("pointerleave", function () { isoHouseHover(e.house.id, false); });
+    hits.forEach(function (hit) {
+      hit.addEventListener("click", function () {
+        if (app.suppressClick) { app.suppressClick = false; return; }
+        openHouse(e.house.id, true);
+      });
+      hit.addEventListener("pointerenter", function (ev) { if (ev.pointerType === "mouse") isoHouseHover(e.house.id, true); });
+      hit.addEventListener("pointerleave", function () { isoHouseHover(e.house.id, false); });
+    });
     var roof = isoRoofs(e.box.rooms, e.box.outline).sort(function (a, b) { return b.h1 - a.h1; })[0];
     var text = houseSignText(houseFree(view.state, e.box.rooms, app.night).free), k = sc.figScale;
     var w = text.length * 4.6 + 10, h = 13, at = isoPoint(sc, roof.x + roof.w / 2, roof.y + roof.d / 2, roof.h1 + 2);
