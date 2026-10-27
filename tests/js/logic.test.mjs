@@ -4740,7 +4740,7 @@ test("iso: small helpers", () => {
 // --- slight perspective (T-135) ---
 
 test("iso perspective: the strength is one constant, 0 gives the orthographic projection", () => {
-  assert.equal(L.ISO.persp, 0.12);
+  assert.equal(L.ISO.persp, 0.2);
   const o = L.isoScene(isoLayout, { ...L.ISO, persp: 0 });
   assert.equal(o.basis.D, 0);
   const r = Math.SQRT1_2, p = L.isoPoint(o, 50, 20, 6);
@@ -4751,7 +4751,7 @@ test("iso perspective: the strength is one constant, 0 gives the orthographic pr
 test("iso perspective: the nearest ground corner is drawn persp larger than the farthest, the middle is 1", () => {
   const s = L.isoScene(isoLayout), [vw, vh] = isoLayout.map.viewbox;
   const k = [[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoDepthScale(s.basis, x, y, 0));
-  assert.ok(Math.abs(Math.max(...k) / Math.min(...k) - 1.12) < 1e-9);
+  assert.ok(Math.abs(Math.max(...k) / Math.min(...k) - 1.2) < 1e-9);
   assert.ok(Math.abs(L.isoDepthScale(s.basis, vw / 2, vh / 2, 0) - 1) < 1e-9);
   assert.deepEqual(plain(L.isoPoint(s, vw / 2, vh / 2, 0)), [s.ox, s.oy]);
 });
@@ -5060,7 +5060,7 @@ test("houses open: the ridge sign counts the free places of the house on a night
 });
 
 test("houses open: the page hides beds of closed houses and taps open them; no hardcoded geometry", () => {
-  assert.match(appSource, /roomClosed\(layout, e\.room\.id\)\) return;/);
+  assert.match(appSource, /!roomClosed\(layout, rooms\[r\.bed\]\.room\.id\)/);
   assert.match(appSource, /housesZoomRule\(\);/);
   assert.match(appSource, /openHouse\(e\.house\.id, true\)/);
   assert.match(pageFile, /static\/js\/logic-iso-roof\.js\?v=__ASSET_VERSION__/);
@@ -5636,4 +5636,82 @@ test("the scene points of cabin.yaml are plan coordinates of a board and a gate"
   assert.equal(sc.gate.length, 2);
   assert.equal(sc.title, undefined);
   assert.equal(sc.parties, undefined);
+});
+
+// --- the perspective follows the pan (T-147) ---
+
+const centred = (az, persp, vx, vy) => { const s = isoSceneAt(az, { persp }); L.isoSetCentre(s, vx, vy); return s; };
+
+test("pan centre: the plan point under the view centre keeps its place, whatever the strength", () => {
+  isoAngles.forEach((az) => [0.2, 0.35].forEach((persp) => {
+    const s0 = isoSceneAt(az, { persp });
+    [[60, 90], [300, 400], [190, 250]].forEach(([x, y]) => {
+      const p = L.isoPoint(s0, x, y, 0), s = centred(az, persp, p[0], p[1]), q = L.isoPoint(s, x, y, 0);
+      assert.ok(Math.abs(q[0] - p[0]) < 1e-6 && Math.abs(q[1] - p[1]) < 1e-6, `${az} ${persp}`);
+      assert.ok(Math.abs(L.isoDepthScale(s.basis, x, y, 0) - 1) < 1e-9);
+    });
+  }));
+});
+
+test("pan centre: isoPoint and isoUnpoint round trip with a moved centre; the view frame (ref) stays put", () => {
+  isoAngles.forEach((az) => {
+    const s = centred(az, 0.2, 90, 200), ref = isoSceneAt(az, { persp: 0.2 });
+    [[10, 20], [200, 300], [370, 480]].forEach(([x, y]) => {
+      const p = L.isoPoint(s, x, y, 0), q = L.isoUnpoint(s, p[0], p[1]);
+      assert.ok(Math.abs(q[0] - x) < 1e-6 && Math.abs(q[1] - y) < 1e-6);
+      assert.deepEqual(plain(L.isoPoint(s.ref, x, y, 0)), plain(L.isoPoint(ref, x, y, 0)));
+    });
+  });
+});
+
+test("pan centre: a point at the edge shows its sides, the same wall seen from the left and the right of the centre", () => {
+  const s0 = isoSceneAt(45, { persp: 0.2 }), c = L.isoPoint(s0, 190, 250, 0);
+  const wallLeft = (s) => { const a = L.isoPoint(s, 100, 100, 0), b = L.isoPoint(s, 100, 100, 28); return b[0] - a[0]; };      // the lean of a vertical edge
+  const west = centred(45, 0.2, c[0] + 150, c[1]), east = centred(45, 0.2, c[0] - 150, c[1]);
+  const rest = wallLeft(s0);
+  assert.ok(wallLeft(west) < rest - 0.2 && wallLeft(east) > rest + 0.2, `${wallLeft(west)} ${rest} ${wallLeft(east)}`);      // opposite sides lean opposite ways
+  const ortho = isoSceneAt(45, { persp: 0 });
+  assert.equal(L.isoSetCentre(ortho, 10, 10), false);
+});
+
+test("pan centre: a larger strength shows more of the sides; zoom (the view size) does not change it", () => {
+  const lean = (persp) => { const s0 = isoSceneAt(45, { persp }), c = L.isoPoint(s0, 190, 250, 0), s = centred(45, persp, c[0] + 150, c[1]);
+    const a = L.isoPoint(s, 100, 100, 0), b = L.isoPoint(s, 100, 100, 28); return Math.abs(b[0] - a[0]); };
+  assert.ok(lean(0.35) > lean(0.2));
+  const s = centred(45, 0.2, 120, 300);
+  assert.equal(s.basis.D, isoSceneAt(45, { persp: 0.2 }).basis.D);
+});
+
+test("anchors: a sign moves by exactly the shift of its plan point", () => {
+  const s = isoSceneAt(45, { persp: 0.2 }), cx = 190, cy = 250, sign = L.isoAnchorMake(s, cx, cy, 0, false), tail = L.isoPoint(s.ref, cx, cy, 0);
+  [[tail[0] + 150, tail[1] - 60], [tail[0] - 150, tail[1] + 60]].forEach(([vx, vy]) => {
+    L.isoSetCentre(s, vx, vy);
+    const t = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(L.isoAnchorTransform(s, sign)), q = L.isoPoint(s, cx, cy, 0);
+    assert.ok(Math.abs(+t[1] - (q[0] - sign.p[0])) < 1e-2 && Math.abs(+t[2] - (q[1] - sign.p[1])) < 1e-2);
+  });
+});
+
+test("tap polygons are projected again at the moved centre (150 units off, all four angles): same count, moved, and a bed centre lies in its own region", () => {
+  isoAngles.forEach((az) => {
+    const s = isoSceneAt(az, { persp: 0.2 }), c = L.isoPoint(s, 190, 250, 0);
+    const before = L.isoHitRegions(s, isoLayout), pbefore = plain(before);
+    L.isoSetCentre(s, c[0] + 150, c[1] - 40);
+    const after = L.isoHitRegions(s, isoLayout);
+    assert.equal(after.length, before.length);
+    assert.notDeepEqual(plain(after), pbefore);
+    allIsoBeds().forEach(({ bed }) => {
+      const r = bed.rect, p = L.isoPoint(s, r[0] + r[2] / 2, r[1] + r[3] / 2, 3);
+      assert.ok(after.some((q) => q.bed === bed.id && L.isoPointIn(q.poly, p)), `${az} ${bed.id}`);
+    });
+  });
+});
+
+test("persp setting: the address sets it, empty or out of range clears it, the stored text is used otherwise", () => {
+  assert.equal(L.perspSetting("", null), 0.2);
+  assert.equal(L.perspSetting("?persp=0.35", null), 0.35);
+  assert.equal(L.perspSetting("?x=1&persp=0", "0.3"), 0);
+  assert.equal(L.perspSetting("", "0.3"), 0.3);
+  assert.equal(L.perspSetting("?persp=", "0.3"), 0.2);
+  assert.equal(L.perspSetting("?persp=0.5", "0.3"), 0.2);
+  assert.equal(L.perspSetting("", "abc"), 0.2);
 });

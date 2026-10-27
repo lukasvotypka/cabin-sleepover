@@ -10,6 +10,7 @@ var BOARD_W = 252, BOARD_H = 120;      // the board's frame in its own units; th
 function drawBoards() {
   var state = app.state, g = app.layers.boards;
   clearNode(g);
+  isoAnchorsReset("boards");
   drawGate(g, isoSignBox(app.iso, state.layout, "gate"), state);
   drawNoticeBoard(g, isoSignBox(app.iso, state.layout, "board"), state);
 }
@@ -41,6 +42,8 @@ function drawGate(parent, box, state) {
   var k = Math.min(box[2] / 192, box[3] / 70);
   var g = svgEl(parent, "g", { role: "img", "aria-label": titleLabel(state.event), "pointer-events": "none",
     transform: "translate(" + round3(box[0] + box[2] / 2) + " " + round3(box[1] + box[3]) + ") scale(" + round3(k) + ")" });
+  var at = state.layout.map.scene.gate;
+  isoAnchor("boards", g, at[0], at[1], 0, false);
   svgEl(g, "ellipse", { cx: 0, cy: 1, rx: 92, ry: 4, fill: "#2E1F14", opacity: ".3" });
   rect(g, -84, -46, 6, 46, COLORS.bedWoodDark);
   rect(g, 78, -46, 6, 46, COLORS.bedWoodDark);
@@ -56,6 +59,8 @@ function drawNoticeBoard(parent, box, state) {
   var outer = svgEl(parent, "g", {
     transform: "translate(" + round3(box[0] + box[2] / 2 - BOARD_W / 2 * k) + " " + round3(box[1] + box[3] - (BOARD_H + 26) * k) + ") scale(" + round3(k) + ")"
   });
+  var at = state.layout.map.scene.board;
+  isoAnchor("boards", outer, at[0], at[1], 0, false);
   var g = svgEl(outer, "g", { "class": "board-sign" });
   var W = BOARD_W, H = BOARD_H;
   svgEl(g, "ellipse", { cx: W / 2, cy: H + 26, rx: W / 2 + 6, ry: 8, fill: "#2E1F14", opacity: ".3" });

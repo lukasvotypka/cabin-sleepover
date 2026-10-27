@@ -49,10 +49,8 @@ function drawBeds() {
   var g = app.layers.beds, layout = app.state.layout;
   var view = viewState();
   clearNode(g);
-  if (app.isoHitsKey !== app.layoutKey) {      // the tap polygons only change with the layout
-    app.isoHitsKey = app.layoutKey;
-    app.isoHits = isoBedHits(app.iso, layout);
-  }
+  isoAnchorsReset("beds");      // the items below hang on plan points (app-anchor.js) and follow the pan
+  app.isoHits = isoBedHits(app.iso, layout);      // at the centre of the perspective just now, like everything drawn here
   drawRoomPlates(g, layout);
   drawFeatureTreeHit(g);
   var rooms = {}, drawn = [];
@@ -74,10 +72,12 @@ function drawBeds() {
 // focus, label and Tab order; a tap here does what a tap on the bed did.
 function drawBedHits(parent, layout, rooms) {
   var g = svgEl(parent, "g", { "class": "bed-hits", "aria-hidden": "true" });
-  isoHitRegions(app.iso, layout).forEach(function (r) {
+  var open = function () { return isoHitRegions(app.iso, layout).filter(function (r) { return !roomClosed(layout, rooms[r.bed].room.id); }); };      // a closed house is tapped as a whole (drawHouseHits)
+  var nodes = [];
+  open().forEach(function (r) {
     var e = rooms[r.bed];
-    if (roomClosed(layout, e.room.id)) return;      // a closed house is tapped as a whole (drawHouseHits)
     var p = svgEl(g, "polygon", { points: pointsText(r.poly), fill: "transparent", "data-bed": r.bed, "data-part": r.part });
+    nodes.push(p);
     p.addEventListener("click", function () {
       if (app.suppressClick) { app.suppressClick = false; return; }
       onBedTap(e.room, e.bed);
@@ -88,6 +88,7 @@ function drawBedHits(parent, layout, rooms) {
       if (who) svgEl(p, "title", null, who.party ? who.party.name : UNKNOWN_PARTY);
     }
   });
+  isoPolyGroup("beds", nodes, function () { return open().map(function (r) { return r.poly; }); });
 }
 
 // The tap target of the big tree in the 3D world (its crown sways, app-iso.js). Decor, so it stays out of the Tab order.
@@ -95,8 +96,9 @@ function drawFeatureTreeHit(parent) {
   var t = isoActive() && iso3.tree;
   if (!t) return;
   var s = t.size, poly = isoBoxOutline(app.iso, [t.x - 11 * s, t.y - 11 * s, 22 * s, 22 * s], 0, 30 * s);
-  svgEl(parent, "polygon", { points: pointsText(poly), fill: "transparent", "class": "tree-hit", "aria-hidden": "true" })
-    .addEventListener("click", function () { rustleTree(); isoRustle(); });
+  var hit = svgEl(parent, "polygon", { points: pointsText(poly), fill: "transparent", "class": "tree-hit", "aria-hidden": "true" });
+  isoPolyGroup("beds", [hit], function () { return [isoBoxOutline(app.iso, [t.x - 11 * s, t.y - 11 * s, 22 * s, 22 * s], 0, 30 * s)]; });
+  hit.addEventListener("click", function () { rustleTree(); isoRustle(); });
 }
 
 // The room names on small wooden signs hanging upright on the far wall of each room (the north one, or the south one when the camera is in the north) (never over a bed). Signs
@@ -105,12 +107,14 @@ function drawRoomPlates(parent, layout) {
   var sc = app.iso, k = sc.figScale;
   var plates = layout.rooms.filter(function (room) { return !roomClosed(layout, room.id); }).map(function (room) {
     var size = roomSignSize(room), r = room.rect, at = isoPoint(sc, r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room));
-    return { room: room, rect: [Math.round(at[0] - size[0] * k / 2), Math.round(at[1] - size[1] * k), size[0] * k, size[1] * k] };
+    return { room: room, plan: [r[0] + r[2] / 2, isoBackSides(sc.azimuth).n ? r[1] : r[1] + r[3], roomWallTop(layout, room)],
+      rect: [Math.round(at[0] - size[0] * k / 2), Math.round(at[1] - size[1] * k), size[0] * k, size[1] * k] };
   });
   var dy = isoPlateShifts(plates.map(function (p) { return p.rect; }));
   var g = svgEl(parent, "g", { "aria-hidden": "true", "pointer-events": "none" });
   plates.forEach(function (p, i) {
     var sg = svgEl(g, "g", { transform: isoFigureTransform({ x: p.rect[0], y: p.rect[1] + dy[i], k: k }) });
+    isoAnchor("beds", sg, p.plan[0], p.plan[1], p.plan[2], false);
     drawRoomSign(sg, p.room);
   });
 }
@@ -136,9 +140,10 @@ function drawBedTags(parent, layout) {
     if (roomClosed(layout, room.id)) return;
     room.beds.forEach(function (bed) {
       isoBedTags(app.iso, bed).forEach(function (t) {
-        var w = t.text.length * 2.5 + 4;
-        rect(g, t.x - w / 2, t.y, w, 6, COLORS.woodDark, { opacity: ".85" });
-        addText(g, t.x, t.y + 4.6, t.text, 4.5, COLORS.paper, { anchor: "middle", bold: true });
+        var w = t.text.length * 2.5 + 4, tg = svgEl(g, "g"), q = isoUnpoint(app.iso, t.x, t.y);
+        isoAnchor("beds", tg, q[0], q[1], 0, false);
+        rect(tg, t.x - w / 2, t.y, w, 6, COLORS.woodDark, { opacity: ".85" });
+        addText(tg, t.x, t.y + 4.6, t.text, 4.5, COLORS.paper, { anchor: "middle", bold: true });
       });
     });
   });
@@ -168,7 +173,9 @@ function drawMeadow(parent, view) {
   var spot = meadowLayout(meadow, waiting.length);
   var g = svgEl(parent, "g");
   var ch = shirtChar(party.name);
-  svgEl(g, "polygon", { points: pointsText(isoMeadowHit(sc, view.state.layout, meadow, waiting.length)), "class": "hit" });
+  var meadowHit = isoMeadowHit(sc, view.state.layout, meadow, waiting.length);
+  var meadowNode = svgEl(g, "polygon", { points: pointsText(meadowHit), "class": "hit" });
+  isoPolyGroup("beds", [meadowNode], function () { return [isoMeadowHit(app.iso, view.state.layout, meadow, waiting.length)]; });
   spot.cells.map(function (cell, i) { return { cell: cell, kind: waiting[i].kind, i: i, v: isoPoint(sc, cell[0] + 5, cell[1] + 7, 0)[1] }; })
     .sort(function (a, b) { return a.v - b.v; })
     .forEach(function (e) {
@@ -183,6 +190,7 @@ function drawMeadow(parent, view) {
     });
   if (spot.morePos) {
     var cg = svgEl(g, "g", { transform: isoFigureTransform(isoFigure(sc, spot.morePos, 0)) });
+    isoAnchor("beds", cg, spot.morePos[0] + 5, spot.morePos[1] + 7, 0, false);
     var chip = [-1, 0, 12, 12];
     board(cg, chip, COLORS.plank);
     addText(cg, chip[0] + 6, chip[1] + 8.5, "+" + spot.more, 7, COLORS.paper, { anchor: "middle", bold: true });
@@ -194,6 +202,7 @@ function drawBed(parent, layout, view, room, bed) {
   var night = app.night, st = view.state, sc = app.iso;
   var hit = app.isoHits[bed.id], quilt = COLORS[isoQuiltKey(bed.kind)];
   var g = svgEl(parent, "g", { "class": "bed", "pointer-events": "none" });      // taps go to drawBedHits
+  isoAnchor("beds", g, bed.rect[0] + bed.rect[2] / 2, bed.rect[1] + bed.rect[3] / 2, 0, true);
   if (roomClosed(layout, room.id)) {      // the house is closed: only the keyboard and screen readers reach the bed, and focus opens the house
     makeButton(g, bedLabel(st, room, bed, night) + ". Ťuknutím otvoríš.", "bed-" + bed.id, function () { onBedTap(room, bed); });
     return;

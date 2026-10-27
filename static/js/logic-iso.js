@@ -8,7 +8,8 @@
 // With ISO.persp > 0 (T-135) it is a slight perspective instead: the same azimuth and tilt, a camera at distance D
 // from the middle of the plan, and every point scaled by D / (D − z) with z its distance toward the camera. D follows
 // from the strength: the nearest ground corner is drawn `persp` times larger than the farthest. persp 0 is the
-// orthographic view above. Either way the svg and the WebGL camera share the projection exactly: the svg draws beds,
+// orthographic view above. The camera travels with the pan (T-147): the middle of the perspective is the plan point under the
+// screen centre (isoSetCentre), so a house near the edge of the screen shows its outer wall. Either way the svg and the WebGL camera share the projection exactly: the svg draws beds,
 // figures and boards at projected points, and app-iso.js points its camera so that its pixels land on the same units.
 // The notice board and the title gate are upright signs facing the camera (isoSignBox). The night stamps, the time
 // slider and the icons are the fixed HUD in index.html (T-145), not part of the scene.
@@ -16,7 +17,7 @@
 var ISO = {
   azimuth: 45,          // degrees: the plan turned so that its top left corner points up
   tilt: 30,             // degrees above the horizon: sin 30° = 0.5, the classic 2:1 pixel-art isometric
-  persp: 0.12,          // depth strength: the nearest ground corner is drawn this much larger than the farthest (0 = orthographic, keep it under 0.2)
+  persp: 0.2,           // depth strength: the nearest ground corner is drawn this much larger than the farthest (0 = orthographic; `?persp=` tunes it, see perspSetting)
   figScale: 1.35,       // the people sprites standing on the beds
   margin: 12,           // grass around the whole scene
   headroom: 84,         // map units above the ground the world may reach (roofs, chimneys, smoke)
@@ -152,7 +153,7 @@ function isoScene(layout, opts) {
   var W = Math.ceil(worldW + 2 * o.margin);
   var top = o.margin;
   var H = Math.ceil(top + (vMax - vMin) + o.margin);
-  return {
+  var scene = {
     basis: basis,
     azimuth: o.azimuth,
     ox: (W - worldW) / 2 - uMin,
@@ -161,6 +162,40 @@ function isoScene(layout, opts) {
     top: top,
     figScale: o.figScale
   };
+  // `ref` is the same scene with the perspective centred on the middle of the plan and never moved: the frame the views and the
+  // rest view are measured in (the view centre is where the centre of the perspective shows).
+  scene.ref = Object.assign({}, scene, { basis: Object.assign({}, basis) });
+  return scene;
+}
+
+// Centres the perspective of `scene` on the plan point that shows at the scene point (vx, vy), the middle of the view: that
+// point keeps its place, everything else shifts by its parallax. Returns true when the centre moved. No-op for an orthographic scene.
+function isoSetCentre(scene, vx, vy) {
+  var b = scene.basis;
+  if (!b.D || !scene.ref) return false;
+  var c = isoUnpoint(scene.ref, vx, vy);
+  if (Math.abs(c[0] - b.tx) < 1e-4 && Math.abs(c[1] - b.ty) < 1e-4 && scene.ox === vx && scene.oy === vy) return false;
+  b.tx = c[0];
+  b.ty = c[1];
+  scene.ox = vx;
+  scene.oy = vy;
+  return true;
+}
+
+// A plan point at height h that an svg item hangs on, drawn at the scene's current centre: {x, y, h, p, f, scaled}. When the
+// centre moves, isoAnchorTransform gives the transform that carries the item to where the new projection puts the anchor
+// (T-147), so the svg follows the pan without being drawn again. The error is the change of the parallax across the item,
+// well under a pixel for items the size of a bed or a house. `scaled` items also grow with the depth scale (polygons);
+// signs keep their size.
+function isoAnchorMake(scene, x, y, h, scaled) {
+  return { x: x, y: y, h: h || 0, p: isoPoint(scene, x, y, h), f: isoDepthScale(scene.basis, x, y, h), scaled: !!scaled };
+}
+
+// The transform (a string for the svg `transform` attribute, put in front of the item's own) that moves anchor `a` to the scene's current projection.
+function isoAnchorTransform(scene, a) {
+  var q = isoPoint(scene, a.x, a.y, a.h), r = a.scaled ? isoDepthScale(scene.basis, a.x, a.y, a.h) / a.f : 1;
+  if (!a.scaled) return "translate(" + round3(q[0] - a.p[0]) + " " + round3(q[1] - a.p[1]) + ")";
+  return "translate(" + round3(q[0]) + " " + round3(q[1]) + ") scale(" + Math.round(r * 1e5) / 1e5 + ") translate(" + round3(-a.p[0]) + " " + round3(-a.p[1]) + ")";
 }
 
 // The two upright signs of the village (T-146): the notice board and the title gate. They stand on a ground point of the plan
@@ -184,7 +219,7 @@ function isoPoint(scene, x, y, h) {
 // is inverted by a few rounds of correcting the depth scale.
 function isoUnpoint(scene, px, py) {
   var b = scene.basis, u = px - scene.ox, v = py - scene.oy, f = 1, x = 0, y = 0, i;
-  for (i = 0; i < 8; i++) {
+  for (i = 0; i < 16; i++) {
     var a = u / f, c = v / f / b.sp;
     x = b.tx + a * b.c + c * b.s;
     y = b.ty - a * b.s + c * b.c;
@@ -198,8 +233,8 @@ function isoUnpoint(scene, px, py) {
 // relative to the rest zoom stays, clamped to the new bounds.
 function isoTurnView(from, to, oldView, oldRest, newRest, newBounds) {
   if (!oldView || !oldRest || sameView(oldView, oldRest)) return newRest;
-  var p = isoUnpoint(from, oldView.x + oldView.w / 2, oldView.y + oldView.h / 2);
-  var c = isoPoint(to, p[0], p[1], 0), w = newRest.w * oldView.w / oldRest.w, h = w * newRest.h / newRest.w;
+  var p = isoUnpoint(from.ref || from, oldView.x + oldView.w / 2, oldView.y + oldView.h / 2);
+  var c = isoPoint(to.ref || to, p[0], p[1], 0), w = newRest.w * oldView.w / oldRest.w, h = w * newRest.h / newRest.w;
   return clampView({ x: c[0] - w / 2, y: c[1] - h / 2, w: w, h: h }, newBounds);
 }
 
@@ -207,6 +242,7 @@ function isoTurnView(from, to, oldView, oldRest, newRest, newBounds) {
 // padded by `pad` units. The forest around it is left to panning.
 function isoContentRect(scene, layout, pad) {
   pad = pad === undefined ? 12 : pad;
+  scene = scene.ref || scene;      // the view frame, whatever the centre of the perspective is just now
   var rects = [isoSignBox(scene, layout, "board"), isoSignBox(scene, layout, "gate")];
   layout.rooms.forEach(function (room) { rects.push(polyBox(isoBoxOutline(scene, room.rect, 0, ISO.wallH))); });
   var u = unionRect(rects);
@@ -681,6 +717,15 @@ function isoFirefly(clock, i) {
 function fpsSetting(search, stored) {
   var m = /[?&]fps=([01])(?:&|$)/.exec(search || "");
   return m ? m[1] === "1" : stored === "1";
+}
+
+// The depth strength of this device (T-147): `?persp=0.3` in the page address sets it (0 to ISO_PERSP_MAX, remembered), `?persp=` with
+// no value or out of range clears it. `stored` is the remembered text or null. Returns the number, ISO.persp when unset.
+var ISO_PERSP_MAX = 0.35;
+function perspSetting(search, stored) {
+  var m = /[?&]persp=([^&#]*)/.exec(search || ""), text = m ? m[1] : stored;
+  var n = text !== null && text !== undefined && /^\d*\.?\d+$/.test(text) ? parseFloat(text) : NaN;
+  return n >= 0 && n <= ISO_PERSP_MAX ? n : ISO.persp;
 }
 
 // Renders per second and render time over the last `windowMs` ms. `samples` are [{at, ms}] (when a render

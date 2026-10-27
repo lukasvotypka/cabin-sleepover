@@ -561,7 +561,7 @@ function isoBuild(host, layout, sc) {
   // the feature tree, the campfire and the forest: nothing within 12 units of a room, path, door, meadow or bed
   var worldTop = sc.top;
   function underBoards(t, height) {      // its top would reach above the scene
-    return isoPoint(sc, t.x, t.y, height * (t.size || 1))[1] < worldTop;
+    return isoPoint(sc.ref, t.x, t.y, height * (t.size || 1))[1] < worldTop;
   }
   var treeSpot = isoFreeSpot(layout, [[44, 222], [40, 300], [330, 200], [300, 470]], 14) || [-30, 240];
   var fireSpot = isoFreeSpot(layout, [[310, 448], [320, 220], [44, 300], [200, 220]], 22);
@@ -684,7 +684,8 @@ function isoSync() {
   var sw = app.swing && app.swing.scene ? app.swing : null;      // while the map turns, the camera follows the swing (app-turn.js)
   var v = sw ? sw.view : app.view, s = Math.min(w / v.w, h / v.h), vw = w / s, vh = h / s;
   var vx = v.x - (vw - v.w) / 2, vy = v.y - (vh - v.h) / 2, sc = sw ? sw.scene : app.iso, cam = iso3.camera;
-  if (sw) isoPose(cam, sc.basis);
+  isoSetCentre(sc, v.x + v.w / 2, v.y + v.h / 2);      // the eye travels with the pan: it stays above the plan point under the screen centre (T-147)
+  if (sc.basis.D) isoPose(cam, sc.basis);
   var l = vx - sc.ox, r = vx + vw - sc.ox, t = sc.oy - vy, b = sc.oy - (vy + vh);
   if (sc.basis.D) {      // the crop of the full scene frame as an off-centre frustum (the principal point is at ox, oy), like the svg viewBox crop
     var n = cam.near / sc.basis.D;
@@ -694,6 +695,7 @@ function isoSync() {
     cam.left = l; cam.right = r; cam.top = t; cam.bottom = b;
     cam.updateProjectionMatrix();
   }
+  if (!sw) isoAnchorsUpdate();      // the svg items follow the new centre (app-anchor.js)
   isoDirty();
 }
 
@@ -842,7 +844,7 @@ function isoMove(me) {
   if (L.fire) L.fire.intensity = (0.3 + 1.3 * l.lamp) * (still ? 1 : isoFlicker(t));
   L.smoke.forEach(function (s) {
     var q = isoSmoke(t, s.n), y = s.c[2] + q.rise;
-    s.mesh.visible = !still && q.opacity > 0.01 && isoPoint(sc, s.c[0], s.c[1], y)[1] >= me.worldTop;      // never over the boards
+    s.mesh.visible = !still && q.opacity > 0.01 && isoPoint(sc.ref, s.c[0], s.c[1], y)[1] >= me.worldTop;      // never over the boards
     s.mesh.scale.set(q.size, q.size, q.size);
     s.mesh.position.set(s.c[0], y, s.c[1]);
     s.mat.opacity = q.opacity;

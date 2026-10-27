@@ -116,6 +116,7 @@ function ensureScene() {
   if (app.layoutKey === key) return;
   app.layoutKey = key;
   cancelWalks();      // the old walk layer goes away with the old svg
+  isoAnchorsReset();
   var host = $("scene");
   clearNode(host);
   app.iso = isoScene(layout, { azimuth: app.viewAngle });      // the isometric projection and scene size (logic-iso.js); the svg is as big as the scene

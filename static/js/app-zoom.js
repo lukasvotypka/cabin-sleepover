@@ -19,7 +19,7 @@ function applyView() {
 // The scene point [x, y] the intro zoom centres on: the title gate. [undefined, undefined] before the scene exists.
 function introFocus() {
   if (!app.state || !app.iso) return [undefined, undefined];
-  var b = isoSignBox(app.iso, app.state.layout, "gate");
+  var b = isoSignBox(app.iso.ref, app.state.layout, "gate");      // in the view frame, not at the moving centre
   return [b[0] + b[2] / 2, b[1] + b[3] / 2];
 }
 

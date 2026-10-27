@@ -45,7 +45,7 @@ function houseBox(layout, house) {
   var rooms = layout.rooms.filter(function (r) { return house.rooms.indexOf(r.id) >= 0; });
   var outline = houseOutline(house, layout.rooms);
   var top = isoRoofTop(isoRoofs(rooms, outline));
-  return { outline: outline, rooms: rooms, top: top, poly: isoBoxOutline(app.iso, outline, 0, top) };
+  return { outline: outline, rooms: rooms, top: top, poly: isoBoxOutline(app.iso.ref, outline, 0, top) };
 }
 
 // A tap on a closed house: open it and zoom to it.
@@ -138,6 +138,7 @@ function drawHouseHits(parent, view) {
     var hits = isoHouseSilhouette(sc, e.box.rooms, e.box.outline).map(function (poly) {
       return svgEl(g, "polygon", { points: pointsText(poly), fill: "transparent", "class": "house-hit", "data-house": e.house.id });
     });
+    isoPolyGroup("beds", hits, function () { return isoHouseSilhouette(app.iso, e.box.rooms, e.box.outline); });
     hits.forEach(function (hit) {
       hit.addEventListener("click", function () {
         if (app.suppressClick) { app.suppressClick = false; return; }
@@ -150,6 +151,7 @@ function drawHouseHits(parent, view) {
     var text = houseSignText(houseFree(view.state, e.box.rooms, app.night).free), k = sc.figScale;
     var w = text.length * 4.6 + 10, h = 13, at = isoPoint(sc, roof.x + roof.w / 2, roof.y + roof.d / 2, roof.h1 + 2);
     var sg = svgEl(g, "g", { transform: "translate(" + round3(at[0] - w * k / 2) + " " + round3(at[1] - h * k) + ") scale(" + k + ")", "pointer-events": "none", "class": "house-sign" });
+    isoAnchor("beds", sg, roof.x + roof.w / 2, roof.y + roof.d / 2, roof.h1 + 2, false);
     board(sg, [0, 0, w, h], COLORS.paper, COLORS.woodDark);
     addText(sg, w / 2, 9.2, text, 7, COLORS.ink, { anchor: "middle", bold: true });
   });
