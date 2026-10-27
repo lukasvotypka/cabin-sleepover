@@ -9,9 +9,9 @@ map:
   paths:   [[240, 388, 16, 96], [60, 468, 196, 12], [84, 174, 12, 232], [96, 352, 24, 12]]
   doors:   [[218, 312, 4, 20], [264, 312, 4, 20], [238, 388, 20, 4], [80, 172, 20, 6], [80, 406, 20, 4]]
   windows: [[186, 268, 24, 4], [300, 268, 24, 4]]
-  scene:                       # info boards on the grass, rect = [x, y, width, height]; the night stamps, the time slider and the icons are the fixed HUD (index.html)
-    title:  [176, 4, 196, 28]    # event name
-    parties: [176, 36, 196, 136] # table of parties and their places per night
+  scene:                       # places in plan coordinates; the night stamps, the time slider and the icons are the fixed HUD (index.html)
+    board:  [380, 50]           # the „Kto kedy príde“ notice board (an upright sign facing the camera). Chosen so that no house is behind it on the screen from any of the four angles (tests/js)
+    gate:   [248, 490]           # the title gate over the entrance path (an upright sign facing the camera)
     meadow: [112, 453, 124, 14]  # meadow where people of my party without a bed wait
 
 rooms:

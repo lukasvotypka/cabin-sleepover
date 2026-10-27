@@ -1,6 +1,6 @@
 "use strict";
 
-// App part 5: drawing the scene (ground, houses, boards, signposts).
+// App part 5: drawing the scene (ground, the flat fallback of the world, the room signs, rendering).
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 function drawGround(g, bounds) {
@@ -25,13 +25,13 @@ function drawGround(g, bounds) {
 // in map units, so it stays over the land when the map is panned or zoomed. It flies from just left of the map
 // to just right of it along `BIRD.y`, over everything, in its own aria-hidden layer that ignores taps. Two frames
 // of 7 x 3 cells flap the wings; `prefers-reduced-motion` hides it. It chirps once per flight (app-sound.js).
-var BIRD = { cell: 4, margin: 40 };      // flies across the whole scene width, in the grass strip between the board block and the world
+var BIRD = { cell: 4, margin: 40 };      // flies across the whole scene width, in the strip of grass at the top of the scene
 var BIRD_FRAMES = [
   [[1, 0, 1], [5, 0, 1], [2, 1, 3]],               // wings up: [x, y, width] in cells
   [[2, 1, 3], [1, 2, 1], [5, 2, 1]]                // wings down
 ];
 function birdY(iso) {
-  return Math.round(iso.block.y + iso.block.src[3] * iso.block.k + (ISO.gap - 3 * BIRD.cell) / 2);
+  return Math.round(iso.top / 2);
 }
 function drawBird(g, layout) {
   var c = BIRD.cell, x0 = -BIRD.margin - 7 * c, fly = app.iso.W + 2 * BIRD.margin + 7 * c;
@@ -153,135 +153,6 @@ function renderSummary() {
   }
 }
 
-function renderBoards() {
-  keepFocus($("scene"), drawBoards);
-}
-
 function renderBeds() {
   keepFocus($("scene"), drawBeds);
-}
-
-function drawBoards() {
-  var state = app.state, scene = state.layout.map.scene;
-  var g = app.layers.boards;
-  clearNode(g);
-  drawTitle(g, scene.title, state);
-  drawPartyTable(g, scene.parties, state);
-}
-
-// A flat pixel shadow under a board (the same shape, +2/+2 block units): the block stands above the grass.
-function blockShadow(parent, r) {
-  rect(parent, r[0] + 2, r[1] + 2, r[2], r[3], "#2E1F14", { opacity: ".25", "aria-hidden": "true" });
-}
-
-function drawTitle(parent, r, state) {
-  var g = svgEl(parent, "g", { role: "img", "aria-label": titleLabel(state.event) });
-  blockShadow(g, r);
-  board(g, r, COLORS.plank);
-  // 12 px bold: the baseline sits about 4 units below the middle of the board
-  addText(g, r[0] + r[2] / 2, r[1] + r[3] / 2 + 4, state.event.name, 12, COLORS.paper, { anchor: "middle", bold: true, maxWidth: r[2] - 16 });
-  rect(g, r[0] + 6, r[1] + 6, 3, 3, COLORS.woodLight);
-  rect(g, r[0] + r[2] - 9, r[1] + 6, 3, 3, COLORS.woodLight);
-}
-
-// A pixel crescent moon (6x8 units) and a pixel sun (8x8 units) from rects, top left at (x, y).
-function drawMoon(g, x, y) {
-  rect(g, x + 2, y, 4, 1, COLORS.moonDark);
-  rect(g, x + 1, y + 1, 3, 1, COLORS.moon);
-  rect(g, x, y + 2, 3, 4, COLORS.moon);
-  rect(g, x + 1, y + 6, 3, 1, COLORS.moon);
-  rect(g, x + 2, y + 7, 4, 1, COLORS.moonDark);
-  rect(g, x + 4, y + 1, 2, 1, COLORS.moonDark);
-}
-
-function drawSun(g, x, y) {
-  rect(g, x + 3, y, 1, 8, COLORS.amberEdge);
-  rect(g, x, y + 3, 8, 1, COLORS.amberEdge);
-  rect(g, x + 2, y + 2, 4, 4, COLORS.highlight);
-  [[1, 1], [6, 1], [1, 6], [6, 6]].forEach(function (p) { rect(g, x + p[0], y + p[1], 1, 1, COLORS.amberEdge); });
-}
-
-// The paper table under the signposts, as tall as its rows. Top part „Noc“: a row per overnight party (colour
-// square and name), a column per night with placed/needed places. Bottom part „Cez deň“: a row per day-only
-// party and a column per event day with the number of people, then „spolu na jedlo“. The whole table is one button
-// that opens „Kto je kto“. The night numbers are the same nightTally as on the signpost chips.
-function drawPartyTable(parent, r, state) {
-  var rows = partyTableRows(state, app.myParty), dayRows = dayTableRows(state, app.myParty);
-  var nights = state.event.nights, days = eventDays(state.event);
-  var lay = partyTableLayout(r, rows.length, dayRows.length, nights.length, days.length);
-  var g = svgEl(parent, "g");
-  dnFitPartyShade(lay.height);
-  blockShadow(g, [r[0], r[1], r[2], lay.height]);
-  board(g, [r[0], r[1], r[2], lay.height], COLORS.paper, COLORS.woodDark);
-  var innerX = r[0] + lay.pad, innerW = r[2] - 2 * lay.pad, size = lay.size, hh = lay.head;
-  var night = lay.night, day = lay.day;
-  function base(y) { return y + lay.rowH / 2 + size * 0.35; }
-  function nameCell(y, row, w) {
-    if (row.mine) rect(g, innerX, y, innerW, lay.rowH, COLORS.selected);
-    rect(g, lay.nameX + 2, y + (lay.rowH - 5) / 2, 5, 5, row.color);
-    addText(g, lay.nameX + 10, base(y), row.label, size, COLORS.ink, { bold: row.mine, maxWidth: w - 10 });
-  }
-  function moreLine(y, count) {
-    addText(g, lay.nameX + 3, base(y), moreText(count), size, COLORS.roomLabel, { maxWidth: innerW - 6 });
-  }
-
-  // night part: moon, „Noc“, a header per night (the selected night is yellow)
-  rect(g, innerX, night.headY, innerW, hh, COLORS.moonBand);
-  drawMoon(g, innerX + 2, night.headY + 1);
-  addText(g, innerX + 13, night.headY + 7.5, "Noc", 6.5, COLORS.nightInk, { bold: true });
-  nights.forEach(function (n, i) {
-    var info = nightInfo(n) || { label: n };
-    if (n === app.night) rect(g, night.colX[i], night.headY, lay.colW, hh, COLORS.selected);
-    addText(g, night.colX[i] + lay.colW / 2, night.headY + 7.5, dayShort(n), 6, COLORS.ink,
-      { anchor: "middle", bold: true, maxWidth: lay.colW - 2 });
-  });
-  rows.slice(0, night.rows).forEach(function (row, i) {
-    var y = night.y0 + i * lay.rowH;
-    nameCell(y, row, night.nameW);
-    row.cells.forEach(function (cell, j) {
-      var cx = night.colX[j] + lay.colW / 2, tone = TALLY_COLORS[cell.kind];
-      if (cell.kind === "under" || cell.kind === "over") {
-        var cw = lay.colW - 4, ch = lay.rowH - 1;
-        rect(g, cx - cw / 2, y + 0.5, cw, ch, COLORS[tone[0]]);
-        rect(g, cx - cw / 2 + 1, y + 1.5, cw - 2, ch - 2, COLORS[tone[1]]);
-        addText(g, cx, base(y), cell.text, size, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: cw - 4 });
-      } else {
-        addText(g, cx, base(y), cell.text, size, COLORS.ink, { anchor: "middle", maxWidth: lay.colW - 4 });
-      }
-    });
-  });
-  if (night.more) moreLine(night.y0 + night.rows * lay.rowH, night.more);
-
-  // divider, then the day part: sun, „Cez deň“, a header per event day
-  rect(g, innerX, lay.dividerY, innerW, 1, COLORS.woodDark);
-  rect(g, innerX, day.headY, innerW, hh, COLORS.dayBand);
-  drawSun(g, innerX + 2, day.headY + 1);
-  addText(g, innerX + 13, day.headY + 7.5, "Cez deň", 6.5, COLORS.dayInk, { bold: true });
-  days.forEach(function (d, i) {
-    addText(g, day.colX[i] + lay.colW / 2, day.headY + 7.5, dayColumnLabel(d), 6, COLORS.ink,
-      { anchor: "middle", bold: true, maxWidth: lay.colW - 2 });
-  });
-  dayRows.slice(0, day.rows).forEach(function (row, i) {
-    var y = day.y0 + i * lay.rowH;
-    nameCell(y, row, day.nameW);
-    row.cells.forEach(function (cell, j) {
-      if (!cell.text) return;
-      var cx = day.colX[j] + lay.colW / 2;
-      rect(g, cx - 6, y + 1, 12, lay.rowH - 2, COLORS.dayBand);
-      addText(g, cx, base(y), cell.text, size, COLORS.dayInk, { anchor: "middle", bold: true, maxWidth: 10 });
-    });
-  });
-  if (day.more) moreLine(day.y0 + day.rows * lay.rowH, day.more);
-
-  // food row
-  rect(g, innerX, lay.ruleY, innerW, 1, COLORS.woodDark);
-  addText(g, lay.nameX + 3, base(lay.foodY), "spolu na jedlo", size, COLORS.ink, { bold: true, maxWidth: day.nameW - 3 });
-  foodRow(state).forEach(function (n, i) {
-    addText(g, day.colX[i] + lay.colW / 2, base(lay.foodY), String(n), size, COLORS.ink,
-      { anchor: "middle", bold: true, maxWidth: lay.colW - 4 });
-  });
-
-  hitRect(g, [r[0], r[1], r[2], lay.height]);
-  makeButton(g, "Kto kde spí po nociach, kto príde cez deň a koľko vás je na jedlo. Ťuknutím otvoríš „Kto je kto“.",
-    "parties", function () { openLegend("parties"); });
 }

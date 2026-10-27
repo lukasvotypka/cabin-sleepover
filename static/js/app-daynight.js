@@ -25,27 +25,12 @@ function dnNoon(night) {
   return noonOf(night, app.state ? app.state.event.nights : []);
 }
 
-// Builds the weak tint over the boards (the world itself is lit in 3D) and the slider; called by ensureScene.
-function dnBuild(svg, layout, beforeNode, afterNode) {
-  var fx = { vis: {} };
-  // A weak tint over the boards, so they stay readable at night.
-  var shade = svgEl(null, "g", { "aria-hidden": "true", "pointer-events": "none" });
-  svg.insertBefore(shade, afterNode);
-  fx.shadeLayer = shade;
-  shade.setAttribute("transform", isoBlockTransform(app.iso));
-  fx.boardShade = svgEl(shade, "g", { opacity: 0 });
-  // The boards of the scene (the night stamps and the rail are HTML and stay readable).
-  var sc = layout.map.scene;
-  ["title", "parties"].forEach(function (k) {
-    if (!sc[k]) return;
-    var n = svgEl(fx.boardShade, "rect", { x: sc[k][0], y: sc[k][1], width: sc[k][2], height: sc[k][3], fill: "#0B1636" });
-    if (k === "parties") fx.partyShade = n;
-  });
-  // Nothing is rendered at rest: hidden elements cost no painting (T-113).
-  [shade, fx.boardShade].forEach(function (n) { n.setAttribute("display", "none"); });
+// Prepares the scene's day and night state and the rail; called by ensureScene. The world is lit in 3D (isoLight); the signs
+// stay unlit so they remain readable.
+function dnBuild(svg, layout) {
+  var fx = { vis: {}, svg: svg };
   fx.bird = svg.querySelector(".bird");      // the bird is drawn before dnBuild runs
   dn.fx = fx;
-  dnFitPartyShade();
   var nights = app.state.event.nights;
   if (dn.hour === null || nightAt(dn.hour, nights) !== app.night) dn.hour = dnNoon(app.night);
   dnBuildRail();
@@ -58,38 +43,12 @@ function dnPaint(h) {
   dnSliderPaint(h);
   var l = lightAt(h);
   isoLight(l);      // sky, ground, sun, lamps, campfire and fireflies of the 3D world
-  dnVis(fx, "boardShade", fx.boardShade, l.dark * 0.25);
   if (fx.vis.sleep !== l.sleep) {      // the „z-z-z“ over the people in the beds (drawZzz)
     fx.vis.sleep = l.sleep;
-    fx.shadeLayer.ownerSVGElement.classList.toggle("night", l.sleep);
+    fx.svg.classList.toggle("night", l.sleep);
     setCrickets(l.sleep);
   }
-  dnWrap(fx.shadeLayer, fx.vis.boardShade, fx, "shadeLayer");
   if (fx.bird) fx.bird.setAttribute("opacity", l.bird.toFixed(3));
-}
-
-// The party table is only as tall as its rows, so its shade follows the height drawPartyTable reports.
-function dnFitPartyShade(height) {
-  if (height !== undefined) dn.partyH = height;
-  var fx = dn.fx || null;
-  var n = fx ? fx.partyShade : null;
-  if (n && dn.partyH) n.setAttribute("height", dn.partyH);
-}
-
-// Sets the opacity and switches `display` only when the element crosses zero.
-function dnVis(fx, key, node, opacity) {
-  var on = opacity >= 0.002;
-  node.setAttribute("opacity", opacity.toFixed(3));
-  if (fx.vis[key] === on) return;
-  fx.vis[key] = on;
-  if (on) node.removeAttribute("display"); else node.setAttribute("display", "none");
-}
-
-function dnWrap(node, on, fx, key) {
-  on = !!on;
-  if (fx.vis[key] === on) return;
-  fx.vis[key] = on;
-  if (on) node.removeAttribute("display"); else node.setAttribute("display", "none");
 }
 
 // The shown night always belongs to the time: a night chosen by any other means (login, create, bed sheet, SSE)

@@ -119,7 +119,7 @@ function ensureScene() {
   var host = $("scene");
   clearNode(host);
   app.iso = isoScene(layout, { azimuth: app.viewAngle });      // the isometric projection and scene size (logic-iso.js); the svg is as big as the scene
-  app.sceneContent = isoContentRect(app.iso, layout);      // what the rest view of a phone fits (restView)
+  app.sceneContent = isoContentRect(app.iso, layout);      // the rooms and the signs, what the rest view of a phone fits (restView)
   isoBuild(host, layout, app.iso);      // the 3D world goes under the svg; false = no WebGL, drawBase draws a flat fallback
   var svg = svgEl(host, "svg", {
     viewBox: "0 0 " + app.iso.W + " " + app.iso.H, "shape-rendering": "geometricPrecision", role: "group",
@@ -130,12 +130,12 @@ function ensureScene() {
     base: svgEl(svg, "g", { "aria-hidden": "true" }),
     beds: svgEl(svg, "g"),
     walk: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
-    boards: svgEl(svg, "g", { transform: isoBlockTransform(app.iso) }),      // the upright board block above the world
+    boards: svgEl(svg, "g"),      // the notice board and the title gate (upright signs on the plan)
     tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
     sky: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
   };
   drawBase(app.layers.base, layout);
   drawBird(app.layers.sky, layout);
-  dnBuild(svg, layout, app.layers.boards, app.layers.tip);
+  dnBuild(svg, layout);
   setupZoom(host, svg, app.iso.W, app.iso.H);
 }

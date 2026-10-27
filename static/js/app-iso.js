@@ -559,8 +559,8 @@ function isoBuild(host, layout, sc) {
   (layout.map.windows || []).forEach(function (w) { isoWindow(b, glass, w); });
 
   // the feature tree, the campfire and the forest: nothing within 12 units of a room, path, door, meadow or bed
-  var worldTop = sc.block.y + sc.block.src[3] * sc.block.k + ISO.gap;
-  function underBoards(t, height) {      // its top would reach the board block on the scene
+  var worldTop = sc.top;
+  function underBoards(t, height) {      // its top would reach above the scene
     return isoPoint(sc, t.x, t.y, height * (t.size || 1))[1] < worldTop;
   }
   var treeSpot = isoFreeSpot(layout, [[44, 222], [40, 300], [330, 200], [300, 470]], 14) || [-30, 240];
@@ -568,6 +568,10 @@ function isoBuild(host, layout, sc) {
   if (fireSpot) isoCampfire(b, fireSpot[0], fireSpot[1]);
   var keep = [[treeSpot[0] - 20, treeSpot[1] - 20, 40, 40]];
   if (fireSpot) keep.push([fireSpot[0] - 30, fireSpot[1] - 30, 60, 60]);
+  ["board", "gate"].forEach(function (key) {      // no tree where a sign stands
+    var at = layout.map.scene[key];
+    if (at) keep.push([at[0] - 40, at[1] - 40, 80, 80]);
+  });
   var forest = isoTrees(layout, { keepOut: keep, count: 70 }), edge = isoTrees(layout, { keepOut: keep, count: 40, clear: 12, rim: 40 });
   forest.forEach(function (t) {
     if (underBoards(t, 45)) return;

@@ -1156,10 +1156,11 @@ test("openNotice opens a centred panel with one textContent paragraph per step a
   assert.doesNotMatch(body, /innerHTML/);
 });
 
-test("the party table is drawn on every drawBoards, and no collapse state is left", () => {
-  const body = html.slice(html.indexOf("function drawBoards("), html.indexOf("// A flat pixel shadow"));
-  assert.match(body, /\n\s+drawPartyTable\(g, scene\.parties, state\);/);
-  const gone = ["notice" + "Collapsed", "collapse" + "Notice", "expand" + "Notice", "notice" + "IconRect", "notice" + "Layout", "KEYS.notice"];
+test("drawBoards draws the gate and the notice board, and no collapse state is left", () => {
+  const body = html.slice(html.indexOf("function drawBoards("), html.indexOf("function renderBoards("));
+  assert.match(body, /drawGate\(g, isoSignBox\(app\.iso, state\.layout, "gate"\), state\);/);
+  assert.match(body, /drawNoticeBoard\(g, isoSignBox\(app\.iso, state\.layout, "board"\), state\);/);
+  const gone = ["notice" + "Collapsed", "collapse" + "Notice", "expand" + "Notice", "notice" + "IconRect", "notice" + "Layout", "KEYS.notice", "drawPartyTable", "drawTitle("];
   for (const name of gone) assert.ok(!html.includes(name), `${name} is gone`);
 });
 
@@ -1648,11 +1649,13 @@ test("scene: title board, signposts with posts, and the other boards and rooms d
   for (const key of ["notice", "parties"]) assert.ok(!overlap(scene.title, scene[key]), `title overlaps scene.${key}`);
 });
 
-test("drawTitle reads its position from the layout; the night stamps are HTML buttons (T-145)", () => {
-  const draw = html.slice(html.indexOf("function drawTitle("), html.indexOf("// A pixel crescent moon"));
+test("drawGate reads its place from the layout; the night stamps are HTML buttons (T-145)", () => {
+  const draw = html.slice(html.indexOf("function drawGate("), html.indexOf("// The notice board: a wooden frame"));
   assert.match(draw, /titleLabel\(state\.event\)/);
+  assert.match(draw, /state\.event\.name/);
   assert.doesNotMatch(draw, /eventDateText/);
   assert.doesNotMatch(draw, /innerHTML/);
+  assert.match(draw, /"pointer-events": "none"/, "taps pass through the gate");
   const top = readScripts("app-tophud");
   assert.match(top, /htmlEl\("button", \{ "class": "stamp", type: "button", "data-key": "night-" \+ night, "aria-pressed"/);
   assert.match(top, /selectNight\(night, \{ animate: true \}\)/);
@@ -3550,16 +3553,24 @@ test("foodRow: foodCount of every event day, zero included", () => {
   assert.deepEqual(plain(L.foodRow({ event: null, parties: [] })), []);
 });
 
-test("drawPartyTable: one button over the drawn board, moon and sun from rects, no emoji", () => {
-  const body = html.slice(html.indexOf("function drawMoon("), html.indexOf("// App part 5b"));
-  assert.match(body, /partyTableLayout\(r, rows\.length, dayRows\.length, nights\.length, days\.length\)/);
-  assert.match(body, /hitRect\(g, \[r\[0\], r\[1\], r\[2\], lay\.height\]\)/);
-  assert.match(body, /Kto kde spí po nociach, kto príde cez deň a koľko vás je na jedlo\. Ťuknutím otvoríš „Kto je kto“\./);
-  assert.match(body, /openLegend\("parties"\)/);
-  assert.match(body, /"Noc"/);
-  assert.match(body, /"Cez deň"/);
-  assert.match(body, /"spolu na jedlo"/);
-  assert.doesNotMatch(body, /innerHTML|☀|🌙|☾/);
+test("notice board: one button over the drawn board, stamps from the pure model, the panel is built with textContent (T-146)", () => {
+  const body = html.slice(html.indexOf("function drawNoticeBoard("), html.indexOf("// A tap wiggles the board"));
+  assert.match(body, /boardNightStamp\(state, app\.myParty, app\.night\)/);
+  assert.match(body, /boardDayStamp\(state, app\.myParty\)/);
+  assert.match(body, /makeButton\(outer, boardLabel\(state\), "board"/);
+  assert.match(body, /openBoardPanel\("board"\)/);
+  assert.match(body, /"KTO KEDY PRÍDE"/);
+  assert.match(body, /"CEZ DEŇ"/);
+  assert.match(body, /"na jedlo:"/);
+  const panel = html.slice(html.indexOf("function openBoardPanel("));
+  assert.match(panel, /openPanel\("Kto kedy príde"/);
+  assert.match(panel, /"Noc"/);
+  assert.match(panel, /"Cez deň"/);
+  assert.match(panel, /"Zavrieť"/);
+  assert.match(panel, /panel\.refresh = function/);
+  assert.doesNotMatch(html.slice(html.indexOf("function drawGate("), html.indexOf("// --- the panel ---")), /innerHTML|☀|🌙|☾/);
+  assert.doesNotMatch(panel, /innerHTML/);
+  assert.ok(pageFile.includes("static/js/app-board.js?v=__ASSET_VERSION__") && pageFile.includes("static/js/logic-board.js?v=__ASSET_VERSION__"));
 });
 
 test("intro zoom: constants", () => {
@@ -3586,13 +3597,15 @@ test("intro zoom: a focus x centres the start view on it (clamped)", () => {
   assert.deepEqual(plain(L.clampView(v, B)), v);
 });
 
-test("iso: the boards and their shade carry the block transform; icons and signposts are not in the scene", () => {
+test("iso: the signs layer has no block transform; icons and signposts are not in the scene", () => {
   const read = (f) => fs.readFileSync(path.join(root, "static", "js", f), "utf8");
-  assert.match(read("app-scene.js"), /boards: svgEl\(svg, "g", \{ transform: isoBlockTransform\(app\.iso\)/);
-  assert.match(read("app-daynight.js"), /shade\.setAttribute\("transform", isoBlockTransform\(app\.iso\)\)/);
-  const boards = read("app-draw.js");
-  assert.doesNotMatch(boards, /icons\.|drawNotice|drawLetter|drawLegend|drawLocked|drawNights/);
+  assert.match(read("app-scene.js"), /boards: svgEl\(svg, "g"\),/);
+  assert.ok(!html.includes("isoBlockTransform") && !html.includes("isoBlockPoint"), "the board block is gone");
+  assert.equal(L.isoBlockTransform, undefined);
+  const boards = read("app-draw.js") + read("app-board.js");
+  assert.doesNotMatch(boards, /icons\.|drawNotice\b|drawLetter|drawLegend|drawLocked|drawNights/);
   assert.equal(L.isoScene(isoLayout).icons, undefined);
+  assert.equal(L.isoScene(isoLayout).block, undefined);
 });
 
 test("intro zoom: introViewAt eases between the views and clamps t", () => {
@@ -4395,7 +4408,7 @@ test("daynight scene: script listed, no innerHTML, light layer between walk and 
   const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
   const ens = scene.slice(scene.indexOf("function ensureScene"));
   assert.ok(ens.indexOf("walk:") > -1 && ens.indexOf("walk:") < ens.indexOf("boards:"));
-  assert.ok(ens.includes("dnBuild(svg, layout, app.layers.boards"));
+  assert.ok(ens.includes("dnBuild(svg, layout);"));
   assert.ok(ens.indexOf("drawBird(") < ens.indexOf("dnBuild("));
 });
 
@@ -4420,20 +4433,13 @@ test("railGradient: day cream, night blue, a stop every hour, ends at 0 and 100 
   assert.equal(L.railColor(24), "#2f3b5c");
 });
 
-test("daynight scene: the board shade hides at rest and the world is lit in 3D (T-113, T-134)", () => {
+test("daynight scene: the world is lit in 3D and the signs have no tint (T-113, T-134, T-146)", () => {
   const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
-  assert.ok(src.includes("function dnVis("));
-  assert.ok(src.includes('n.setAttribute("display", "none")'));
-  assert.ok(src.includes('dnWrap(fx.shadeLayer'));
   assert.ok(src.includes("isoLight(l)"));
-  for (const k of ["fx.dusk", "fx.dark", "fx.darkRooms", "fx.lamp", "fx.fireflies", "dnFitArea", "DN_FIREFLIES", "evenodd"]) assert.ok(!src.includes(k), k);
+  for (const k of ["fx.dusk", "fx.dark", "fx.darkRooms", "fx.lamp", "fx.fireflies", "dnFitArea", "DN_FIREFLIES", "evenodd", "boardShade", "partyShade", "dnFitPartyShade", "dnVis(", "dnWrap("]) assert.ok(!src.includes(k), k);
   const zoom = fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8");
   assert.ok(!zoom.includes("dnFitArea"));
   assert.ok(!html.includes("dnFirefly") && !html.includes(".dn-ff"));
-  // The party table shade follows the drawn table height, not the configured rect.
-  assert.ok(src.includes("fx.partyShade") && src.includes("function dnFitPartyShade("));
-  const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
-  assert.ok(draw.includes("dnFitPartyShade(lay.height)"));
 });
 
 test("iso light: day, dusk and night colours and strengths (T-134)", () => {
@@ -4622,29 +4628,43 @@ test("iso: projection formula with az 45 and tilt 30", () => {
   assert.ok(Math.abs(p[0] - (u + s.ox)) < 1e-9 && Math.abs(p[1] - (v + s.oy)) < 1e-9);
 });
 
-test("iso: scene holds every layout corner and the board block, clear of the world top", () => {
+test("iso: scene holds every layout corner and the two signs, clear of the world top", () => {
   const s = L.isoScene(isoLayout);
   const [vw, vh] = isoLayout.map.viewbox;
   [[0, 0], [vw, 0], [0, vh], [vw, vh]].forEach(([x, y]) => assert.ok(isoInside(L.isoPoint(s, x, y, 0), s.W, s.H), `${x},${y}`));
-  const b = s.block, w = b.src[2] * b.k, h = b.src[3] * b.k;
-  assert.ok(b.x >= 0 && b.y >= 0 && b.x + w <= s.W && b.y + h <= s.H);
-  const lowest = Math.min(...[[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoPoint(s, x, y, L.ISO.headroom)[1]));
-  assert.ok(b.y + h < lowest, "block ends above the highest point of the world");
+  ["board", "gate"].forEach((k) => {
+    const b = L.isoSignBox(s, isoLayout, k);
+    assert.ok(b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= s.W && b[1] + b[3] <= s.H, k);
+  });
   assert.ok(isoInside(L.isoPoint(s, 0, 0, L.ISO.headroom), s.W, s.H));
   assert.ok(isoInside(L.isoPoint(s, vw, 0, L.ISO.headroom), s.W, s.H));
+  assert.equal(s.top, L.ISO.margin);
 });
 
-test("iso: the board block holds exactly the title and the party table", () => {
+test("iso: a sign box stands on its plan point: bottom middle, size from ISO_SIGNS", () => {
   const s = L.isoScene(isoLayout), sc = isoLayout.map.scene;
-  assert.deepEqual(plain(s.block.src), plain(L.unionRect([sc.title, sc.parties])));
-  assert.ok(!L.rectsOverlap(sc.title, sc.parties));
+  ["board", "gate"].forEach((k) => {
+    const b = plain(L.isoSignBox(s, isoLayout, k)), p = L.isoPoint(s, sc[k][0], sc[k][1], 0), size = L.ISO_SIGNS[k];
+    assert.deepEqual([b[2], b[3]], [size.w, size.h]);
+    assert.ok(Math.abs(b[0] + b[2] / 2 - p[0]) < 1e-9 && Math.abs(b[1] + b[3] - p[1]) < 1e-9, k);
+  });
 });
 
-test("iso: block transform and point agree", () => {
+test("iso: the notice board covers no house at any of the four angles", () => {
+  const rooms = Object.fromEntries(isoLayout.rooms.map((r) => [r.id, r.rect]));
+  [45, 135, 225, 315].forEach((az) => {
+    const s = L.isoScene(isoLayout, { azimuth: az }), box = plain(L.isoSignBox(s, isoLayout, "board"));
+    isoLayout.houses.forEach((house) => {
+      const roof = plain(L.polyBox(L.isoBoxOutline(s, plain(L.unionRect(house.rooms.map((id) => rooms[id]))), 0, 44)));
+      assert.ok(!L.rectsOverlap(box, roof), `${az}: board over ${house.id}`);
+    });
+  });
+});
+
+test("iso: the world top is the scene margin, nothing stands above it", () => {
   const s = L.isoScene(isoLayout);
-  const p = L.isoBlockPoint(s, s.block.src[0], s.block.src[1]);
-  assert.deepEqual(plain(p), [s.block.x, s.block.y]);
-  assert.match(L.isoBlockTransform(s), /^translate\(.+\) scale\(1\.6\) translate\(.+\)$/);
+  const tops = [[0, 0], [380, 0], [0, 496], [380, 496]].map(([x, y]) => L.isoPoint(s, x, y, L.ISO.headroom)[1]);
+  assert.ok(Math.min(...tops) >= s.top - 1e-9);
 });
 
 test("iso: only north and west outline edges are tall, doors keep a lintel", () => {
@@ -4764,10 +4784,13 @@ test("iso perspective: the scene still holds every corner and the walls of every
 
 // --- the 3D world and the phone rest view (T-131) ---
 
-test("iso: the content rect holds the board block and every projected room, padded", () => {
+test("iso: the content rect holds both signs and every projected room, padded", () => {
   const s = L.isoScene(isoLayout), c = plain(L.isoContentRect(s, isoLayout));
-  const b = s.block, inside = (x, y) => x >= c[0] && x <= c[0] + c[2] && y >= c[1] && y <= c[1] + c[3];
-  assert.ok(inside(b.x, b.y) && inside(b.x + b.src[2] * b.k, b.y + b.src[3] * b.k));
+  const inside = (x, y) => x >= c[0] && x <= c[0] + c[2] && y >= c[1] && y <= c[1] + c[3];
+  ["board", "gate"].forEach((k) => {
+    const b = L.isoSignBox(s, isoLayout, k);
+    assert.ok(inside(b[0], b[1]) && inside(b[0] + b[2], b[1] + b[3]), k);
+  });
   isoLayout.rooms.forEach((room) => {
     const [x, y, w, h] = room.rect;
     [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => {
@@ -4779,11 +4802,11 @@ test("iso: the content rect holds the board block and every projected room, padd
   assert.ok(c[0] >= -1 && c[1] >= -1 && c[0] + c[2] <= s.W + 1 && c[1] + c[3] <= s.H + 1, "stays on the scene");
 });
 
-test("restView: a portrait phone fits the content's width; the whole board block and all rooms stay in view at >= 0.66 px per unit", () => {
+test("restView: a portrait phone fits the content's width; both signs and all rooms stay in view at >= 0.55 px per unit", () => {
   const s = L.isoScene(isoLayout), content = plain(L.isoContentRect(s, isoLayout));
   const vw = 380, vh = 740, bounds = L.fitBounds(vw, vh, s.W, s.H, {});
   const v = plain(L.restView(bounds, s.W, s.H, vw, vh, content));
-  assert.ok(vw / v.w >= 0.66, `scale ${vw / v.w}`);
+  assert.ok(vw / v.w >= 0.55, `scale ${vw / v.w}`);
   assert.ok(v.x <= content[0] + 0.5 && v.x + v.w >= content[0] + content[2] - 0.5, "content width fits");
   assert.ok(v.y <= content[1] + 0.5 && v.y + v.h >= content[1] + content[3] - 0.5, "content height fits");
   assert.ok(L.sameView(v, L.phoneRestView(bounds, vw, vh, content)));
@@ -5336,14 +5359,16 @@ test("view angle: the sun and the roof colours turn with the view, so the bright
   });
 });
 
-test("view angle: every angle holds all corners, tops, the board block and every room's walls in the scene and in the fitted view", () => {
+test("view angle: every angle holds all corners, tops, both signs and every room's walls in the scene and in the fitted view", () => {
   const [vw, vh] = isoLayout.map.viewbox;
   isoAngles.forEach((az) => {
     const s = isoSceneAt(az), c = plain(L.isoContentRect(s, isoLayout));
     [[0, 0], [vw, 0], [0, vh], [vw, vh]].forEach(([x, y]) => [0, L.ISO.headroom].forEach((h) => assert.ok(isoInside(L.isoPoint(s, x, y, h), s.W, s.H), `${az}: ${x},${y},${h}`)));
-    const b = s.block, bh = b.src[3] * b.k;
-    const lowest = Math.min(...[[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoPoint(s, x, y, L.ISO.headroom)[1]));
-    assert.ok(b.y + bh < lowest, `${az}: the block ends above the highest point of the world`);
+    ["board", "gate"].forEach((k) => {
+      const b = L.isoSignBox(s, isoLayout, k);
+      assert.ok(b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= s.W && b[1] + b[3] <= s.H, `${az}: ${k} inside the scene`);
+      assert.ok(b[0] >= c[0] - 1 && b[0] + b[2] <= c[0] + c[2] + 1 && b[1] >= c[1] - 1 && b[1] + b[3] <= c[1] + c[3] + 1, `${az}: ${k} inside the fitted content`);
+    });
     isoLayout.rooms.forEach((room) => {
       const [x, y, w, h] = room.rect;
       [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => [0, L.ISO.wallH].forEach((hh) => {
@@ -5533,4 +5558,82 @@ test("view angle: the screen reader text uses the right Slovak preposition for a
   assert.equal(L.isoAngleText(135), "Pohľad zo severovýchodu");
   assert.equal(L.isoAngleText(225), "Pohľad zo severozápadu");
   assert.equal(L.isoAngleText(315), "Pohľad z juhozápadu");
+});
+
+// --- the notice board in the village and its panel (T-146) ---
+
+test("boardPick: the first rows, but my party always makes it into the list", () => {
+  const rows = ["a", "b", "c", "d", "e", "f"].map((id, i) => ({ id, mine: id === "f" }));
+  assert.deepEqual(plain(L.boardPick(rows, 4)).map((r) => r.id), ["a", "b", "c", "f"]);
+  assert.deepEqual(plain(L.boardPick(rows.map((r) => ({ ...r, mine: r.id === "b" })), 4)).map((r) => r.id), ["a", "b", "c", "d"]);
+  assert.equal(L.boardPick(rows.slice(0, 3), 4).length, 3);
+});
+
+test("boardNightStamp: names, Št–Ne, a cell per night, the chosen night marked, absent as a dot", () => {
+  const ivan = party(), riso = party({ id: "p-bbbbbb", name: "Riso a Ben", arrive: FRI, leave: "2026-11-01" });
+  const s = realState([ivan, riso], { [THU]: hold(ivan.id, ["left-double-1", "left-double-2"]) });
+  const stamp = plain(L.boardNightStamp(s, ivan.id, FRI));
+  assert.deepEqual(stamp.nights.map((n) => [n.label, n.current]), [["Št", false], ["Pi", true], ["So", false]]);
+  assert.equal(stamp.rows.length, 2);
+  assert.deepEqual(stamp.rows[0], { id: ivan.id, label: "Ivan a Eva", color: "#D07A2B", mine: true, span: "Št–Ne",
+    cells: [{ kind: "ok", text: "2/2", current: false }, { kind: "under", text: "0/2", current: true }, { kind: "under", text: "0/2", current: false }] });
+  assert.equal(stamp.rows[1].span, "Pi–Ne");
+  assert.deepEqual(stamp.rows[1].cells[0], { kind: "absent", text: "·", current: false });
+  assert.equal(stamp.more, 0);
+});
+
+test("boardNightStamp: a long name is cut, more than four parties give +N and keep mine", () => {
+  const many = ["a", "b", "c", "d", "e", "f"].map((c, i) => party({ id: "p-" + c.repeat(6), name: "Veľmi dlhé meno " + c }));
+  const s = realState(many, {});
+  const stamp = plain(L.boardNightStamp(s, many[5].id, THU));
+  assert.equal(stamp.rows.length, L.BOARD_NIGHT_ROWS);
+  assert.equal(stamp.more, 2);
+  assert.ok(stamp.rows.some((r) => r.mine), "my party is shown");
+  assert.ok(stamp.rows.every((r) => r.label.length <= L.BOARD_NAME_MAX), "names are cut");
+});
+
+test("boardDayStamp: day-only visitors with their days and the „na jedlo“ counts", () => {
+  const s = visitState();
+  const stamp = plain(L.boardDayStamp(s, "p-eeeeee"));
+  assert.deepEqual(stamp.rows.map((r) => [r.label, r.days, r.mine]), [["Jakub", "Pi, Ne", false], ["Katka a P…", "So", true], ["Zuzka", "So", false]]);
+  assert.deepEqual(stamp.food.map((f) => f.label), ["Št", "Pi", "So", "Ne"]);
+  assert.deepEqual(stamp.food.map((f) => f.count), plain(L.foodRow(s)));
+  assert.equal(stamp.more, 0);
+  assert.deepEqual(plain(L.boardFoodLines(stamp.food, 2)), stamp.food.length === 4 ? [`Št ${stamp.food[0].count}  Pi ${stamp.food[1].count}`, `So ${stamp.food[2].count}  Ne ${stamp.food[3].count}`] : []);
+  assert.deepEqual(plain(L.boardDayStamp(realState([party()], {}), null).rows), []);
+});
+
+test("boardPanelModel: rows with arrive and leave, tally cells, occupancy footer and the food row", () => {
+  const s = visitState();
+  const m = plain(L.boardPanelModel(s, "p-aaaaaa", THU));
+  assert.equal(m.title, "Kto kedy príde");
+  assert.equal(m.sub, "Čísla sú miesta: vybraté / treba.");
+  assert.deepEqual(m.night.cols.map((c) => [c.label, c.current]), [["Št", true], ["Pi", false], ["So", false]]);
+  assert.deepEqual(m.night.rows.map((r) => [r.name, r.arrive, r.leave, r.mine]), [["Ivan a Eva", "Št 29", "Ne 1", true], ["Riso a Ben", "Št 29", "Ne 1", false]]);
+  assert.equal(m.night.rows[0].cells[0].text, "2/2");
+  assert.equal(m.night.footerLabel, "Obsadené");
+  assert.deepEqual(m.night.footer.map((c) => c.text), ["3/20", "0/20", "0/20"]);
+  assert.deepEqual(m.day.cols.map((c) => c.label), ["Št 29", "Pi 30", "So 31", "Ne 1"]);
+  assert.deepEqual(m.day.rows.map((r) => r.cells), [["·", "1", "·", "1"], ["·", "·", "2", "·"], ["·", "·", "4", "·"]]);
+  assert.equal(m.day.foodLabel, "Spolu na jedlo");
+  assert.deepEqual(m.day.food, plain(L.foodRow(s)));
+});
+
+test("boardLabel: counts the parties and says it can be opened", () => {
+  assert.match(L.boardLabel(visitState()), /^Nástenka Kto kedy príde: 2 partií na noc, 3 cez deň\. Ťuknutím ju otvoríš\.$/);
+});
+
+test("intro zoom: a focus y centres the start view on it vertically (clamped)", () => {
+  const B = L.fitBounds(375, 667, SW, SH, { bottom: 56 });
+  const v = plain(L.introStartView(B, SW, SH, SW / 2, SH * 0.7));
+  assert.ok(v.y > 0, "moved down from the top");
+  assert.deepEqual(plain(L.clampView(v, B)), v);
+});
+
+test("the scene points of cabin.yaml are plan coordinates of a board and a gate", () => {
+  const sc = isoLayout.map.scene;
+  assert.equal(sc.board.length, 2);
+  assert.equal(sc.gate.length, 2);
+  assert.equal(sc.title, undefined);
+  assert.equal(sc.parties, undefined);
 });

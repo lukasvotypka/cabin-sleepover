@@ -16,10 +16,11 @@ function applyView() {
   app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds) || atPhoneRest();
 }
 
-// The scene x the intro zoom centres on: the title board in the board block.
-function introFocusX() {
-  var t = app.state && app.state.layout.map.scene.title;
-  return t && app.iso ? isoBlockPoint(app.iso, t[0] + t[2] / 2, t[1])[0] : undefined;
+// The scene point [x, y] the intro zoom centres on: the title gate. [undefined, undefined] before the scene exists.
+function introFocus() {
+  if (!app.state || !app.iso) return [undefined, undefined];
+  var b = isoSignBox(app.iso, app.state.layout, "gate");
+  return [b[0] + b[2] / 2, b[1] + b[3] / 2];
 }
 
 function setView(view) {
@@ -63,7 +64,7 @@ function holdIntroZoom() {
     return;
   }
   app.introZoom = "held";
-  setView(introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocusX()));
+  setView(introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocus()[0], introFocus()[1]));
 }
 
 // The splash is gone: ease out to the fitted view.
@@ -86,7 +87,7 @@ function introFrame() {
     renderBriefingOffer();
     return;
   }
-  var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocusX());
+  var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocus()[0], introFocus()[1]);
   setView(introViewAt(from, to, t));
   app.introRaf = requestAnimationFrame(introFrame);
 }

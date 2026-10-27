@@ -10,18 +10,15 @@
 // from the strength: the nearest ground corner is drawn `persp` times larger than the farthest. persp 0 is the
 // orthographic view above. Either way the svg and the WebGL camera share the projection exactly: the svg draws beds,
 // figures and boards at projected points, and app-iso.js points its camera so that its pixels land on the same units.
-// The boards (title, party table) do not lie on the ground: they stand as one upright block above the world, scaled
-// by `boardScale` so that their text stays readable on a phone. The night stamps, the time slider and the icons are
-// the fixed HUD in index.html (T-145), not part of the scene.
+// The notice board and the title gate are upright signs facing the camera (isoSignBox). The night stamps, the time
+// slider and the icons are the fixed HUD in index.html (T-145), not part of the scene.
 
 var ISO = {
   azimuth: 45,          // degrees: the plan turned so that its top left corner points up
   tilt: 30,             // degrees above the horizon: sin 30° = 0.5, the classic 2:1 pixel-art isometric
   persp: 0.12,          // depth strength: the nearest ground corner is drawn this much larger than the farthest (0 = orthographic, keep it under 0.2)
-  boardScale: 1.6,      // the board block on top of the world
   figScale: 1.35,       // the people sprites standing on the beds
   margin: 12,           // grass around the whole scene
-  gap: 14,              // between the board block and the highest point of the world
   headroom: 84,         // map units above the ground the world may reach (roofs, chimneys, smoke)
   wallH: 28,            // the back (north and west) outer walls of a house
   lowWall: 6,           // every other wall is cut low, so the rooms show
@@ -65,7 +62,7 @@ function isoSwingAzimuth(from, steps, p) {
 }
 
 // The view of an in-between scene `mid` while the map turns from scene `from`: the old view keeps its place and size relative to
-// the content (the board block and the rooms, isoContentRect), so a map at rest stays centred through the swing.
+// the content (the rooms and the signs, isoContentRect), so a map at rest stays centred through the swing.
 function isoSwingView(from, mid, oldView, layout) {
   var a = isoContentRect(from, layout), b = isoContentRect(mid, layout), f = b[2] / a[2];
   var cx = (oldView.x + oldView.w / 2 - a[0]) / a[2], cy = (oldView.y + oldView.h / 2 - a[1]) / a[3];
@@ -132,24 +129,28 @@ function unionRect(rects) {
   return [x1, y1, x2 - x1, y2 - y1];
 }
 
-// The whole isometric scene for a layout: the projection, the scene size and where the board block stands.
-// Returns {basis, ox, oy, W, H, block: {src, x, y, k}}.
-// `src` is the block's own rect in block units (the units of map.scene); on the scene it is drawn by
-// translate(x y) scale(k) translate(−src.x −src.y).
+// The whole isometric scene for a layout: the projection and the scene size. The notice board and the title gate are
+// upright signs placed on the plan (isoSignBox); they have no block above the world any more (T-146).
+// Returns {basis, azimuth, ox, oy, W, H, top, figScale}.
 function isoScene(layout, opts) {
   var o = Object.assign({}, ISO, opts || {});
   var basis = isoBasis(o.azimuth, o.tilt, o.persp, layout.map.viewbox);
-  var sc = layout.map.scene, vb = layout.map.viewbox;
-  var src = unionRect(["title", "parties"].filter(function (k) { return sc[k]; }).map(function (k) { return sc[k]; }));
+  var vb = layout.map.viewbox;
   var corners = [[0, 0], [vb[0], 0], [0, vb[1]], [vb[0], vb[1]]].map(function (p) { return isoRaw(basis, p[0], p[1], 0); });
   var tops = [[0, 0], [vb[0], 0], [0, vb[1]], [vb[0], vb[1]]].map(function (p) { return isoRaw(basis, p[0], p[1], o.headroom); });
   var uMin = Math.min.apply(null, corners.concat(tops).map(function (p) { return p[0]; }));
   var uMax = Math.max.apply(null, corners.concat(tops).map(function (p) { return p[0]; }));
   var vMin = Math.min.apply(null, tops.map(function (p) { return p[1]; }));
   var vMax = Math.max.apply(null, corners.map(function (p) { return p[1]; }));
-  var worldW = uMax - uMin, blockW = src[2] * o.boardScale, blockH = src[3] * o.boardScale;
-  var W = Math.ceil(Math.max(worldW, blockW) + 2 * o.margin);
-  var top = o.margin + blockH + o.gap;
+  ["board", "gate"].forEach(function (which) {      // the signs may stand beyond the world, so the scene grows to hold them
+    var at = layout.map.scene[which], size = ISO_SIGNS[which], p = isoRaw(basis, at[0], at[1], 0);
+    uMin = Math.min(uMin, p[0] - size.w / 2);
+    uMax = Math.max(uMax, p[0] + size.w / 2);
+    vMin = Math.min(vMin, p[1] - size.h);
+  });
+  var worldW = uMax - uMin;
+  var W = Math.ceil(worldW + 2 * o.margin);
+  var top = o.margin;
   var H = Math.ceil(top + (vMax - vMin) + o.margin);
   return {
     basis: basis,
@@ -157,9 +158,20 @@ function isoScene(layout, opts) {
     ox: (W - worldW) / 2 - uMin,
     oy: top - vMin,
     W: W, H: H,
-    block: { src: src, x: (W - blockW) / 2, y: o.margin, k: o.boardScale },
+    top: top,
     figScale: o.figScale
   };
+}
+
+// The two upright signs of the village (T-146): the notice board and the title gate. They stand on a ground point of the plan
+// (`map.scene.board`, `map.scene.gate`) and always face the camera, so they are drawn flat on the scene, `size` units big,
+// with the bottom middle on the projected point.
+var ISO_SIGNS = { board: { w: 130, h: 82 }, gate: { w: 150, h: 56 } };
+
+// The scene rect [x, y, w, h] of a sign: "board" or "gate".
+function isoSignBox(scene, layout, which) {
+  var at = layout.map.scene[which], size = ISO_SIGNS[which], p = isoPoint(scene, at[0], at[1], 0);
+  return [p[0] - size.w / 2, p[1] - size.h, size.w, size.h];
 }
 
 // A ground point at height h on the scene: [x, y] in svg units.
@@ -191,26 +203,14 @@ function isoTurnView(from, to, oldView, oldRest, newRest, newBounds) {
   return clampView({ x: c[0] - w / 2, y: c[1] - h / 2, w: w, h: h }, newBounds);
 }
 
-// The part of the scene a phone's rest view fits: [x, y, w, h], the board block plus every room with its walls
-// (projected), padded by `pad` units. The forest around it is left to panning.
+// The part of the scene a phone's rest view fits: [x, y, w, h], every room with its walls (projected) and the two signs,
+// padded by `pad` units. The forest around it is left to panning.
 function isoContentRect(scene, layout, pad) {
   pad = pad === undefined ? 12 : pad;
-  var b = scene.block, rects = [[b.x, b.y, b.src[2] * b.k, b.src[3] * b.k]];
+  var rects = [isoSignBox(scene, layout, "board"), isoSignBox(scene, layout, "gate")];
   layout.rooms.forEach(function (room) { rects.push(polyBox(isoBoxOutline(scene, room.rect, 0, ISO.wallH))); });
   var u = unionRect(rects);
   return [u[0] - pad, u[1] - pad, u[2] + 2 * pad, u[3] + 2 * pad];
-}
-
-// The svg transform of the board block.
-function isoBlockTransform(scene) {
-  var b = scene.block;
-  return "translate(" + round3(b.x) + " " + round3(b.y) + ") scale(" + b.k + ") translate(" + round3(-b.src[0]) + " " + round3(-b.src[1]) + ")";
-}
-
-// A point of the board block (block units) on the scene.
-function isoBlockPoint(scene, x, y) {
-  var b = scene.block;
-  return [b.x + (x - b.src[0]) * b.k, b.y + (y - b.src[1]) * b.k];
 }
 
 function round3(n) {

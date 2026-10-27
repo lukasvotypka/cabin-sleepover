@@ -376,6 +376,43 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #scene svg .bird { display: none; }
 }
 
+/* The notice board in the village (T-146): a tap wiggles it in four steps, the pin blinks. */
+#scene svg .board-sign.wiggle { animation: boardWiggle .4s steps(1) 1; }
+@keyframes boardWiggle { 0% { transform: translate(-2px, 0); } 25% { transform: translate(2px, 0); } 50% { transform: translate(-1px, 0); } 75% { transform: translate(1px, 0); } 100% { transform: none; } }
+#scene svg .pin-blink { animation: pinBlink 1.2s steps(1) infinite; }
+@keyframes pinBlink { 0%, 60% { opacity: 1; } 60.1%, 100% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  #scene svg .board-sign.wiggle, #scene svg .pin-blink { animation: none; }
+}
+/* the panel: the table of who comes when; a centred window on a desktop */
+.sheet.board-panel { max-width: 560px; }
+.board-tabs { display: flex; gap: 8px; margin: 0 0 10px; }
+.board-tab { flex: 1; min-height: 44px; padding: 8px 12px; font: inherit; font-weight: 700; color: var(--ink); background: var(--surface2); border: 3px solid var(--line); border-radius: 0; cursor: pointer; }
+.board-tab[aria-selected="true"] { background: var(--amber-soft); border-color: var(--amber); }
+.board-tab:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.board-table { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 15px; }
+.board-table th, .board-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.board-table thead th, .board-table tr:first-child th { font-weight: 700; color: var(--muted); }
+.board-table .num { text-align: center; white-space: nowrap; }
+.board-table .current { background: var(--amber-soft); }
+.board-table tr.mine th, .board-table tr.mine td { font-weight: 700; }
+.board-table .board-name { font-weight: 500; overflow-wrap: anywhere; }
+.board-table .swatch { display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; border: 2px solid rgba(0, 0, 0, .35); }
+.board-table tr.foot th, .board-table tr.foot td { border-top: 3px solid var(--line); border-bottom: 0; font-weight: 700; }
+.board-table .tally { display: inline-block; min-width: 38px; padding: 2px 4px; border: 2px solid transparent; }
+.board-table .tally.ok { background: #3D7A55; color: #fff; }
+.board-table .tally.under { background: #F3E3C0; color: #2E1F14; border-color: #C98A1C; }
+.board-table .tally.over { background: #B4472F; color: #fff; }
+.board-table .tally.absent { color: var(--muted); }
+.board-empty { color: var(--muted); }
+@media (min-width: 700px) {
+  .sheet.board-panel {
+    left: 50%; right: auto; bottom: auto; top: 50%; width: min(560px, calc(100% - 32px)); margin: 0;
+    border-bottom: 4px solid #5C4033; transform: translate(-50%, -50%); opacity: 0; transition: opacity .15s ease-out;
+  }
+  .sheet.board-panel.open { transform: translate(-50%, -50%); opacity: 1; }
+}
+
 /* Day–night (T-111, T-117): the time slider in the scene, figures getting up. */
 #scene svg .dn-in { animation: dnIn .5s linear backwards; }
 #scene svg .dn-out { animation: dnOut .5s linear forwards; pointer-events: none; }
@@ -793,6 +830,7 @@ section.night.on .night-head { background: var(--surface2); border-left: 4px sol
 <script src="static/js/logic-iso.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-iso-roof.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-iso-people.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-board.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-core.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-boot.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-scene.js?v=__ASSET_VERSION__"></script>
@@ -804,6 +842,7 @@ section.night.on .night-head { background: var(--surface2); border-left: 4px sol
 <script src="static/js/app-houses.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-turn.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-draw.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-board.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-daynight.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-hud.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-tophud.js?v=__ASSET_VERSION__"></script>

@@ -89,6 +89,7 @@ IsoDate = Annotated[str, Field(strict=True), AfterValidator(_check_iso_date)]
 IsoDateTime = Annotated[str, Field(strict=True), AfterValidator(_check_iso_datetime)]
 Coord = Annotated[int, Field(strict=True)]
 Rect = Annotated[list[Coord], Field(min_length=4, max_length=4)]
+Point = Annotated[list[Coord], Field(min_length=2, max_length=2)]
 Ident = Annotated[str, Field(strict=True, pattern=IDENT_PATTERN)]
 HexColor = Annotated[str, Field(strict=True, pattern=COLOR_PATTERN)]
 PartyId = Annotated[str, Field(strict=True, pattern=PARTY_ID_PATTERN)]
@@ -144,8 +145,8 @@ CHIMNEY_WIDTH = 6  # px, same as in the page (CHIMNEY_W in static/index.html)
 
 
 class SceneRects(_Model):
-    title: Rect
-    parties: Rect
+    board: Point
+    gate: Point
     meadow: Rect
 
 
