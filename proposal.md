@@ -1,4 +1,4 @@
-# Chata 29. 10. – 1. 11.: zadanie pre Claude Code
+# Našich 40 (chata 5. 11. – 8. 11.): zadanie pre Claude Code
 
 Oct 21, 2026 · @Lukas Votypka
 
@@ -8,7 +8,7 @@ Postav malú webovú aplikáciu na rozdelenie spania na chate. Kamaráti si na p
 
 **Celá aplikácia je jedna stránka a tou je mapa.** Termín, návod, prepínač nocí aj stav zápisu sú nakreslené priamo v pixelovej scéne, takže je to minihra a infostránka v jednom. Žiadna samostatná hlavička, zoznam ani prehľadová stránka. Formuláre a potvrdenia sa otvárajú ako panely nad mapou.
 
-**Akcia:** 29. 10. (štvrtok) – 1. 11. 2026 (nedeľa), tri noci: Št → Pi (29./30. 10.), Pi → So (30./31. 10.), So → Ne (31. 10./1. 11.). Asi 8 až 10 partií, 13 až 18 ľudí vrátane detí. Kapacita je 18 bežných a 2 tesné miesta.
+**Akcia:** 5. 11. (štvrtok) – 8. 11. 2026 (nedeľa), tri noci: Št → Pi (5./6. 11.), Pi → So (6./7. 11.), So → Ne (7./8. 11.). Asi 8 až 10 partií, 13 až 18 ľudí vrátane detí. Kapacita je 18 bežných a 2 tesné miesta.
 
 **Ľudia** komunikujú cez WhatsApp skupinu a aplikáciu otvoria z odkazu na mobile. Nemajú účty a nechcú sa registrovať. Väčšina sa zapíše ťuknutím na mapu, niektorí to nechajú na organizátora.
 
@@ -70,7 +70,7 @@ Jeden proces FastAPI (uvicorn s jedným workerom) servíruje stránku aj JSON AP
 
 ## Dáta v YAML
 
-Dva konfiguračné súbory píše organizátor, dátový súbor píše iba server. Noc sa označuje dátumom, kedy začína (`2026-10-29` je noc Št → Pi). Jeden slot je jedno miesto pre jedného človeka.
+Dva konfiguračné súbory píše organizátor, dátový súbor píše iba server. Noc sa označuje dátumom, kedy začína (`2026-11-05` je noc Št → Pi). Jeden slot je jedno miesto pre jedného človeka.
 
 ### `config/cabin.yaml`
 
@@ -99,18 +99,18 @@ parties:
     adults: 2
     kids: 0
     kids_in_parents_bed: 0
-    arrive: "2026-10-29"
-    leave: "2026-10-31"
+    arrive: "2026-11-05"
+    leave: "2026-11-07"
     arrival_time: okolo 18:00
     note: ""
     color: "#D07A2B"
     created_at: "2026-10-22T20:14:05+02:00"
     updated_at: "2026-10-25T19:02:11+02:00"
 sleeping:                 # noc → slot → id partie
-  "2026-10-29":
+  "2026-11-05":
     left-double-1: p-7f3k2a
     left-double-2: p-7f3k2a
-  "2026-10-30":
+  "2026-11-06":
     left-double-1: p-7f3k2a
     left-double-2: p-7f3k2a
 ```
@@ -158,7 +158,7 @@ JSON nad HTTP. Všetky cesty okrem `/`, statických súborov, `/api/health` a `/
 Úspech vracia `200` a `{"ok": true, "state": {…}}`. Chyba vracia vhodný stavový kód a rovnaký tvar s popisom:
 
 ```json
-{ "ok": false, "error": { "code": "slot_taken", "message": "Slot already taken", "params": { "night": "2026-10-31", "slot": "left-double-1", "party_id": "p-7f3k2a", "party_name": "Riso a Ben" } }, "state": { … } }
+{ "ok": false, "error": { "code": "slot_taken", "message": "Slot already taken", "params": { "night": "2026-11-07", "slot": "left-double-1", "party_id": "p-7f3k2a", "party_name": "Riso a Ben" } }, "state": { … } }
 ```
 
 - `code` je stabilný identifikátor chyby. Stránka ho mapuje na slovenskú hlášku cez tabuľku kódov v `static/index.html`, napríklad `slot_taken` → „Toto miesto má v sobotu už Riso a Ben.“ Hodnoty do hlášky berie z `params` (noc, slot, partia, pole formulára).
@@ -312,10 +312,10 @@ Súradnice sú v jednotkách SVG pre `viewbox` 380 × 412 a zodpovedajú náhľa
 
 ```yaml
 event:
-  name: "Chata 29. 10. – 1. 11."
-  arrive_days: ["2026-10-29", "2026-10-30", "2026-10-31"]
-  leave_days:  ["2026-10-30", "2026-10-31", "2026-11-01"]
-  nights:      ["2026-10-29", "2026-10-30", "2026-10-31"]
+  name: "Našich 40"
+  arrive_days: ["2026-11-05", "2026-11-06", "2026-11-07"]
+  leave_days:  ["2026-11-06", "2026-11-07", "2026-11-08"]
+  nights:      ["2026-11-05", "2026-11-06", "2026-11-07"]
 
 map:
   viewbox: [380, 412]
@@ -412,7 +412,7 @@ pack:                       # ikona z pevnej sady na stránke + text
 sleep:
   - { icon: plachta, label: "Plachta na matrac", note: "matrace a postele sú bez obliečok" }
 menu:
-  - { day: "2026-10-29", meals: [{ when: "večer", what: "guláš z kotlíka" }] }
+  - { day: "2026-11-05", meals: [{ when: "večer", what: "guláš z kotlíka" }] }
 bring: "raňajky pre svoju partiu, niečo na opekanie a pochutiny alebo koláč"
 program:
   - { icon: lampion, title: "Lampiónový sprievod", when: "So po zotmení", note: "vezmi lampión" }
@@ -575,7 +575,7 @@ Pri `ask` (chýba deň príchodu, nejasný počet ľudí) sa návrh neukáže, l
 
 Claude Code ich nemá rozhodovať sám. Použije uvedenú predvolenú voľbu a na konci práce ich vypíše organizátorovi.
 
-- [x] **Termín:** rozhodnuté organizátorom: 29. 10. 2026 (štvrtok) – 1. 11. 2026 (nedeľa), noci 2026-10-29, 2026-10-30, 2026-10-31. Dátumy a noci sú iba v `config/cabin.yaml`.
+- [x] **Termín:** rozhodnuté organizátorom: 5. 11. 2026 (štvrtok) – 8. 11. 2026 (nedeľa) (27. 10. 2026 posunuté o týždeň z 29. 10. – 1. 11.; partie ostali, dátumy sa posunuli skriptom `scripts/shift_event.py` a postele sa uvoľnili), noci 2026-11-05, 2026-11-06, 2026-11-07. Dátumy a noci sú iba v `config/cabin.yaml`.
 - [ ] **Skutočné rozloženie postelí, dverí a okien:** predvolene podľa náhľadu, organizátor pošle opravy.
 - [ ] **Môže sa kamarát zapísať na noc, keď nie je na chate?** Predvolene nie (`not_present`), musí si najprv upraviť príchod a odchod.
 - [ ] **Uzávierka zápisu:** vo fáze 1 sa zápis nezamyká. Vo fáze 2 predvolene iba ručne cez `/api/admin/signup`.

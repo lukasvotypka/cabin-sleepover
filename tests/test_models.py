@@ -38,9 +38,9 @@ def test_cabin_yaml_matches_proposal(layout):
     assert sum(len(r.beds) for r in layout.rooms) == 12
     assert len(layout.slot_ids) == 20
     assert layout.tight_slots == {"hallway-sofa-2", "kitchen-stove-2"}
-    assert layout.event.nights == ["2026-10-29", "2026-10-30", "2026-10-31"]
-    assert layout.event.arrive_days == ["2026-10-29", "2026-10-30", "2026-10-31"]
-    assert layout.event.leave_days == ["2026-10-30", "2026-10-31", "2026-11-01"]
+    assert layout.event.nights == ["2026-11-05", "2026-11-06", "2026-11-07"]
+    assert layout.event.arrive_days == ["2026-11-05", "2026-11-06", "2026-11-07"]
+    assert layout.event.leave_days == ["2026-11-06", "2026-11-07", "2026-11-08"]
     assert layout.map.viewbox == [380, 496]
 
 
@@ -210,14 +210,14 @@ def test_all_documented_kinds_are_accepted(layout_data, kind):
 
 
 def test_night_must_be_an_arrive_day(layout_data):
-    layout_data["event"]["nights"].append("2026-11-01")
-    with pytest.raises(ConfigError, match="night 2026-11-01 is not one of the arrive days"):
+    layout_data["event"]["nights"].append("2026-11-08")
+    with pytest.raises(ConfigError, match="night 2026-11-08 is not one of the arrive days"):
         parse_layout(layout_data)
 
 
 def test_unquoted_date_is_rejected(layout_data):
     # PyYAML would load an unquoted date as a date object
-    raw = yaml.safe_load("nights: [2026-10-29]")
+    raw = yaml.safe_load("nights: [2026-11-05]")
     layout_data["event"]["nights"] = raw["nights"]
     with pytest.raises(ConfigError, match="event.nights"):
         parse_layout(layout_data)
@@ -260,8 +260,8 @@ BASE = {
     "adults": 2,
     "kids": 0,
     "kids_in_parents_bed": 0,
-    "arrive": "2026-10-29",
-    "leave": "2026-10-31",
+    "arrive": "2026-11-05",
+    "leave": "2026-11-07",
 }
 
 
@@ -356,14 +356,14 @@ def test_day_visits_default_empty_and_stay_optional():
 
 
 def test_day_visits_are_sorted_dates_with_a_cap():
-    p = party_input(arrive=None, leave=None, day_visits=["2026-10-31", "2026-10-29"])
-    assert p.day_visits == ["2026-10-29", "2026-10-31"]
+    p = party_input(arrive=None, leave=None, day_visits=["2026-11-07", "2026-11-05"])
+    assert p.day_visits == ["2026-11-05", "2026-11-07"]
     with pytest.raises(ValidationError):
         party_input(day_visits=["29. 10. 2026"])
     with pytest.raises(ValidationError):
         party_input(day_visits=[f"2026-10-{d:02d}" for d in range(1, 12)])
     # the mode (mixed, empty) is not a shape rule: validate.py judges it
-    assert party_input(day_visits=["2026-10-29"]).arrive == BASE["arrive"]
+    assert party_input(day_visits=["2026-11-05"]).arrive == BASE["arrive"]
 
 
 FULL = {
@@ -415,15 +415,15 @@ parties:
     adults: 2
     kids: 0
     kids_in_parents_bed: 0
-    arrive: "2026-10-29"
-    leave: "2026-10-31"
+    arrive: "2026-11-05"
+    leave: "2026-11-07"
     arrival_time: okolo 18:00
     note: ""
     color: "#D07A2B"
     created_at: "2026-10-22T20:14:05+02:00"
     updated_at: "2026-10-25T19:02:11+02:00"
 sleeping:
-  "2026-10-29":
+  "2026-11-05":
     left-double-1: p-7f3k2a
     left-double-2: p-7f3k2a
 """
@@ -433,7 +433,7 @@ def test_state_from_proposal_example():
     state = State.model_validate(yaml.safe_load(STATE_YAML))
     assert state.version == 27 and state.signup_open is True
     assert state.parties[0].name == "Ivan a Eva"
-    assert state.sleeping["2026-10-29"]["left-double-1"] == "p-7f3k2a"
+    assert state.sleeping["2026-11-05"]["left-double-1"] == "p-7f3k2a"
 
 
 def test_state_defaults_for_empty_file():
@@ -449,14 +449,14 @@ def test_state_rejects_unquoted_timestamp():
 
 
 def test_state_rejects_unquoted_night_key():
-    data = yaml.safe_load(STATE_YAML.replace('"2026-10-29":', "2026-10-29:"))
+    data = yaml.safe_load(STATE_YAML.replace('"2026-11-05":', "2026-11-05:"))
     with pytest.raises(ValidationError):
         State.model_validate(data)
 
 
 def test_state_rejects_unknown_key_and_bad_party_ref():
     data = yaml.safe_load(STATE_YAML)
-    data["sleeping"]["2026-10-29"]["left-window-1"] = "not-a-party"
+    data["sleeping"]["2026-11-05"]["left-window-1"] = "not-a-party"
     with pytest.raises(ValidationError):
         State.model_validate(data)
     data = yaml.safe_load(STATE_YAML)
@@ -469,35 +469,35 @@ def test_state_rejects_unknown_key_and_bad_party_ref():
 
 
 def test_assign_request_valid():
-    r = AssignRequest(night="2026-10-30", slots=["a", "b"], party_id="p-7f3k2a")
+    r = AssignRequest(night="2026-11-06", slots=["a", "b"], party_id="p-7f3k2a")
     assert r.slots == ["a", "b"]
 
 
 def test_assign_requires_at_least_one_slot():
     with pytest.raises(ValidationError):
-        AssignRequest(night="2026-10-30", slots=[], party_id="p-7f3k2a")
+        AssignRequest(night="2026-11-06", slots=[], party_id="p-7f3k2a")
     with pytest.raises(ValidationError):
         AssignStayRequest(slots=[], party_id="p-7f3k2a")
 
 
 def test_assign_rejects_duplicate_slots():
     with pytest.raises(ValidationError, match="more than once"):
-        AssignRequest(night="2026-10-30", slots=["a", "a"], party_id="p-7f3k2a")
+        AssignRequest(night="2026-11-06", slots=["a", "a"], party_id="p-7f3k2a")
     with pytest.raises(ValidationError, match="more than once"):
         AssignStayRequest(slots=["a", "b", "a"], party_id="p-7f3k2a")
 
 
 def test_assign_rejects_single_slot_field_and_extras():
     with pytest.raises(ValidationError):
-        AssignRequest(night="2026-10-30", slot="a", party_id="p-7f3k2a")
+        AssignRequest(night="2026-11-06", slot="a", party_id="p-7f3k2a")
     with pytest.raises(ValidationError):
-        AssignStayRequest(slots=["a"], party_id="p-7f3k2a", night="2026-10-30")
+        AssignStayRequest(slots=["a"], party_id="p-7f3k2a", night="2026-11-06")
 
 
 def test_clear_and_move_requests():
-    assert ClearRequest(night="2026-10-30", slot="a").slot == "a"
-    m = MoveRequest(party_id="p-7f3k2a", from_slot="a", to_slot="b", nights=["2026-10-30"])
-    assert m.nights == ["2026-10-30"]
+    assert ClearRequest(night="2026-11-06", slot="a").slot == "a"
+    m = MoveRequest(party_id="p-7f3k2a", from_slot="a", to_slot="b", nights=["2026-11-06"])
+    assert m.nights == ["2026-11-06"]
     with pytest.raises(ValidationError):
         MoveRequest(party_id="p-7f3k2a", from_slot="a", to_slot="b", nights=[])
 
@@ -512,7 +512,7 @@ def test_signup_request_needs_real_bool():
 
 def test_unknown_party_id_shape_is_not_rejected_by_request_models():
     # a nonexistent party is `unknown_party` (404) from validate.py, not a 422 from the model
-    assert AssignRequest(night="2026-10-30", slots=["a"], party_id="xyz").party_id == "xyz"
+    assert AssignRequest(night="2026-11-06", slots=["a"], party_id="xyz").party_id == "xyz"
 
 
 def test_layout_class_is_exported(layout):
@@ -524,10 +524,10 @@ def test_layout_class_is_exported(layout):
 
 def test_slots_list_has_an_upper_bound():
     ok = [f"s{i}" for i in range(MAX_SLOTS_PER_REQUEST)]
-    assert len(AssignRequest(night="2026-10-30", slots=ok, party_id="p-7f3k2a").slots) == MAX_SLOTS_PER_REQUEST
+    assert len(AssignRequest(night="2026-11-06", slots=ok, party_id="p-7f3k2a").slots) == MAX_SLOTS_PER_REQUEST
     too_long = ok + ["one-more"]
     with pytest.raises(ValidationError):
-        AssignRequest(night="2026-10-30", slots=too_long, party_id="p-7f3k2a")
+        AssignRequest(night="2026-11-06", slots=too_long, party_id="p-7f3k2a")
     with pytest.raises(ValidationError):
         AssignStayRequest(slots=too_long, party_id="p-7f3k2a")
 
@@ -545,7 +545,7 @@ def test_huge_lists_are_rejected_fast():
     huge = [f"slot-{i}" for i in range(300_000)]
     start = time.perf_counter()
     with pytest.raises(ValidationError):
-        AssignRequest(night="2026-10-30", slots=huge, party_id="p-7f3k2a")
+        AssignRequest(night="2026-11-06", slots=huge, party_id="p-7f3k2a")
     with pytest.raises(ValidationError):
         MoveRequest(party_id="p-7f3k2a", from_slot="a", to_slot="b", nights=huge)
     assert time.perf_counter() - start < 2.0
@@ -565,7 +565,7 @@ def test_duplicate_detection_is_linear():
 
 def test_move_rejects_duplicate_nights():
     with pytest.raises(ValidationError, match="more than once"):
-        MoveRequest(party_id="p-7f3k2a", from_slot="a", to_slot="b", nights=["2026-10-30", "2026-10-30"])
+        MoveRequest(party_id="p-7f3k2a", from_slot="a", to_slot="b", nights=["2026-11-06", "2026-11-06"])
 
 
 @pytest.mark.parametrize("field", ["name", "arrival_time"])

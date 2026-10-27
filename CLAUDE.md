@@ -53,7 +53,7 @@ Run one task per developer call. To keep the main session's context small, pass 
 
 ## What this is
 
-A small web app for assigning sleeping places at a cabin (chata) for the event 29. 10. (Thursday) – 1. 11. 2026 (Sunday) (three nights, ~8–10 parties, 13–18 people, 20 slots of which 2 are "tight"). Friends tap a pixel-art top-down map to pick who sleeps where each night. There are no accounts. Access is a shared group code, plus an admin code for the organizer. The people use it from a WhatsApp link on mobile.
+A small web app for assigning sleeping places at a cabin (chata) for the event 5. 11. (Thursday) – 8. 11. 2026 (Sunday) (three nights, ~8–10 parties, 13–18 people, 20 slots of which 2 are "tight"). Friends tap a pixel-art top-down map to pick who sleeps where each night. There are no accounts. Access is a shared group code, plus an admin code for the organizer. The people use it from a WhatsApp link on mobile.
 
 ## Hard constraints from the brief
 
@@ -87,7 +87,7 @@ Single uvicorn process with **one worker**, bound to `127.0.0.1` (default port 8
 
 ### Data model essentials
 
-- A night is identified by its start date (`2026-10-29` = Thu→Fri; nights are 2026-10-29, 2026-10-30, 2026-10-31). `sleeping` is `night → slot → party_id`, so double-booking is impossible by structure, and a free slot is simply absent.
+- A night is identified by its start date (`2026-11-05` = Thu→Fri; nights are 2026-11-05, 2026-11-06, 2026-11-07). `sleeping` is `night → slot → party_id`, so double-booking is impossible by structure, and a free slot is simply absent.
 - Party `id` is `p-` plus 6 random chars. The name is case-insensitively unique and can be renamed without touching `sleeping`. The server assigns the color from the 12-color palette listed in the proposal's "Vzhľad" section unless the request carries its own `color` (T-031, organizer's decision of 24. 10. 2026: chosen on create, overridable on edit; free hex colors allowed, but the server rejects ones too light or too dark with `invalid` and a reason in `params`).
 - Needed slots per night = `adults + kids − kids_in_parents_bed`. A party is present on night *n* if `arrive ≤ n < leave`.
 - Dates and times in YAML must be **quoted strings** so PyYAML does not parse them into `date` objects.

@@ -379,7 +379,7 @@ async def test_create_party_duplicate_name_is_case_insensitive(app, group_client
         ({"adults": -1}, "adults"),
         ({"arrive": SUN}, "arrive"),
         ({"leave": THU}, "leave"),
-        ({"arrive": "2026-10-31", "leave": "2026-10-31"}, "leave"),
+        ({"arrive": "2026-11-07", "leave": "2026-11-07"}, "leave"),
         ({"unknown_field": 1}, "unknown_field"),
         ({"kids": 0, "kids_in_parents_bed": 1}, "kids_in_parents_bed"),
         ({"kids": 1, "kids_in_parents_bed": 2}, "kids_in_parents_bed"),
@@ -802,7 +802,7 @@ async def test_create_day_only_party_stores_sorted_days_and_null_stay(app, group
         ({"arrive": THU}, "stay_mode_mixed", "day_visits"),
         ({"day_visits": []}, "day_visits_empty", "day_visits"),
         ({"day_visits": [THU, THU]}, "duplicate_day", "day_visits"),
-        ({"day_visits": ["2026-11-05"]}, "day_outside_event", "day_visits"),
+        ({"day_visits": ["2026-11-12"]}, "day_outside_event", "day_visits"),
         ({"kids": 1, "kids_in_parents_bed": 1}, "day_only_kids_in_bed", "kids_in_parents_bed"),
     ],
 )

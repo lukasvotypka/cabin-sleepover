@@ -406,7 +406,7 @@ async def test_unprotected_party_gets_a_number_after_the_code(gc, phone_app, mak
     assert (await gc.get("/api/session")).json()["verified"] == [party.id]
     cookie = rt.party_cookies.load(gc.cookies.get(PARTY_COOKIE))
     assert cookie[party.id] == datetime.fromisoformat(saved.phone_set_at).timestamp()
-    assert (await gc.post("/api/assign", json={"night": "2026-10-29", "slots": ["left-double-1"], "party_id": party.id})).status_code == 200
+    assert (await gc.post("/api/assign", json={"night": "2026-11-05", "slots": ["left-double-1"], "party_id": party.id})).status_code == 200
 
 
 async def _stream(rt):
@@ -530,7 +530,7 @@ async def set_verify(app, on):
 
 async def test_state_and_error_responses_carry_phone_verify(gc):
     assert (await gc.get("/api/state")).json()["state"]["phone_verify"] is True
-    resp = await gc.post("/api/assign", json={"night": "2026-10-29", "slots": ["nope"], "party_id": "p-nope00"})
+    resp = await gc.post("/api/assign", json={"night": "2026-11-05", "slots": ["nope"], "party_id": "p-nope00"})
     assert resp.status_code >= 400 and resp.json()["state"]["phone_verify"] is True
 
 

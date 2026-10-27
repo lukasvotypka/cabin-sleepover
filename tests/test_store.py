@@ -165,9 +165,9 @@ def test_startup_bad_food_note(layout, data_dir, make_party, note):
 
 def test_startup_night_not_in_event(layout, data_dir, make_party):
     ivan = make_party(id="p-ivan01")
-    write_data(data_dir, good_data(make_party, [ivan], {"2026-11-05": {SLOT1: ivan.id}}))
+    write_data(data_dir, good_data(make_party, [ivan], {"2026-11-12": {SLOT1: ivan.id}}))
     msg = start_error(layout, data_dir)
-    assert "sleeping.2026-11-05" in msg and "not in event.nights" in msg
+    assert "sleeping.2026-11-12" in msg and "not in event.nights" in msg
 
 
 def test_startup_duplicate_party_id(layout, data_dir, make_party):
@@ -601,9 +601,9 @@ def test_startup_day_only_party_loads(layout, data_dir, make_party):
         ({"day_visits": [THU], "arrive": THU}, "parties[0].day_visits: A party with day visits cannot also"),
         ({"day_visits": []}, "parties[0].day_visits: Give arrive and leave, or at least one day visit"),
         ({"day_visits": [], "leave": SUN}, "parties[0].arrive: Only one of arrive and leave"),
-        ({"day_visits": [THU, THU]}, "parties[0].day_visits: Day 2026-10-29 is listed more than once"),
-        ({"day_visits": [THU, "2026-11-05"]},
-         "parties[0].day_visits: Day 2026-11-05 is outside the event (2026-10-29 to 2026-11-01)"),
+        ({"day_visits": [THU, THU]}, "parties[0].day_visits: Day 2026-11-05 is listed more than once"),
+        ({"day_visits": [THU, "2026-11-12"]},
+         "parties[0].day_visits: Day 2026-11-12 is outside the event (2026-11-05 to 2026-11-08)"),
         ({"kids": 1, "kids_in_parents_bed": 1}, "parties[0].kids_in_parents_bed: A day-only party has no bed"),
     ],
 )

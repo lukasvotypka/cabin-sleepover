@@ -79,14 +79,14 @@ def _empty_list(d):
 
 
 MENU = [
-    {"day": "2026-10-29", "meals": [{"when": "večer", "what": "guláš"}]},
-    {"day": "2026-10-30", "meals": [{"when": "ráno", "what": "raňajky"}]},
+    {"day": "2026-11-05", "meals": [{"when": "večer", "what": "guláš"}]},
+    {"day": "2026-11-06", "meals": [{"when": "ráno", "what": "raňajky"}]},
 ]
 
 
 def _day_outside(d):
     d["menu"] = [dict(m) for m in MENU]
-    d["menu"][0]["day"] = "2026-11-05"
+    d["menu"][0]["day"] = "2026-11-12"
 
 
 def _day_repeated(d):
@@ -192,7 +192,7 @@ def test_pack_item_note(tmp_path):
 
 def test_menu_still_checked_when_present(tmp_path):
     base = {k: _sample()[k] for k in ("water", "pack", "sleep", "program")}
-    assert _load(tmp_path, {**base, "menu": MENU}).menu[0].day == "2026-10-29"
+    assert _load(tmp_path, {**base, "menu": MENU}).menu[0].day == "2026-11-05"
 
 
 @pytest.mark.parametrize(

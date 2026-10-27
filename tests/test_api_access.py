@@ -105,7 +105,7 @@ def test_env_values_are_stripped():
 
 def test_startup_runs_the_data_file_check(make_app, tmp_path):
     (tmp_path / "data").mkdir()
-    bad = {"version": 3, "updated_at": "2026-10-25T19:02:11+02:00", "sleeping": {"2026-10-29": {"nope": "p-abcdef"}}}
+    bad = {"version": 3, "updated_at": "2026-10-25T19:02:11+02:00", "sleeping": {"2026-11-05": {"nope": "p-abcdef"}}}
     (tmp_path / "data" / "cabin-data.yaml").write_text(yaml.safe_dump(bad), encoding="utf-8")
     with pytest.raises(StartupError, match="unknown slot"):
         make_app()
@@ -431,7 +431,7 @@ async def test_state_content(group_client, layout):
     assert state["signup_open"] is True
     assert state["parties"] == []
     assert state["sleeping"] == {}
-    assert state["event"]["nights"] == ["2026-10-29", "2026-10-30", "2026-10-31"]
+    assert state["event"]["nights"] == ["2026-11-05", "2026-11-06", "2026-11-07"]
     assert set(state["event"]) == {"name", "arrive_days", "leave_days", "nights"}
     assert state["layout"] == layout.model_dump(mode="json")
     assert [r["id"] for r in state["layout"]["rooms"]] == [r.id for r in layout.rooms]

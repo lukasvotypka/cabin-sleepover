@@ -1,6 +1,6 @@
 # Cabin sleepover: who sleeps where
 
-A small web app for sorting out sleeping places at the cabin for the event 29. 10. – 1. 11. 2026 (three nights). Friends open a link from WhatsApp, enter a shared group code and tap a pixel-art map of the cabin to say who sleeps where each night. There are no accounts and no database: everything lives in a few readable YAML files, so you can back them up by copying and fix them in an editor if you ever have to.
+A small web app for sorting out sleeping places at the cabin for the event 5. 11. – 8. 11. 2026 (three nights). Friends open a link from WhatsApp, enter a shared group code and tap a pixel-art map of the cabin to say who sleeps where each night. There are no accounts and no database: everything lives in a few readable YAML files, so you can back them up by copying and fix them in an editor if you ever have to.
 
 The page itself is Slovak (informal), this README and all code are English.
 
@@ -199,8 +199,15 @@ To start from nothing, stop the container, delete `data/cabin-data.yaml` and sta
 Only while the container is **stopped**. The app reads the file on every request, so a half-finished edit would be served at once, and a write that runs at the same moment would overwrite your edit:
 
 1. `cd /opt/chrapa-poll && docker compose stop`
-2. Edit `data/cabin-data.yaml`. Keep dates and times in quotes (`"2026-10-29"`), or YAML turns them into dates. Slot IDs and nights must exist in `config/cabin.yaml`. `sleeping` is `night → slot → party id`, one party per slot.
+2. Edit `data/cabin-data.yaml`. Keep dates and times in quotes (`"2026-11-05"`), or YAML turns them into dates. Slot IDs and nights must exist in `config/cabin.yaml`. `sleeping` is `night → slot → party id`, one party per slot.
 3. Make sure the file is still owned by the container user (`sudo chown 1000:1000 data/cabin-data.yaml`), then `docker compose start`. On start the app validates the file against the models and the layout. If something is wrong, it refuses to start and names the exact line or entry in `docker compose logs --tail 30` (the container keeps restarting until the file is fixed). Fix it, or restore a backup.
+
+### Move the event to other dates
+
+Change the dates in `config/cabin.yaml` (`arrive_days`, `leave_days`, `nights`), then move the stored parties with them while the app is stopped. `scripts/shift_event.py` moves every party's `arrive`, `leave`, `day_visits` and `places` by the given number of days and frees all beds (everyone picks a bed again). Names, people, colours, phones and the „Pred cestou“ progress stay. It checks the result against the new `cabin.yaml` like the startup check, keeps a copy of the old file in `data/backups/` and appends an audit entry:
+
+    uv run python scripts/shift_event.py --days 7 --data-dir data --dry-run   # show what would change
+    uv run python scripts/shift_event.py --days 7 --data-dir data
 
 ### The map does not match the cabin
 
@@ -248,7 +255,7 @@ These are listed in `proposal.md` ("Otvorené rozhodnutia"). They were not decid
 
 | Decision | Default used |
 | --- | --- |
-| Dates | decided: 29. 10. 2026 (Thu) – 1. 11. 2026 (Sun), nights 2026-10-29, 2026-10-30, 2026-10-31, only in `config/cabin.yaml` |
+| Dates | decided: 5. 11. 2026 (Thu) – 8. 11. 2026 (Sun), moved from 29. 10. – 1. 11. on 27. 10. 2026, nights 2026-11-05, 2026-11-06, 2026-11-07, only in `config/cabin.yaml` |
 | Real layout of beds, doors and windows | as in the preview; send corrections, they are a change in `config/cabin.yaml` only |
 | Can a friend take a place on a night the party is not at the cabin? | no (error `not_present`): the party first edits its arrival and departure |
 | Signup deadline | signup is never locked in phase 1 |

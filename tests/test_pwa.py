@@ -61,7 +61,7 @@ async def test_asset_version_in_writes_errors_and_broadcast(group_client, app):
     meta = app.state.runtime.asset_version()
     created = await group_client.post(
         "/api/parties",
-        json={"name": "Ivan a Eva", "adults": 2, "kids": 0, "kids_in_parents_bed": 0, "arrive": THU, "leave": "2026-10-30"},
+        json={"name": "Ivan a Eva", "adults": 2, "kids": 0, "kids_in_parents_bed": 0, "arrive": THU, "leave": "2026-11-06"},
     )
     assert created.json()["state"]["asset_version"] == meta
     err = await group_client.post("/api/assign", json={"night": THU, "slots": ["nope"], "party_id": created.json()["party"]["id"]})

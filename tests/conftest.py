@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 CABIN_YAML = ROOT / "config" / "cabin.yaml"
 APP_YAML = ROOT / "config" / "app.yaml"
 
-THU, FRI, SAT = "2026-10-29", "2026-10-30", "2026-10-31"
-SUN = "2026-11-01"
+THU, FRI, SAT = "2026-11-05", "2026-11-06", "2026-11-07"
+SUN = "2026-11-08"
 
 
 @pytest.fixture(scope="session")

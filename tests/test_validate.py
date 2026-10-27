@@ -390,10 +390,10 @@ def test_valid_stays(layout, arrive, leave):
 @pytest.mark.parametrize(
     "arrive,leave",
     [
-        ("2026-10-28", SAT),   # arrival outside arrive_days
+        ("2026-11-04", SAT),   # arrival outside arrive_days
         (SUN, SUN),            # arrival is not in arrive_days
         (THU, THU),            # departure is not in leave_days
-        (THU, "2026-11-02"),   # departure outside leave_days
+        (THU, "2026-11-09"),   # departure outside leave_days
         (SAT, SAT),            # departure is not in leave_days
         (FRI, FRI),
     ],
@@ -624,8 +624,8 @@ def mode_error(layout, **fields):
         ({"arrive": THU}, "stay_incomplete", "leave", {}),
         ({"leave": SUN}, "stay_incomplete", "arrive", {}),
         ({"day_visits": [THU, THU]}, "duplicate_day", "day_visits", {"day": THU}),
-        ({"day_visits": [THU, "2026-11-05"]}, "day_outside_event", "day_visits", {"day": "2026-11-05"}),
-        ({"day_visits": ["2026-10-28"]}, "day_outside_event", "day_visits", {"day": "2026-10-28"}),
+        ({"day_visits": [THU, "2026-11-12"]}, "day_outside_event", "day_visits", {"day": "2026-11-12"}),
+        ({"day_visits": ["2026-11-04"]}, "day_outside_event", "day_visits", {"day": "2026-11-04"}),
         ({"day_visits": [THU], "kids": 1, "kids_in_parents_bed": 1}, "day_only_kids_in_bed",
          "kids_in_parents_bed", {}),
     ],
@@ -639,8 +639,8 @@ def test_party_mode_rules(layout, fields, reason, field, extra):
 
 def test_mode_rules_are_checked_in_order(layout):
     # mixed comes before day checks, duplicates before the event range
-    assert mode_error(layout, day_visits=["2026-11-05"], arrive=THU).params["reason"] == "stay_mode_mixed"
-    assert mode_error(layout, day_visits=["2026-11-05", "2026-11-05"]).params["reason"] == "duplicate_day"
+    assert mode_error(layout, day_visits=["2026-11-12"], arrive=THU).params["reason"] == "stay_mode_mixed"
+    assert mode_error(layout, day_visits=["2026-11-12", "2026-11-12"]).params["reason"] == "duplicate_day"
 
 
 def test_day_only_party_with_kids_and_all_event_days_is_valid(layout, make_state):
