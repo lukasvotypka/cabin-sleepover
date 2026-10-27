@@ -1,0 +1,469 @@
+{
+ "event": {
+  "name": "Chata 29. 10. – 1. 11.",
+  "arrive_days": [
+   "2026-10-29",
+   "2026-10-30",
+   "2026-10-31"
+  ],
+  "leave_days": [
+   "2026-10-30",
+   "2026-10-31",
+   "2026-11-01"
+  ],
+  "nights": [
+   "2026-10-29",
+   "2026-10-30",
+   "2026-10-31"
+  ]
+ },
+ "map": {
+  "viewbox": [
+   380,
+   496
+  ],
+  "paths": [
+   [
+    240,
+    388,
+    16,
+    96
+   ],
+   [
+    60,
+    468,
+    196,
+    12
+   ],
+   [
+    84,
+    174,
+    12,
+    232
+   ],
+   [
+    96,
+    352,
+    24,
+    12
+   ]
+  ],
+  "doors": [
+   [
+    218,
+    312,
+    4,
+    20
+   ],
+   [
+    264,
+    312,
+    4,
+    20
+   ],
+   [
+    238,
+    388,
+    20,
+    4
+   ],
+   [
+    80,
+    172,
+    20,
+    6
+   ],
+   [
+    80,
+    406,
+    20,
+    4
+   ]
+  ],
+  "windows": [
+   [
+    186,
+    268,
+    24,
+    4
+   ],
+   [
+    300,
+    268,
+    24,
+    4
+   ]
+  ],
+  "scene": {
+   "title": [
+    176,
+    4,
+    196,
+    28
+   ],
+   "time": [
+    176,
+    34,
+    196,
+    12
+   ],
+   "nights": [
+    176,
+    48,
+    196,
+    58
+   ],
+   "notice": [
+    24,
+    316,
+    44,
+    44
+   ],
+   "locked": [
+    16,
+    190,
+    62,
+    56
+   ],
+   "letter": [
+    128,
+    408,
+    44,
+    44
+   ],
+   "key": [
+    184,
+    408,
+    44,
+    44
+   ],
+   "legend": [
+    24,
+    264,
+    44,
+    44
+   ],
+   "parties": [
+    176,
+    112,
+    196,
+    136
+   ],
+   "briefing": [
+    296,
+    408,
+    56,
+    56
+   ],
+   "meadow": [
+    112,
+    453,
+    124,
+    14
+   ]
+  }
+ },
+ "rooms": [
+  {
+   "id": "konica-upper",
+   "name": "Konica, podkrovie",
+   "rect": [
+    10,
+    26,
+    152,
+    70
+   ],
+   "floor": "#D9B98A",
+   "beds": [
+    {
+     "id": "konica-upper-double",
+     "name": "Manželská posteľ",
+     "kind": "bed2",
+     "rect": [
+      28,
+      46,
+      44,
+      30
+     ],
+     "slots": [
+      "konica-upper-double-1",
+      "konica-upper-double-2"
+     ]
+    },
+    {
+     "id": "konica-upper-single",
+     "name": "Jednomiestna posteľ",
+     "kind": "bed1",
+     "rect": [
+      118,
+      44,
+      24,
+      34
+     ],
+     "slots": [
+      "konica-upper-single-1"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "konica-lower",
+   "name": "Konica, dole",
+   "rect": [
+    10,
+    96,
+    152,
+    80
+   ],
+   "floor": "#C9A67A",
+   "beds": [
+    {
+     "id": "konica-lower-mats",
+     "name": "Matrace na zemi",
+     "kind": "mats",
+     "rect": [
+      24,
+      132,
+      124,
+      26
+     ],
+     "slots": [
+      "konica-lower-mat-1",
+      "konica-lower-mat-2",
+      "konica-lower-mat-3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "left",
+   "name": "Izba vľavo",
+   "rect": [
+    118,
+    268,
+    102,
+    124
+   ],
+   "floor": "#E8D2A6",
+   "beds": [
+    {
+     "id": "left-double",
+     "name": "Manželská posteľ",
+     "kind": "bed2",
+     "rect": [
+      128,
+      292,
+      44,
+      30
+     ],
+     "slots": [
+      "left-double-1",
+      "left-double-2"
+     ]
+    },
+    {
+     "id": "left-window",
+     "name": "Posteľ pod oknom",
+     "kind": "bed1",
+     "rect": [
+      186,
+      292,
+      24,
+      34
+     ],
+     "slots": [
+      "left-window-1"
+     ]
+    },
+    {
+     "id": "left-cot-1",
+     "name": "Rozkladacie lehátko 1",
+     "kind": "cot",
+     "rect": [
+      130,
+      344,
+      20,
+      36
+     ],
+     "slots": [
+      "left-cot-1"
+     ]
+    },
+    {
+     "id": "left-cot-2",
+     "name": "Rozkladacie lehátko 2",
+     "kind": "cot",
+     "rect": [
+      158,
+      344,
+      20,
+      36
+     ],
+     "slots": [
+      "left-cot-2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hallway",
+   "name": "Chodba",
+   "rect": [
+    216,
+    268,
+    54,
+    124
+   ],
+   "floor": "#DCC59B",
+   "beds": [
+    {
+     "id": "hallway-sofa",
+     "name": "Rozkladací gauč",
+     "kind": "sofa",
+     "rect": [
+      226,
+      298,
+      32,
+      58
+     ],
+     "slots": [
+      "hallway-sofa-1",
+      "hallway-sofa-2"
+     ],
+     "tight": [
+      "hallway-sofa-2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "right",
+   "name": "Izba vpravo",
+   "rect": [
+    266,
+    268,
+    106,
+    124
+   ],
+   "floor": "#E8D2A6",
+   "beds": [
+    {
+     "id": "right-bunk-1",
+     "name": "Poschodová posteľ 1",
+     "kind": "bunk",
+     "rect": [
+      276,
+      292,
+      24,
+      42
+     ],
+     "slots": [
+      "right-bunk1-top",
+      "right-bunk1-bottom"
+     ]
+    },
+    {
+     "id": "right-bunk-2",
+     "name": "Poschodová posteľ 2",
+     "kind": "bunk",
+     "rect": [
+      308,
+      292,
+      24,
+      42
+     ],
+     "slots": [
+      "right-bunk2-top",
+      "right-bunk2-bottom"
+     ]
+    },
+    {
+     "id": "right-sofa",
+     "name": "Gauč (polonúdzový)",
+     "kind": "sofa1",
+     "rect": [
+      336,
+      344,
+      28,
+      36
+     ],
+     "slots": [
+      "right-sofa-1"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "kitchen",
+   "name": "Letná kuchynka",
+   "rect": [
+    10,
+    406,
+    100,
+    62
+   ],
+   "floor": "#CFD8DC",
+   "beds": [
+    {
+     "id": "kitchen-stove",
+     "name": "Na peci",
+     "kind": "stove",
+     "rect": [
+      22,
+      424,
+      56,
+      28
+     ],
+     "slots": [
+      "kitchen-stove-1",
+      "kitchen-stove-2"
+     ],
+     "tight": [
+      "kitchen-stove-2"
+     ]
+    }
+   ]
+  }
+ ],
+ "houses": [
+  {
+   "id": "konica",
+   "rooms": [
+    "konica-upper",
+    "konica-lower"
+   ],
+   "roof": {
+    "face": "#B5532A",
+    "dark": "#8E3424",
+    "ridge": "#D69A2E"
+   },
+   "chimney": 132
+  },
+  {
+   "id": "main",
+   "rooms": [
+    "left",
+    "hallway",
+    "right"
+   ],
+   "roof": {
+    "face": "#8E3424",
+    "dark": "#5A1F14",
+    "ridge": "#B5532A"
+   },
+   "chimney": 164
+  },
+  {
+   "id": "kitchen",
+   "rooms": [
+    "kitchen"
+   ],
+   "roof": {
+    "face": "#D69A2E",
+    "dark": "#A8741C",
+    "ridge": "#F0C76A"
+   },
+   "chimney": 90
+  }
+ ]
+}

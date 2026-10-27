@@ -228,3 +228,7 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **Screen reader:** VoiceOver and TalkBack read the slider value like „piatok 03:00, noc Št → Pi“. On desktop the arrows, Page Up/Down, Home and End move the time.
 - [ ] **Reduced motion (iOS „Zmenšiť pohyb“, Android „Remove animations“):** no time-lapse, no fade, fireflies stay still; dragging the knob still works.
 - [ ] **Pan and zoom fps with the day-night layer at rest (T-113):** on a 380 px iPhone Safari (and Android Chrome) at noon, drag, pinch and zoom the map with one and two fingers for about 10 s: it moves smoothly, no visible lag compared with the night-free state. Headless Chrome at 8x CPU throttle showed no difference (median about 17 ms, p90 about 20 ms, layer hidden or forced), so the iOS gap from the organizer report is only checked here.
+
+## 12. Isometric base (T-130)
+
+- [ ] **Vendored Three.js loads on devices (T-130):** on a 380 px iPhone Safari and Android Chrome, open the trial link (or a fresh private tab) and check that the page opens and the map draws with no error in the console (Safari: Develop menu via a Mac; Chrome: remote debugging). `static/vendor/three.min.js` (about 650 KB) is loaded before the logic scripts; on a slow mobile connection the page must still show the title and the map within a few seconds.

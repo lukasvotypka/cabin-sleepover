@@ -4499,3 +4499,121 @@ test("quickWhatsAppText: the route line follows the arrival line, with a bare UR
   assert.equal(lines[2], "📍 Cez Detvu. https://maps.app.goo.gl/x");
   assert.ok(!L.quickWhatsAppText(infoCfg, "Chata").includes("📍"));
 });
+
+// --- isometric view (logic-iso.js), checked against the real config/cabin.yaml ---
+
+// tests/js/cabin-layout.json is a copy of config/cabin.yaml (tests/test_iso_layout_fixture.py fails when it drifts)
+const isoLayout = JSON.parse(fs.readFileSync(path.join(root, "tests", "js", "cabin-layout.json"), "utf8"));
+const isoHouseOutline = (house) => L.unionRect(house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id).rect));
+const isoInside = (p, W, H) => p[0] >= 0 && p[0] <= W && p[1] >= 0 && p[1] <= H;
+
+test("iso: projection formula with az 45 and tilt 30", () => {
+  const b = L.isoBasis(45, 30);
+  const r = Math.SQRT1_2;
+  const [u, v] = L.isoRaw(b, 10, 4, 6);
+  assert.ok(Math.abs(u - (10 * r - 4 * r)) < 1e-9);
+  assert.ok(Math.abs(v - ((10 * r + 4 * r) * 0.5 - 6 * Math.cos(Math.PI / 6))) < 1e-9);
+  const s = L.isoScene(isoLayout);
+  const p = L.isoPoint(s, 10, 4, 6);
+  assert.ok(Math.abs(p[0] - (u + s.ox)) < 1e-9 && Math.abs(p[1] - (v + s.oy)) < 1e-9);
+});
+
+test("iso: scene holds every layout corner and the board block, clear of the world top", () => {
+  const s = L.isoScene(isoLayout);
+  const [vw, vh] = isoLayout.map.viewbox;
+  [[0, 0], [vw, 0], [0, vh], [vw, vh]].forEach(([x, y]) => assert.ok(isoInside(L.isoPoint(s, x, y, 0), s.W, s.H), `${x},${y}`));
+  const b = s.block, w = b.src[2] * b.k, h = b.src[3] * b.k;
+  assert.ok(b.x >= 0 && b.y >= 0 && b.x + w <= s.W && b.y + h <= s.H);
+  const lowest = Math.min(...[[0, 0], [vw, 0], [0, vh], [vw, vh]].map(([x, y]) => L.isoPoint(s, x, y, L.ISO.headroom)[1]));
+  assert.ok(b.y + h < lowest, "block ends above the highest point of the world");
+  assert.ok(isoInside(L.isoPoint(s, 0, 0, L.ISO.headroom), s.W, s.H));
+  assert.ok(isoInside(L.isoPoint(s, vw, 0, L.ISO.headroom), s.W, s.H));
+});
+
+test("iso: icon grid rects do not overlap each other nor the boards", () => {
+  const s = L.isoScene(isoLayout);
+  const icons = Object.entries(s.icons);
+  assert.equal(icons.length, 6);
+  icons.forEach(([k, r], i) => {
+    icons.slice(i + 1).forEach(([k2, r2]) => assert.ok(!L.rectsOverlap(r, r2), `${k} x ${k2}`));
+    ["title", "time", "nights", "parties"].forEach((n) => assert.ok(!L.rectsOverlap(r, isoLayout.map.scene[n]), `${k} x ${n}`));
+    assert.ok(r[0] >= s.block.src[0] && r[1] >= s.block.src[1] && r[0] + r[2] <= s.block.src[0] + s.block.src[2] && r[1] + r[3] <= s.block.src[1] + s.block.src[3], k + " inside block");
+  });
+});
+
+test("iso: block transform and point agree", () => {
+  const s = L.isoScene(isoLayout);
+  const p = L.isoBlockPoint(s, s.block.src[0], s.block.src[1]);
+  assert.deepEqual(plain(p), [s.block.x, s.block.y]);
+  assert.match(L.isoBlockTransform(s), /^translate\(.+\) scale\(1\.6\) translate\(.+\)$/);
+});
+
+test("iso: only north and west outline edges are tall, doors keep a lintel", () => {
+  const O = L.ISO;
+  isoLayout.houses.forEach((house) => {
+    const rooms = house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+    const outline = isoHouseOutline(house);
+    const walls = L.isoWalls(rooms, outline, isoLayout.map.doors);
+    assert.ok(walls.length > 0);
+    walls.forEach((w) => {
+      if (w.tall) {
+        const north = w.y === outline[1], west = w.x === outline[0];
+        assert.ok(north || west, "tall wall on the north or west edge");
+        assert.equal(w.h, O.wallH);
+      } else assert.equal(w.h, O.lowWall);
+    });
+  });
+  // The door [80, 172, 20, 6] sits on the tall west/north walls? Any tall piece over a door starts at doorH.
+  const all = isoLayout.houses.flatMap((house) => L.isoWalls(house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id)), isoHouseOutline(house), isoLayout.map.doors));
+  isoLayout.map.doors.forEach((d) => {
+    all.filter((w) => w.tall && L.rectsOverlap([w.x, w.y, w.w, w.d], d)).forEach((w) => assert.equal(w.h0, O.doorH, "lintel above the door"));
+  });
+  // A synthetic tall wall with a door: pieces beside the gap are full, the gap piece is a lintel.
+  const synth = L.isoWalls([{ rect: [0, 0, 100, 50] }], [0, 0, 100, 50], [[40, 0, 20, 4]]);
+  const north = synth.filter((w) => w.y === 0 && w.d === 4 && w.tall);
+  assert.deepEqual(plain(north.map((w) => [w.x, w.w, w.h0])).sort((a, b) => a[0] - b[0]), [[0, 40, 0], [40, 20, O.doorH], [60, 40, 0]]);
+});
+
+test("iso: no wall box overlaps a bed rect of the real layout", () => {
+  const beds = isoLayout.rooms.flatMap((r) => r.beds.map((b) => [r.id, b]));
+  isoLayout.houses.forEach((house) => {
+    const rooms = house.rooms.map((id) => isoLayout.rooms.find((r) => r.id === id));
+    L.isoWalls(rooms, isoHouseOutline(house), isoLayout.map.doors).forEach((w) => {
+      beds.forEach(([room, b]) => assert.ok(!L.rectsOverlap([w.x, w.y, w.w, w.d], b.rect), `${room}/${b.id}`));
+    });
+  });
+});
+
+test("iso: trees are deterministic and keep their clearance", () => {
+  const keepOut = [[150, 380, 40, 40]];
+  const a = L.isoTrees(isoLayout, { keepOut }), b = L.isoTrees(isoLayout, { keepOut });
+  assert.deepEqual(plain(a), plain(b));
+  assert.ok(a.length > 20);
+  const blocked = isoLayout.rooms.map((r) => r.rect).concat(isoLayout.map.paths, isoLayout.map.doors, keepOut, [isoLayout.map.scene.meadow]);
+  a.forEach((t) => {
+    const reach = 14 + 8 * t.size;                 // the code keeps clear (14 by default) + 8 * size around the trunk
+    blocked.forEach((r) => assert.ok(!L.rectsOverlap([t.x - reach, t.y - reach, 2 * reach, 2 * reach], r), `tree ${t.x},${t.y}`));
+    assert.ok(["pine", "leaf"].includes(t.kind));
+  });
+});
+
+test("iso: convexHull of a square with interior and collinear points", () => {
+  const pts = [[0, 0], [4, 0], [4, 4], [0, 4], [2, 2], [2, 0], [4, 2], [1, 3], [0, 0]];
+  const hull = plain(L.convexHull(pts));
+  assert.equal(hull.length, 4);
+  assert.deepEqual(hull.map((p) => p.join(",")).sort(), ["0,0", "0,4", "4,0", "4,4"]);
+  assert.deepEqual(plain(L.convexHull([[1, 1], [2, 2]])), [[1, 1], [2, 2]]);
+});
+
+test("iso: small helpers", () => {
+  assert.deepEqual(plain(L.unionRect([[0, 0, 2, 2], [5, 1, 1, 1]])), [0, 0, 6, 2]);
+  assert.ok(L.rectsOverlap([0, 0, 2, 2], [1, 1, 2, 2]) && !L.rectsOverlap([0, 0, 2, 2], [2, 0, 2, 2]));
+  assert.equal(L.pointsText([[1, 2], [3.14159, 4]]), "1,2 3.142,4");
+  assert.ok(L.isoNoise(3, 1) >= 0 && L.isoNoise(3, 1) < 1 && L.isoNoise(3, 1) === L.isoNoise(3, 1));
+  assert.equal(L.isoSlotHeight({ kind: "bunk" }, 0), L.ISO_BUNK_TOP);
+  assert.equal(L.isoSlotHeight({ kind: "bunk" }, 1), 5);
+  assert.equal(L.isoSlotHeight({ kind: "bed2" }, 1), 7);
+  const s = L.isoScene(isoLayout), f = L.isoFigure(s, [100, 100], 7);
+  assert.match(L.isoFigureTransform(f), /^translate\(.+ .+\) scale\(1\.35\)$/);
+  assert.equal(L.polyBox(L.isoBoxOutline(s, [10, 10, 20, 20], 0, 10)).length, 4);
+});
