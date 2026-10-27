@@ -185,8 +185,8 @@ function isoSetCentre(scene, vx, vy) {
 // A plan point at height h that an svg item hangs on, drawn at the scene's current centre: {x, y, h, p, f, scaled}. When the
 // centre moves, isoAnchorTransform gives the transform that carries the item to where the new projection puts the anchor
 // (T-147), so the svg follows the pan without being drawn again. The error is the change of the parallax across the item,
-// well under a pixel for items the size of a bed or a house. `scaled` items also grow with the depth scale (polygons);
-// signs keep their size.
+// well under a pixel for items the size of a bed or a house. `scaled` items also grow with the depth scale, like the 3D world
+// does (T-151): they must be drawn with the depth scale of their anchor already applied (polygons, signs, tags).
 function isoAnchorMake(scene, x, y, h, scaled) {
   return { x: x, y: y, h: h || 0, p: isoPoint(scene, x, y, h), f: isoDepthScale(scene.basis, x, y, h), scaled: !!scaled };
 }
@@ -199,14 +199,15 @@ function isoAnchorTransform(scene, a) {
 }
 
 // The two upright signs of the village (T-146): the notice board and the title gate. They stand on a ground point of the plan
-// (`map.scene.board`, `map.scene.gate`) and always face the camera, so they are drawn flat on the scene, `size` units big,
-// with the bottom middle on the projected point.
-var ISO_SIGNS = { board: { w: 130, h: 82 }, gate: { w: 150, h: 66 } };
+// (`map.scene.board`, `map.scene.gate`) and always face the camera, so they are drawn flat on the scene, `size` units big
+// times the depth scale of that point (so they keep their size next to the houses, T-151), with the bottom middle on the projected point.
+var ISO_SIGNS = { board: { w: 115, h: 73 }, gate: { w: 150, h: 66 } };      // the board fits beside the houses even at its nearest (135°, depth 1.15)
 
 // The scene rect [x, y, w, h] of a sign: "board" or "gate".
 function isoSignBox(scene, layout, which) {
   var at = layout.map.scene[which], size = ISO_SIGNS[which], p = isoPoint(scene, at[0], at[1], 0);
-  return [p[0] - size.w / 2, p[1] - size.h, size.w, size.h];
+  var f = isoDepthScale(scene.basis, at[0], at[1], 0), w = size.w * f, h = size.h * f;
+  return [p[0] - w / 2, p[1] - h, w, h];
 }
 
 // A ground point at height h on the scene: [x, y] in svg units.

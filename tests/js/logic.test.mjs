@@ -4683,11 +4683,12 @@ test("iso: scene holds every layout corner and the two signs, clear of the world
   assert.equal(s.top, L.ISO.margin);
 });
 
-test("iso: a sign box stands on its plan point: bottom middle, size from ISO_SIGNS", () => {
+test("iso: a sign box stands on its plan point: bottom middle, size from ISO_SIGNS times the depth scale", () => {
   const s = L.isoScene(isoLayout), sc = isoLayout.map.scene;
   ["board", "gate"].forEach((k) => {
     const b = plain(L.isoSignBox(s, isoLayout, k)), p = L.isoPoint(s, sc[k][0], sc[k][1], 0), size = L.ISO_SIGNS[k];
-    assert.deepEqual([b[2], b[3]], [size.w, size.h]);
+    const f = L.isoDepthScale(s.basis, sc[k][0], sc[k][1], 0);
+    assert.ok(Math.abs(b[2] - size.w * f) < 1e-9 && Math.abs(b[3] - size.h * f) < 1e-9, k);
     assert.ok(Math.abs(b[0] + b[2] / 2 - p[0]) < 1e-9 && Math.abs(b[1] + b[3] - p[1]) < 1e-9, k);
   });
 });
@@ -5727,6 +5728,19 @@ test("anchors: a sign moves by exactly the shift of its plan point", () => {
     const t = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(L.isoAnchorTransform(s, sign)), q = L.isoPoint(s, cx, cy, 0);
     assert.ok(Math.abs(+t[1] - (q[0] - sign.p[0])) < 1e-2 && Math.abs(+t[2] - (q[1] - sign.p[1])) < 1e-2);
   });
+});
+
+test("anchors: a sign grows with the depth like the house next to it, after a pan and when drawn again (T-151)", () => {
+  const s = isoSceneAt(45, { persp: 0.35 }), sc = isoLayout.map.scene, tail = L.isoPoint(s.ref, 190, 250, 0);
+  const at = sc.board, before = L.isoSignBox(s, isoLayout, "board"), a = L.isoAnchorMake(s, at[0], at[1], 0, true);
+  const c = s.basis.c, si = s.basis.s;      // a short ground edge at the board running across the view (all of it at one depth)
+  const edge = (sn) => L.isoPoint(sn, at[0] + 10 * c, at[1] - 10 * si, 0)[0] - L.isoPoint(sn, at[0] - 10 * c, at[1] + 10 * si, 0)[0];
+  const e0 = edge(s);
+  L.isoSetCentre(s, tail[0] - 150, tail[1] + 120);
+  const r = +/scale\(([\d.]+)\)/.exec(L.isoAnchorTransform(s, a))[1], after = L.isoSignBox(s, isoLayout, "board");
+  assert.ok(Math.abs(r - 1) > 0.03, `${r}`);      // the pan really changed the depth there
+  assert.ok(Math.abs(r - edge(s) / e0) < 2e-3, `${r} ${edge(s) / e0}`);
+  assert.ok(Math.abs(after[2] / before[2] - r) < 1e-4);      // a redraw at the new centre gives the same size
 });
 
 test("tap polygons are projected again at the moved centre (150 units off, all four angles): same count, moved, and a bed centre lies in its own region", () => {

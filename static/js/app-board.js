@@ -44,7 +44,7 @@ function drawGate(parent, box, state) {
   var g = svgEl(parent, "g", { role: "img", "aria-label": titleLabel(state.event), "pointer-events": "none",
     transform: "translate(" + round3(box[0] + box[2] / 2) + " " + round3(box[1] + box[3]) + ") scale(" + round3(k) + ")" });
   var at = state.layout.map.scene.gate;
-  isoAnchor("boards", g, at[0], at[1], 0, false);
+  isoAnchor("boards", g, at[0], at[1], 0, true);
   svgEl(g, "ellipse", { cx: 0, cy: 1, rx: 92, ry: 4, fill: "#2E1F14", opacity: ".3" });
   rect(g, -84, -46, 6, 46, COLORS.bedWoodDark);
   rect(g, 78, -46, 6, 46, COLORS.bedWoodDark);
@@ -62,7 +62,7 @@ function drawNoticeBoard(parent, box, state) {
     transform: "translate(" + round3(box[0] + box[2] / 2 - BOARD_W / 2 * k) + " " + round3(box[1] + box[3] - (BOARD_H + 26) * k) + ") scale(" + round3(k) + ")"
   });
   var at = state.layout.map.scene.board;
-  isoAnchor("boards", outer, at[0], at[1], 0, false);
+  isoAnchor("boards", outer, at[0], at[1], 0, true);
   var g = svgEl(outer, "g", { "class": "board-sign" });
   var W = BOARD_W, H = BOARD_H;
   svgEl(g, "ellipse", { cx: W / 2, cy: H + 26, rx: W / 2 + 6, ry: 8, fill: "#2E1F14", opacity: ".3" });
