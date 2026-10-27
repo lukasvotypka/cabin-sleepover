@@ -2697,8 +2697,8 @@ test("walkers: two adults tapping a double bed walk from the first two meadow ce
   const cells = plain(L.meadowLayout(realLayout.map.scene.meadow, 2).cells);
   const bed = bedById("left-double");
   assert.deepEqual(walkFor(p, before, after, "left-double", slots), [
-    { slot: slots[0], from: cells[0], to: plain(L.figurePosition(bed, 0)), kind: "adult", color: p.color },
-    { slot: slots[1], from: cells[1], to: plain(L.figurePosition(bed, 1)), kind: "adult", color: p.color },
+    { slot: slots[0], from: cells[0], to: plain(L.figurePosition(bed, 0)), h: L.isoSlotHeight(bed, 0), kind: "adult", color: p.color },
+    { slot: slots[1], from: cells[1], to: plain(L.figurePosition(bed, 1)), h: L.isoSlotHeight(bed, 1), kind: "adult", color: p.color },
   ]);
 });
 
@@ -2748,7 +2748,7 @@ test("page: the walk layer is hidden from readers and pointers, sits above the b
   assert.match(app, /walk: svgEl\(svg, "g", \{ "aria-hidden": "true", "pointer-events": "none" \}\),\s+boards:/);
   assert.match(app, /beds: svgEl\(svg, "g"\),\s+walk:/);
   assert.match(app, /walkProgress\(elapsed, WALK_MS\)/);
-  assert.match(app, /walkPosition\(item\.from, item\.to, t\)/);
+  assert.match(app, /isoWalkFigure\(app\.iso, item\.from, item\.to, t, isoWalkHeight\(elapsed, WALK_MS, item\.h\)\)/);
   assert.match(app, /if \(app\.walking\[night \+ "\|" \+ slot\]\) return;/);
   assert.doesNotMatch(app, /\b3000\b/);
   assert.doesNotMatch(app, /innerHTML/);
@@ -4692,4 +4692,115 @@ test("app-iso: listed in the page with the asset version, builds with textConten
   assert.match(draw, /function drawGround[\s\S]*?if \(isoActive\(\)\) return;/);
   assert.match(fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8"), /function applyView\(\)[\s\S]*?isoSync\(\)/);
   assert.match(pageFile, /#scene \.iso-canvas \{[^}]*pointer-events: none;[^}]*image-rendering: pixelated/);
+});
+
+// --- beds, people and the meadow in the isometric view (T-133) ---
+
+const allIsoBeds = () => isoLayout.rooms.flatMap((r) => r.beds.map((b) => ({ room: r, bed: b })));
+
+test("iso beds: every bed has a tap polygon that holds its furniture and sprites, and separate beds never overlap", () => {
+  const s = L.isoScene(isoLayout), hits = plain(L.isoBedHits(s, isoLayout));
+  const beds = allIsoBeds();
+  assert.equal(Object.keys(hits).length, beds.length);
+  beds.forEach(({ bed }) => {
+    const hit = hits[bed.id], shape = plain(L.isoBedShape(s, bed));
+    shape.forEach((p) => assert.ok(L.isoPointIn(hit, p), `${bed.id}: the shape is inside its hit polygon`));
+    beds.forEach((o) => {      // shapes that overlap by themselves (neighbouring sprites) share their area, the nearer bed wins
+      if (o.bed !== bed && !L.isoPolysOverlap(shape, L.isoBedShape(s, o.bed))) assert.ok(!L.isoPolysOverlap(hit, hits[o.bed.id]), `${bed.id} overlaps ${o.bed.id}`);
+    });
+  });
+});
+
+test("iso beds: a bed's own furniture and figures always hit that bed, never a neighbour (T-133 bug 1)", () => {
+  const s = L.isoScene(isoLayout), regions = L.isoHitRegions(s, isoLayout);
+  allIsoBeds().forEach(({ bed }) => {
+    const r = bed.rect, top = L.ISO_BED_TOP[bed.kind] === undefined ? 6 : L.ISO_BED_TOP[bed.kind];
+    assert.equal(L.isoHitAt(regions, L.isoPoint(s, r[0] + r[2] / 2, r[1] + r[3] / 2, top)), bed.id, `${bed.id}: furniture centre`);
+    bed.slots.forEach((slot, i) => {
+      const pos = L.figurePosition(bed, i), f = L.isoFigure(s, pos, L.isoSlotHeight(bed, i));
+      assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 11 * f.k]), bed.id, `${slot}: figure feet`);
+      assert.equal(L.isoHitAt(regions, [f.x + 5 * f.k, f.y + 6 * f.k]), bed.id, `${slot}: figure body`);
+    });
+  });
+});
+
+test("iso beds: the smallest tap polygon at the rest view is known (crowded cots stay small)", () => {
+  const s = L.isoScene(isoLayout), hits = plain(L.isoBedHits(s, isoLayout)), k = 0.67;
+  const sizes = Object.values(hits).map((h) => L.polyBox(h)).map((b) => Math.min(b[2], b[3]) * k);
+  const min = Math.min(...sizes);
+  assert.ok(min >= 20, "smallest side " + min + " px; the dev log of T-133 reports the gap to 44 px");
+});
+
+test("iso beds: a bunk draws its bottom berth, then the rail, then the top berth; others go back to front", () => {
+  const s = L.isoScene(isoLayout), bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed;
+  assert.deepEqual(plain(L.isoSlotOrder(s, bunk)), [1, 0]);
+  assert.equal(L.isoBunkRail(s, bunk).length, 2);
+  const two = allIsoBeds().find((e) => e.bed.kind === "bed2").bed, order = plain(L.isoSlotOrder(s, two));
+  const v = (i) => { const p = L.figurePosition(two, i); return L.isoPoint(s, p[0] + 5, p[1] + 7, L.isoSlotHeight(two, i))[1]; };
+  assert.ok(v(order[0]) <= v(order[1]));
+  const list = plain(L.isoBedsBackToFront(s, isoLayout));
+  for (let i = 1; i < list.length; i++) assert.ok(list[i - 1].v <= list[i].v);
+  assert.equal(list.length, allIsoBeds().length);
+});
+
+test("iso beds: a top berth figure stands 18 units higher than the bottom one", () => {
+  const s = L.isoScene(isoLayout), bunk = allIsoBeds().find((e) => e.bed.kind === "bunk").bed;
+  const top = L.isoFigure(s, [10, 10], L.isoSlotHeight(bunk, 0)), bottom = L.isoFigure(s, [10, 10], L.isoSlotHeight(bunk, 1));
+  assert.ok(Math.abs((bottom.y - top.y) - 18 * Math.cos(Math.PI / 6)) < 1e-9);
+});
+
+test("iso beds: quilt colours exist for every bed kind", () => {
+  ["bed2", "bed1", "bunk", "cot", "mats", "stove", "sofa", "sofa1"].forEach((k) => assert.ok(L.isoQuiltKey(k)));
+  assert.equal(L.isoQuiltKey("mats"), "mat");
+  assert.equal(L.isoQuiltKey("stove"), "stoveBlanket");
+});
+
+test("iso beds: bed tags sit under the front corner of the furniture, one per mat", () => {
+  const s = L.isoScene(isoLayout), mats = allIsoBeds().find((e) => e.bed.kind === "mats").bed;
+  const tags = plain(L.isoBedTags(s, mats));
+  assert.equal(tags.length, mats.slots.length);
+  assert.ok(tags[0].x < tags[1].x || tags[0].x !== tags[1].x);
+  const one = allIsoBeds().find((e) => e.bed.kind === "bed2").bed, t = plain(L.isoBedTags(s, one))[0];
+  const lowest = Math.max(...L.isoBoxOutline(s, one.rect, 0, 0).map((p) => p[1]));
+  assert.equal(t.y, lowest + 2);
+});
+
+test("iso plates: overlapping room plates move the farther one up by the overlap", () => {
+  assert.deepEqual(plain(L.isoPlateShifts([[0, 0, 20, 10], [100, 0, 20, 10]])), [0, 0]);
+  const dy = plain(L.isoPlateShifts([[0, 0, 20, 10], [10, 4, 20, 10]]));      // the second is nearer (lower)
+  assert.deepEqual(dy, [-6, 0]);
+});
+
+test("iso walk: the height is 0 on the floor and hops up in steps of 4 over the last steps", () => {
+  assert.equal(L.isoWalkHeight(0, 3000, 7), 0);
+  assert.equal(L.isoWalkHeight(2000, 3000, 7), 0);
+  assert.equal(L.isoWalkHeight(3000, 3000, 7), 7);
+  const hs = []; for (let t = 0; t <= 3000; t += 20) hs.push(L.isoWalkHeight(t, 3000, 7));
+  assert.deepEqual([...new Set(hs)], [0, 4, 7]);
+  const bunk = [...new Set(Array.from({ length: 151 }, (_, i) => L.isoWalkHeight(i * 20, 3000, 23)))];
+  assert.deepEqual(bunk, [0, 4, 8, 12, 16, 20, 23]);
+  assert.equal(L.isoWalkHeight(2999, 3000, 0), 0);
+});
+
+test("iso walk: the figure is rounded to whole scene units and ends on the bed figure", () => {
+  const s = L.isoScene(isoLayout), from = [112, 453], to = [60, 200];
+  const start = plain(L.isoWalkFigure(s, from, to, 0, 0)), mid = plain(L.isoWalkFigure(s, from, to, 0.37, 0)), end = plain(L.isoWalkFigure(s, from, to, 1, 7));
+  [start, mid, end].forEach((f) => { assert.equal(f.x, Math.round(f.x)); assert.equal(f.y, Math.round(f.y)); });
+  const target = L.isoFigure(s, to, 7);
+  assert.equal(end.x, Math.round(target.x));
+  assert.equal(end.y, Math.round(target.y));
+});
+
+test("iso meadow: the tap polygon covers the waiting figures and misses every bed polygon", () => {
+  const s = L.isoScene(isoLayout), meadow = isoLayout.map.scene.meadow, hit = plain(L.isoMeadowHit(s, isoLayout, meadow, 3));
+  L.meadowLayout(meadow, 3).cells.forEach((c) => L.isoSpritePoints(s, c, 0).forEach((p) => assert.ok(L.isoPointIn(hit, p))));
+  allIsoBeds().forEach(({ bed }) => assert.ok(!L.isoPolysOverlap(hit, L.isoBedShape(s, bed)), "meadow touches " + bed.id));
+});
+
+test("iso beds: the page draws beds as polygons with the old classes and the quilt only under the night class", () => {
+  assert.match(appSource, /isoBedsBackToFront\(app\.iso, layout\)/);
+  assert.match(appSource, /transform: isoFigureTransform\(isoFigure\(sc, figurePosition\(bed, i\), isoSlotHeight\(bed, i\)\)\)/);
+  assert.match(pageFile, /#scene svg\.night \.quilt \{ display: inline; \}/);
+  assert.match(pageFile, /#scene svg \.zzz, #scene svg \.quilt \{ display: none; \}/);
+  assert.match(appSource, /rustleTree\(e\.currentTarget\); isoRustle\(\)/);
 });

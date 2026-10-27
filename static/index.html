@@ -205,7 +205,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene svg .pending { opacity: .5; }
 #scene svg .bed-tags { opacity: 0; transition: opacity .25s; }
 #scene svg.zoomed .bed-tags { opacity: 1; }
-#scene svg g.bed { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+#scene svg g.bed, #scene svg g.bed-hits { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 #scene svg g.bed .ring { display: none; pointer-events: none; }
 #scene svg g.bed:focus-visible .ring { display: block; }
 #scene svg g.bed:focus-visible .hit { stroke: none; fill: rgba(58, 167, 224, .15); }
@@ -361,7 +361,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @keyframes dnOut { from { opacity: 1; transform: translate(0, 0); } to { opacity: 0; transform: translate(0, -3px); } }
 #scene svg .dn-ff { animation: dnFirefly 2.4s ease-in-out infinite; }
 @keyframes dnFirefly { 0%, 100% { opacity: .15; transform: translate(0, 0); } 50% { opacity: 1; transform: translate(3px, -4px); } }
-#scene svg .zzz { display: none; }
+#scene svg .zzz, #scene svg .quilt { display: none; }
+#scene svg.night .quilt { display: inline; }
 #scene svg.night .zzz { display: inline; animation: dnZzz 3s steps(6) infinite; }
 @keyframes dnZzz { 0% { opacity: 0; transform: translate(0, 2px); } 20%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate(2px, -5px); } }
 @media (prefers-reduced-motion: reduce) {

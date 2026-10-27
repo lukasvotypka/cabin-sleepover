@@ -259,3 +259,210 @@ function isoTrees(layout, opts) {
   }
   return out;
 }
+
+// --- beds, people and the meadow in the isometric view (T-133) ---
+
+var ISO_HIT_TARGET = 66;          // scene units of a tap target at the phone rest view (~0.67 px per unit = 44 px)
+var ISO_HIT_TOP = 12;             // a bed hit area reaches this far above the furniture top
+var ISO_MEADOW_TOP = 16;          // the meadow hit area reaches this high
+var ISO_SHADOW = [8, 2];          // the flat shadow under a standing figure, scene units
+var ISO_HOP_STEP = 4;             // a figure hops onto a bed in steps of this many units
+var ISO_HOP_MS = 80;              // the time of one hop step
+
+// The corners of a sprite standing at `pos` on height `h`: the scene rect of the 10 x 12 sprite (isoFigure).
+function isoSpritePoints(scene, pos, h) {
+  var f = isoFigure(scene, pos, h), k = f.k;
+  return [[f.x, f.y], [f.x + 10 * k, f.y], [f.x + 10 * k, f.y + 12 * k], [f.x, f.y + 12 * k]];
+}
+
+// The shape of a bed on the scene: the convex hull of its furniture (floor to top + ISO_HIT_TOP) and its sprites.
+function isoBedShape(scene, bed) {
+  var top = (ISO_BED_TOP[bed.kind] === undefined ? 6 : ISO_BED_TOP[bed.kind]) + ISO_HIT_TOP;
+  var pts = isoBoxOutline(scene, furnitureBounds(bed), 0, top).slice();
+  bed.slots.forEach(function (slot, i) {
+    pts = pts.concat(isoSpritePoints(scene, figurePosition(bed, i), isoSlotHeight(bed, i)));
+  });
+  return convexHull(pts);
+}
+
+// The polygon `poly` grown by gx and gy in every direction (the convex hull of its corners moved apart).
+function isoGrowPoly(poly, gx, gy) {
+  var pts = [];
+  poly.forEach(function (p) {
+    pts.push([p[0] - gx, p[1] - gy], [p[0] + gx, p[1] - gy], [p[0] + gx, p[1] + gy], [p[0] - gx, p[1] + gy]);
+  });
+  return convexHull(pts);
+}
+
+// Whether two convex polygons overlap (separating axis test, touching does not count).
+function isoPolysOverlap(a, b) {
+  return ![a, b].some(function (poly) {
+    return poly.some(function (p, i) {
+      var q = poly[(i + 1) % poly.length], nx = q[1] - p[1], ny = p[0] - q[0];
+      function range(s) {
+        var lo = Infinity, hi = -Infinity;
+        s.forEach(function (r) { var d = r[0] * nx + r[1] * ny; lo = Math.min(lo, d); hi = Math.max(hi, d); });
+        return [lo, hi];
+      }
+      var ra = range(a), rb = range(b);
+      return ra[1] <= rb[0] + 1e-9 || rb[1] <= ra[0] + 1e-9;
+    });
+  });
+}
+
+// Whether the point is inside the convex polygon (counter-clockwise on screen, as convexHull gives it) or on its edge.
+function isoPointIn(poly, p) {
+  return poly.every(function (a, i) {
+    var b = poly[(i + 1) % poly.length];
+    return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) >= -1e-9;
+  });
+}
+
+// A tap area: the shape `base` grown toward ISO_HIT_TARGET x ISO_HIT_TARGET around its centre, but never so far
+// that it comes closer to a polygon of `others` than the growth of both together (the halfway line), nor out of
+// the convex polygon `bound`. Growth is tried in eighths, so the result is the largest of 9 sizes that fits.
+function isoGrowHit(base, others, bound) {
+  var box = polyBox(base), gx = Math.max(0, (ISO_HIT_TARGET - box[2]) / 2), gy = Math.max(0, (ISO_HIT_TARGET - box[3]) / 2);
+  for (var n = 8; n > 0; n--) {
+    var f = n / 8, grown = isoGrowPoly(base, gx * f, gy * f);
+    var free = others.every(function (o) { return !isoPolysOverlap(grown, isoGrowPoly(o.shape, o.gx * f, o.gy * f)); });
+    if (free && (!bound || grown.every(function (p) { return isoPointIn(bound, p); }))) return grown;
+  }
+  return base;
+}
+
+// The tap polygons of all beds of a layout: {bed id: polygon}. Each is grown at most halfway toward the others.
+function isoBedHits(scene, layout) {
+  var all = [];
+  layout.rooms.forEach(function (room) {
+    var r = room.rect, bound = convexHull(isoBoxOutline(scene, [r[0], r[1], r[2] + 8, r[3] + 8], 0, ISO.wallH + 16));      // the south and east walls are low, so a tap area may reach over them
+    room.beds.forEach(function (bed) {
+      var shape = isoBedShape(scene, bed), box = polyBox(shape);
+      all.push({ id: bed.id, shape: shape, bound: bound, gx: Math.max(0, (ISO_HIT_TARGET - box[2]) / 2), gy: Math.max(0, (ISO_HIT_TARGET - box[3]) / 2) });
+    });
+  });
+  var out = {};
+  all.forEach(function (a) {      // beds whose shapes already overlap (sprites of neighbours) share it; the nearer one is drawn on top and wins
+    var apart = all.filter(function (o) { return o !== a && !isoPolysOverlap(a.shape, o.shape); });
+    out[a.id] = isoGrowHit(a.shape, apart, a.bound);
+  });
+  return out;
+}
+
+// The tap regions of all beds in drawing order, lowest first: [{bed: id, part: "pad" | "furniture" | "figure", poly}].
+// The grown tap areas (isoBedHits) come first and only claim free space; then every bed's furniture, then every
+// figure sprite (and free „+“), each back to front. So the point on a bed's own furniture or figure always belongs to
+// that bed, and a neighbour's padding never wins over it (T-133 test report, bug 1).
+function isoHitRegions(scene, layout) {
+  var hits = isoBedHits(scene, layout), beds = isoBedsBackToFront(scene, layout), out = [];
+  beds.forEach(function (e) { out.push({ bed: e.bed.id, part: "pad", poly: hits[e.bed.id] }); });
+  beds.forEach(function (e) {
+    var top = ISO_BED_TOP[e.bed.kind] === undefined ? 6 : ISO_BED_TOP[e.bed.kind];
+    out.push({ bed: e.bed.id, part: "furniture", poly: convexHull(isoBoxOutline(scene, furnitureBounds(e.bed), 0, top)) });
+  });
+  var figs = [];
+  beds.forEach(function (e) {
+    isoSlotOrder(scene, e.bed).forEach(function (i, n) {
+      var pos = figurePosition(e.bed, i), h = isoSlotHeight(e.bed, i);
+      figs.push({ bed: e.bed.id, bedV: e.v, n: n, slot: e.bed.slots[i], part: "figure", v: isoPoint(scene, pos[0] + 5, pos[1] + 7, h)[1], poly: convexHull(isoSpritePoints(scene, pos, h)) });
+    });
+  });
+  figs.sort(function (a, b) { return a.v - b.v || a.bedV - b.bedV || a.n - b.n; });
+  return out.concat(figs);
+}
+
+// The bed id under a scene point: the last (topmost) region that holds it, or null.
+function isoHitAt(regions, p) {
+  for (var i = regions.length - 1; i >= 0; i--) {
+    if (isoPointIn(regions[i].poly, p)) return regions[i].bed;
+  }
+  return null;
+}
+
+// The tap polygon of the meadow: its rect (0 ... ISO_MEADOW_TOP high) and the waiting sprites, grown like a bed
+// but never into a bed shape.
+function isoMeadowHit(scene, layout, meadow, count) {
+  var pts = isoBoxOutline(scene, meadow, 0, ISO_MEADOW_TOP).slice();
+  meadowLayout(meadow, count).cells.forEach(function (c) { pts = pts.concat(isoSpritePoints(scene, c, 0)); });
+  var others = [];
+  layout.rooms.forEach(function (room) { room.beds.forEach(function (bed) { others.push({ shape: isoBedShape(scene, bed), gx: 0, gy: 0 }); }); });
+  return isoGrowHit(convexHull(pts), others, null);
+}
+
+// The depth of a point on the scene: its projected v. Things with a larger v are nearer and are drawn later.
+function isoBedDepth(scene, bed) {
+  var r = bed.rect;
+  return isoPoint(scene, r[0] + r[2] / 2, r[1] + r[3] / 2, 0)[1];
+}
+
+// The beds of a layout, back to front: [{room, bed}].
+function isoBedsBackToFront(scene, layout) {
+  var list = [];
+  layout.rooms.forEach(function (room) { room.beds.forEach(function (bed) { list.push({ room: room, bed: bed, v: isoBedDepth(scene, bed) }); }); });
+  return list.sort(function (a, b) { return a.v - b.v; });
+}
+
+// The slot numbers of a bed in drawing order: back to front by the feet of their figures. A bunk draws its bottom
+// berth (slot 1) first, then the front rail (isoBunkRail), then the top berth (slot 0).
+function isoSlotOrder(scene, bed) {
+  var idx = bed.slots.map(function (s, i) { return i; });
+  if (bed.kind === "bunk") return idx.reverse();
+  var v = function (i) { var p = figurePosition(bed, i); return isoPoint(scene, p[0] + 5, p[1] + 7, isoSlotHeight(bed, i))[1]; };
+  return idx.sort(function (a, b) { return v(a) - v(b) || a - b; });
+}
+
+// The front rail of the top berth of a bunk, two strips (east and south side) 2 units high at 21 ... 23, as
+// scene polygons. They draw over the bottom sleeper.
+function isoBunkRail(scene, bed) {
+  var r = bed.rect, lo = ISO_BUNK_TOP - 2;
+  return [[r[0] + r[2] - 2, r[1], 2, r[3]], [r[0], r[1] + r[3] - 2, r[2], 2]].map(function (s) {
+    return isoBoxOutline(scene, s, lo, ISO_BUNK_TOP);
+  });
+}
+
+// The colour key (COLORS) of the quilt that covers a sleeper in a bed of this kind.
+function isoQuiltKey(kind) {
+  return { bed2: "quiltRed", bed1: "quiltBlue", bunk: "quiltBlue", cot: "quiltBlue", mats: "mat", stove: "stoveBlanket", sofa: "sofaLight", sofa1: "sofaLight" }[kind] || "quiltBlue";
+}
+
+// Moves the plates up so that none overlaps another: `plates` are scene rects [x, y, w, h]. The farther plate
+// (the one whose bottom is higher up) moves up by the overlap. Returns the shift (<= 0) of each plate.
+function isoPlateShifts(plates) {
+  var order = plates.map(function (p, i) { return i; }).sort(function (a, b) { return (plates[b][1] + plates[b][3]) - (plates[a][1] + plates[a][3]); });
+  var dy = plates.map(function () { return 0; });
+  order.forEach(function (i, n) {
+    order.slice(n + 1).forEach(function (j) {
+      var a = plates[i], b = plates[j], ay = a[1] + dy[i], by = b[1] + dy[j];
+      var ox = Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]);
+      var oy = Math.min(ay + a[3], by + b[3]) - Math.max(ay, by);
+      if (ox > 0 && oy > 0) dy[j] -= oy;
+    });
+  });
+  return dy;
+}
+
+// The height of a walking figure after `elapsed` of `ms`: 0 on the floor, then a hop onto the bed in steps of
+// ISO_HOP_STEP over the last steps of the walk (the bunk top is the same climb, just longer).
+function isoWalkHeight(elapsed, ms, hTo) {
+  if (!(hTo > 0)) return 0;
+  var steps = Math.ceil(hTo / ISO_HOP_STEP), start = ms - steps * ISO_HOP_MS;
+  if (!(elapsed >= start)) return 0;
+  return Math.min(hTo, ISO_HOP_STEP * (1 + Math.floor((elapsed - start) / ISO_HOP_MS)));
+}
+
+// The figure (isoFigure) of a walk at progress t: positions in whole scene units.
+function isoWalkFigure(scene, from, to, t, h) {
+  var p = walkPosition(from, to, t), f = isoFigure(scene, p, h);
+  return { x: Math.round(f.x), y: Math.round(f.y), k: f.k };
+}
+
+// The short bed names of a bed on the scene (T-133): {x, y, text}, x the middle and y the top of a flat chip
+// under the front (lowest) corner of the furniture at floor height, plus 2 units. A mat has its own tag.
+function isoBedTags(scene, bed) {
+  var r = bed.rect, texts = bedTags(bed);
+  return texts.map(function (t, i) {
+    var part = bed.kind === "mats" ? [r[0] + i * 46, r[1], 32, r[3]] : r;
+    var front = isoBoxOutline(scene, part, 0, 0).reduce(function (a, p) { return p[1] > a[1] ? p : a; });
+    return { x: front[0], y: front[1] + 2, text: t.text };
+  });
+}

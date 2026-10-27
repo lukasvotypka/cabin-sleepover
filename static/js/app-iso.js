@@ -21,6 +21,7 @@ var ISO_C = {
 };
 var ISO_PINE_MAX = 1.2;       // a taller pine would reach above the headroom the scene reserves under the boards
 var iso3 = null;
+var ISO_FEATURE_TREE = 1.5;      // size of the big tree that sways when tapped
 
 // --- a box builder: every static box of the world goes into one geometry with vertex colours (one draw call) ---
 
@@ -440,9 +441,17 @@ function isoBuild(host, layout, sc) {
     else { isoMushroom(b, t.x - 2, t.y); isoMushroom(b, t.x + 2, t.y + 2); }
   });
   scene.add(b.mesh());
+  var tree = new IsoBoxes();      // the big tree on its own, so a tap can sway it (isoRustle)
+  isoLeafTree(tree, treeSpot[0], treeSpot[1], ISO_FEATURE_TREE);
+  var pivot = new THREE.Group(), crown = tree.mesh();
+  pivot.position.set(treeSpot[0], 0, treeSpot[1]);
+  crown.position.set(-treeSpot[0], 0, -treeSpot[1]);
+  pivot.add(crown);
+  scene.add(pivot);
   if (glass.pos.length) scene.add(glass.mesh(new THREE.MeshLambertMaterial({ vertexColors: true })));
 
-  var me = iso3 = { renderer: renderer, scene: scene, camera: camera, host: host, w: 0, h: 0, dirty: true, last: 0, raf: 0, lost: false };
+  var me = iso3 = { renderer: renderer, scene: scene, camera: camera, host: host, w: 0, h: 0, dirty: true, last: 0, raf: 0, lost: false,
+    tree: { x: treeSpot[0], y: treeSpot[1], size: ISO_FEATURE_TREE, pivot: pivot, timer: 0 } };
   canvas.addEventListener("webglcontextlost", function (e) {
     e.preventDefault();      // the browser may give the context back
     if (iso3 !== me) return;      // a late event of a disposed world
@@ -464,6 +473,21 @@ function isoBuild(host, layout, sc) {
   isoSync();
   iso3.raf = requestAnimationFrame(isoLoop);
   return true;
+}
+
+// A tap on the big tree: its crown sways for 0.7 s (the svg tree-hit polygon calls this).
+function isoRustle() {
+  var t = iso3 && iso3.tree;
+  if (!t || iso3.lost || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var start = performance.now();
+  cancelAnimationFrame(t.timer);
+  (function sway(now) {
+    var p = Math.min(1, (now - start) / 700), a = Math.sin(p * Math.PI * 5) * 0.06 * (1 - p);
+    t.pivot.rotation.z = a;
+    t.pivot.rotation.x = a * 0.6;
+    iso3.dirty = true;
+    if (p < 1 && iso3 && iso3.tree === t) t.timer = requestAnimationFrame(sway);
+  })(start);
 }
 
 function isoDispose() {

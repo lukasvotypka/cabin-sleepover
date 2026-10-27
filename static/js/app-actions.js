@@ -36,10 +36,11 @@ function startWalk(list, party, night) {
   var ch = shirtChar(party.name);
   list.forEach(function (w) {
     var key = night + "|" + w.slot;
-    var node = svgEl(app.layers.walk, "g", { transform: "translate(" + w.from[0] + " " + w.from[1] + ")" });
+    var node = svgEl(app.layers.walk, "g", { transform: isoFigureTransform(isoWalkFigure(app.iso, w.from, w.to, 0, 0)) });
+    drawFootShadow(node);
     drawFigure(node, 0, 0, w.color, w.kind, ch);      // opaque all the way, even while the write is unconfirmed
     app.walking[key] = true;
-    walk.items.push({ key: key, node: node, from: w.from, to: w.to });
+    walk.items.push({ key: key, node: node, from: w.from, to: w.to, h: w.h });
   });
   app.walks.push(walk);
   if (!app.walkFrame) app.walkFrame = requestAnimationFrame(stepWalks);
@@ -59,8 +60,9 @@ function stepWalks(now) {
     }
     var t = walkProgress(elapsed, WALK_MS);
     walk.items.forEach(function (item) {
-      var p = walkPosition(item.from, item.to, t);
-      item.node.setAttribute("transform", "translate(" + p[0] + " " + p[1] + ")");
+      // projected each frame; the height stays 0 on the floor and hops up onto the bed at the end (isoWalkHeight)
+      var f = isoWalkFigure(app.iso, item.from, item.to, t, isoWalkHeight(elapsed, WALK_MS, item.h));
+      item.node.setAttribute("transform", isoFigureTransform(f));
     });
     return true;
   });

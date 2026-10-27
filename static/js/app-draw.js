@@ -164,21 +164,22 @@ function drawBase(g, layout) {
   layout.map.doors.forEach(function (d) { poly(d, 0, 0, doorFloorColor(layout, d) || COLORS.path); });
 }
 
-// The room name on a small wooden sign nailed to the wall, inside `roomLabelBand` (furniture stays out of it).
-// The scene font is monospace, so the width follows the number of letters (about 0.6 em each); a long name is
-// squeezed to the band.
+// The room name on a small wooden sign (T-133: upright, drawn at (0, 0) in sprite units and placed by
+// drawRoomPlates). The scene font is monospace, so the width follows the number of letters (about 0.6 em each);
+// a long name is squeezed to the band.
 var ROOM_SIGN_SIZE = 8;
-function drawRoomSign(g, room) {
+function roomSignSize(room) {
   var band = roomLabelBand(room);
-  var w = Math.min(band[2], Math.ceil(room.name.length * ROOM_SIGN_SIZE * .6) + 12);
-  var x = band[0], y = band[1], h = band[3];
-  rect(g, x + 1, y + 1, w, h, COLORS.ink, { opacity: ".25" });                    // shadow on the floor
-  rect(g, x, y, w, h, COLORS.woodDark);
-  rect(g, x + 1, y + 1, w - 2, h - 2, COLORS.plank);
-  rect(g, x + 1, y + 1, w - 2, 1, COLORS.woodLight, { opacity: ".55" });
-  rect(g, x + 2, y + h / 2 - 1, 2, 2, COLORS.woodLight);                           // nails
-  rect(g, x + w - 4, y + h / 2 - 1, 2, 2, COLORS.woodLight);
-  addText(g, x + w / 2, y + 8.5, room.name, ROOM_SIGN_SIZE, COLORS.paper, { anchor: "middle", bold: true, maxWidth: w - 12 });
+  return [Math.min(band[2], Math.ceil(room.name.length * ROOM_SIGN_SIZE * .6) + 12), band[3]];
+}
+function drawRoomSign(g, room) {
+  var size = roomSignSize(room), w = size[0], h = size[1];
+  rect(g, 0, 0, w, h, COLORS.woodDark);
+  rect(g, 1, 1, w - 2, h - 2, COLORS.plank);
+  rect(g, 1, 1, w - 2, 1, COLORS.woodLight, { opacity: ".55" });
+  rect(g, 2, h / 2 - 1, 2, 2, COLORS.woodLight);                           // nails
+  rect(g, w - 4, h / 2 - 1, 2, 2, COLORS.woodLight);
+  addText(g, w / 2, 8.5, room.name, ROOM_SIGN_SIZE, COLORS.paper, { anchor: "middle", bold: true, maxWidth: w - 12 });
 }
 
 // The element below `root` with this data-key, or null.

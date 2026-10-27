@@ -185,7 +185,7 @@ function walkPosition(from, to, t) {
 
 // The walks for one assign on `night`: stateBefore is the view before the tap, stateAfter the view with
 // the new pending ops. For the i-th slot of `slots` the figure starts at the i-th meadow cell (or at the
-// "+N" badge when the meadow overflows) and ends at its place in the bed. `kind` is what will stand in
+// "+N" badge when the meadow overflows) and ends at its place in the bed, at height `h` (isoSlotHeight). `kind` is what will stand in
 // the bed, so nothing swaps at landing. [] when party is null or had no waiting figures.
 function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) {
   if (!party) return [];
@@ -196,7 +196,8 @@ function walkers(stateBefore, stateAfter, party, bed, slots, night, meadowRect) 
     var from = i < spot.cells.length ? spot.cells[i] : i < waiting ? spot.morePos : null;
     var who = slotOccupant(stateAfter, slot, night);
     if (!from || !who) return;
-    out.push({ slot: slot, from: from, to: figurePosition(bed, bed.slots.indexOf(slot)), kind: who.kind, color: party.color });
+    var at = bed.slots.indexOf(slot);
+    out.push({ slot: slot, from: from, to: figurePosition(bed, at), h: isoSlotHeight(bed, at), kind: who.kind, color: party.color });
   });
   return out;
 }
