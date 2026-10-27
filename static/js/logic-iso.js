@@ -96,6 +96,16 @@ function isoPoint(scene, x, y, h) {
   return [p[0] + scene.ox, p[1] + scene.oy];
 }
 
+// The part of the scene a phone's rest view fits: [x, y, w, h], the board block plus every room with its walls
+// (projected), padded by `pad` units. The forest around it is left to panning.
+function isoContentRect(scene, layout, pad) {
+  pad = pad === undefined ? 12 : pad;
+  var b = scene.block, rects = [[b.x, b.y, b.src[2] * b.k, b.src[3] * b.k]];
+  layout.rooms.forEach(function (room) { rects.push(polyBox(isoBoxOutline(scene, room.rect, 0, ISO.wallH))); });
+  var u = unionRect(rects);
+  return [u[0] - pad, u[1] - pad, u[2] + 2 * pad, u[3] + 2 * pad];
+}
+
 // The svg transform of the board block.
 function isoBlockTransform(scene) {
   var b = scene.block;

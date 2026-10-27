@@ -4,6 +4,7 @@
 // Plain script: top-level names are shared with the other logic-*.js and app-*.js files (see index.html for the order).
 
 function drawGround(g, bounds) {
+  if (isoActive()) return;      // the 3D world has its own, endless grass under the svg
   var pattern = g.querySelector("pattern");
   if (!pattern) {
     var defs = svgEl(g, "defs", {});
@@ -137,23 +138,26 @@ function drawHouses(g, layout) {
   });
 }
 
+// The flat fallback of the 3D world (no WebGL): paths, room floors, doors and bed outlines at their projected
+// places (logic-iso.js), on the grass of drawGround. With the 3D world running the svg draws no ground at all.
 function drawBase(g, layout) {
-  var W = layout.map.viewbox[0], H = layout.map.viewbox[1], i;
-  rect(g, 0, 0, W, H, COLORS.grass);
-  for (i = 0; i < 70; i++) rect(g, (i * 53) % (W - 8), (i * 97) % (H - 8), 4, 4, i % 4 === 1 ? COLORS.leafRust : i % 4 === 3 ? COLORS.leafOchre : COLORS.tuft);
-  layout.map.paths.forEach(function (p) { rect(g, p[0], p[1], p[2], p[3], COLORS.path); });
+  if (isoActive()) return;
+  var sc = app.iso;
+  function poly(r, h0, h1, fill, attrs) {
+    var a = { points: pointsText(isoBoxOutline(sc, r, h0, h1)), fill: fill };
+    if (attrs) Object.keys(attrs).forEach(function (k) { a[k] = attrs[k]; });
+    return svgEl(g, "polygon", a);
+  }
+  layout.map.paths.forEach(function (p) { poly(p, 0, 0, COLORS.path); });
   layout.rooms.forEach(function (room) {
     var r = room.rect;
-    rect(g, r[0], r[1], r[2], r[3], COLORS.roomEdge);
-    rect(g, r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8, room.floor);
-    drawRoomSign(g, room);
+    poly(r, 0, 0, COLORS.roomEdge);
+    poly([r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8], 0, 0, room.floor);
+    room.beds.forEach(function (bed) {
+      poly(bed.rect, 0, isoSlotHeight(bed, bed.kind === "bunk" ? 1 : 0), COLORS.sheet, { stroke: COLORS.woodDark, "stroke-width": 1, opacity: ".7" });
+    });
   });
-  layout.map.doors.forEach(function (d) {
-    rect(g, d[0], d[1], d[2], d[3], doorFloorColor(layout, d) || COLORS.path);
-  });
-  layout.map.windows.forEach(function (w) { rect(g, w[0], w[1], w[2], w[3], COLORS.window); });
-  drawHouses(g, layout);
-  drawTree(g);
+  layout.map.doors.forEach(function (d) { poly(d, 0, 0, doorFloorColor(layout, d) || COLORS.path); });
 }
 
 // The room name on a small wooden sign nailed to the wall, inside `roomLabelBand` (furniture stays out of it).

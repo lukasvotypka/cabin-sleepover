@@ -64,7 +64,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #scene { position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100dvh; }
 /* The page has nothing to scroll, so the map owns every touch: one finger pans it at every zoom (a little past the edges),
    two fingers pinch it, and the browser neither scrolls nor zooms the page there. */
-#scene svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+/* The 3D world (app-iso.js) is a canvas under the svg: same box, no taps, pixels stay square. */
+#scene .iso-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; pointer-events: none; image-rendering: pixelated; }
+#scene svg { position: relative; display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
 #scene svg:focus:not(:focus-visible) { outline: none; }     /* a mouse press focuses the svg: no ring around the whole screen */
 #scene svg:focus-visible { outline: 3px solid #FFD54A; outline-offset: -3px; }
 .zoom-reset {
@@ -753,6 +755,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-boot.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-scene.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-zoom.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-iso.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-draw.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-daynight.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-hud.js?v=__ASSET_VERSION__"></script>

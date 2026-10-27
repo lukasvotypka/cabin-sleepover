@@ -118,9 +118,11 @@ function ensureScene() {
   cancelWalks();      // the old walk layer goes away with the old svg
   var host = $("scene");
   clearNode(host);
-  var vb = layout.map.viewbox;
+  app.iso = isoScene(layout);      // the isometric projection and scene size (logic-iso.js); the svg is as big as the scene
+  app.sceneContent = isoContentRect(app.iso, layout);      // what the rest view of a phone fits (restView)
+  isoBuild(host, layout, app.iso);      // the 3D world goes under the svg; false = no WebGL, drawBase draws a flat fallback
   var svg = svgEl(host, "svg", {
-    viewBox: "0 0 " + vb[0] + " " + vb[1], "shape-rendering": "crispEdges", role: "group",
+    viewBox: "0 0 " + app.iso.W + " " + app.iso.H, "shape-rendering": "crispEdges", role: "group",
     "aria-label": "Mapa chaty. Rovnaké údaje sú aj ako text hneď za mapou."
   });
   app.layers = {
@@ -135,5 +137,5 @@ function ensureScene() {
   drawBase(app.layers.base, layout);
   drawBird(app.layers.sky, layout);
   dnBuild(svg, layout, app.layers.boards, app.layers.tip);
-  setupZoom(host, svg, vb[0], vb[1]);
+  setupZoom(host, svg, app.iso.W, app.iso.H);
 }

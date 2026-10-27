@@ -33,18 +33,32 @@ function wholeView(bounds) {
   return { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h };
 }
 
-// The view the map rests on when nobody zoomed it: the whole bounds, except on a phone held sideways. There the
-// whole scene would have to fit the short height and come out tiny, so the map keeps the scale it has with the
-// phone upright (the scene as wide as the short side of the screen), zoomed around the scene centre. vw x vh is the
-// viewport in CSS px; only below LANDSCAPE_MAX_H px of height (phones, not desktop windows).
+// The view the map rests on when nobody zoomed it: the whole bounds, except
+//  - on a phone held upright (a portrait viewport narrower than REST_PHONE_W px) when `content` ([x, y, w, h], the part
+//    of the scene that matters: the board block and the rooms) is given: the view fits the content's width, so a phone
+//    shows the board block and every room larger than the whole scene would be (only the forest edge is cropped),
+//  - on a phone held sideways. There the whole scene would have to fit the short height and come out tiny, so the map
+//    keeps the scale it has with the phone upright (the scene as wide as the short side of the screen), zoomed around
+//    the scene centre. vw x vh is the viewport in CSS px; only below LANDSCAPE_MAX_H px of height (phones, not desktop windows).
 var LANDSCAPE_MAX_H = 500;
-function restView(bounds, W, H, vw, vh) {
-  var whole = wholeView(bounds);
+var REST_PHONE_W = 600;
+function restView(bounds, W, H, vw, vh, content) {
+  var whole = wholeView(bounds), phone = phoneRestView(bounds, vw, vh, content);
+  if (phone) return phone;
   if (!(vw > vh) || !(vh < LANDSCAPE_MAX_H) || !(bounds.w > 0)) return whole;
   var s = vw / bounds.w;                                  // px per scene unit at 1x
   var z = Math.min(ZOOM_MAX, vh / W / s);
   if (!(z > 1.05)) return whole;
   return zoomView(whole, bounds, z, W / 2, H / 2);      // the scene centre stays where it is (above the HUD)
+}
+
+// The rest view of a phone held upright (see restView): the content rect fitted by width and centred, or null when
+// the rule does not apply (no content, a wide or a landscape viewport, or the content is no narrower than the scene).
+function phoneRestView(bounds, vw, vh, content) {
+  if (!content || !(vw < REST_PHONE_W) || !(vh >= vw) || !(content[2] > 0) || !(bounds.w > 0)) return null;
+  var w = content[2], h = w * bounds.h / bounds.w;
+  if (!(bounds.w / w > 1.02)) return null;
+  return clampView({ x: content[0], y: content[1] + content[3] / 2 - h / 2, w: w, h: h }, bounds);
 }
 
 // Two views are the same up to half a scene unit.

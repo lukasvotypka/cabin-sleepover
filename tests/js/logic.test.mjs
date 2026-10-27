@@ -4617,3 +4617,57 @@ test("iso: small helpers", () => {
   assert.match(L.isoFigureTransform(f), /^translate\(.+ .+\) scale\(1\.35\)$/);
   assert.equal(L.polyBox(L.isoBoxOutline(s, [10, 10, 20, 20], 0, 10)).length, 4);
 });
+
+// --- the 3D world and the phone rest view (T-131) ---
+
+test("iso: the content rect holds the board block and every projected room, padded", () => {
+  const s = L.isoScene(isoLayout), c = plain(L.isoContentRect(s, isoLayout));
+  const b = s.block, inside = (x, y) => x >= c[0] && x <= c[0] + c[2] && y >= c[1] && y <= c[1] + c[3];
+  assert.ok(inside(b.x, b.y) && inside(b.x + b.src[2] * b.k, b.y + b.src[3] * b.k));
+  isoLayout.rooms.forEach((room) => {
+    const [x, y, w, h] = room.rect;
+    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([px, py]) => {
+      const p = L.isoPoint(s, px, py, 0);
+      assert.ok(inside(p[0], p[1]), `${room.id} corner ${px},${py}`);
+    });
+  });
+  assert.ok(c[2] < s.W, "narrower than the whole scene, so a phone zooms in on it");
+  assert.ok(c[0] >= -1 && c[1] >= -1 && c[0] + c[2] <= s.W + 1 && c[1] + c[3] <= s.H + 1, "stays on the scene");
+});
+
+test("restView: a portrait phone fits the content's width; the whole board block and all rooms stay in view at >= 0.66 px per unit", () => {
+  const s = L.isoScene(isoLayout), content = plain(L.isoContentRect(s, isoLayout));
+  const vw = 380, vh = 740, bounds = L.fitBounds(vw, vh, s.W, s.H, {});
+  const v = plain(L.restView(bounds, s.W, s.H, vw, vh, content));
+  assert.ok(vw / v.w >= 0.66, `scale ${vw / v.w}`);
+  assert.ok(v.x <= content[0] + 0.5 && v.x + v.w >= content[0] + content[2] - 0.5, "content width fits");
+  assert.ok(v.y <= content[1] + 0.5 && v.y + v.h >= content[1] + content[3] - 0.5, "content height fits");
+  assert.ok(L.sameView(v, L.phoneRestView(bounds, vw, vh, content)));
+  assert.ok(L.isZoomed(v, bounds));
+  // other screens keep today's rules
+  const desk = L.fitBounds(1440, 900, s.W, s.H, {});
+  assert.deepEqual(plain(L.restView(desk, s.W, s.H, 1440, 900, content)), plain(L.wholeView(desk)));
+  const land = L.fitBounds(844, 390, s.W, s.H, {});
+  assert.deepEqual(plain(L.restView(land, s.W, s.H, 844, 390, content)), plain(L.restView(land, s.W, s.H, 844, 390)));
+  assert.equal(L.phoneRestView(bounds, vw, vh, null), null);
+  assert.equal(L.phoneRestView(land, 844, 390, content), null);
+});
+
+test("app-iso: listed in the page with the asset version, builds with textContent only, falls back without WebGL", () => {
+  assert.ok(pageFile.includes("static/js/app-iso.js?v=__ASSET_VERSION__"));
+  assert.ok(pageFile.indexOf("static/js/app-iso.js") > pageFile.indexOf("static/vendor/three.min.js"));
+  const src = fs.readFileSync(path.join(root, "static", "js", "app-iso.js"), "utf8");
+  assert.ok(!src.includes("innerHTML"));
+  for (const k of ["isoBuild(", "isoDispose(", "isoSync(", "isoLoop(", "document.hidden", "webglcontextlost", "webglcontextrestored",
+    "shadowMap.autoUpdate = false", "BasicShadowMap", "antialias: false", "NearestFilter", "isoAvailable()"]) assert.ok(src.includes(k), k);
+  const scene = fs.readFileSync(path.join(root, "static", "js", "app-scene.js"), "utf8");
+  assert.ok(scene.indexOf("isoBuild(") < scene.indexOf('svgEl(host, "svg"'), "the canvas goes under the svg");
+  const draw = fs.readFileSync(path.join(root, "static", "js", "app-draw.js"), "utf8");
+  assert.match(src, /function isoActive\(\) \{\s*return !!iso3 && !iso3\.lost;/);
+  assert.match(src, /webglcontextlost[\s\S]*?iso3 !== me[\s\S]*?drawBase\(app\.layers\.base/);
+  assert.ok(src.includes("forceContextLoss()"));
+  assert.match(draw, /function drawBase[\s\S]*?if \(isoActive\(\)\) return;/);
+  assert.match(draw, /function drawGround[\s\S]*?if \(isoActive\(\)\) return;/);
+  assert.match(fs.readFileSync(path.join(root, "static", "js", "app-zoom.js"), "utf8"), /function applyView\(\)[\s\S]*?isoSync\(\)/);
+  assert.match(pageFile, /#scene \.iso-canvas \{[^}]*pointer-events: none;[^}]*image-rendering: pixelated/);
+});

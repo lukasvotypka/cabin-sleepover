@@ -232,3 +232,13 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 ## 12. Isometric base (T-130)
 
 - [ ] **Vendored Three.js loads on devices (T-130):** on a 380 px iPhone Safari and Android Chrome, open the trial link (or a fresh private tab) and check that the page opens and the map draws with no error in the console (Safari: Develop menu via a Mac; Chrome: remote debugging). `static/vendor/three.min.js` (about 650 KB) is loaded before the logic scripts; on a slow mobile connection the page must still show the title and the map within a few seconds.
+
+## 13. Isometric 3D world (T-131)
+
+- [ ] **3D world on a real GPU (T-131):** on a 380 px iPhone Safari and Android Chrome, the map shows the pixel 3D world (grass, paths, log cabins, furniture, trees, campfire) under the svg, not blank and not flat. Pan, pinch and double-tap zoom: the svg hit areas and the 3D furniture stay aligned at every zoom (check a small cot or bunk at the largest zoom).
+- [ ] **Phone rest view (T-131 design):** on a 380 × 740 portrait screen the first view (and the reset button) shows the whole board block (title, signposts, party table, icons) and all three houses, with the forest edge cropped and reachable by panning. Rooms and bed shapes are readable (about 0.66 px per unit).
+- [ ] **Desktop and landscape:** at 1440 × 900 and on a phone turned sideways, the world fills the map as before, with no stripe of blank background at any edge while panning.
+- [ ] **Backgrounded tab (T-131):** on iOS Safari, open the map, switch to another app for a minute, come back: the world is drawn (or the flat grass fallback shows and then the world rebuilds), never a blank map with the beds floating. A reload always shows the world.
+- [ ] **No WebGL on device:** on a device with WebGL off (Safari: Settings → Safari → Advanced → Experimental features, or a low-memory phone), the page still works: flat grass, room floors and bed outlines, taps on beds open the sheet, no error message on the page.
+- [ ] **Dark mode:** with the system in dark mode the 3D scene looks the same as in light mode (fixed colours); only the panels change.
+- [ ] **Reduced motion:** with reduced motion on, the world is static and nothing flickers while scrolling the page.

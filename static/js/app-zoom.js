@@ -10,7 +10,8 @@ var BED_TAGS_ZOOM = 1.8;   // from this zoom on, the short bed names show under 
 function applyView() {
   app.svg.setAttribute("viewBox", viewBoxText(app.view));
   app.svg.classList.toggle("zoomed", viewZoom(app.view, app.bounds) >= BED_TAGS_ZOOM);
-  app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds);
+  isoSync();      // the 3D world under the svg shows the same part of the scene
+  app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds) || atPhoneRest();
 }
 
 function setView(view) {
@@ -19,13 +20,24 @@ function setView(view) {
 }
 
 function resetView() {
-  setView(wholeView(app.bounds));
+  setView(phoneRest() || wholeView(app.bounds));
+}
+
+// The rest view of a phone held upright (the content of the scene fitted by width), or null on other screens.
+function phoneRest() {
+  var px = app.viewportPx || [0, 0];
+  return phoneRestView(app.bounds, px[0], px[1], app.sceneContent);
+}
+
+function atPhoneRest() {
+  var rest = phoneRest();
+  return !!rest && sameView(app.view, rest);
 }
 
 // The view of the map at rest (whole, or the upright scale on a phone held sideways, see restView).
 function appRestView(bounds, px) {
   px = px || app.viewportPx || [0, 0];
-  return restView(bounds, app.sceneSize[0], app.sceneSize[1], px[0], px[1]);
+  return restView(bounds, app.sceneSize[0], app.sceneSize[1], px[0], px[1], app.sceneContent);
 }
 
 // --- the one-time intro zoom: the map starts zoomed on the top of the scene and eases out to the fitted view ---
