@@ -214,10 +214,11 @@ function revealRect(view, bounds, r, margin) {
 
 // The first view of the one-time intro: zoomed INTRO_ZOOM_START times, centered on the scene horizontally, with the
 // top edge at the top of the scene (the W x H scene sits at 0, 0 in the bounds' coordinates).
-function introStartView(bounds, W, H) {
+function introStartView(bounds, W, H, focusX) {
   var w = bounds.w / INTRO_ZOOM_START;
   var h = w * bounds.h / bounds.w;
-  return clampView({ x: W / 2 - w / 2, y: 0, w: w, h: h }, bounds);
+  var cx = focusX === undefined ? W / 2 : focusX;      // the title board in the board block (or the scene middle)
+  return clampView({ x: cx - w / 2, y: 0, w: w, h: h }, bounds);
 }
 
 // The view `t` (0 to 1, clamped) of the way from `from` to `to`, eased in and out. Exactly `from` at 0, `to` at 1.

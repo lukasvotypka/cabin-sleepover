@@ -7,6 +7,7 @@
 function drawKey(parent, r) {
   var g = svgEl(parent, "g");
   var x = r[0] + (r[2] - 28) / 2, y = r[1] + (r[3] - 28) / 2;
+  blockShadow(g, [x, y + 2, 28, 16]);
   rect(g, x, y + 2, 16, 16, COLORS.amberEdge);               // the bow (ring)
   rect(g, x + 4, y + 6, 8, 8, COLORS.grass);                 // the hole
   rect(g, x + 14, y + 8, 14, 4, COLORS.amberEdge);           // the shaft

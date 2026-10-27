@@ -3579,6 +3579,28 @@ test("intro zoom: the start view is 2x, centered on the scene, at the scene top 
   }
 });
 
+test("intro zoom: a focus x centres the start view on it (clamped)", () => {
+  const B = L.fitBounds(375, 667, SW, SH, { bottom: 56 });
+  const v = plain(L.introStartView(B, SW, SH, SW * 0.75));
+  assert.ok(v.x + v.w / 2 > SW / 2, "moved right of the middle");
+  assert.deepEqual(plain(L.clampView(v, B)), v);
+});
+
+test("iso: boards, slider and board shade carry the block transform; icons come from the grid", () => {
+  const read = (f) => fs.readFileSync(path.join(root, "static", "js", f), "utf8");
+  assert.match(read("app-scene.js"), /boards: svgEl\(svg, "g", \{ transform: isoBlockTransform\(app\.iso\)/);
+  assert.match(read("app-daynight.js"), /layer\.setAttribute\("transform", isoBlockTransform\(app\.iso\)\)/);
+  assert.match(read("app-daynight.js"), /shade\.setAttribute\("transform", isoBlockTransform\(app\.iso\)\)/);
+  const boards = read("app-draw.js");
+  ["notice", "letter", "legend", "key", "locked", "briefing"].forEach((k) => assert.match(boards, new RegExp("icons\\." + k)));
+  assert.doesNotMatch(boards, /draw\w+\(g, scene\.(notice|letter|legend|key)\b/);
+});
+
+test("iso: every icon fits its grid cell", () => {
+  const s = L.isoScene(isoLayout), cell = L.ISO.iconCell;
+  Object.values(s.icons).forEach((r) => assert.ok(r[2] <= cell[0] && r[3] <= cell[1]));
+});
+
 test("intro zoom: introViewAt eases between the views and clamps t", () => {
   const from = { x: 90, y: 0, w: 100, h: 200 }, to = { x: 0, y: -20, w: 380, h: 760 };
   assert.deepEqual(plain(L.introViewAt(from, to, 0)), from);
@@ -4204,7 +4226,7 @@ test("signupToggleLabel flips by signup_open and deleteConfirmText names the par
 });
 
 test("the key icon is drawn only for the admin and is a labelled button", () => {
-  assert.match(appSource, /if \(isAdmin\(app\.role\)\) drawKey\(g, scene\.key\)/);
+  assert.match(appSource, /if \(isAdmin\(app\.role\)\) drawKey\(g, icons\.key\)/);
   assert.match(appSource, /makeButton\(g, "Admin nástroje", "key", openAdmin\)/);
 });
 

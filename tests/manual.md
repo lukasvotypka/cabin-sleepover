@@ -242,3 +242,12 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **No WebGL on device:** on a device with WebGL off (Safari: Settings → Safari → Advanced → Experimental features, or a low-memory phone), the page still works: flat grass, room floors and bed outlines, taps on beds open the sheet, no error message on the page.
 - [ ] **Dark mode:** with the system in dark mode the 3D scene looks the same as in light mode (fixed colours); only the panels change.
 - [ ] **Reduced motion:** with reduced motion on, the world is static and nothing flickers while scrolling the page.
+
+## 14. Board block above the world (T-132)
+
+- [ ] **Block on a real phone (T-132):** on a 380 px iPhone Safari and Android Chrome, the title board, time slider, three night signposts and party table stand upright above the 3D world, with a strip of grass between the block and the houses. The 2×3 icon grid sits left of the boards (Návod, Kto je kto / Prehľad, Pred cestou / key or „Zápis je zatvorený“), every sign is easy to tap with a thumb, and no label or badge touches a neighbouring sign.
+- [ ] **Knob and rail by touch (T-132):** on the phone, drag the time knob with one finger at the default view and after a pinch zoom: the knob follows the finger without a jump at the grab. A tap on the rail runs the time-lapse to that hour, and the knob stops under the finger's tap point.
+- [ ] **Intro on a device (T-132):** on iPhone Safari and Android Chrome, after a reload the map starts zoomed on the title board and eases out to the full view, with the title board not hidden by the bottom HUD.
+- [ ] **Bird in the grass strip (T-132):** the bird flies left to right across the whole map width between the block and the 3D world, never over the boards, and does not block a tap on a sign.
+- [ ] **Hardware keyboard (T-132):** on a desktop or iPad with a keyboard, Tab through the signs (boards and icons, then beds) while zoomed in: each focused sign is brought into view. Enter or Space on an icon opens its panel.
+- [ ] **Admin key and locked sign on devices (T-132):** as an admin on the phone, the key sign („Admin“) appears in the lower-left cell of the grid and opens the admin panel; with signup locked, „Zápis je zatvorený“ shows for everyone in the lower-right cell, and the other cells stay empty (no gap closing).

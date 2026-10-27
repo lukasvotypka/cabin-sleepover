@@ -72,13 +72,14 @@ function dnBuild(svg, layout, beforeNode, afterNode) {
   var shade = svgEl(null, "g", { "aria-hidden": "true", "pointer-events": "none" });
   svg.insertBefore(shade, afterNode);
   fx.shadeLayer = shade;
+  shade.setAttribute("transform", isoBlockTransform(app.iso));
   fx.boardShade = svgEl(shade, "g", { opacity: 0 });
   // Only boards that are always drawn: the table, the help sign and one rect per night signpost
   // (not the gaps between them, the locked sign or the key, which may be absent).
   var sc = layout.map.scene, rects = [];
   Object.keys(sc).forEach(function (k) {
     if (k === "meadow" || k === "locked" || k === "key" || k === "nights" || k === "time") return;
-    rects.push(sc[k]);
+    rects.push(app.iso.icons[k] || sc[k]);      // icons stand in the grid, not at their flat plan rects
   });
   if (sc.nights) rects = rects.concat(signpostLayout(sc.nights, app.state.event.nights.length, DN_SIGN_GAP).boards);
   rects.forEach(function (r) {
@@ -189,6 +190,7 @@ function dnBuildSlider(svg, layout, beforeNode) {
   if (!sc.time || !sc.nights) return;
   var r = sc.time, segs = sliderSegments(sc.nights, nights, DN_SIGN_GAP), cy = r[1] + r[3] / 2, range = sliderRange(nights);
   var layer = svgEl(null, "g", { "class": "dn-slider", "data-nights": nights.join(","), style: "touch-action:none" });
+  layer.setAttribute("transform", isoBlockTransform(app.iso));
   svg.insertBefore(layer, beforeNode);
   var rail = svgEl(layer, "g", { "aria-hidden": "true" });
   rect(rail, r[0], cy - 4, r[2], 8, COLORS.woodDark);

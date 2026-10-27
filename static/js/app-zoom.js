@@ -14,6 +14,12 @@ function applyView() {
   app.zoomReset.hidden = introActive() || !resetShown(app.view, app.bounds) || atPhoneRest();
 }
 
+// The scene x the intro zoom centres on: the title board in the board block.
+function introFocusX() {
+  var t = app.state && app.state.layout.map.scene.title;
+  return t && app.iso ? isoBlockPoint(app.iso, t[0] + t[2] / 2, t[1])[0] : undefined;
+}
+
 function setView(view) {
   app.view = view;
   applyView();
@@ -55,7 +61,7 @@ function holdIntroZoom() {
     return;
   }
   app.introZoom = "held";
-  setView(introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1]));
+  setView(introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocusX()));
 }
 
 // The splash is gone: ease out to the fitted view.
@@ -78,7 +84,7 @@ function introFrame() {
     renderBriefingOffer();
     return;
   }
-  var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1]);
+  var from = introStartView(app.bounds, app.sceneSize[0], app.sceneSize[1], introFocusX());
   setView(introViewAt(from, to, t));
   app.introRaf = requestAnimationFrame(introFrame);
 }
@@ -179,12 +185,24 @@ function setupZoom(host, svg, W, H) {
     setView(zoomView(app.view, app.bounds, factor, p.x, p.y));
   }
   // After a key zoom the focused bed or sign must still be in view.
+  // The box of a node in scene units. Boards and icons sit in a transformed group, so getBBox is in their own units.
+  function sceneBox(node) {
+    var b = node.getBBox(), m = node.getScreenCTM(), root = svg.getScreenCTM();
+    if (!m || !root) return [b.x, b.y, b.width, b.height];
+    var t = root.inverse().multiply(m), pts = [[b.x, b.y], [b.x + b.width, b.y + b.height]].map(function (c) {
+      var p = svg.createSVGPoint();
+      p.x = c[0];
+      p.y = c[1];
+      p = p.matrixTransform(t);
+      return [p.x, p.y];
+    });
+    return [pts[0][0], pts[0][1], pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]];
+  }
   function revealFocused() {
     var node = document.activeElement;
     if (!node || !svg.contains(node) || !node.getBBox || node === svg || !resetShown(app.view, app.bounds)) return;
     try {
-      var b = node.getBBox();
-      setView(revealRect(app.view, app.bounds, [b.x, b.y, b.width, b.height], 6));
+      setView(revealRect(app.view, app.bounds, sceneBox(node), 8));
     } catch (err) { /* not measurable: leave the view */ }
   }
 
@@ -326,8 +344,7 @@ function setupZoom(host, svg, W, H) {
     if (!resetShown(app.view, app.bounds) || !node.getBBox || Date.now() - app.navKeyAt > 500) return;
     try {
       if (!node.matches(":focus-visible")) return;
-      var b = node.getBBox();
-      setView(revealRect(app.view, app.bounds, [b.x, b.y, b.width, b.height], 6));
+      setView(revealRect(app.view, app.bounds, sceneBox(node), 8));
     } catch (err) { /* not measurable: leave the view */ }
   });
 

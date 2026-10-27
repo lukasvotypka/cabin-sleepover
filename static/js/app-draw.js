@@ -78,19 +78,23 @@ function drawTree(g) {
 // in map units, so it stays over the land when the map is panned or zoomed. It flies from just left of the map
 // to just right of it along `BIRD.y`, over everything, in its own aria-hidden layer that ignores taps. Two frames
 // of 7 x 3 cells flap the wings; `prefers-reduced-motion` hides it. It chirps once per flight (app-sound.js).
-var BIRD = { y: 60, cell: 4, margin: 40 };
+var BIRD = { cell: 4, margin: 40 };      // flies across the whole scene width, in the grass strip between the board block and the world
 var BIRD_FRAMES = [
   [[1, 0, 1], [5, 0, 1], [2, 1, 3]],               // wings up: [x, y, width] in cells
   [[2, 1, 3], [1, 2, 1], [5, 2, 1]]                // wings down
 ];
+function birdY(iso) {
+  return Math.round(iso.block.y + iso.block.src[3] * iso.block.k + (ISO.gap - 3 * BIRD.cell) / 2);
+}
 function drawBird(g, layout) {
-  var c = BIRD.cell, x0 = -BIRD.margin - 7 * c, fly = layout.map.viewbox[0] + 2 * BIRD.margin + 7 * c;
+  var c = BIRD.cell, x0 = -BIRD.margin - 7 * c, fly = app.iso.W + 2 * BIRD.margin + 7 * c;
+  var y = birdY(app.iso);
   var bird = svgEl(g, "g", { "aria-hidden": "true", "class": "bird", style: "--fly:" + fly + "px" });
   bird.addEventListener("animationstart", onBirdFlight);
   bird.addEventListener("animationiteration", onBirdFlight);
   BIRD_FRAMES.forEach(function (frame, k) {
     var f = svgEl(bird, "g", { "class": k === 0 ? "bird-frame-a" : "bird-frame-b" });
-    frame.forEach(function (r) { rect(f, x0 + r[0] * c, BIRD.y + r[1] * c, r[2] * c, c, COLORS.ink); });
+    frame.forEach(function (r) { rect(f, x0 + r[0] * c, y + r[1] * c, r[2] * c, c, COLORS.ink); });
   });
 }
 
@@ -254,18 +258,25 @@ function drawBoards() {
   clearNode(g);
   drawTitle(g, scene.title, state);
   drawNights(g, scene, state);
-  drawNotice(g, scene.notice);
+  var icons = app.iso.icons;      // the icon grid left of the boards (isoScene), not the flat plan
+  drawNotice(g, icons.notice);
   drawPartyTable(g, scene.parties, state);
-  drawLetter(g, scene.letter);
-  drawLegend(g, scene.legend);
-  if (isAdmin(app.role)) drawKey(g, scene.key);
-  if (state.signup_open === false && scene.locked) drawLocked(g, scene.locked);
-  if (state.info && scene.briefing) drawBriefing(g, scene.briefing, state);
+  drawLetter(g, icons.letter);
+  drawLegend(g, icons.legend);
+  if (isAdmin(app.role)) drawKey(g, icons.key);
+  if (state.signup_open === false && scene.locked) drawLocked(g, icons.locked);
+  if (state.info && scene.briefing) drawBriefing(g, icons.briefing, state);
+}
+
+// A flat pixel shadow under a board or icon (the same shape, +2/+2 block units): the block stands above the grass.
+function blockShadow(parent, r) {
+  rect(parent, r[0] + 2, r[1] + 2, r[2], r[3], "#2E1F14", { opacity: ".25", "aria-hidden": "true" });
 }
 
 // The „Zápis je zatvorený“ sign, shown to everyone while signup is locked. Position: `map.scene.locked`.
 function drawLocked(parent, r) {
   var g = svgEl(parent, "g", { role: "img", "aria-label": LOCKED_TEXTS.sign });
+  blockShadow(g, [r[0], r[1], r[2], r[3] - 8]);
   rect(g, r[0] + r[2] / 2 - 2, r[1] + r[3] - 10, 4, 10, COLORS.woodDark);       // the post
   board(g, [r[0], r[1], r[2], r[3] - 8], COLORS.plank);
   addText(g, r[0] + r[2] / 2, r[1] + 20, "Zápis", 11, COLORS.paper, { anchor: "middle", bold: true });
@@ -277,6 +288,7 @@ function drawLocked(parent, r) {
 function drawLetter(parent, r) {
   var g = svgEl(parent, "g");
   var x = r[0] + (r[2] - 32) / 2, y = r[1] + (r[3] - 24) / 2;
+  blockShadow(g, [x, y, 32, 24]);
   rect(g, x, y, 32, 24, COLORS.woodDark);
   rect(g, x + 3, y + 3, 26, 18, COLORS.paper);
   [[0, 0], [4, 3], [8, 6], [12, 9]].forEach(function (p) {      // the flap, from the left corner to the middle
@@ -293,6 +305,7 @@ function drawLetter(parent, r) {
 // decoration (the first three palette colours), not party data. The hit area is the whole `map.scene.legend` rect.
 function drawLegend(parent, r) {
   var g = svgEl(parent, "g");
+  blockShadow(g, r);
   board(g, r, COLORS.plank);
   var x = r[0] + 7, y = r[1] + 8;
   ["#2F7D6D", "#D07A2B", "#6D5BA8"].forEach(function (color, i) {
@@ -307,6 +320,7 @@ function drawLegend(parent, r) {
 
 function drawTitle(parent, r, state) {
   var g = svgEl(parent, "g", { role: "img", "aria-label": titleLabel(state.event) });
+  blockShadow(g, r);
   board(g, r, COLORS.plank);
   // 12 px bold: the baseline sits about 4 units below the middle of the board
   addText(g, r[0] + r[2] / 2, r[1] + r[3] / 2 + 4, state.event.name, 12, COLORS.paper, { anchor: "middle", bold: true, maxWidth: r[2] - 16 });
@@ -325,6 +339,7 @@ function drawNights(parent, scene, state) {
     var selected = night === app.night;
     var b = lay.boards[i], x = b[0], w = b[2];
     var g = svgEl(parent, "g");
+    blockShadow(g, b);
     rect(g, x + w / 2 - 3, b[1] + b[3] - 2, 6, 8, COLORS.woodDark);   // post
     board(g, b, selected ? COLORS.selected : COLORS.wood, selected ? COLORS.highlight : COLORS.woodDark);
     var cx = x + w / 2, inner = w - 8;
@@ -360,6 +375,7 @@ function iconCaption(parent, x, y, text) {
 // The „?“ icon that opens „Návod“. The hit area is the whole `map.scene.notice` rect (44×44).
 function drawNotice(parent, r) {
   var g = svgEl(parent, "g");
+  blockShadow(g, [r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8]);
   board(g, [r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8], COLORS.plank);
   addText(g, r[0] + r[2] / 2, r[1] + 30, "?", 22, COLORS.paper, { anchor: "middle", bold: true });
   iconCaption(g, r[0] + r[2] / 2, r[1] + r[3] - 3, "Návod");
@@ -394,6 +410,7 @@ function drawPartyTable(parent, r, state) {
   var lay = partyTableLayout(r, rows.length, dayRows.length, nights.length, days.length);
   var g = svgEl(parent, "g");
   dnFitPartyShade(lay.height);
+  blockShadow(g, [r[0], r[1], r[2], lay.height]);
   board(g, [r[0], r[1], r[2], lay.height], COLORS.paper, COLORS.woodDark);
   var innerX = r[0] + lay.pad, innerW = r[2] - 2 * lay.pad, size = lay.size, hh = lay.head;
   var night = lay.night, day = lay.day;

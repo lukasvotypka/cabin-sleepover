@@ -19,6 +19,7 @@ function briefingLabel(state) {
 function drawBriefing(parent, r, state) {
   var g = svgEl(parent, "g");
   var x = r[0], y = r[1], w = r[2];
+  blockShadow(g, [x, y + 6, w, 40]);
   rect(g, x + 8, y + 40, 6, 10, COLORS.woodDark);                  // posts
   rect(g, x + w - 14, y + 40, 6, 10, COLORS.woodDark);
   board(g, [x, y + 6, w, 40], COLORS.plank);

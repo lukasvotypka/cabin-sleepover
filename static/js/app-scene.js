@@ -130,7 +130,7 @@ function ensureScene() {
     base: svgEl(svg, "g", { "aria-hidden": "true" }),
     beds: svgEl(svg, "g"),
     walk: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
-    boards: svgEl(svg, "g"),
+    boards: svgEl(svg, "g", { transform: isoBlockTransform(app.iso) }),      // the upright board block above the world
     tip: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" }),
     sky: svgEl(svg, "g", { "aria-hidden": "true", "pointer-events": "none" })
   };
