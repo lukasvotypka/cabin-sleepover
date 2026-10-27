@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prototyp: pevný HUD a nástenka v dedine</title>
+<style>
+  :root {
+    --bg:#EFE5D3; --surface:#FBF6EC; --surface2:#F4EBDB; --ink:#2B1D14; --muted:#6B5644; --line:#DCC9AE;
+    --forest:#4A2C1A; --moss:#5E6B24; --amber:#96540F; --amber-soft:#F6DFB8; --warn:#A3361E; --warn-soft:#F6D6C8; --ok:#3F6E2C;
+    /* fixed scene colours (never inverted) */
+    --wood-dark:#5C4033; --wood:#B98B56; --wood-light:#D4A870; --plank:#6B4426; --paper:#F4EBD0; --s-ink:#2E1F14;
+    --selected:#F2D58A; --highlight:#FFD54A; --amber-edge:#C98A1C; --s-amber:#F3E3C0; --red:#B4472F; --red-edge:#6E2414;
+    --green:#3D7A55; --green-edge:#1F4A31; --grass:#8E9B48;
+    --pix: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1A1410; --surface:#241C16; --surface2:#2D231B; --ink:#F1E7D9; --muted:#B9A38C; --line:#47382B;
+      --forest:#F2DBB8; --moss:#B9C46F; --amber:#EDA94E; --amber-soft:#3F2C16; --warn:#F08C70; --warn-soft:#43241A; --ok:#93C67E; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #3a3128; font-family: "Alegreya Sans", system-ui, sans-serif; }
+  button { font: inherit; color: inherit; }
+
+  /* prototype chrome: frame switch, desktop only */
+  .pv-bar { display: none; position: fixed; top: 8px; left: 8px; z-index: 50; gap: 4px; }
+  @media (min-width: 900px) { .pv-bar { display: flex; } }
+  .pv-bar button { background: #2B1D14; color: #F4EBD0; border: 2px solid #5C4033; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+  .pv-bar button[aria-pressed="true"] { background: #F2D58A; color: #2B1D14; }
+
+  #app { position: fixed; inset: 0; overflow: hidden; background: #6f7a38; }
+  body.phone #app { inset: auto; left: 50%; top: 50%; width: 390px; height: 844px; transform: translate(-50%, -50%);
+    border: 6px solid #111; border-radius: 28px; }
+
+  #world { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; display: block; }
+  #world.drag { cursor: grabbing; }
+  #world text { font-family: var(--pix); }
+  [data-tap] { cursor: pointer; }
+  [data-tap]:focus { outline: none; }
+  [data-tap]:focus-visible .focus-ring { stroke: var(--highlight); stroke-width: 3; }
+
+  /* ---------- top HUD: date stamps + time slider ---------- */
+  .tophud { position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding: 6px 8px 0;
+    padding-top: max(6px, env(safe-area-inset-top)); pointer-events: none; }
+  .tophud-in { pointer-events: auto; margin: 0 auto; max-width: 520px; background: var(--plank);
+    border: 2px solid var(--wood-dark); box-shadow: 0 3px 0 rgba(46,31,20,.45); padding: 6px 6px 2px; }
+  .stamps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .stamp { position: relative; min-height: 50px; padding: 3px; border: 0; cursor: pointer;
+    /* perforated postage-stamp edge */
+    background: radial-gradient(circle at 3px 3px, transparent 1.6px, var(--wood-light) 2px) -3px -3px / 6px 6px;
+    font-family: var(--pix); color: var(--s-ink); text-align: center; }
+  .stamp .face { display: block; background: var(--paper); padding: 2px 2px 3px; height: 100%; border: 1px solid var(--wood-dark); }
+  .stamp[aria-pressed="true"] { background: radial-gradient(circle at 3px 3px, transparent 1.6px, var(--highlight) 2px) -3px -3px / 6px 6px; }
+  .stamp[aria-pressed="true"] .face { background: var(--selected); border-color: var(--amber-edge); }
+  .stamp .d { display: block; font-weight: 700; font-size: 12px; line-height: 14px; }
+  .stamp .dt { display: block; font-size: 10px; line-height: 12px; }
+  .stamp .row { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 2px; font-size: 10px; line-height: 13px; }
+  .stamp .occ b { font-size: 11px; }
+  .chip { padding: 0 3px; border: 1px solid; font-weight: 700; font-size: 10px; }
+  .chip.under { background: var(--s-amber); border-color: var(--amber-edge); color: var(--s-ink); }
+  .chip.ok { background: var(--green); border-color: var(--green-edge); color: #fff; }
+  .chip.over { background: var(--red); border-color: var(--red-edge); color: #fff; }
+  .chip.absent { border-color: transparent; color: var(--s-ink); font-weight: 400; }
+  .stamp.press { transform: translateY(2px); }
+
+  .rail-wrap { position: relative; height: 30px; margin-top: 2px; cursor: pointer; touch-action: none; }
+  .rail { position: absolute; left: 0; right: 0; top: 10px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .seg { height: 8px; background: linear-gradient(90deg, #F7E7B4 0 25%, #F7E7B4 25% 45%, #D69A2E 45% 52%, #2F3B5C 52% 92%, #D69A2E 92% 100%);
+    border: 1px solid var(--wood-dark); position: relative; }
+  .tick { position: absolute; top: 9px; font: 9px/10px var(--pix); color: var(--paper); transform: translateX(-50%); }
+  .knob { position: absolute; top: 3px; width: 22px; height: 22px; margin-left: -11px; background: var(--paper);
+    border: 2px solid var(--wood-dark); box-shadow: 2px 2px 0 rgba(0,0,0,.35); display: grid; place-items: center; }
+  .knob svg { width: 14px; height: 14px; shape-rendering: crispEdges; }
+  .knob-time { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); background: var(--s-ink); color: var(--paper);
+    font: 10px/14px var(--pix); padding: 0 4px; white-space: nowrap; display: none; }
+  .rail-wrap.dragging .knob-time { display: block; }
+
+  /* ---------- bottom HUD: Si + tools ---------- */
+  .bothud { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10; padding: 0 8px max(6px, env(safe-area-inset-bottom)); pointer-events: none; }
+  .bothud-in { pointer-events: auto; margin: 0 auto; max-width: 520px; display: flex; align-items: center; gap: 6px;
+    background: var(--plank); border: 2px solid var(--wood-dark); padding: 4px; box-shadow: 0 -2px 0 rgba(46,31,20,.35); }
+  .si { flex: 1; min-width: 0; min-height: 48px; background: var(--paper); border: 1px solid var(--wood-dark); padding: 3px 6px;
+    font-family: var(--pix); color: var(--s-ink); text-align: left; cursor: pointer; }
+  .si b { font-size: 12px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }
+  .si .sq { width: 10px; height: 10px; flex: none; border: 1px solid var(--s-ink); }
+  .si span { display: block; font-size: 10px; margin-top: 2px; color: var(--amber); font-weight: 700; }
+  .tool { width: 44px; height: 48px; flex: none; background: var(--wood); border: 1px solid var(--wood-dark); padding: 2px 0 0;
+    cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+  .tool svg { width: 26px; height: 26px; shape-rendering: crispEdges; }
+  .tool small { display: block; width: 100%; background: var(--wood-dark); color: var(--paper); font: 700 8px/11px var(--pix); white-space: nowrap; letter-spacing: -.4px; }
+  .tool.press, .si.press { transform: translateY(2px); }
+
+  .fit { position: absolute; right: 10px; z-index: 9; bottom: 74px; min-height: 44px; padding: 0 12px; background: var(--paper);
+    border: 2px solid var(--wood-dark); font: 700 12px var(--pix); color: var(--s-ink); cursor: pointer; display: none; }
+  .fit.show { display: block; }
+
+  /* ---------- panel ---------- */
+  .scrim { position: absolute; inset: 0; z-index: 20; background: rgba(26,20,16,.45); display: none; }
+  .scrim.open { display: block; }
+  .panel { position: absolute; z-index: 21; left: 0; right: 0; bottom: 0; max-height: 82%; overflow: auto; background: var(--surface);
+    color: var(--ink); border-top: 3px solid var(--forest); padding: 14px 14px 18px; display: none; }
+  .panel.open { display: block; animation: rise 160ms steps(4) both; }
+  @keyframes rise { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+  @media (min-width: 700px) {
+    .panel { left: 50%; top: 50%; bottom: auto; right: auto; width: 520px; transform: translate(-50%, -50%); border: 3px solid var(--forest); }
+    .panel.open { animation: none; }
+  }
+  .panel h2 { font-family: "Alegreya", Georgia, serif; margin: 0 0 4px; font-size: 22px; color: var(--forest); }
+  .panel p.sub { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tabs button { flex: 1; min-height: 44px; background: var(--surface2); border: 2px solid var(--line); cursor: pointer; font-weight: 700; }
+  .tabs button[aria-selected="true"] { background: var(--amber-soft); border-color: var(--amber); color: var(--forest); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: center; font-size: 12px; color: var(--muted); font-weight: 700; padding: 4px 2px; border-bottom: 2px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  td { text-align: center; padding: 7px 2px; border-bottom: 1px solid var(--line); }
+  tr.mine td { background: var(--amber-soft); font-weight: 700; }
+  td .sq { display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px; border: 1px solid var(--ink); }
+  .c-ok { color: var(--ok); font-weight: 700; } .c-under { color: var(--amber); font-weight: 700; } .c-over { color: var(--warn); font-weight: 700; }
+  .c-abs { color: var(--muted); }
+  tr.sum td { font-weight: 700; border-top: 2px solid var(--line); }
+  .close { margin-top: 12px; width: 100%; min-height: 44px; background: var(--forest); color: var(--surface); border: 0; font-weight: 700; cursor: pointer; }
+
+  .wiggle { animation: wig 240ms steps(3) 1; transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes wig { 0% { transform: rotate(0); } 33% { transform: rotate(-2deg); } 66% { transform: rotate(2deg); } 100% { transform: rotate(0); } }
+  .pin-blink { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  @media (max-height: 620px) { .stamp .dt { display: none; } .stamp { min-height: 38px; } }
+  @media (prefers-reduced-motion: reduce) { .panel.open, .wiggle, .pin-blink { animation: none; } }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="pv-bar" role="group" aria-label="Náhľad">
+  <button id="pv-full" aria-pressed="true">Celé okno</button>
+  <button id="pv-phone" aria-pressed="false">Telefón 390 × 844</button>
+</div>
+
+<div id="app">
+  <svg id="world" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-label="Mapa chaty">
+    <g id="cam"></g>
+  </svg>
+
+  <div class="tophud">
+    <div class="tophud-in">
+      <div class="stamps" id="stamps"></div>
+      <div class="rail-wrap" id="railWrap" role="slider" tabindex="0" aria-label="Čas" aria-valuemin="0" aria-valuemax="72">
+        <div class="rail" id="rail"></div>
+        <div class="knob" id="knob"><svg viewBox="0 0 8 8" id="knobIcon"></svg><span class="knob-time" id="knobTime"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <button class="fit" id="fit">Celá mapa</button>
+
+  <div class="bothud">
+    <div class="bothud-in">
+      <button class="si" id="si"><b><i class="sq" style="background:#2F7D6D"></i>Si: Kováčovci</b><span id="siStatus"></span></button>
+      <button class="tool" data-tool="navod" aria-label="Návod"><svg viewBox="0 0 13 13"><rect x="1" y="1" width="11" height="11" fill="#6B4426"/><rect x="4" y="3" width="5" height="1" fill="#F4EBD0"/><rect x="8" y="4" width="1" height="2" fill="#F4EBD0"/><rect x="6" y="6" width="2" height="1" fill="#F4EBD0"/><rect x="6" y="7" width="1" height="1" fill="#F4EBD0"/><rect x="6" y="9" width="1" height="1" fill="#F4EBD0"/></svg><small>Návod</small></button>
+      <button class="tool" data-tool="info" aria-label="Kto je kto"><svg viewBox="0 0 13 13"><rect x="1" y="2" width="11" height="9" fill="#F4EBD0"/><rect x="2" y="3" width="2" height="2" fill="#2F7D6D"/><rect x="5" y="3" width="6" height="1" fill="#5C4033"/><rect x="2" y="6" width="2" height="2" fill="#D07A2B"/><rect x="5" y="6" width="5" height="1" fill="#5C4033"/><rect x="2" y="9" width="2" height="1" fill="#6D5BA8"/></svg><small>Info</small></button>
+      <button class="tool" data-tool="prehlad" aria-label="Prehľad na poslanie"><svg viewBox="0 0 13 13"><rect x="1" y="3" width="11" height="8" fill="#F4EBD0"/><rect x="1" y="3" width="11" height="1" fill="#5C4033"/><rect x="2" y="4" width="2" height="1" fill="#5C4033"/><rect x="4" y="5" width="2" height="1" fill="#5C4033"/><rect x="6" y="6" width="1" height="1" fill="#5C4033"/><rect x="7" y="5" width="2" height="1" fill="#5C4033"/><rect x="9" y="4" width="2" height="1" fill="#5C4033"/><rect x="5" y="8" width="3" height="2" fill="#B4472F"/></svg><small>Prehľad</small></button>
+      <button class="tool" data-tool="cesta" aria-label="Pred cestou"><svg viewBox="0 0 13 13"><rect x="3" y="3" width="7" height="9" fill="#C87A2E"/><rect x="4" y="1" width="5" height="2" fill="#8E5420"/><rect x="3" y="6" width="7" height="1" fill="#8E5420"/><rect x="5" y="8" width="3" height="2" fill="#E6A85A"/></svg><small>Pred cestou</small></button>
+    </div>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+    <h2 id="pTitle">Kto kedy príde</h2>
+    <p class="sub" id="pSub"></p>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabNoc" aria-selected="true">Noc</button>
+      <button role="tab" id="tabDen" aria-selected="false">Cez deň</button>
+    </div>
+    <div id="pBody"></div>
+    <button class="close" id="pClose">Zavrieť</button>
+  </div>
+  <p class="sr" id="srSummary"></p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  // ---------------- fixed demo data ----------------
+  var NIGHTS = [
+    { id: "2026-10-29", label: "Št → Pi", dates: "29. – 30. 10.", short: "Št" },
+    { id: "2026-10-30", label: "Pi → So", dates: "30. – 31. 10.", short: "Pi" },
+    { id: "2026-10-31", label: "So → Ne", dates: "31. 10. – 1. 11.", short: "So" }
+  ];
+  var DAYS = ["Št", "Pi", "So", "Ne"];
+  var TOTAL = 20;
+  // arrive/leave as day index 0..3 (Št..Ne); placed[n] = places already picked per night
+  var PARTIES = [
+    { name: "Kováčovci", color: "#2F7D6D", need: 4, arrive: 0, leave: 3, placed: [4, 4, 3], mine: true },
+    { name: "Hruškovci", color: "#D07A2B", need: 3, arrive: 0, leave: 3, placed: [3, 3, 3] },
+    { name: "Miro a Zuza", color: "#6D5BA8", need: 2, arrive: 1, leave: 3, placed: [0, 2, 2] },
+    { name: "Novákovci", color: "#C08A1E", need: 4, arrive: 1, leave: 3, placed: [0, 2, 4] },
+    { name: "Tomáš", color: "#3E6FB0", need: 1, arrive: 0, leave: 2, placed: [1, 1, 0] },
+    { name: "Bartošovci", color: "#9C4A7A", need: 3, arrive: 2, leave: 3, placed: [0, 0, 3] },
+    { name: "Lenka s deťmi", color: "#5E8A2E", need: 3, arrive: 0, leave: 2, placed: [3, 4, 0] },
+    { name: "Peťo", color: "#8A6A4A", need: 1, arrive: 2, leave: 3, placed: [0, 0, 0] }
+  ];
+  var DAYVISITS = [
+    { name: "Babka Anka", color: "#2E8AA0", people: [0, 0, 1, 0] },
+    { name: "Šimkovci", color: "#C0603A", people: [0, 0, 4, 4] }
+  ];
+  function present(p, n) { return p.arrive <= n && n < p.leave; }
+  function tally(p, n) {
+    if (!present(p, n)) return { kind: "absent", text: "–" };
+    var k = p.placed[n] < p.need ? "under" : p.placed[n] > p.need ? "over" : "ok";
+    return { kind: k, text: p.placed[n] + "/" + p.need };
+  }
+  function used(n) { return PARTIES.reduce(function (s, p) { return s + (present(p, n) ? p.placed[n] : 0); }, 0); }
+  function eaters(d) {
+    var s = 0;
+    PARTIES.forEach(function (p) { if (p.arrive <= d && d <= p.leave) s += p.need; });
+    DAYVISITS.forEach(function (v) { s += v.people[d]; });
+    return s;
+  }
+  var me = PARTIES[0];
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------------- state ----------------
+  var night = 2;           // chosen night (Kováčovci miss a place on So → Ne)
+  var t = 6 + 24 * night;  // hours since Thursday 06:00, 0..72; page opens at noon of the chosen night
+
+  // ---------------- helpers ----------------
+  var NS = "http://www.w3.org/2000/svg";
+  function el(parent, tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  function h(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  var C = 0.866;
+  function P(x, y, z) { return [(x - y) * C, (x + y) * 0.5 - (z || 0)]; }
+  function poly(parent, pts, fill, extra) {
+    var a = { points: pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" "), fill: fill };
+    for (var k in extra || {}) a[k] = extra[k];
+    return el(parent, "polygon", a);
+  }
+
+  // ---------------- the fake iso village ----------------
+  var cam = document.getElementById("cam");
+  var WORLD = { x: -550, y: -80, w: 945, h: 640 };
+  var tint;
+
+  function box(g, x, y, w, d, hgt, top, south, east) {
+    poly(g, [P(x, y + d), P(x + w, y + d), P(x + w, y + d, hgt), P(x, y + d, hgt)], south);
+    poly(g, [P(x + w, y), P(x + w, y + d), P(x + w, y + d, hgt), P(x + w, y, hgt)], east);
+    if (top) poly(g, [P(x, y, hgt), P(x + w, y, hgt), P(x + w, y + d, hgt), P(x, y + d, hgt)], top);
+  }
+  function house(g, x, y, w, d, hgt, roofH, wall, wallDark, roof, roofDark, free) {
+    box(g, x, y, w, d, hgt, null, wall, wallDark);
+    // windows on the south wall
+    for (var i = 1; i <= 2; i++) {
+      var wx = x + w * i / 3 - 8;
+      poly(g, [P(wx, y + d, hgt * 0.4), P(wx + 16, y + d, hgt * 0.4), P(wx + 16, y + d, hgt * 0.75), P(wx, y + d, hgt * 0.75)], "#9FD3F0", { class: "win" });
+    }
+    var m = y + d / 2;
+    poly(g, [P(x, y, hgt), P(x + w, y, hgt), P(x + w, m, hgt + roofH), P(x, m, hgt + roofH)], roofDark);
+    poly(g, [P(x + w, y, hgt), P(x + w, y + d, hgt), P(x + w, m, hgt + roofH)], wallDark);
+    poly(g, [P(x, y + d, hgt), P(x + w, y + d, hgt), P(x + w, m, hgt + roofH), P(x, m, hgt + roofH)], roof);
+    // ridge sign
+    var s = P(x + w / 2, m, hgt + roofH + 4);
+    var txt = free > 0 ? "voľné: " + free : "plno";
+    var tw = txt.length * 6.4 + 10;
+    el(g, "rect", { x: s[0] - tw / 2, y: s[1] - 16, width: tw, height: 14, fill: "#F4EBD0", stroke: "#5C4033" });
+    el(g, "rect", { x: s[0] - 1, y: s[1] - 2, width: 2, height: 6, fill: "#5C4033" });
+    el(g, "text", { x: s[0], y: s[1] - 5.5, "font-size": 10, "font-weight": 700, "text-anchor": "middle", fill: "#2E1F14" }, txt);
+  }
+  function pine(g, x, y, s) {
+    var b = P(x, y);
+    el(g, "rect", { x: b[0] - 2, y: b[1] - 8 * s, width: 4, height: 8 * s, fill: "#5C4033" });
+    [[0, 30, 16], [14, 24, 12], [26, 16, 8]].forEach(function (l) {
+      var yy = b[1] - 8 * s - l[0] * s;
+      poly(g, [[b[0] - l[1] / 2 * s, yy], [b[0] + l[1] / 2 * s, yy], [b[0], yy - l[2] * s * 1.3]], l[0] ? "#3F5A2A" : "#2F4A22");
+    });
+  }
+
+  // a perforated "stamp" of paper: inner sheet + punched holes along the edge
+  function stampPaper(g, x, y, w, hgt, edge) {
+    el(g, "rect", { x: x, y: y, width: w, height: hgt, fill: "#F4EBD0" });
+    for (var i = x + 4; i < x + w - 1; i += 6) {
+      el(g, "rect", { x: i - 1, y: y - 1, width: 3, height: 3, fill: edge });
+      el(g, "rect", { x: i - 1, y: y + hgt - 2, width: 3, height: 3, fill: edge });
+    }
+    for (var j = y + 4; j < y + hgt - 1; j += 6) {
+      el(g, "rect", { x: x - 1, y: j - 1, width: 3, height: 3, fill: edge });
+      el(g, "rect", { x: x + w - 2, y: j - 1, width: 3, height: 3, fill: edge });
+    }
+  }
+
+  // The notice board „Kto kedy príde“: two pinned stamps (Noc, Cez deň) on a wooden board with a little roof.
+  function noticeBoard(parent, ax, ay) {
+    var g = el(parent, "g", { "data-tap": "board", tabindex: 0, role: "button",
+      "aria-label": "Nástenka Kto kedy príde. Ťuknutím ju otvoríš." });
+    var W = 252, H = 150, x = ax - W / 2, y = ay - H - 26;
+    el(g, "ellipse", { cx: ax, cy: ay, rx: W / 2 + 6, ry: 10, fill: "rgba(46,31,20,.3)" });
+    el(g, "rect", { x: x + 22, y: y + H - 4, width: 8, height: 30, fill: "#4E3020" });
+    el(g, "rect", { x: x + W - 30, y: y + H - 4, width: 8, height: 30, fill: "#4E3020" });
+    el(g, "rect", { x: x, y: y, width: W, height: H, fill: "#6B4426", stroke: "#4E3020", "stroke-width": 3, class: "focus-ring" });
+    // roof
+    poly(g, [[x - 10, y + 2], [x + W + 10, y + 2], [x + W - 8, y - 14], [x + 8, y - 14]], "#8E3424");
+    el(g, "rect", { x: x - 10, y: y + 2, width: W + 20, height: 3, fill: "#5A241C" });
+    // header plate
+    el(g, "rect", { x: ax - 62, y: y + 6, width: 124, height: 15, fill: "#D4A870", stroke: "#5C4033" });
+    el(g, "text", { x: ax, y: y + 17, "font-size": 10, "font-weight": 700, "text-anchor": "middle", fill: "#2E1F14" }, "KTO KEDY PRÍDE");
+
+    // --- stamp 1: Noc ---
+    var sx = x + 8, sy = y + 27, sw = 150, sh = 116;
+    stampPaper(g, sx, sy, sw, sh, "#6B4426");
+    el(g, "text", { x: sx + 5, y: sy + 10, "font-size": 8, "font-weight": 700, fill: "#B4472F" }, "NOC");
+    NIGHTS.forEach(function (n, i) {
+      el(g, "text", { x: sx + 109 + i * 14, y: sy + 10, "font-size": 6.5, "font-weight": 700, "text-anchor": "middle", fill: "#2E1F14" }, n.short);
+    });
+    el(g, "text", { x: sx + 84, y: sy + 10, "font-size": 6.5, "font-weight": 700, "text-anchor": "middle", fill: "#2E1F14" }, "kedy");
+    PARTIES.forEach(function (p, r) {
+      var ry = sy + 14 + r * 12.2;
+      if (p.mine) el(g, "rect", { x: sx + 3, y: ry, width: sw - 6, height: 11, fill: "#F2D58A" });
+      el(g, "rect", { x: sx + 5, y: ry + 3, width: 5, height: 5, fill: p.color });
+      el(g, "text", { x: sx + 13, y: ry + 8.2, "font-size": 7, "font-weight": p.mine ? 700 : 400, fill: "#2E1F14" },
+        p.name.length > 11 ? p.name.slice(0, 10) + "…" : p.name);
+      el(g, "text", { x: sx + 84, y: ry + 8.2, "font-size": 6.5, "text-anchor": "middle", fill: "#2E1F14" }, DAYS[p.arrive] + "–" + DAYS[p.leave]);
+      NIGHTS.forEach(function (n, i) {
+        var tl = tally(p, i), cx = sx + 109 + i * 14;
+        if (tl.kind !== "absent") {
+          var col = { ok: ["#3D7A55", "#fff"], under: ["#F3E3C0", "#2E1F14"], over: ["#B4472F", "#fff"] }[tl.kind];
+          el(g, "rect", { x: cx - 6.5, y: ry + 1.5, width: 13, height: 8, fill: col[0], stroke: tl.kind === "under" ? "#C98A1C" : "none", "stroke-width": .8 });
+          el(g, "text", { x: cx, y: ry + 7.8, "font-size": 5.5, "font-weight": 700, "text-anchor": "middle", fill: col[1] }, tl.text);
+        } else {
+          el(g, "text", { x: cx, y: ry + 8, "font-size": 6.5, "text-anchor": "middle", fill: "#8A6A4A" }, "·");
+        }
+      });
+    });
+
+    // --- stamp 2: Cez deň ---
+    var dx = sx + sw + 8, dw = W - sw - 24, dh = 74;
+    stampPaper(g, dx, sy, dw, dh, "#6B4426");
+    el(g, "text", { x: dx + 5, y: sy + 10, "font-size": 8, "font-weight": 700, fill: "#C98A1C" }, "CEZ DEŇ");
+    DAYVISITS.forEach(function (v, r) {
+      var ry = sy + 15 + r * 12;
+      el(g, "rect", { x: dx + 5, y: ry + 3, width: 5, height: 5, fill: v.color });
+      var dayIdx = v.people.findIndex(function (c) { return c > 0; });
+      el(g, "text", { x: dx + 13, y: ry + 8.2, "font-size": 6.5, fill: "#2E1F14" }, v.name.slice(0, 9));
+      el(g, "text", { x: dx + 13, y: ry + 15.5, "font-size": 5.5, fill: "#6B5644" }, "");
+      el(g, "text", { x: dx + dw - 5, y: ry + 8.2, "font-size": 6.5, "text-anchor": "end", fill: "#2E1F14" }, DAYS[dayIdx]);
+    });
+    el(g, "rect", { x: dx + 4, y: sy + 42, width: dw - 8, height: 1, fill: "#C9A67A" });
+    el(g, "text", { x: dx + 5, y: sy + 52, "font-size": 6, "font-weight": 700, fill: "#2E1F14" }, "na jedlo:");
+    [[0, 1], [2, 3]].forEach(function (pair, r) {
+      el(g, "text", { x: dx + 5, y: sy + 61 + r * 8, "font-size": 6, fill: "#2E1F14" },
+        pair.map(function (i) { return DAYS[i] + " " + eaters(i); }).join("  "));
+    });
+
+    // pinned "ťukni" tag with a blinking pin
+    var tx = dx + dw / 2, ty = sy + dh + 10;
+    el(g, "rect", { x: tx - 26, y: ty, width: 52, height: 22, fill: "#FFD54A", stroke: "#C98A1C", "stroke-width": 1.5 });
+    el(g, "text", { x: tx, y: ty + 15, "font-size": 9, "font-weight": 700, "text-anchor": "middle", fill: "#2E1F14" }, "ťukni");
+    el(g, "rect", { x: tx - 2, y: ty - 3, width: 4, height: 4, fill: "#B4472F", class: "pin-blink" });
+    return g;
+  }
+
+  function titleGate(parent, ax, ay, text) {
+    var g = el(parent, "g", { role: "img", "aria-label": text });
+    el(g, "rect", { x: ax - 84, y: ay - 46, width: 6, height: 46, fill: "#4E3020" });
+    el(g, "rect", { x: ax + 78, y: ay - 46, width: 6, height: 46, fill: "#4E3020" });
+    el(g, "rect", { x: ax - 96, y: ay - 70, width: 192, height: 24, fill: "#6B4426", stroke: "#4E3020", "stroke-width": 2 });
+    el(g, "rect", { x: ax - 90, y: ay - 64, width: 3, height: 3, fill: "#D4A870" });
+    el(g, "rect", { x: ax + 87, y: ay - 64, width: 3, height: 3, fill: "#D4A870" });
+    el(g, "text", { x: ax, y: ay - 54, "font-size": 10, "font-weight": 700, "text-anchor": "middle", fill: "#F4EBD0" }, text);
+  }
+
+  function campfire(parent, x, y) {
+    var b = P(x, y);
+    var g = el(parent, "g");
+    [[-10, 0], [10, 0], [0, 5], [0, -5]].forEach(function (o) { el(g, "rect", { x: b[0] + o[0] - 4, y: b[1] + o[1] - 2, width: 8, height: 4, fill: "#7E7E7E" }); });
+    el(g, "rect", { x: b[0] - 5, y: b[1] - 6, width: 10, height: 6, fill: "#D69A2E", class: "flame" });
+    el(g, "rect", { x: b[0] - 2, y: b[1] - 11, width: 4, height: 6, fill: "#FFD54A", class: "flame" });
+  }
+
+  function drawWorld() {
+    cam.textContent = "";
+    var g = el(cam, "g");
+    // ground slab
+    var G = [P(0, 0), P(440, 0), P(440, 620), P(0, 620)];
+    poly(g, [G[1], G[2], [G[2][0], G[2][1] + 14], [G[1][0], G[1][1] + 14]], "#5E4A30");
+    poly(g, [G[2], G[3], [G[3][0], G[3][1] + 14], [G[2][0], G[2][1] + 14]], "#4E3E28");
+    poly(g, G, "#8E9B48");
+    // tufts and leaves (fixed pseudo random)
+    var seed = 7;
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    var leaf = ["#76823A", "#76823A", "#B5532A", "#D69A2E", "#8E3424"];
+    for (var i = 0; i < 140; i++) {
+      var p = P(rnd() * 430 + 5, rnd() * 610 + 5);
+      el(g, "rect", { x: p[0], y: p[1], width: 3, height: 2, fill: leaf[Math.floor(rnd() * leaf.length)] });
+    }
+    // paths
+    poly(g, [P(240, 300), P(256, 300), P(256, 620), P(240, 620)], "#D6BC8E");
+    poly(g, [P(84, 176), P(96, 176), P(96, 320), P(84, 320)], "#D6BC8E");
+    poly(g, [P(60, 500), P(240, 500), P(240, 514), P(60, 514)], "#D6BC8E");
+    // meadow
+    poly(g, [P(140, 530), P(300, 530), P(300, 600), P(140, 600)], "#9DAA55");
+    // back to front
+    pine(g, 30, 10, 1.3); pine(g, 200, 20, 1.2); pine(g, 410, 40, 1.4); pine(g, 300, 120, 1);
+    house(g, 10, 20, 150, 150, 46, 34, "#C9A67A", "#A9865A", "#B4472F", "#8E3424", 1);
+    house(g, 180, 170, 230, 120, 40, 30, "#E8D2A6", "#C4AE82", "#6B4426", "#4E3020", 0);
+    house(g, 10, 330, 100, 100, 30, 22, "#D9B98A", "#B79A6C", "#7A8F5A", "#5E7044", 3);
+    pine(g, 20, 470, 1.1); pine(g, 420, 380, 1.2); pine(g, 40, 600, 1);
+    campfire(g, 60, 545);
+    titleGate(g, P(248, 620)[0], P(248, 620)[1] + 2, "Chata 29. 10. – 1. 11.");
+    var nb = P(400, 520);
+    noticeBoard(g, nb[0], nb[1]);
+    // night tint over the world (the HUD above it never darkens)
+    tint = el(cam, "rect", { x: WORLD.x - 400, y: WORLD.y - 400, width: WORLD.w + 800, height: WORLD.h + 800, fill: "#14204A", opacity: 0, "pointer-events": "none" });
+  }
+
+  // ---------------- camera: drag, wheel, pinch ----------------
+  var svg = document.getElementById("world");
+  var view = { k: 1, tx: 0, ty: 0 }, fitView = null;
+  function hudBox() {
+    var top = document.querySelector(".tophud").getBoundingClientRect();
+    var bot = document.querySelector(".bothud").getBoundingClientRect();
+    var app = svg.getBoundingClientRect();
+    return { top: top.bottom - app.top + 6, bottom: bot.top - app.top - 6, w: app.width };
+  }
+  function computeFit() {
+    var b = hudBox(), H = b.bottom - b.top;
+    var k = Math.min(b.w / WORLD.w, H / WORLD.h);
+    return { k: k, tx: (b.w - WORLD.w * k) / 2 - WORLD.x * k, ty: b.top + (H - WORLD.h * k) / 2 - WORLD.y * k };
+  }
+  function apply() {
+    cam.setAttribute("transform", "translate(" + view.tx.toFixed(1) + "," + view.ty.toFixed(1) + ") scale(" + view.k.toFixed(4) + ")");
+    var moved = Math.abs(view.k - fitView.k) > 0.01 || Math.abs(view.tx - fitView.tx) > 4 || Math.abs(view.ty - fitView.ty) > 4;
+    document.getElementById("fit").classList.toggle("show", moved);
+  }
+  function zoomAt(px, py, f) {
+    var k = Math.max(fitView.k * 0.8, Math.min(fitView.k * 6, view.k * f));
+    f = k / view.k;
+    view.tx = px - (px - view.tx) * f; view.ty = py - (py - view.ty) * f; view.k = k;
+    apply();
+  }
+  function refit() { fitView = computeFit(); view = Object.assign({}, fitView); apply(); }
+
+  var pts = new Map(), start = null, pinch = null;
+  svg.addEventListener("pointerdown", function (e) {
+    svg.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) start = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty, moved: 0, target: e.target };
+    if (pts.size === 2) {
+      var a = Array.from(pts.values());
+      pinch = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), k: view.k };
+      start = null;
+    }
+  });
+  svg.addEventListener("pointermove", function (e) {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    var r = svg.getBoundingClientRect();
+    if (pinch && pts.size === 2) {
+      var a = Array.from(pts.values()), d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+      var mx = (a[0].x + a[1].x) / 2 - r.left, my = (a[0].y + a[1].y) / 2 - r.top;
+      zoomAt(mx, my, (pinch.k * d / pinch.d) / view.k);
+    } else if (start) {
+      var dx = e.clientX - start.x, dy = e.clientY - start.y;
+      start.moved = Math.max(start.moved, Math.hypot(dx, dy));
+      if (start.moved > 6) { svg.classList.add("drag"); view.tx = start.tx + dx; view.ty = start.ty + dy; apply(); }
+    }
+  });
+  function up(e) {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    svg.classList.remove("drag");
+    if (start && pts.size === 0 && start.moved <= 6) {
+      var hit = document.elementFromPoint(e.clientX, e.clientY);
+      var tap = hit && hit.closest && hit.closest("[data-tap]");
+      if (tap) tapBoard(tap);
+    }
+    if (pts.size === 0) start = null;
+  }
+  svg.addEventListener("pointerup", up);
+  svg.addEventListener("pointercancel", up);
+  svg.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var r = svg.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+  svg.addEventListener("dblclick", function (e) { var r = svg.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 1.8); });
+  document.getElementById("fit").addEventListener("click", refit);
+  window.addEventListener("resize", function () { refit(); layoutRail(); });
+
+  // ---------------- top HUD: stamps ----------------
+  var stampsEl = document.getElementById("stamps");
+  var stampBtns = NIGHTS.map(function (n, i) {
+    var b = h("button", "stamp");
+    var face = h("span", "face");
+    face.appendChild(h("span", "d", n.label));
+    face.appendChild(h("span", "dt", n.dates));
+    var row = h("span", "row");
+    var occ = h("span", "occ"); occ.appendChild(h("b", null, used(i) + "/" + TOTAL));
+    row.appendChild(occ);
+    var tl = tally(me, i);
+    row.appendChild(h("span", "chip " + tl.kind, tl.kind === "absent" ? "nie si" : tl.text));
+    face.appendChild(row);
+    b.appendChild(face);
+    b.setAttribute("aria-label", "Noc " + n.label + ", " + n.dates + ", obsadené " + used(i) + " z " + TOTAL +
+      (tl.kind === "absent" ? ", nie ste tam" : ", vy máte " + tl.text));
+    b.addEventListener("click", function () { press(b); selectNight(i, true); });
+    stampsEl.appendChild(b);
+    return b;
+  });
+  function press(b) { if (reduced) return; b.classList.add("press"); setTimeout(function () { b.classList.remove("press"); }, 120); }
+
+  // ---------------- top HUD: time slider ----------------
+  var rail = document.getElementById("rail"), railWrap = document.getElementById("railWrap");
+  var knob = document.getElementById("knob"), knobIcon = document.getElementById("knobIcon"), knobTime = document.getElementById("knobTime");
+  var segs = NIGHTS.map(function () { var s = h("div", "seg"); rail.appendChild(s); return s; });
+  segs.forEach(function (s) {
+    [[12, .25], [18, .5], [0, .75]].forEach(function (tk) {
+      var e = h("span", "tick", String(tk[0])); e.style.left = (tk[1] * 100) + "%"; s.appendChild(e);
+    });
+  });
+  function layoutRail() { setTime(t, false); }
+  function tToX(tt) {
+    var i = Math.min(2, Math.floor(tt / 24)), f = (tt - i * 24) / 24;
+    var wr = railWrap.getBoundingClientRect(), sr = segs[i].getBoundingClientRect();
+    return sr.left - wr.left + f * sr.width;
+  }
+  function xToT(x) {
+    var wr = railWrap.getBoundingClientRect(), best = 0;
+    for (var i = 0; i < 3; i++) {
+      var sr = segs[i].getBoundingClientRect(), l = sr.left - wr.left;
+      if (x >= l - 3) best = i * 24 + Math.max(0, Math.min(23.99, (x - l) / sr.width * 24));
+    }
+    return best;
+  }
+  function hourOf(tt) { return Math.floor(6 + tt) % 24; }
+  function darkness(hh) {
+    if (hh >= 8 && hh < 17) return 0;
+    if (hh >= 17 && hh < 20) return (hh - 16) * 0.12;
+    if (hh >= 20 || hh < 5) return 0.48;
+    return 0.48 - (hh - 4) * 0.12;
+  }
+  function icon(isNight) {
+    knobIcon.textContent = "";
+    if (isNight) {
+      [[2, 0, 4, 1, "#3E4F7A"], [1, 1, 3, 1, "#7A8FB8"], [0, 2, 3, 4, "#7A8FB8"], [1, 6, 3, 1, "#7A8FB8"], [2, 7, 4, 1, "#3E4F7A"]]
+        .forEach(function (r) { el(knobIcon, "rect", { x: r[0], y: r[1], width: r[2], height: r[3], fill: r[4] }); });
+    } else {
+      el(knobIcon, "rect", { x: 3, y: 0, width: 1, height: 8, fill: "#C98A1C" });
+      el(knobIcon, "rect", { x: 0, y: 3, width: 8, height: 1, fill: "#C98A1C" });
+      el(knobIcon, "rect", { x: 2, y: 2, width: 4, height: 4, fill: "#FFD54A" });
+    }
+  }
+  function setTime(tt, fromUser) {
+    t = Math.max(0, Math.min(71.99, tt));
+    knob.style.left = tToX(t) + "px";
+    var hh = hourOf(t);
+    knobTime.textContent = (hh < 10 ? "0" : "") + hh + ":00";
+    railWrap.setAttribute("aria-valuenow", t.toFixed(0));
+    railWrap.setAttribute("aria-valuetext", NIGHTS[Math.min(2, Math.floor(t / 24))].label + ", " + hh + ":00");
+    icon(darkness(hh) > 0.3);
+    if (tint) tint.setAttribute("opacity", darkness(hh).toFixed(2));
+    var n = Math.min(2, Math.floor(t / 24));
+    if (n !== night) { night = n; markNight(); }
+  }
+  function markNight() { stampBtns.forEach(function (b, i) { b.setAttribute("aria-pressed", i === night ? "true" : "false"); }); updateSi(); }
+  var lapse = null;
+  function selectNight(i, animate) {
+    clearInterval(lapse);
+    night = i; markNight();
+    if (!animate || reduced) { setTime(6 + 24 * i); return; }
+    // time-lapse: noon -> dusk -> night -> dawn of that night, one jump per hour (pixel steps, no tween)
+    var cur = 24 * i + 6, end = 24 * i + 23;
+    setTime(cur);
+    lapse = setInterval(function () {
+      cur += 1; setTime(cur);
+      if (cur >= end) { clearInterval(lapse); setTimeout(function () { setTime(24 * i + 6); }, 400); }
+    }, 70);
+  }
+  var dragRail = false;
+  railWrap.addEventListener("pointerdown", function (e) {
+    clearInterval(lapse); dragRail = true; railWrap.setPointerCapture(e.pointerId); railWrap.classList.add("dragging");
+    setTime(xToT(e.clientX - railWrap.getBoundingClientRect().left), true);
+  });
+  railWrap.addEventListener("pointermove", function (e) { if (dragRail) setTime(xToT(e.clientX - railWrap.getBoundingClientRect().left), true); });
+  function railUp() { dragRail = false; railWrap.classList.remove("dragging"); }
+  railWrap.addEventListener("pointerup", railUp);
+  railWrap.addEventListener("pointercancel", railUp);
+  railWrap.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight") { setTime(t + 1); e.preventDefault(); }
+    if (e.key === "ArrowLeft") { setTime(t - 1); e.preventDefault(); }
+  });
+
+  // ---------------- bottom HUD ----------------
+  function updateSi() {
+    var tl = tally(me, night), s = document.getElementById("siStatus");
+    if (tl.kind === "absent") { s.textContent = "Túto noc tu nie ste"; s.style.color = "#6B5644"; }
+    else if (tl.kind === "under") { s.textContent = "Chýba " + (me.need - me.placed[night]) + " miesto – ťukni na posteľ"; s.style.color = "#96540F"; }
+    else if (tl.kind === "over") { s.textContent = "Máš o " + (me.placed[night] - me.need) + " miesto navyše"; s.style.color = "#A3361E"; }
+    else { s.textContent = "Všetci majú kde spať"; s.style.color = "#3F6E2C"; }
+  }
+  document.querySelectorAll(".tool, .si").forEach(function (b) {
+    b.addEventListener("click", function () { press(b); if (b.dataset.tool === "info") openPanel("noc"); });
+  });
+
+  // ---------------- panel ----------------
+  var panel = document.getElementById("panel"), scrim = document.getElementById("scrim"), body = document.getElementById("pBody");
+  var lastFocus = null;
+  function cell(tr, text, cls) { var td = h("td", cls, text); tr.appendChild(td); return td; }
+  function nameCell(tr, name, color) { var td = h("td"); var sq = h("i", "sq"); sq.style.background = color; td.appendChild(sq); td.appendChild(document.createTextNode(name)); tr.appendChild(td); }
+  function renderNoc() {
+    body.textContent = "";
+    var tb = h("table"), head = h("tr");
+    ["Partia", "Príde", "Odíde"].concat(NIGHTS.map(function (n) { return n.short; })).forEach(function (x) { head.appendChild(h("th", null, x)); });
+    tb.appendChild(head);
+    PARTIES.forEach(function (p) {
+      var tr = h("tr", p.mine ? "mine" : null);
+      nameCell(tr, p.name, p.color);
+      cell(tr, DAYS[p.arrive]); cell(tr, DAYS[p.leave]);
+      NIGHTS.forEach(function (n, i) { var tl = tally(p, i); cell(tr, tl.text, { ok: "c-ok", under: "c-under", over: "c-over", absent: "c-abs" }[tl.kind]); });
+      tb.appendChild(tr);
+    });
+    var sum = h("tr", "sum"); cell(sum, "Obsadené"); cell(sum, ""); cell(sum, "");
+    NIGHTS.forEach(function (n, i) { cell(sum, used(i) + "/" + TOTAL); });
+    tb.appendChild(sum);
+    body.appendChild(tb);
+    document.getElementById("pSub").textContent = "Čísla sú miesta: vybraté / treba.";
+  }
+  function renderDen() {
+    body.textContent = "";
+    var tb = h("table"), head = h("tr");
+    ["Partia"].concat(DAYS).forEach(function (x) { head.appendChild(h("th", null, x)); });
+    tb.appendChild(head);
+    DAYVISITS.forEach(function (v) {
+      var tr = h("tr"); nameCell(tr, v.name, v.color);
+      v.people.forEach(function (c) { cell(tr, c ? String(c) : "–", c ? null : "c-abs"); });
+      tb.appendChild(tr);
+    });
+    var sum = h("tr", "sum"); cell(sum, "spolu na jedlo");
+    DAYS.forEach(function (d, i) { cell(sum, String(eaters(i))); });
+    tb.appendChild(sum);
+    body.appendChild(tb);
+    document.getElementById("pSub").textContent = "Kto príde len cez deň a koľko nás bude jesť.";
+  }
+  function tab(which) {
+    document.getElementById("tabNoc").setAttribute("aria-selected", which === "noc" ? "true" : "false");
+    document.getElementById("tabDen").setAttribute("aria-selected", which === "den" ? "true" : "false");
+    if (which === "noc") renderNoc(); else renderDen();
+  }
+  function openPanel(which) {
+    lastFocus = document.activeElement;
+    tab(which); panel.classList.add("open"); scrim.classList.add("open");
+    document.getElementById("pClose").focus();
+  }
+  function closePanel() { panel.classList.remove("open"); scrim.classList.remove("open"); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  document.getElementById("tabNoc").addEventListener("click", function () { tab("noc"); });
+  document.getElementById("tabDen").addEventListener("click", function () { tab("den"); });
+  document.getElementById("pClose").addEventListener("click", closePanel);
+  scrim.addEventListener("click", closePanel);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closePanel(); });
+
+  function tapBoard(g) {
+    if (reduced) { openPanel("noc"); return; }
+    g.classList.remove("wiggle"); void g.getBBox(); g.classList.add("wiggle");
+    setTimeout(function () { g.classList.remove("wiggle"); openPanel("noc"); }, 240);
+  }
+
+  // ---------------- prototype frame switch ----------------
+  function frame(phone) {
+    document.body.classList.toggle("phone", phone);
+    document.getElementById("pv-phone").setAttribute("aria-pressed", phone ? "true" : "false");
+    document.getElementById("pv-full").setAttribute("aria-pressed", phone ? "false" : "true");
+    requestAnimationFrame(function () { refit(); layoutRail(); });
+  }
+  document.getElementById("pv-full").addEventListener("click", function () { frame(false); });
+  document.getElementById("pv-phone").addEventListener("click", function () { frame(true); });
+
+  // ---------------- start ----------------
+  drawWorld();
+  cam.addEventListener("keydown", function (e) {
+    var g = e.target.closest && e.target.closest("[data-tap]");
+    if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); tapBoard(g); }
+  });
+  markNight();
+  if (/[?&]phone/.test(location.search)) document.body.classList.add("phone");
+  requestAnimationFrame(function () {
+    refit(); setTime(t);
+    if (/[?&]zoom/.test(location.search)) { var nb = cam.querySelector("[data-tap]").getBoundingClientRect(), r = svg.getBoundingClientRect();
+      zoomAt(nb.left + nb.width / 2 - r.left, nb.top + nb.height / 2 - r.top, 3.2); }
+    if (/[?&]panel/.test(location.search)) openPanel("noc");
+    document.getElementById("srSummary").textContent = "Chata 29. 10. – 1. 11. " + NIGHTS.map(function (n, i) {
+      return "Noc " + n.label + ": obsadené " + used(i) + " z " + TOTAL + ".";
+    }).join(" ");
+  });
+})();
+</script>
+</body>
+</html>

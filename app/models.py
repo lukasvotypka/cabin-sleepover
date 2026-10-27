@@ -145,16 +145,8 @@ CHIMNEY_WIDTH = 6  # px, same as in the page (CHIMNEY_W in static/index.html)
 
 class SceneRects(_Model):
     title: Rect
-    nights: Rect
-    notice: Rect
-    locked: Rect
-    letter: Rect
-    key: Rect
-    legend: Rect
     parties: Rect
     meadow: Rect
-    briefing: Rect = [296, 408, 56, 56]  # "Pred cestou" board; optional, default here
-    time: Rect = [176, 34, 196, 12]  # time slider between title and signposts; optional, default here
 
 
 class MapLayout(_Model):

@@ -42,8 +42,8 @@ function wholeView(bounds) {
 //    the scene centre. vw x vh is the viewport in CSS px; only below LANDSCAPE_MAX_H px of height (phones, not desktop windows).
 var LANDSCAPE_MAX_H = 500;
 var REST_PHONE_W = 600;
-function restView(bounds, W, H, vw, vh, content) {
-  var whole = wholeView(bounds), phone = phoneRestView(bounds, vw, vh, content);
+function restView(bounds, W, H, vw, vh, content, insets) {
+  var whole = wholeView(bounds), phone = phoneRestView(bounds, vw, vh, content, insets);
   if (phone) return phone;
   if (!(vw > vh) || !(vh < LANDSCAPE_MAX_H) || !(bounds.w > 0)) return whole;
   var s = vw / bounds.w;                                  // px per scene unit at 1x
@@ -54,11 +54,15 @@ function restView(bounds, W, H, vw, vh, content) {
 
 // The rest view of a phone held upright (see restView): the content rect fitted by width and centred, or null when
 // the rule does not apply (no content, a wide or a landscape viewport, or the content is no narrower than the scene).
-function phoneRestView(bounds, vw, vh, content) {
+function phoneRestView(bounds, vw, vh, content, insets) {
   if (!content || !(vw < REST_PHONE_W) || !(vh >= vw) || !(content[2] > 0) || !(bounds.w > 0)) return null;
   var w = content[2], h = w * bounds.h / bounds.w;
   if (!(bounds.w / w > 1.02)) return null;
-  return clampView({ x: content[0], y: content[1] + content[3] / 2 - h / 2, w: w, h: h }, bounds);
+  // With insets ({top, bottom} in px: the top HUD and quest tab, the bottom bar) the content is centred in the free band
+  // between them, so the title board never sits under the HUD.
+  var sc = vw / w, top = insets && insets.top > 0 ? insets.top : 0, bot = insets && insets.bottom > 0 ? insets.bottom : 0;
+  var mid = (top + vh - bot) / 2 / sc;      // the band's centre in scene units from the view top
+  return clampView({ x: content[0], y: content[1] + content[3] / 2 - mid, w: w, h: h }, bounds);
 }
 
 // Two views are the same up to half a scene unit.

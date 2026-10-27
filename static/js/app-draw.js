@@ -116,6 +116,7 @@ function render() {
     drawBoards();
     drawBeds();
   });
+  renderStamps();
   renderHud();
   renderSummary();
   renderMoveBar();
@@ -165,65 +166,12 @@ function drawBoards() {
   var g = app.layers.boards;
   clearNode(g);
   drawTitle(g, scene.title, state);
-  drawNights(g, scene, state);
-  var icons = app.iso.icons;      // the icon grid left of the boards (isoScene), not the flat plan
-  drawNotice(g, icons.notice);
   drawPartyTable(g, scene.parties, state);
-  drawLetter(g, icons.letter);
-  drawLegend(g, icons.legend);
-  if (isAdmin(app.role)) drawKey(g, icons.key);
-  if (state.signup_open === false && scene.locked) drawLocked(g, icons.locked);
-  if (state.info && scene.briefing) drawBriefing(g, icons.briefing, state);
 }
 
-// A flat pixel shadow under a board or icon (the same shape, +2/+2 block units): the block stands above the grass.
+// A flat pixel shadow under a board (the same shape, +2/+2 block units): the block stands above the grass.
 function blockShadow(parent, r) {
   rect(parent, r[0] + 2, r[1] + 2, r[2], r[3], "#2E1F14", { opacity: ".25", "aria-hidden": "true" });
-}
-
-// The „Zápis je zatvorený“ sign, shown to everyone while signup is locked. Position: the locked cell of the icon grid (isoScene).
-function drawLocked(parent, r) {
-  var g = svgEl(parent, "g", { role: "img", "aria-label": LOCKED_TEXTS.sign });
-  blockShadow(g, [r[0], r[1], r[2], r[3] - 8]);
-  rect(g, r[0] + r[2] / 2 - 2, r[1] + r[3] - 10, 4, 10, COLORS.woodDark);       // the post
-  board(g, [r[0], r[1], r[2], r[3] - 8], COLORS.plank);
-  addText(g, r[0] + r[2] / 2, r[1] + 20, "Zápis", 11, COLORS.paper, { anchor: "middle", bold: true });
-  addText(g, r[0] + r[2] / 2, r[1] + 34, "je zatvo-", 9, COLORS.paper, { anchor: "middle" });
-  addText(g, r[0] + r[2] / 2, r[1] + 44, "rený", 9, COLORS.paper, { anchor: "middle" });
-}
-
-// The letter icon opens „Prehľad na poslanie“. The hit area is the whole letter cell of the icon grid (isoScene).
-function drawLetter(parent, r) {
-  var g = svgEl(parent, "g");
-  var x = r[0] + (r[2] - 32) / 2, y = r[1] + (r[3] - 24) / 2;
-  blockShadow(g, [x, y, 32, 24]);
-  rect(g, x, y, 32, 24, COLORS.woodDark);
-  rect(g, x + 3, y + 3, 26, 18, COLORS.paper);
-  [[0, 0], [4, 3], [8, 6], [12, 9]].forEach(function (p) {      // the flap, from the left corner to the middle
-    rect(g, x + 3 + p[0], y + 3 + p[1], 4, 3, COLORS.woodDark);
-    rect(g, x + 25 - p[0], y + 3 + p[1], 4, 3, COLORS.woodDark);
-  });
-  rect(g, x + 13, y + 14, 6, 6, COLORS.red);                  // the seal
-  iconCaption(g, r[0] + r[2] / 2, y + 27, "Prehľad");
-  hitRect(g, r);
-  makeButton(g, "Prehľad na poslanie. Ťuknutím otvoríš text, ktorý môžeš poslať do WhatsAppu.", "letter", openSummary);
-}
-
-// The „Kto je kto“ sign: a small board with three colour squares, each next to a paper line. The squares are
-// decoration (the first three palette colours), not party data. The hit area is the whole legend cell of the icon grid (isoScene).
-function drawLegend(parent, r) {
-  var g = svgEl(parent, "g");
-  blockShadow(g, r);
-  board(g, r, COLORS.plank);
-  var x = r[0] + 7, y = r[1] + 8;
-  ["#2F7D6D", "#D07A2B", "#6D5BA8"].forEach(function (color, i) {
-    var ry = y + i * 10;
-    rect(g, x, ry, 6, 6, color);
-    rect(g, x + 10, ry + 1, 16 + (i === 1 ? -4 : i === 2 ? -8 : 0), 4, COLORS.paper);
-  });
-  iconCaption(g, r[0] + r[2] / 2, r[1] + r[3] + 1, "Kto je kto");
-  hitRect(g, r);
-  makeButton(g, "Kto je kto. Ťuknutím uvidíš všetkých a ich farby.", "legend", function () { openLegend("legend"); });
 }
 
 function drawTitle(parent, r, state) {
@@ -234,61 +182,6 @@ function drawTitle(parent, r, state) {
   addText(g, r[0] + r[2] / 2, r[1] + r[3] / 2 + 4, state.event.name, 12, COLORS.paper, { anchor: "middle", bold: true, maxWidth: r[2] - 16 });
   rect(g, r[0] + 6, r[1] + 6, 3, 3, COLORS.woodLight);
   rect(g, r[0] + r[2] - 9, r[1] + 6, 3, 3, COLORS.woodLight);
-}
-
-function drawNights(parent, scene, state) {
-  var nights = state.event.nights, gap = 4, lay = signpostLayout(scene.nights, nights.length, gap);
-  var total = totalSlots(state.layout);
-  var hit = nightsHit(state.layout, NIGHTS_HIT_GROW);
-  var party = partyById(state, app.myParty);
-  nights.forEach(function (night, i) {
-    var info = nightInfo(night) || { label: night, dates: "" };
-    var used = usedCount(state, night);
-    var selected = night === app.night;
-    var b = lay.boards[i], x = b[0], w = b[2];
-    var g = svgEl(parent, "g");
-    blockShadow(g, b);
-    rect(g, x + w / 2 - 3, b[1] + b[3] - 2, 6, 8, COLORS.woodDark);   // post
-    board(g, b, selected ? COLORS.selected : COLORS.wood, selected ? COLORS.highlight : COLORS.woodDark);
-    var cx = x + w / 2, inner = w - 8;
-    addText(g, cx, lay.label, info.label, 9, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
-    addText(g, cx, lay.date, info.dates, 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
-    var tally = party ? nightTally(state, party, night) : null;
-    if (tally && tally.kind === "absent") {
-      addText(g, cx, lay.absent, tallyChipText(tally), 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
-    } else if (tally) {
-      var tone = TALLY_COLORS[tally.kind];
-      rect(g, x + 5, lay.chip[0], w - 10, lay.chip[1], COLORS[tone[0]]);
-      rect(g, x + 6, lay.chip[0] + 1, w - 12, lay.chip[1] - 2, COLORS[tone[1]]);
-      addText(g, cx, lay.chipText, tallyChipText(tally), 7, COLORS[tone[2]], { anchor: "middle", bold: true, maxWidth: w - 14 });
-    }
-    addText(g, cx, lay.used, "obsadené", 6.5, COLORS.ink, { anchor: "middle", maxWidth: inner });
-    addText(g, cx, lay.total, used + " z " + total, 8, COLORS.ink, { anchor: "middle", bold: true, maxWidth: inner });
-    hitRect(g, [x - gap / 2, hit[1], w + gap, hit[3]]);
-    makeButton(g, "Noc " + info.label + ", " + info.dates + ", obsadené " + used + " z " + total +
-      " miest" + (selected ? ", zvolená noc" : "") + (tally ? ". " + tallyLabel(tally) : ""),
-      "night-" + night, function () { selectNight(night, { animate: true }); });
-    g.setAttribute("aria-pressed", selected ? "true" : "false");
-  });
-}
-
-// A small name plate under an icon on the grass, centred at x, its top at y (8 units high). Decoration: the
-// button label of the icon says the same.
-function iconCaption(parent, x, y, text) {
-  var w = text.length * 3.6 + 6;
-  rect(parent, x - w / 2, y, w, 8, COLORS.woodDark, { "aria-hidden": "true" });
-  addText(parent, x, y + 6, text, 6, COLORS.paper, { anchor: "middle", bold: true }).setAttribute("aria-hidden", "true");
-}
-
-// The „?“ icon that opens „Návod“. The hit area is the whole notice cell of the icon grid (isoScene), 44×44.
-function drawNotice(parent, r) {
-  var g = svgEl(parent, "g");
-  blockShadow(g, [r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8]);
-  board(g, [r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8], COLORS.plank);
-  addText(g, r[0] + r[2] / 2, r[1] + 30, "?", 22, COLORS.paper, { anchor: "middle", bold: true });
-  iconCaption(g, r[0] + r[2] / 2, r[1] + r[3] - 3, "Návod");
-  hitRect(g, r);
-  makeButton(g, "Návod. Ťuknutím ho otvoríš.", "notice", openNotice);
 }
 
 // A pixel crescent moon (6x8 units) and a pixel sun (8x8 units) from rects, top left at (x, y).

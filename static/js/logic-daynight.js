@@ -128,6 +128,22 @@ function sceneXToHour(x, segs) {
   return last.h1;
 }
 
+// The colour of the rail at an hour (T-145): cream by day, amber at dusk and dawn, dark blue by night. [r, g, b] 0..255 each.
+var RAIL_DAY = [247, 231, 180], RAIL_DUSK = [214, 154, 46], RAIL_NIGHT = [47, 59, 92];
+
+function railColor(h) {
+  function mix(a, b, k) { return a.map(function (v, i) { return v + (b[i] - v) * k; }); }
+  var c = mix(mix(RAIL_DAY, RAIL_NIGHT, darkness(h)), RAIL_DUSK, Math.min(1, dusk(h) * 1.4));
+  return "#" + c.map(function (v) { var x = Math.round(v).toString(16); return x.length < 2 ? "0" + x : x; }).join("");
+}
+
+// The CSS background of the rail segment that holds the hours h0..h1: a left-to-right gradient of `railColor`.
+function railGradient(h0, h1) {
+  var stops = [], n = Math.max(2, Math.ceil(h1 - h0)), i;
+  for (i = 0; i <= n; i++) stops.push(railColor(h0 + (h1 - h0) * i / n) + " " + Math.round(i / n * 100) + "%");
+  return "linear-gradient(90deg, " + stops.join(", ") + ")";
+}
+
 // New hour for a key on the slider, or null for a key it does not use.
 function sliderKey(key, h, nights) {
   var r = sliderRange(nights), d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, PageUp: 6, PageDown: -6 };

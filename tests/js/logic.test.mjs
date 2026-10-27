@@ -459,7 +459,12 @@ test("the HUD: markup, no status board in the scene, listed before app-start.js"
   assert.match(readScripts("app-hud"), /return storage\.get\(QUEST_KEY\) === "1";/, "folded by default");
   assert.ok(scriptTags.indexOf("static/js/app-hud.js") > -1 && scriptTags.indexOf("static/js/app-hud.js") < scriptTags.indexOf("static/js/app-start.js"));
   assert.match(pageFile, /\.hud \{[^}]*z-index: 12/);
-  assert.match(pageFile, /\.zoom-reset \{[^}]*bottom: calc\(18px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(pageFile, /\.zoom-reset \{[^}]*bottom: calc\(max\(var\(--hud-h, 0px\), env\(safe-area-inset-bottom, 0px\)\) \+ 10px\)/, "above the bottom bar");
+  assert.match(pageFile, /<div id="tophud" class="tophud">[\s\S]*<div id="stamps"[^>]*>[\s\S]*<div id="rail" class="rail-wrap" role="slider" tabindex="0" aria-label="Čas"/, "night stamps and the time rail in the top HUD");
+  assert.match(pageFile, /<div id="bar" class="bothud">[\s\S]*<button id="crest"[\s\S]*<div id="tools"/, "Si and the tools in the bottom bar");
+  assert.match(pageFile, /#moveBar:not\(\[hidden\]\) ~ \.hud \.tophud \{ display: none; \}/);
+  assert.ok(scriptTags.indexOf("static/js/app-tophud.js") > -1 && scriptTags.indexOf("static/js/app-tophud.js") < scriptTags.indexOf("static/js/app-start.js"));
+  assert.match(pageFile, /\.stamp \.dt \{ display: none; \}/, "the date line hides on low windows");
   assert.match(pageFile, /#toast \{[^}]*var\(--hud-h/);
   assert.ok(!/innerHTML/.test(readScripts("app-hud")), "human text goes in via textContent");
 });
@@ -1128,14 +1133,18 @@ test("the notice is only the ? icon: 44x44, clear of rooms, doors, windows, the 
   assert.ok(!overlap(n, [scene.nights[0], scene.nights[1], scene.nights[2], scene.nights[3] + 6]), "notice vs signposts with posts");
 });
 
-test("drawNotice draws only the ? icon, opens the Návod window, no innerHTML", () => {
-  const body = html.slice(html.indexOf("function drawNotice("), html.indexOf("// The table of all parties"));
-  assert.ok(body.length > 100);
-  assert.match(body, /"Návod\. Ťuknutím ho otvoríš\."/);
-  assert.match(body, /"notice", openNotice\)/);
-  assert.match(body, /hitRect\(g, r\)/);
-  assert.doesNotMatch(body, /NOTICE_LINES/);
+test("the bottom bar tools: Návod, Info, Prehľad, Pred cestou, key for the admin and the locked sign", () => {
+  const body = readScripts("app-hud");
+  const tools = body.slice(body.indexOf("function hudTools("), body.indexOf("function drawTools("));
+  assert.match(tools, /"Návod\. Ťuknutím ho otvoríš\."/);
+  assert.match(tools, /key: "notice"[^\n]*run: openNotice/);
+  assert.match(tools, /key: "legend"[^\n]*openLegend\("legend"\)/);
+  assert.match(tools, /key: "letter"[^\n]*run: openSummary/);
+  assert.match(tools, /if \(state\.info\)[\s\S]*key: "briefing"[\s\S]*run: enterBriefing/);
+  assert.match(tools, /if \(isAdmin\(app\.role\)\) tools\.push\(\{ key: "key"[^\n]*run: openAdmin/);
+  assert.match(tools, /if \(state\.signup_open === false\) tools\.push\(\{ key: "locked"[^\n]*LOCKED_TEXTS\.sign/);
   assert.doesNotMatch(body, /innerHTML/);
+  for (const k of ["notice", "legend", "letter", "briefing", "key", "locked"]) assert.match(body, new RegExp("\\b" + k + ": \\[\\["), "icon " + k);
 });
 
 test("openNotice opens a centred panel with one textContent paragraph per step and returns focus to the ? icon", () => {
@@ -1148,7 +1157,7 @@ test("openNotice opens a centred panel with one textContent paragraph per step a
 });
 
 test("the party table is drawn on every drawBoards, and no collapse state is left", () => {
-  const body = html.slice(html.indexOf("function drawBoards("), html.indexOf("// The letter icon"));
+  const body = html.slice(html.indexOf("function drawBoards("), html.indexOf("// A flat pixel shadow"));
   assert.match(body, /\n\s+drawPartyTable\(g, scene\.parties, state\);/);
   const gone = ["notice" + "Collapsed", "collapse" + "Notice", "expand" + "Notice", "notice" + "IconRect", "notice" + "Layout", "KEYS.notice"];
   for (const name of gone) assert.ok(!html.includes(name), `${name} is gone`);
@@ -1639,13 +1648,17 @@ test("scene: title board, signposts with posts, and the other boards and rooms d
   for (const key of ["notice", "parties"]) assert.ok(!overlap(scene.title, scene[key]), `title overlaps scene.${key}`);
 });
 
-test("drawTitle and drawNights read their positions from the layout, not from numbers", () => {
-  const draw = html.slice(html.indexOf("function drawTitle("), html.indexOf("function drawNotice("));
-  assert.match(draw, /signpostLayout\(scene\.nights/);
+test("drawTitle reads its position from the layout; the night stamps are HTML buttons (T-145)", () => {
+  const draw = html.slice(html.indexOf("function drawTitle("), html.indexOf("// A pixel crescent moon"));
   assert.match(draw, /titleLabel\(state\.event\)/);
   assert.doesNotMatch(draw, /eventDateText/);
-  assert.doesNotMatch(draw, /r\[1\] \+ ([1-9]\d|[7-9])\b/, "no row offsets from the rect top (the 6-unit nails are fine)");
   assert.doesNotMatch(draw, /innerHTML/);
+  const top = readScripts("app-tophud");
+  assert.match(top, /htmlEl\("button", \{ "class": "stamp", type: "button", "data-key": "night-" \+ night, "aria-pressed"/);
+  assert.match(top, /selectNight\(night, \{ animate: true \}\)/);
+  assert.match(top, /nightTally\(state, party, night\)/);
+  assert.doesNotMatch(top, /innerHTML/);
+  assert.doesNotMatch(html, /function drawNights\(/);
 });
 
 test("a far neighbour does not stretch the signpost hit area, and a room is never covered", () => {
@@ -2288,7 +2301,7 @@ test("fit: an extra top inset the size of the move bar keeps the whole scene bel
 test("page: the move bar's height is a top inset while it shows, and the scene refits when it shows or hides", () => {
   const app = html.match(/<script id="app">([\s\S]*?)<\/script>/)[1];
   assert.match(app, /if \(!bar\.hidden\) top = Math\.max\(top, bar\.offsetHeight\);/);
-  assert.match(app, /else top = Math\.max\(top, questBottom\(\)\);/);
+  assert.match(app, /else top = Math\.max\(top, questBottom\(\), topHudBottom\(\)\);/);
   assert.match(app, /observer\.observe\(moveBar\)/);
   assert.match(app, /if \(app\.refit\) app\.refit\(\);/);
   // panels: no overscroll chaining, a long sheet stays below the status bar, a tall code board scrolls from its top
@@ -3573,19 +3586,13 @@ test("intro zoom: a focus x centres the start view on it (clamped)", () => {
   assert.deepEqual(plain(L.clampView(v, B)), v);
 });
 
-test("iso: boards, slider and board shade carry the block transform; icons come from the grid", () => {
+test("iso: the boards and their shade carry the block transform; icons and signposts are not in the scene", () => {
   const read = (f) => fs.readFileSync(path.join(root, "static", "js", f), "utf8");
   assert.match(read("app-scene.js"), /boards: svgEl\(svg, "g", \{ transform: isoBlockTransform\(app\.iso\)/);
-  assert.match(read("app-daynight.js"), /layer\.setAttribute\("transform", isoBlockTransform\(app\.iso\)\)/);
   assert.match(read("app-daynight.js"), /shade\.setAttribute\("transform", isoBlockTransform\(app\.iso\)\)/);
   const boards = read("app-draw.js");
-  ["notice", "letter", "legend", "key", "locked", "briefing"].forEach((k) => assert.match(boards, new RegExp("icons\\." + k)));
-  assert.doesNotMatch(boards, /draw\w+\(g, scene\.(notice|letter|legend|key)\b/);
-});
-
-test("iso: every icon fits its grid cell", () => {
-  const s = L.isoScene(isoLayout), cell = L.ISO.iconCell;
-  Object.values(s.icons).forEach((r) => assert.ok(r[2] <= cell[0] && r[3] <= cell[1]));
+  assert.doesNotMatch(boards, /icons\.|drawNotice|drawLetter|drawLegend|drawLocked|drawNights/);
+  assert.equal(L.isoScene(isoLayout).icons, undefined);
 });
 
 test("intro zoom: introViewAt eases between the views and clamps t", () => {
@@ -4213,9 +4220,9 @@ test("signupToggleLabel flips by signup_open and deleteConfirmText names the par
   assert.equal(L.deleteConfirmText("Novákovci"), "Naozaj zmazať „Novákovci“? Uvoľnia sa všetky jej miesta.");
 });
 
-test("the key icon is drawn only for the admin and is a labelled button", () => {
-  assert.match(appSource, /if \(isAdmin\(app\.role\)\) drawKey\(g, icons\.key\)/);
-  assert.match(appSource, /makeButton\(g, "Admin nástroje", "key", openAdmin\)/);
+test("the key button is in the bottom bar only for the admin and is a labelled button", () => {
+  assert.match(appSource, /if \(isAdmin\(app\.role\)\) tools\.push\(\{ key: "key", caption: "Admin", label: "Admin nástroje", run: openAdmin \}\)/);
+  assert.match(appSource, /htmlEl\("button", \{ "class": "tool" \+ long, type: "button", "data-key": t\.key, "aria-label": t\.label \}\)/);
 });
 
 test("canWrite: open signup or admin may write, a closed signup lets only the admin write", () => {
@@ -4392,16 +4399,25 @@ test("daynight scene: script listed, no innerHTML, light layer between walk and 
   assert.ok(ens.indexOf("drawBird(") < ens.indexOf("dnBuild("));
 });
 
-test("daynight slider: drawn in the scene, no HTML bar, aria and keys wired (T-117)", () => {
+test("daynight rail: HTML in the top HUD, aria and keys wired (T-145)", () => {
   assert.ok(!pageFile.includes('id="time' + 'bar"') && !pageFile.includes("ts-knob"));
   assert.ok(!pageFile.includes('id="clo' + 'ck"'));
   const src = fs.readFileSync(path.join(root, "static", "js", "app-daynight.js"), "utf8");
   assert.ok(!src.includes("innerHTML"));
-  for (const k of ["sliderKey(", "sliderValueText(", "figureSwap(", "nightAt(", "sceneXToHour(", "hourToSceneX(", "sliderSegments(",
-    "aria-valuetext", "getScreenCTM", "setPointerCapture", "scene.time", '"slider"']) assert.ok(src.includes(k), k);
+  for (const k of ["sliderKey(", "sliderValueText(", "figureSwap(", "nightAt(", "sceneXToHour(", "hourToSceneX(", "sliderSegments(", "railGradient(",
+    "aria-valuetext", "setPointerCapture", '$("rail")']) assert.ok(src.includes(k), k);
+  assert.ok(!src.includes("getScreenCTM") && !src.includes("scene.time"), "the rail is not drawn in the svg any more");
   assert.ok(!src.includes("shownNight") && !src.includes("drawnNight"));
   const hud = fs.readFileSync(path.join(root, "static", "js", "app-hud.js"), "utf8");
   assert.ok(!hud.includes("timebar"));
+});
+
+test("railGradient: day cream, night blue, a stop every hour, ends at 0 and 100 percent", () => {
+  const g = L.railGradient(12, 30);
+  assert.match(g, /^linear-gradient\(90deg, #[0-9a-f]{6} 0%.*#[0-9a-f]{6} 100%\)$/);
+  assert.equal(g.split("%").length - 1, 19);
+  assert.equal(L.railColor(12), "#f7e7b4");
+  assert.equal(L.railColor(24), "#2f3b5c");
 });
 
 test("daynight scene: the board shade hides at rest and the world is lit in 3D (T-113, T-134)", () => {
@@ -4618,15 +4634,10 @@ test("iso: scene holds every layout corner and the board block, clear of the wor
   assert.ok(isoInside(L.isoPoint(s, vw, 0, L.ISO.headroom), s.W, s.H));
 });
 
-test("iso: icon grid rects do not overlap each other nor the boards", () => {
-  const s = L.isoScene(isoLayout);
-  const icons = Object.entries(s.icons);
-  assert.equal(icons.length, 6);
-  icons.forEach(([k, r], i) => {
-    icons.slice(i + 1).forEach(([k2, r2]) => assert.ok(!L.rectsOverlap(r, r2), `${k} x ${k2}`));
-    ["title", "time", "nights", "parties"].forEach((n) => assert.ok(!L.rectsOverlap(r, isoLayout.map.scene[n]), `${k} x ${n}`));
-    assert.ok(r[0] >= s.block.src[0] && r[1] >= s.block.src[1] && r[0] + r[2] <= s.block.src[0] + s.block.src[2] && r[1] + r[3] <= s.block.src[1] + s.block.src[3], k + " inside block");
-  });
+test("iso: the board block holds exactly the title and the party table", () => {
+  const s = L.isoScene(isoLayout), sc = isoLayout.map.scene;
+  assert.deepEqual(plain(s.block.src), plain(L.unionRect([sc.title, sc.parties])));
+  assert.ok(!L.rectsOverlap(sc.title, sc.parties));
 });
 
 test("iso: block transform and point agree", () => {
@@ -4784,6 +4795,14 @@ test("restView: a portrait phone fits the content's width; the whole board block
   assert.deepEqual(plain(L.restView(land, s.W, s.H, 844, 390, content)), plain(L.restView(land, s.W, s.H, 844, 390)));
   assert.equal(L.phoneRestView(bounds, vw, vh, null), null);
   assert.equal(L.phoneRestView(land, 844, 390, content), null);
+});
+
+test("phoneRestView: with a top inset the content starts below it (the title never sits under the HUD)", () => {
+  const s = L.isoScene(isoLayout), content = plain(L.isoContentRect(s, isoLayout));
+  const vw = 390, vh = 844, ins = { top: 190, bottom: 70 };
+  const bounds = L.fitBounds(vw, vh, s.W, s.H, ins);
+  const v = L.phoneRestView(bounds, vw, vh, content, ins), sc = vw / v.w;
+  assert.ok((content[1] - v.y) * sc >= ins.top - 1, `content top at ${(content[1] - v.y) * sc} px`);
 });
 
 test("app-iso: listed in the page with the asset version, builds with textContent only, falls back without WebGL", () => {

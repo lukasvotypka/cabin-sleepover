@@ -34,7 +34,7 @@ function resetView() {
 // The rest view of a phone held upright (the content of the scene fitted by width), or null on other screens.
 function phoneRest() {
   var px = app.viewportPx || [0, 0];
-  return phoneRestView(app.bounds, px[0], px[1], app.sceneContent);
+  return phoneRestView(app.bounds, px[0], px[1], app.sceneContent, readInsets());
 }
 
 function atPhoneRest() {
@@ -45,7 +45,7 @@ function atPhoneRest() {
 // The view of the map at rest (whole, or the upright scale on a phone held sideways, see restView).
 function appRestView(bounds, px) {
   px = px || app.viewportPx || [0, 0];
-  return restView(bounds, app.sceneSize[0], app.sceneSize[1], px[0], px[1], app.sceneContent);
+  return restView(bounds, app.sceneSize[0], app.sceneSize[1], px[0], px[1], app.sceneContent, readInsets());
 }
 
 // --- the one-time intro zoom: the map starts zoomed on the top of the scene and eases out to the fitted view ---
@@ -119,11 +119,12 @@ function readInsets() {
   var cs = getComputedStyle(app.insetProbe);
   // While the move bar shows, the scene must sit below it: the bar's height (it includes the safe-area top padding)
   // is the top inset when that is larger.
-  // Otherwise the scene sits below the quest log of the HUD (its bottom edge includes the safe-area top).
+  // Otherwise the scene sits below the top HUD (night stamps and time rail) and the quest log under it (their bottom edges
+  // include the safe-area top).
   var bar = $("moveBar"), top = parseFloat(cs.paddingTop);
   if (!bar.hidden) top = Math.max(top, bar.offsetHeight);
-  else top = Math.max(top, questBottom());
-  // The crest already includes the home-bar inset in its height; the scene must sit above it.
+  else top = Math.max(top, questBottom(), topHudBottom());
+  // The bottom bar already includes the home-bar inset in its height; the scene must sit above it.
   var bottom = Math.max(parseFloat(cs.paddingBottom), hudHeight());
   return { top: top, right: parseFloat(cs.paddingRight), bottom: bottom, left: parseFloat(cs.paddingLeft) };
 }

@@ -6,13 +6,12 @@
 var SVG_NS = "http://www.w3.org/2000/svg";
 var POLL_MS = 30000;
 var AGE_TICK_MS = 1000;
-var CREST_CHIPS_MAX = 6;   // online chips under „Si: …“ (what fits at 380 px after „online:“); the rest is „+N“
+var CREST_CHIPS_MAX = 4;   // online chips under „Si: …“ (what fits at 380 px after „online:“ next to the tool buttons); the rest is „+N“
 // A request that hangs (a phone that slept or lost the network mid-request) is given up after this,
 // so the next poll can run. Without it a hung poll blocked all later ones and the page stayed stale.
 var POLL_TIMEOUT_MS = 10000;
 var WRITE_TIMEOUT_MS = 20000;
 var KEYS = { client: "cabin.clientId", party: "cabin.myParty", role: "cabin.role", sound: "cabin.sound", fps: "cabin.fps", angle: "cabin-view-angle" };
-var NIGHTS_HIT_GROW = 8;  // most units a signpost hit area grows into the grass above and below
 var LONG_PRESS_MS = 500;
 var TOAST_MS = 6000;
 // The grass around the scene: a tile with a few tufts, the same look as the code screen.
@@ -124,7 +123,7 @@ var app = {
   introRaf: 0,         // id of the intro's animation frame
   introZoomAt: 0,      // performance.now() when the intro zoom began easing
   hudHeight: 0,        // height of the bottom HUD in CSS px, to refit the scene when it changes
-  questBottom: 0,      // bottom edge of the quest log in CSS px, to refit the scene when it changes
+  questBottom: 0,      // bottom edge of the quest log or the top HUD in CSS px, to refit the scene when it changes
   questRows: null,     // the last quest rows, to notice a finished night
   questParty: null,    // the party those rows were for
   ageNode: null,       // the line under „Si: …“ in the bottom HUD: online chips, or the data age on a problem

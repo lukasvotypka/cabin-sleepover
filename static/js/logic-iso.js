@@ -10,8 +10,9 @@
 // from the strength: the nearest ground corner is drawn `persp` times larger than the farthest. persp 0 is the
 // orthographic view above. Either way the svg and the WebGL camera share the projection exactly: the svg draws beds,
 // figures and boards at projected points, and app-iso.js points its camera so that its pixels land on the same units.
-// The boards (title, time slider, night signposts, party table) and the icon signs do not lie on the ground: they
-// stand as one upright block above the world, scaled by `boardScale` so that their text stays readable on a phone.
+// The boards (title, party table) do not lie on the ground: they stand as one upright block above the world, scaled
+// by `boardScale` so that their text stays readable on a phone. The night stamps, the time slider and the icons are
+// the fixed HUD in index.html (T-145), not part of the scene.
 
 var ISO = {
   azimuth: 45,          // degrees: the plan turned so that its top left corner points up
@@ -22,17 +23,12 @@ var ISO = {
   margin: 12,           // grass around the whole scene
   gap: 14,              // between the board block and the highest point of the world
   headroom: 84,         // map units above the ground the world may reach (roofs, chimneys, smoke)
-  iconCell: [64, 64],   // one icon sign in the grid left of the boards, block units
-  iconGap: 10,          // between the icon grid and the boards, block units
   wallH: 28,            // the back (north and west) outer walls of a house
   lowWall: 6,           // every other wall is cut low, so the rooms show
   doorH: 20,
   windowSill: 9,
   windowH: 10
 };
-
-// The icon signs in the grid left of the boards, row by row: [key, column, row].
-var ISO_ICON_CELLS = [["notice", 0, 0], ["legend", 1, 0], ["letter", 0, 1], ["briefing", 1, 1], ["key", 0, 2], ["locked", 1, 2]];
 
 // --- the four view angles (T-143) ---
 
@@ -137,21 +133,14 @@ function unionRect(rects) {
 }
 
 // The whole isometric scene for a layout: the projection, the scene size and where the board block stands.
-// Returns {basis, ox, oy, W, H, block: {src, x, y, k}, icons: {key: rect in block units}}.
+// Returns {basis, ox, oy, W, H, block: {src, x, y, k}}.
 // `src` is the block's own rect in block units (the units of map.scene); on the scene it is drawn by
 // translate(x y) scale(k) translate(−src.x −src.y).
 function isoScene(layout, opts) {
   var o = Object.assign({}, ISO, opts || {});
   var basis = isoBasis(o.azimuth, o.tilt, o.persp, layout.map.viewbox);
   var sc = layout.map.scene, vb = layout.map.viewbox;
-  var boards = ["title", "time", "nights", "parties"].filter(function (k) { return sc[k]; }).map(function (k) { return sc[k]; });
-  var core = unionRect(boards);
-  var cw = o.iconCell[0], ch = o.iconCell[1], gx = core[0] - o.iconGap - 2 * cw, icons = {};
-  ISO_ICON_CELLS.forEach(function (cell) {
-    var size = sc[cell[0]] ? [Math.min(cw, sc[cell[0]][2]), Math.min(ch - 4, sc[cell[0]][3])] : [44, 44];
-    icons[cell[0]] = [gx + cell[1] * cw + (cw - size[0]) / 2, core[1] + cell[2] * ch + (ch - 4 - size[1]) / 2, size[0], size[1]];
-  });
-  var src = [gx, core[1], core[0] + core[2] - gx, Math.max(core[3], 3 * ch)];
+  var src = unionRect(["title", "parties"].filter(function (k) { return sc[k]; }).map(function (k) { return sc[k]; }));
   var corners = [[0, 0], [vb[0], 0], [0, vb[1]], [vb[0], vb[1]]].map(function (p) { return isoRaw(basis, p[0], p[1], 0); });
   var tops = [[0, 0], [vb[0], 0], [0, vb[1]], [vb[0], vb[1]]].map(function (p) { return isoRaw(basis, p[0], p[1], o.headroom); });
   var uMin = Math.min.apply(null, corners.concat(tops).map(function (p) { return p[0]; }));
@@ -169,7 +158,6 @@ function isoScene(layout, opts) {
     oy: top - vMin,
     W: W, H: H,
     block: { src: src, x: (W - blockW) / 2, y: o.margin, k: o.boardScale },
-    icons: icons,
     figScale: o.figScale
   };
 }
