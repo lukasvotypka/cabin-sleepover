@@ -3,6 +3,7 @@ event:
   arrive_days: ["2026-11-05", "2026-11-06", "2026-11-07"]
   leave_days:  ["2026-11-06", "2026-11-07", "2026-11-08"]
   nights:      ["2026-11-05", "2026-11-06", "2026-11-07"]
+  # ended: auto   # auto (default) = closed from the day after the last leave day; true / false forces it
 
 map:
   viewbox: [380, 496]

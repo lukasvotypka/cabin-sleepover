@@ -6,7 +6,7 @@ import yaml
 
 from app.main import create_app
 from app.models import INFO_ICONS, ConfigError, load_info, load_layout
-from tests.conftest import ROOT, TEST_ENV
+from tests.conftest import BEFORE_EVENT, ROOT, TEST_ENV
 
 SAMPLE = ROOT / "config" / "info.yaml"
 
@@ -25,7 +25,7 @@ def _sample() -> dict:
 
 
 def _app(tmp_path: Path, info: dict | None):
-    return create_app(config_dir=_config(tmp_path, info), data_dir=tmp_path / "data", env=TEST_ENV)
+    return create_app(config_dir=_config(tmp_path, info), data_dir=tmp_path / "data", env=TEST_ENV, today=lambda: BEFORE_EVENT)
 
 
 def test_icon_set_has_23_names():
@@ -128,7 +128,7 @@ async def test_state_carries_info_and_etag_follows_it(tmp_path, make_client):
     other["bring"] = "nič"
     tags, infos = [], []
     for i, data in enumerate((_sample(), other)):
-        app = create_app(config_dir=_config(tmp_path / str(i), data), data_dir=tmp_path / str(i) / "data", env=TEST_ENV)
+        app = create_app(config_dir=_config(tmp_path / str(i), data), data_dir=tmp_path / str(i) / "data", env=TEST_ENV, today=lambda: BEFORE_EVENT)
         async with make_client(app) as client:
             r = await client.post("/api/join", json={"code": TEST_ENV["GROUP_CODE"]})
             assert r.status_code == 200
@@ -215,7 +215,7 @@ def test_rejected_new_field_values(tmp_path, patch, needle):
 
 def _app_env(tmp_path: Path, info: dict | None, value: str):
     env = {**TEST_ENV, "INFO_ENABLED": value}
-    return create_app(config_dir=_config(tmp_path, info), data_dir=tmp_path / "data", env=env)
+    return create_app(config_dir=_config(tmp_path, info), data_dir=tmp_path / "data", env=env, today=lambda: BEFORE_EVENT)
 
 
 @pytest.mark.parametrize("value", ["false", "0", "no", "off", "FALSE"])

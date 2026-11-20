@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from app.models import BRIEFING_STEPS, FOOD_NOTE_MAX, Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
+from app.models import BRIEFING_STEPS, FOOD_NOTE_MAX, Event, Layout, Party, PartyCreate, PartyInput, PartyUpdate, State
 
 ERROR_STATUS: dict[str, int] = {
     "bad_code": 401,
@@ -35,6 +35,7 @@ ERROR_STATUS: dict[str, int] = {
     "invalid": 422,
     "rate_limited": 429,
     "sms_unavailable": 503,
+    "event_ended": 403,
 }
 
 
@@ -57,6 +58,13 @@ class StayPlan:
 
 
 # --- helpers -----------------------------------------------------------------
+
+
+def event_is_ended(event: Event, today: date) -> bool:
+    """True when the cabin is closed: `ended: true`, or `auto` and `today` is past the last leave day."""
+    if event.ended != "auto":
+        return event.ended
+    return today > date.fromisoformat(max(event.leave_days))
 
 
 def find_party(state: State, party_id: str) -> Party:

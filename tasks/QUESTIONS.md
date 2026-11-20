@@ -221,3 +221,35 @@ Not specified: whether the admin sees „Zapnúť overovanie cez SMS“ without 
 - **Default:** the button is always shown and the server's `503 sms_unavailable` is shown as its Slovak text; the contact field is only in the form of an existing party (like today's „Telefón“ section); the login panel for a now-protected chosen party opens at the next page load, meanwhile writes get `login_required` with its message; the race shows the generic `forbidden` text (rare, accepted).
 - Affects: T-103.
 - **Answer:** open.
+
+## Q28. What the admin sees after the event (20. 11. 2026)
+
+The brief hides sleeping data "for non-admins". It does not say whether the admin's page shows the closed village or the normal map.
+
+- **Default:** the admin gets the full state (plus `ended: true`) and the normal map, so the organizer can still look and fix. The closed scene shows only for the reduced state.
+- Affects: T-152, T-153.
+- **Answer:** open.
+
+## Q29. The word „partií“ on the board and how the totals are counted (20. 11. 2026)
+
+The approved prototype labels a total „partií“, but the organizer's rule of 24. 10. 2026 says the UI never uses the word „partia“. It is also not said whether day-only visitors count in the totals.
+
+- **Default:** follow the approved prototype (newer than the rule) and keep „partií“ / „partie“ / „partia“ by number. `people` = Σ(adults + kids) over all parties including day-only ones, `parties` = all parties, `nights` = number of nights in `cabin.yaml`.
+- Affects: T-152, T-153.
+- **Answer:** open.
+
+## Q30. The "we deleted names and phone numbers" note in the prototype panel (20. 11. 2026)
+
+The prototype's „Čo teraz“ panel says „Mená partií a telefónne čísla sme po akcii zmazali.“ The code deletes nothing (deletion is a manual step for the organizer), so the sentence would be false until he does it.
+
+- **Default:** leave the sentence out. Add it back (as a text in `logic-ended.js`) once the organizer confirms that the manual deletion is done.
+- Affects: T-153.
+- **Answer:** open.
+
+## Q31. Join screen and time of day in the closed state (20. 11. 2026)
+
+The prototype has no code screen and is always daylight.
+
+- **Default:** the code screen stays as it is, because `/api/state` still needs the group cookie. The closed world is lit at a fixed noon of the last night.
+- Affects: T-153.
+- **Answer:** open.

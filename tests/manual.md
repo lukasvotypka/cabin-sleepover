@@ -342,3 +342,9 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] **Real data (organizer, before the first start with the new `cabin.yaml`):** stop the service, run `uv run python scripts/shift_event.py --days 7 --data-dir data --dry-run` and check the printed dates, then the same without `--dry-run`. Check the `*-before-shift.yaml` backup and that names, phones and colours are unchanged. Do not run it against the trial server again (its data is already on the new dates).
 
 - [ ] **Labels near the camera (T-150):** with houses open (zoom to about 1.6× the rest view, or pinch), the room signs, bed tags and „+“ marks near the middle of the screen are fully shown and those at the edges fade in steps. Pan with one thumb and they light up as they arrive; a tapped bed stays readable and its sheet opens. Check at two view angles on iPhone Safari and Android Chrome, and once with WebGL off (or a device without WebGL).
+
+## 24. Closed cabin on the server (T-152)
+
+- [ ] With `event.ended: true` (or after 8. 11. 2026): with the group code `GET /api/state` has only `version`, `updated_at`, `event`, `layout`, `ended`, `totals`, `asset_version`; no party names appear anywhere. A write returns `403 event_ended`; `/api/events` returns `403 event_ended`.
+- [ ] With the admin code the state is the full one plus `ended: true`, and an admin write still works.
+- [ ] Clean-up (organizer, after the event, service stopped): remove `phone` and `phone_set_at` from `data/cabin-data.yaml`, then copy `data/` to an archive. Start again and check `/api/health`.

@@ -7,7 +7,7 @@ import pytest
 from app.main import ConfigError, create_app, load_settings
 from app.sms import FakeSmsClient, SmsUnavailable, TwilioVerifyClient, mask_phone
 from app.validate import ERROR_STATUS
-from tests.conftest import ROOT, TEST_ENV
+from tests.conftest import BEFORE_EVENT, ROOT, TEST_ENV
 
 PHONE = "+421905123456"
 TOKEN = "tok-secret-9f8e7d"
@@ -134,7 +134,7 @@ TWILIO_ENV = {
 
 
 def runtime_of(tmp_path, **env):
-    app = create_app(config_dir=ROOT / "config", data_dir=tmp_path / "data", env={**TEST_ENV, **env})
+    app = create_app(config_dir=ROOT / "config", data_dir=tmp_path / "data", env={**TEST_ENV, **env}, today=lambda: BEFORE_EVENT)
     return app.state.runtime
 
 

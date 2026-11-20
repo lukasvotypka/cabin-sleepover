@@ -176,7 +176,7 @@ async def test_cap_per_client_is_refused_by_the_hub(app, make_party):
 
 TRIAL = (
     "import uvicorn, sys; from app.main import create_app; "
-    "uvicorn.run(create_app(data_dir=sys.argv[2]), host='127.0.0.1', port=int(sys.argv[1]), "
+    "uvicorn.run(create_app(data_dir=sys.argv[2], today=lambda: __import__('datetime').date(2026, 10, 25)), host='127.0.0.1', port=int(sys.argv[1]), "
     "workers=1, timeout_graceful_shutdown=3)"
 )
 

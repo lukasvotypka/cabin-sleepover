@@ -128,6 +128,15 @@ class Event(_Model):
     arrive_days: list[IsoDate] = Field(min_length=1)
     leave_days: list[IsoDate] = Field(min_length=1)
     nights: list[IsoDate] = Field(min_length=1)
+    # "auto" (or missing): closed from the day after the last leave day; true/false forces it (T-152)
+    ended: bool | Literal["auto"] = Field(default="auto", exclude=True)  # server-only, never sent to the page
+
+    @field_validator("ended", mode="before")
+    @classmethod
+    def _check_ended(cls, value: Any) -> Any:
+        if value is True or value is False or value == "auto":
+            return value
+        raise ValueError("ended must be auto, true or false")
 
     @model_validator(mode="after")
     def _check_days(self) -> "Event":

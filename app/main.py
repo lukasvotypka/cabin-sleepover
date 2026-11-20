@@ -25,7 +25,8 @@ import tomllib
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import aclosing, asynccontextmanager, suppress
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from contextvars import ContextVar
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -69,7 +70,7 @@ from app.models import (
 from app.ratelimit import CODE_ATTEMPTS_PER_MINUTE, SlidingWindowLimiter, SmsLimits
 from app.sms import DEFAULT_FAKE_CODE, FakeSmsClient, SmsClient, TwilioVerifyClient
 from app.seen import STREAM_GRACE, SeenTracker
-from app.store import Store, now_iso
+from app.store import TIMEZONE, Store, now_iso
 from app.validate import (
     ERROR_STATUS,
     RuleError,
@@ -85,6 +86,7 @@ from app.validate import (
     check_food,
     check_places,
     check_signup_open,
+    event_is_ended,
     adjust_places,
     find_party,
     is_verified,
@@ -269,6 +271,11 @@ class Runtime:
     connected: set[str] = field(default_factory=set)  # last set of parties with a stream, to see who changed
     last_online: set[str] = field(default_factory=set)  # online set of the last state or presence frame sent
     asset_version: Callable[[], str] = lambda: ""  # current page code hash (set to `PageRenderer.version`)
+    today: Callable[[], date] = lambda: datetime.now(TIMEZONE).date()  # Europe/Bratislava, read per request
+
+    def ended(self) -> bool:
+        """The cabin is closed (T-152): nobody but the admin sees or writes sleeping data."""
+        return event_is_ended(self.layout.event, self.today())
 
     @property
     def sms_enabled(self) -> bool:
@@ -322,9 +329,43 @@ def public_party(party: Party) -> dict[str, Any]:
     return data
 
 
-def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
-    """The `state` object of every response: the data file plus the layout from `cabin.yaml`."""
+# True while the request in progress carries the admin cookie (set by `AdminContextMiddleware`).
+# The default is False, so a path that forgets it can only ever send less.
+REQUEST_IS_ADMIN: ContextVar[bool] = ContextVar("request_is_admin", default=False)
+
+
+def closed_totals(rt: Runtime, state: State) -> dict[str, int]:
+    """The anonymous numbers the closed cabin shows: people, parties and nights of the whole event."""
     return {
+        "people": sum(p.adults + p.kids for p in state.parties),
+        "parties": len(state.parties),
+        "nights": len(rt.layout.event.nights),
+    }
+
+
+def is_reduced(rt: Runtime) -> bool:
+    """After the event everybody but the admin gets the reduced state (the one place that decides)."""
+    return rt.ended() and not REQUEST_IS_ADMIN.get()
+
+
+def state_payload(rt: Runtime, state: State) -> dict[str, Any]:
+    """The `state` object of every response: the data file plus the layout from `cabin.yaml`.
+
+    After the event (`ended`) a non-admin gets only the layout and anonymous totals, no party data.
+    """
+    ended = rt.ended()
+    if ended and not REQUEST_IS_ADMIN.get():
+        return {
+            "version": state.version,
+            "updated_at": state.updated_at,
+            "event": rt.layout_json["event"],
+            "layout": rt.layout_json,
+            "ended": True,
+            "totals": closed_totals(rt, state),
+            "asset_version": rt.asset_version(),
+        }
+    return {
+        "ended": ended,
         "version": state.version,
         "updated_at": state.updated_at,
         "signup_open": state.signup_open,
@@ -346,7 +387,7 @@ def config_digest(layout_json: dict[str, Any], info_json: dict[str, Any] | None 
 
 
 def state_etag(
-    state: State, config_hash: str, presence: dict[str, Any] | None = None, asset_version: str = ""
+    state: State, config_hash: str, presence: dict[str, Any] | None = None, asset_version: str = "", shape: str = ""
 ) -> str:
     """Changes on every write, when the served `cabin.yaml` changes (after a restart) and when presence changes.
 
@@ -362,6 +403,8 @@ def state_etag(
     tag = f"{state.version}-{digest}-{config_hash}"
     if asset_version:
         tag += f"-{asset_version}"
+    if shape:
+        tag += f"-{shape}"  # "closed" (reduced) or "ended" (full, admin) after the event, nothing before it
     if presence:
         minutes = sorted(
             (pid, int(datetime.fromisoformat(t).timestamp() // 60)) for pid, t in presence["last_seen"].items()
@@ -416,9 +459,14 @@ def require_group(request: Request) -> Auth:
     auth = _auth_of(request)
     if auth is None:
         raise ApiError("bad_code", "Missing or invalid group cookie", with_state=False)
-    rt = get_runtime(request)  # the caller proves to be in the group: note which party it says it is
+    rt = get_runtime(request)
+    ended = rt.ended()
+    # Logout only clears the caller's own cookie, so it stays open after the event.
+    if ended and not auth.is_admin and request.method not in ("GET", "HEAD") and request.url.path != "/api/logout":
+        raise ApiError("event_ended", "The event is over, only the admin can write")
     party_id = clean_id(request.headers.get("x-party-id"))
-    if party_id in rt.known_ids:
+    # The caller proves to be in the group: note which party it says it is (not after the event).
+    if not ended and party_id in rt.known_ids:
         # With an open stream the stream is what keeps the party online; only a polling party uses the window.
         rt.seen.record(party_id, rt.known_ids, polled=party_id not in rt.connected)
         rt.request_presence_check()
@@ -597,6 +645,28 @@ def read_version(pyproject: Path) -> str:
     return "unknown"
 
 
+class AdminContextMiddleware:
+    """Pure ASGI middleware: sets `REQUEST_IS_ADMIN` from the signed admin cookie (with a valid group cookie)."""
+
+    def __init__(self, app: Any, rt: Runtime) -> None:
+        self.app = app
+        self.rt = rt
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        cookies = Request(scope).cookies
+        is_admin = self.rt.cookies.is_valid("group", cookies.get(GROUP_COOKIE)) and self.rt.cookies.is_valid(
+            "admin", cookies.get(ADMIN_COOKIE)
+        )
+        token = REQUEST_IS_ADMIN.set(is_admin)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            REQUEST_IS_ADMIN.reset(token)
+
+
 def create_app(
     config_dir: str | Path = ROOT / "config",
     data_dir: str | Path = ROOT / "data",
@@ -606,12 +676,14 @@ def create_app(
     monotonic: Callable[[], float] = time.monotonic,
     pyproject: str | Path = ROOT / "pyproject.toml",
     sms_client: SmsClient | None = None,
+    today: Callable[[], date] | None = None,
 ) -> FastAPI:
     """Build the app. Raises `ConfigError` or `StartupError` with a precise message when something is wrong.
 
     `env` defaults to `os.environ`. `clock` (epoch seconds) is used for cookie ages and
     `monotonic` for the rate-limit windows. Both are injectable for tests, and so is `sms_client`
-    (it replaces the one the settings would build).
+    (it replaces the one the settings would build). `today` (a date in Europe/Bratislava) is read per
+    request to decide `ended`; tests inject it.
     """
     env = os.environ if env is None else env
     settings = load_settings(env)
@@ -653,6 +725,8 @@ def create_app(
         hub=hub,
         known_ids={p.id for p in store.read().parties},
     )
+    if today is not None:
+        rt.today = today
     seen = rt.seen
     seen.connected = hub.online_parties
     rt.last_online = set(seen.presence(rt.known_ids)["online"])
@@ -675,11 +749,22 @@ def create_app(
     def on_commit(state: State) -> None:
         """Store hook (event loop, inside the write lock): tell every stream about the committed state."""
         rt.known_ids = {p.id for p in state.parties}
-        payload = state_payload(rt, state)
-        rt.last_online = set(payload["presence"]["online"])  # the state frame carries presence too
+        token = REQUEST_IS_ADMIN.set(True)  # the full state for every stream; after the event non-admin streams are cut before a frame is sent
+        try:
+            payload = state_payload(rt, state)
+        finally:
+            REQUEST_IS_ADMIN.reset(token)
+        rt.last_online = set(payload.get("presence", {}).get("online", ()))  # the state frame carries presence (absent in the reduced post-event state)
         hub.publish_state(payload)
 
     store.after_commit = on_commit
+
+    def refuse_write_after_event() -> None:
+        """Store hook (inside the write lock): a write that passed the route guard before midnight stops here (T-152)."""
+        if rt.ended() and not REQUEST_IS_ADMIN.get():
+            raise ApiError("event_ended", "The event is over, only the admin can write")
+
+    store.before_write = refuse_write_after_event
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -704,6 +789,7 @@ def create_app(
     # No docs or OpenAPI routes: the app has one consumer, its own page.
     app = FastAPI(title="chrapa-poll", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.runtime = rt
+    app.add_middleware(AdminContextMiddleware, rt=rt)
 
     @app.exception_handler(RuleError)
     async def _rule_error(request: Request, exc: RuleError) -> JSONResponse:
@@ -785,7 +871,10 @@ def create_app(
     @app.get("/api/state")
     async def get_state(request: Request, _auth: Annotated[Auth, Depends(require_group)]) -> Response:
         state = rt.store.read()
-        etag = state_etag(state, rt.config_hash, rt.seen.presence(rt.known_ids), page.version())
+        reduced = is_reduced(rt)
+        shape = "closed" if reduced else ("ended" if rt.ended() else "")
+        presence = None if reduced else rt.seen.presence(rt.known_ids)  # the admin keeps presence after the event
+        etag = state_etag(state, rt.config_hash, presence, page.version(), shape)
         headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
         if _etag_matches(request.headers.get("if-none-match"), etag):
             return Response(status_code=304, headers=headers)
@@ -798,11 +887,14 @@ def create_app(
         request: Request, _auth: Annotated[Auth, Depends(require_group)], party: str | None = None, client: str | None = None
     ) -> StreamingResponse:
         # `EventSource` cannot send headers, so the party and the client come as query parameters.
+        if rt.ended() and not _auth.is_admin:
+            raise ApiError("event_ended", "The event is over, no live stream")
         party_id = clean_id(party)
         if party_id not in rt.known_ids:
             party_id = None  # unknown or malformed: a stream without presence
         client_id = clean_id(client) or client_id_of(request) or f"ip:{client_ip(request)}"
-        seen.record(party_id, rt.known_ids, polled=False)
+        if not rt.ended():
+            seen.record(party_id, rt.known_ids, polled=False)
         try:
             conn = hub.connect(client_id, party_id)
         except HubRefused as exc:
@@ -817,7 +909,10 @@ def create_app(
         async def body() -> AsyncIterator[str]:
             async with aclosing(hub.stream(conn, initial)) as frames:
                 async for chunk in frames:
-                    if chunk.startswith("event: ping"):
+                    if rt.ended():
+                        if not _auth.is_admin:
+                            break  # the event ended while this stream was open: no more party data (T-152)
+                    elif chunk.startswith("event: ping"):
                         seen.record(party_id, rt.known_ids, polled=False)
                     yield chunk
 
@@ -870,6 +965,8 @@ def create_app(
 
     @app.get("/api/session")
     async def session(request: Request, _auth: Annotated[Auth, Depends(require_group)]) -> JSONResponse:
+        if rt.ended() and not _auth.is_admin:
+            return JSONResponse({"ok": True, "verified": [], "sms_enabled": False})
         verified = verified_parties(request, rt.store.read())
         return JSONResponse({"ok": True, "verified": sorted(verified), "sms_enabled": rt.sms_enabled})
 

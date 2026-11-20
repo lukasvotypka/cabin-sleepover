@@ -1,5 +1,6 @@
 import copy
 import itertools
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ APP_YAML = ROOT / "config" / "app.yaml"
 
 THU, FRI, SAT = "2026-11-05", "2026-11-06", "2026-11-07"
 SUN = "2026-11-08"
+BEFORE_EVENT = date(2026, 10, 25)
 
 
 @pytest.fixture(scope="session")
@@ -117,6 +119,7 @@ def make_app(tmp_path, clock):
             "env": TEST_ENV,
             "clock": clock,
             "monotonic": clock,
+            "today": lambda: BEFORE_EVENT,  # "today" before the event, so the cabin is open (T-152)
         }
         kwargs.update(overrides)
         return create_app(**kwargs)

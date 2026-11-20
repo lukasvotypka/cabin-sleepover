@@ -4267,6 +4267,10 @@ test("forbidden and signup_closed have Slovak texts", () => {
   assert.notEqual(L.errorText({ code: "signup_closed" }, null), L.errorText({ code: "nope" }, null));
 });
 
+test("event_ended has its Slovak text", () => {
+  assert.equal(L.errorText({ code: "event_ended" }, null), "Chata je zatvorená, zapisovať sa už nedá.");
+});
+
 // --- admin panel texts (T-076) ---
 
 test("signupToggleLabel flips by signup_open and deleteConfirmText names the party", () => {

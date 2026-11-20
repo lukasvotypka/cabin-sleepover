@@ -231,6 +231,13 @@ grep -n -B3 -A12 'slot-id-here' /opt/chrapa-poll/data/audit.yaml
 
 Open the page, tap „Si: …“ or „Kto si?“ and then „Mám admin kód“, and enter `ADMIN_CODE`. The panel then says „Si organizátor“ and a key icon appears on the map (next to the letter). The key opens „Admin“ with three tools: „Zamknúť zápis“ / „Otvoriť zápis“ (while locked, only the organizer can change places), „Stiahnuť dáta“ (downloads `cabin-data-<version>.yaml`) and „Zmazať partiu“ (pick a party, confirm, its places are freed). The admin cookie lasts 12 hours; after that the key disappears and you enter the code again.
 
+### After the event: the closed cabin
+
+From the day after the last `leave_days` entry in `config/cabin.yaml` (9. 11. 2026 for this event, date in Europe/Bratislava, read on every request, no restart needed) the server sends non-admins only the layout and three anonymous totals, answers every write with `403 event_ended` and closes the live streams. The admin cookie still sees and writes everything.
+
+- The switch is `event.ended` in `cabin.yaml`: `auto` (default, also when missing), `true` (closed now) or `false` (open regardless of the date). Any other value stops the start with an error. To try the normal app after the event, set `ended: false` in a copy of the config.
+- Nothing is deleted by the code. Clean-up is yours, with the service stopped: remove the `phone` and `phone_set_at` lines from `data/cabin-data.yaml` if you no longer want the numbers stored, and archive `data/` (copy it somewhere safe) when you are done.
+
 ### Phone login (SMS)
 
 A party can add a phone number. A party with a number is protected: only a device that proved the number with an SMS code can change that party (the admin cookie bypasses it). Viewing stays open for everyone with the group code. Parties without a number work as before. The code is generated, sent and checked by Twilio Verify; the app only calls its REST API.

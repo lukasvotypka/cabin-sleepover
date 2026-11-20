@@ -188,6 +188,8 @@ class Store:
         self._lock = asyncio.Lock()
         # Called with the new state after every committed write (the live updates hook, T-052).
         self.after_commit: Callable[[State], None] | None = None
+        # Called under the lock before the state is loaded; it may raise to refuse the write (T-152, event ended).
+        self.before_write: Callable[[], None] | None = None
         self._startup()
 
     # --- startup and reading ------------------------------------------------
@@ -244,6 +246,8 @@ class Store:
         if source not in AUDIT_SOURCES:
             raise ValueError(f"unknown audit source {source!r}")
         async with self._lock:
+            if self.before_write is not None:
+                self.before_write()
             tx = Transaction(state=self._load())
             old_version = tx.state.version
             yield tx  # an exception from the body leaves here: nothing is written

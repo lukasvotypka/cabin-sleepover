@@ -93,6 +93,9 @@ var ERROR_TEXTS = {
   signup_closed: function () {
     return "Zápis je zatvorený, miesta sa dajú len prezerať.";
   },
+  event_ended: function () {
+    return "Chata je zatvorená, zapisovať sa už nedá.";
+  },
   slot_taken: function (p, state) {
     var when = dayLocative(paramText(p, "night"));
     var who = partyNameFrom(p, state);
