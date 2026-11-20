@@ -394,8 +394,9 @@ function isoCampfire(b, x, y) {
     var a = i / 8 * Math.PI * 2;
     b.box(x + Math.cos(a) * 7 - 1.5, y + Math.sin(a) * 7 - 1.5, 3, 3, 0, 2, ISO_C.stone);
   }
-  b.box(x - 4, y - 1, 8, 2, 0, 2.5, ISO_C.fireLog);
-  b.box(x - 1, y - 4, 2, 8, 1, 3.5, ISO_C.fireLog);
+  var log = typeof endedMode === "function" && endedMode() ? "#2E2620" : ISO_C.fireLog;      // charred after the event (T-153)
+  b.box(x - 4, y - 1, 8, 2, 0, 2.5, log);
+  b.box(x - 1, y - 4, 2, 8, 1, 3.5, log);
   [[-18, -4, 6, 14], [14, -6, 6, 14], [-6, 15, 14, 5]].forEach(function (s) {      // log seats around it
     b.box(x + s[0], y + s[1], s[2], s[3], 0, 4, COLORS.wood);
     b.box(x + s[0], y + s[1], s[2], s[3], 4, 4.6, COLORS.woodLight);
@@ -741,7 +742,8 @@ function isoBuildLife(me, layout, ctx) {
   (layout.map.windows || []).forEach(function (w) { scene.add(isoSpill(layout, w, 6, m.window)); });
   (layout.map.doors || []).forEach(function (d) { scene.add(isoSpill(layout, d, 10, m.door)); });
 
-  if (ctx.fire) {      // the campfire: three flames, the one point light and a ring of light on the ground
+  var closed = typeof endedMode === "function" && endedMode();      // the closed cabin after the event (T-153): no smoke, a cold fire, no fireflies
+  if (ctx.fire && !closed) {      // the campfire: three flames, the one point light and a ring of light on the ground
     var fx = ctx.fire[0], fy = ctx.fire[1];
     L.flames = [["#E8741E", 4], ["#FFB43A", 2.6], ["#FFE08A", 1.4]].map(function (f) {
       var mesh = new THREE.Mesh(unit, new THREE.MeshBasicMaterial({ color: f[0] }));
@@ -756,7 +758,7 @@ function isoBuildLife(me, layout, ctx) {
     scene.add(new THREE.Mesh(new THREE.CircleGeometry(18, 24).rotateX(-Math.PI / 2), m.ring).translateX(fx).translateY(0.9).translateZ(fy));
   }
 
-  (ctx.chimneys || []).forEach(function (c) {      // chimney smoke: 3 puffs each
+  (closed ? [] : ctx.chimneys || []).forEach(function (c) {      // chimney smoke: 3 puffs each
     for (var n = 0; n < 3; n++) {
       var mat = new THREE.MeshBasicMaterial({ color: "#C9C2B6", transparent: true, opacity: 0, depthWrite: false });
       var mesh = new THREE.Mesh(unit, mat);
@@ -781,7 +783,7 @@ function isoBuildLife(me, layout, ctx) {
   }
 
   m.fly = new THREE.MeshBasicMaterial({ color: "#F6F2A0", transparent: true, opacity: 0, depthWrite: false });
-  ctx.edge.slice(0, 12).forEach(function (t, k) {      // fireflies at the forest and meadow edges (never under the boards)
+  ctx.edge.slice(0, closed ? 0 : 12).forEach(function (t, k) {      // fireflies at the forest and meadow edges (never under the boards)
     var fly = new THREE.Mesh(unit, m.fly);
     fly.visible = false;
     scene.add(fly);

@@ -150,6 +150,7 @@ function drawCrest(host, party) {
 }
 
 function renderHud() {
+  endedHudOff();      // an admin may get the full state after the event (app-ended.js)
   var state = app.state, party = partyById(state, app.myParty);
   var rows = questRows(viewState().state, party, app.night);
   // „Úloha splnená“ when a night of the same party is finished (not when the party changes).

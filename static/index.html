@@ -413,6 +413,41 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .sheet.board-panel.open { transform: translate(-50%, -50%); opacity: 1; }
 }
 
+/* The closed cabin after the event (T-153): no night stamps, no time rail, one sign and one button in the bottom HUD. */
+.hud.ended .tophud { display: none; }
+.hud .crest[hidden] { display: none; }
+.ended-sign { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 4px 8px; display: flex; flex-direction: column; justify-content: center;
+  background: #F4EBD0; color: #2E1F14; border: 1px solid #5C4033; font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 11px; line-height: 14px; }
+.ended-sign b { display: block; font-size: 12px; }
+.ended-sign span { color: #6B5644; }
+.hud .tool.big { flex: 0 0 52px; width: 52px; min-height: 48px; }
+.tool.big small { font-size: 8px; letter-spacing: -.2px; }
+/* house taps, padlocks, the gate plank and the stamp on the board (steps, none with prefers-reduced-motion) */
+#scene svg g.house-closed:focus-visible .house-hit { stroke: #FFD54A; stroke-width: 2; fill: rgba(255, 213, 74, .18); }
+#scene svg .lock { transform-box: fill-box; transform-origin: 50% 0; }
+#scene svg .lock.rattle { animation: lockRattle .36s steps(1) 1; }
+@keyframes lockRattle { 0% { transform: rotate(-14deg); } 25% { transform: rotate(12deg); } 50% { transform: rotate(-6deg); } 75%, 100% { transform: rotate(0); } }
+#scene svg .gate-plank { transform-box: fill-box; transform-origin: 50% 0; animation: plankSwing .6s steps(4) 1 both; }
+@keyframes plankSwing { 0% { scale: 1 0; } 50% { scale: 1 1.15; } 75% { scale: 1 .92; } 100% { scale: 1 1; } }
+#scene svg .ended-stamp { transform-box: fill-box; transform-origin: 50% 50%; animation: stampThump .45s steps(3) .9s 1 both; }
+@keyframes stampThump { 0% { scale: 1.8; opacity: 0; } 60% { scale: .9; opacity: 1; } 100% { scale: 1; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #scene svg .lock.rattle, #scene svg .gate-plank, #scene svg .ended-stamp { animation: none; }
+}
+/* the „Čo teraz“ panel: a bottom sheet on a phone, a centred 440 px window on a desktop */
+.sheet.ended-panel { max-width: 560px; }
+.ended-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 12px; }
+.ended-stat { padding: 8px 4px; text-align: center; background: var(--surface2); border: 1px solid var(--line); }
+.ended-stat b { display: block; font: 700 24px ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; color: var(--amber); }
+.ended-stat span { font-size: 14px; color: var(--muted); }
+@media (min-width: 700px) {
+  .sheet.ended-panel {
+    left: 50%; right: auto; bottom: auto; top: 50%; width: min(440px, calc(100% - 32px)); margin: 0;
+    border-bottom: 4px solid #5C4033; transform: translate(-50%, -50%); opacity: 0; transition: opacity .15s ease-out;
+  }
+  .sheet.ended-panel.open { transform: translate(-50%, -50%); opacity: 1; }
+}
+
 /* Day–night (T-111, T-117): the time slider in the scene, figures getting up. */
 #scene svg .dn-in { animation: dnIn .5s linear backwards; }
 #scene svg .dn-out { animation: dnOut .5s linear forwards; pointer-events: none; }
@@ -795,6 +830,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   <div id="bar" class="bothud">
     <div class="bothud-in">
       <button id="crest" class="crest" type="button" data-key="who"></button>
+      <div id="endedSign" class="ended-sign" role="img" hidden></div>
       <div id="tools" class="tools"></div>
     </div>
   </div>
@@ -840,6 +876,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/logic-iso-roof.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-iso-people.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/logic-board.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/logic-ended.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-core.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-boot.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-scene.js?v=__ASSET_VERSION__"></script>
@@ -853,6 +890,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 <script src="static/js/app-turn.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-draw.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-board.js?v=__ASSET_VERSION__"></script>
+<script src="static/js/app-ended.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-daynight.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-hud.js?v=__ASSET_VERSION__"></script>
 <script src="static/js/app-tophud.js?v=__ASSET_VERSION__"></script>

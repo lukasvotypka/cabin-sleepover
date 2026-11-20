@@ -112,7 +112,7 @@ $("codeForm").addEventListener("submit", function (e) {
         showBoot();
       }
       showScene(app.introDone);
-      poll();
+      poll(true);
     } else {
       errorNode.textContent = errorText(r.json ? r.json.error : undefined, null);
       input.focus();

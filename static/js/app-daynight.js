@@ -33,7 +33,8 @@ function dnBuild(svg, layout) {
   dn.fx = fx;
   var nights = app.state.event.nights;
   if (dn.hour === null || nightAt(dn.hour, nights) !== app.night) dn.hour = dnNoon(app.night);
-  dnBuildRail();
+  if (endedMode()) dn.hour = dnNoon(nights[0]);      // the closed cabin stands at fixed noon, no rail
+  else dnBuildRail();
   dnPaint(dn.hour);
 }
 

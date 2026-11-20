@@ -60,6 +60,7 @@ function drawBase(g, layout) {
     var r = room.rect;
     poly(r, 0, 0, COLORS.roomEdge);
     poly([r[0] + 4, r[1] + 4, r[2] - 8, r[3] - 8], 0, 0, room.floor);
+    if (endedMode()) return;      // a closed cabin shows no beds
     room.beds.forEach(function (bed) {
       poly(bed.rect, 0, isoSlotHeight(bed, bed.kind === "bunk" ? 1 : 0), COLORS.sheet, { stroke: COLORS.woodDark, "stroke-width": 1, opacity: ".7" });
     });
@@ -108,6 +109,7 @@ function keepFocus(root, redraw, fallback) {
 function render() {
   if (!app.state || app.codeOpen || !app.introDone) return;     // the code screen and the loading view come first
   ensureScene();
+  if (endedMode()) { renderEnded(); return; }      // the closed cabin after the event (app-ended.js)
   dnSync();
   housesQuiet = true;
   housesSync();

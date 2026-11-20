@@ -12,7 +12,8 @@ function drawBoards() {
   clearNode(g);
   isoAnchorsReset("boards");
   drawGate(g, isoSignBox(app.iso, state.layout, "gate"), state);
-  drawNoticeBoard(g, isoSignBox(app.iso, state.layout, "board"), state);
+  if (endedMode()) drawEndedBoard(g, isoSignBox(app.iso, state.layout, "board"), state);
+  else drawNoticeBoard(g, isoSignBox(app.iso, state.layout, "board"), state);
 }
 
 function renderBoards() {
@@ -53,6 +54,7 @@ function drawGate(parent, box, state) {
   rect(g, 87, top + 6, 3, 3, COLORS.woodLight);
   addText(g, 0, term ? -66 : -54, state.event.name, 10, COLORS.paper, { anchor: "middle", bold: true, maxWidth: 170 });
   if (term) addText(g, 0, -52, term, 8, COLORS.paper, { anchor: "middle", maxWidth: 170 });
+  if (endedMode()) drawGatePlank(g);      // „Vďaka, že ste prišli!“ hangs under the sign (app-ended.js)
 }
 
 // The notice board: a wooden frame with a small roof and two posts, a header plate and two pinned stamps.

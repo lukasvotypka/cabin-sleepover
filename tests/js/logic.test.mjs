@@ -2920,7 +2920,8 @@ test("guard, page source: no Slovak literal, text node or attribute of the page 
   const scriptTexts = found.filter((text) => slovak.test(text) || sentence.test(text) || [...FORMAL_WORDS].some((w) => new RegExp(`(?<![\\p{L}])${w}(?![\\p{L}])`, "iu").test(text)));
   const scanned = [...scriptTexts, ...markupTexts];
   assert.ok(scanned.length > 100, "the guard must really read the page literals, got " + scanned.length);
-  for (const text of scanned) assert.deepEqual(formalForms(text), [], text);
+  // The approved thank-you of the closed cabin (T-153, design/after) speaks to the whole group on purpose.
+  for (const text of scanned) assert.deepEqual(formalForms(text.split("Vďaka, že ste prišli!").join("")), [], text);
 });
 
 // --- furniture must stay clear of the room names, windows and doors ---
@@ -5789,4 +5790,95 @@ test("labelOpacity: a lantern around the screen centre in pixel steps (T-150)", 
   }
   assert.ok(L.labelOpacity(at(0.6, 0), view, 1.6, "room") > L.labelOpacity(at(0.6, 0), view, 1.6, "bed"));
   assert.ok(L.labelOpacity(at(0.6, 0), view, 3, "bed") > L.labelOpacity(at(0.6, 0), view, 1.6, "bed"));
+});
+
+// --- the closed cabin after the event (T-153, logic-ended.js, app-ended.js) ---
+
+const endedState = (extra) => Object.assign({
+  version: 5, updated_at: "2026-11-20T10:00:00Z", event: { name: "Chata 5. – 8. 11.", arrive_days: ["2026-11-05", "2026-11-06", "2026-11-07"],
+    leave_days: ["2026-11-06", "2026-11-07", "2026-11-08"], nights: ["2026-11-05", "2026-11-06", "2026-11-07"] },
+  layout: isoLayout, ended: true, totals: { people: 19, parties: 8, nights: 3 },
+}, extra || {});
+
+test("isEnded: only `ended` without a `parties` key; an admin's full state is not closed mode", () => {
+  assert.equal(L.isEnded(endedState()), true);
+  assert.equal(L.isEnded(endedState({ parties: [], sleeping: {} })), false);   // the admin's state: ended: true plus the data
+  assert.equal(L.isEnded(endedState({ ended: false })), false);
+  const noFlag = endedState(); delete noFlag.ended;
+  assert.equal(L.isEnded(noFlag), false);
+  assert.equal(L.isEnded(null), false);
+  assert.equal(L.isEnded(undefined), false);
+});
+
+test("ended plurals: people, nights and parties by number", () => {
+  assert.deepEqual([1, 2, 4, 5, 19].map(L.endedPeopleText), ["1 človek", "2 ľudia", "4 ľudia", "5 ľudí", "19 ľudí"]);
+  assert.deepEqual([1, 2, 3, 4, 5].map(L.endedNightsText), ["1 noc", "2 noci", "3 noci", "4 noci", "5 nocí"]);
+  assert.deepEqual([1, 2, 4, 5, 8].map(L.endedPartiesText), ["1 partia", "2 partie", "4 partie", "5 partií", "8 partií"]);
+  assert.equal(L.endedPeopleWord(0), "ľudí");
+});
+
+test("endedTotals: three numbers with the fitting word, none when the totals are missing or bad", () => {
+  assert.deepEqual(plain(L.endedTotals(endedState())), [
+    { key: "people", value: 19, label: "ľudí" }, { key: "parties", value: 8, label: "partií" }, { key: "nights", value: 3, label: "noci" }]);
+  assert.deepEqual(plain(L.endedTotals(endedState({ totals: { people: 1, parties: 1, nights: 1 } }))).map((t) => t.label), ["človek", "partia", "noc"]);
+  assert.deepEqual(plain(L.endedTotals(endedState({ totals: undefined }))), []);
+  assert.deepEqual(plain(L.endedTotals(endedState({ totals: { people: "x", parties: 1, nights: 1 } }))), []);
+  assert.deepEqual(plain(L.endedTotals(endedState({ totals: { people: 1.5, parties: 1, nights: 1 } }))), []);
+  assert.deepEqual(plain(L.endedTotals(null)), []);
+});
+
+test("ended HUD sign, panel model and screen reader summary: closed, with the totals, nothing per night", () => {
+  const s = endedState();
+  assert.deepEqual(plain(L.endedHudSign(s)), {
+    title: "Chata je zatvorená", line: "5. – 8. 11. 2026 · zapisovať sa už nedá", label: "Chata je zatvorená. 5. – 8. 11. 2026 · zapisovať sa už nedá." });
+  const panel = plain(L.endedPanelModel(s));
+  assert.equal(panel.title, "Vďaka, že ste prišli!");
+  assert.equal(panel.sub, "5. – 8. 11. 2026");
+  assert.deepEqual(panel.stats.map((t) => t.value + " " + t.label), ["19 ľudí", "8 partií", "3 noci"]);
+  assert.equal(panel.lines[0], "Chata je zatvorená a zapisovať sa už nedá. Kto kde spal, tu už neukazujeme.");
+  assert.equal(panel.lines[1], "Ak pôjdeme znova, pošleme nový odkaz do WhatsAppu.");
+  assert.equal(panel.ok, "Dobre");
+  const lines = L.endedSummaryLines(s);
+  assert.equal(lines[0], "Chata je zatvorená. Zapisovať sa už nedá.");
+  assert.equal(lines[1], "Bolo nás: 19 ľudí, 8 partií, 3 noci.");
+  assert.equal(lines.length, 2);
+  assert.deepEqual(L.endedSummaryLines(endedState({ totals: undefined })).length, 1);
+  assert.match(L.endedBoardLabel(s), /^Nástenka Bolo nás: 19 ľudí, 8 partií, 3 noci\./);
+  assert.equal(L.ENDED_TEXTS.toast, "Zamknuté. Vidíme sa nabudúce!");
+});
+
+test("endedDoorLocks: a padlock on every door of a house, none on a door outside the houses", () => {
+  const locks = plain(L.endedDoorLocks(isoLayout));
+  assert.equal(locks.length, isoLayout.map.doors.length);
+  const houses = new Set(L.isoHouseList(isoLayout).map((h) => h.id));
+  for (const lock of locks) assert.ok(houses.has(lock.house), lock.house);
+  for (const lock of locks) assert.ok(["n", "s", "w", "e"].includes(lock.side), lock.side);
+  // every lock is visible from at least one of the four angles, and hidden at some angle when its wall faces away
+  for (const az of [45, 135, 225, 315]) {
+    const back = L.isoBackSides(az);
+    assert.ok(locks.some((l) => !back[l.side]), "some lock visible at " + az);
+  }
+  const far = { map: { doors: [[900, 900, 4, 20]] }, rooms: isoLayout.rooms, houses: isoLayout.houses };
+  assert.deepEqual(plain(L.endedDoorLocks(far)), []);
+});
+
+test("closed cabin page: scripts listed, closed guards in place, texts by textContent only", () => {
+  assert.ok(pageFile.includes("static/js/logic-ended.js?v=__ASSET_VERSION__") && pageFile.includes("static/js/app-ended.js?v=__ASSET_VERSION__"));
+  const ended = fs.readFileSync(path.join(root, "static/js/app-ended.js"), "utf8");
+  assert.doesNotMatch(ended, /innerHTML/);
+  assert.doesNotMatch(ended, /new EventSource|request\(|fetch\(/);   // the closed cabin never calls an API
+  const src = (name) => fs.readFileSync(path.join(root, "static/js", name), "utf8");
+  assert.match(src("app-live.js"), /function liveOpen\(\) \{\s*if \(!live\.supported \|\| endedMode\(\)\) return;/);
+  assert.match(src("app-live.js"), /endedMode\(\)\) return;\s*if \(live\.es \|\| live\.fallback\) return;/);
+  assert.match(src("app-core.js"), /if \(!force && endedMode\(\)\) return Promise\.resolve\(\);/);
+  assert.match(src("app-core.js"), /if \(app\.myParty && !endedMode\(\)\) headers\["X-Party-Id"\]/);
+  assert.match(src("app-core.js"), /!app\.sessionAsked && !isEnded\(state\)/);
+  assert.match(src("app-core.js"), /app\.myParty && !isEnded\(state\) && !partyById/);   // „Kto si?“ never asks
+  assert.match(src("app-draw.js"), /if \(endedMode\(\)\) \{ renderEnded\(\); return; \}/);
+  assert.match(src("app-beds.js"), /if \(endedMode\(\)\) \{ drawEndedHouses\(\); return; \}/);
+  assert.match(src("app-houses.js"), /if \(endedMode\(\)\) return false;/);   // houses stay closed at every zoom
+  assert.match(src("app-houses.js"), /isoActive\(\) \|\| endedMode\(\)\) return;/);
+  assert.match(src("app-daynight.js"), /if \(endedMode\(\)\) dn\.hour = dnNoon\(nights\[0\]\);/);
+  assert.match(src("app-summary.js"), /poll\(true\);/);   // the poll after the code still runs in closed mode
+  assert.match(pageFile, /\.hud\.ended \.tophud \{ display: none; \}/);
 });

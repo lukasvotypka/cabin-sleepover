@@ -15,6 +15,7 @@ var housesQuiet = false;      // set while render() syncs, so that it does not d
 
 // The 3D world asks while it builds: should this house start open?
 function isoHouseWant(id) {
+  if (endedMode()) return false;      // a closed cabin stays closed at every zoom
   return !!(housesAll || housesOpen[id]);
 }
 
@@ -50,6 +51,7 @@ function houseBox(layout, house) {
 
 // A tap on a closed house: open it and zoom to it.
 function openHouse(id, zoom) {
+  if (endedMode()) return;
   if (housesOpen[id] && !zoom) return;
   var layout = app.state.layout, house = isoHouseList(layout).filter(function (h) { return h.id === id; })[0];
   if (!house) return;
@@ -103,7 +105,7 @@ function stopHouseTween() {
 
 // Called by applyView after every change of the view: a new zoom opens or closes all the houses.
 function housesZoomRule() {
-  if (!app.bounds || !app.view || !app.state || !isoActive()) return;
+  if (!app.bounds || !app.view || !app.state || !isoActive() || endedMode()) return;
   if (Math.abs(app.view.w - housesLastW) < 0.01) return;      // a pan
   housesLastW = app.view.w;
   if (housesZooming || introActive()) return;

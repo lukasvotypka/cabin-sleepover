@@ -348,3 +348,17 @@ Test on a 380 px iPhone Safari and Android Chrome, light and dark mode. Open dec
 - [ ] With `event.ended: true` (or after 8. 11. 2026): with the group code `GET /api/state` has only `version`, `updated_at`, `event`, `layout`, `ended`, `totals`, `asset_version`; no party names appear anywhere. A write returns `403 event_ended`; `/api/events` returns `403 event_ended`.
 - [ ] With the admin code the state is the full one plus `ended: true`, and an admin write still works.
 - [ ] Clean-up (organizer, after the event, service stopped): remove `phone` and `phone_set_at` from `data/cabin-data.yaml`, then copy `data/` to an archive. Start again and check `/api/health`.
+
+## 25. Closed cabin page (T-153)
+
+Needs a closed state: today after 8. 11. 2026, or `event.ended: true` in a copy of `config/cabin.yaml`. Open the page with the group code.
+
+- [ ] The village stands at noon with all roofs closed, no smoke, a cold campfire (charred logs, no flame, no glow), no figures, no fireflies. Falling leaves show (not with `prefers-reduced-motion`). A brass padlock hangs at every door.
+- [ ] The gate shows the event name and under it the plank „Vďaka, že ste prišli!“ (it swings in once, not with reduced motion). The board says „Bolo nás“ with three numbers and their words (e.g. 1 človek, 2 ľudia, 5 ľudí; 1 noc, 3 noci), „ťukni“ and the red „ZATVORENÉ“ stamp that thumps in once.
+- [ ] No night stamps, no time rail, no „Si: …“, no online chips and none of the Návod, Info, Prehľad, Pred cestou, key tools. The bottom HUD has one sign „Chata je zatvorená“ with the dates and „zapisovať sa už nedá“, and one „Čo teraz“ button (at least 44 px).
+- [ ] Tap or Enter on a house: the padlock rattles and the toast „Zamknuté. Vidíme sa nabudúce!“ shows for about 2 s. In the browser network list no request is made. Zoom in to 1.6× and press Tab: no house opens, there are no bed buttons.
+- [ ] Tap the board or „Čo teraz“: the „Vďaka, že ste prišli!“ panel opens (bottom sheet on a phone, centred 440 px window on a desktop; light and dark colours). All three numbers count up and end on the totals (people, parties, nights). „Dobre“, ×, the backdrop and Escape close it.
+- [ ] The network list shows one `GET api/state` and nothing else: no `api/events`, no `api/session`, no polling. „Kto si?“ and the login panel never open, even with a remembered party in the browser.
+- [ ] Turn the map to all four angles: a padlock shows only on doors in walls facing the camera, none floats over a closed house on its far side.
+- [ ] Once with WebGL off: the flat map shows the closed houses, padlocks on the doors, no beds or figures; a house tap still shows the toast.
+- [ ] With the admin code (code screen) the full map comes back (this is the normal app).

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prototyp: chata po akcii</title>
+<style>
+  :root {
+    --bg:#EFE5D3; --surface:#FBF6EC; --surface2:#F4EBDB; --ink:#2B1D14; --muted:#6B5644; --line:#DCC9AE;
+    --forest:#4A2C1A; --moss:#5E6B24; --amber:#96540F; --amber-soft:#F6DFB8; --warn:#A3361E; --ok:#3F6E2C;
+    /* fixed scene colours (never inverted) */
+    --wood-dark:#5C4033; --wood:#B98B56; --wood-light:#D4A870; --plank:#6B4426; --paper:#F4EBD0; --s-ink:#2E1F14; --red:#B4472F;
+    --pix: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --head: "Alegreya", Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1A1410; --surface:#241C16; --surface2:#2D231B; --ink:#F1E7D9; --muted:#B9A38C; --line:#47382B;
+      --forest:#F2DBB8; --moss:#B9C46F; --amber:#EDA94E; --amber-soft:#3F2C16; --warn:#F08C70; --ok:#93C67E; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #3a3128; font-family: "Alegreya Sans", system-ui, sans-serif; }
+  button { font: inherit; color: inherit; }
+
+  /* ---------- prototype chrome (not part of the design) ---------- */
+  .pv { position: fixed; top: 0; left: 0; right: 0; z-index: 60; display: flex; gap: 4px; padding: 4px; background: #111;
+    justify-content: center; overflow-x: auto; }
+  .pv button { flex: none; white-space: nowrap; background: #2B1D14; color: #F4EBD0; border: 1px solid #5C4033; padding: 4px 8px; font-size: 11px; cursor: pointer; min-height: 30px; }
+  .pv button[aria-pressed="true"] { background: #F2D58A; color: #2B1D14; }
+  #app { position: fixed; left: 0; right: 0; bottom: 0; top: 38px; overflow: hidden; background: #8E9B48; }
+
+  /* ---------- scene ---------- */
+  #world { position: absolute; left: 0; right: 0; top: 0; bottom: 70px; width: 100%; height: calc(100% - 70px); display: block; }
+  #world text { font-family: var(--pix); }
+  .tap { cursor: pointer; }
+  .tap:focus { outline: none; }
+  .tap:focus-visible .ring { stroke: #FFD54A; stroke-width: 3; }
+  .swing { animation: swing .6s steps(4) both; transform-box: fill-box; transform-origin: 50% 0; }
+  @keyframes swing { 0% { transform: scaleY(0) } 50% { transform: scaleY(1.15) } 75% { transform: scaleY(.92) } 100% { transform: scaleY(1) } }
+  .thump { animation: thump .45s steps(3) .9s both; transform-box: fill-box; transform-origin: 50% 50%; }
+  @keyframes thump { 0% { transform: scale(1.8); opacity: 0 } 60% { transform: scale(.9); opacity: 1 } 100% { transform: scale(1); opacity: 1 } }
+  .rattle { animation: rattle .36s steps(4); transform-box: fill-box; transform-origin: 50% 0; }
+  @keyframes rattle { 0%{transform:rotate(0)} 25%{transform:rotate(-14deg)} 50%{transform:rotate(12deg)} 75%{transform:rotate(-6deg)} 100%{transform:rotate(0)} }
+  .leaf { animation: fall var(--d, 9s) steps(36) var(--delay, 0s) infinite; }
+  @keyframes fall { 0% { transform: translate(0, -20px) } 25% { transform: translate(8px, 130px) } 50% { transform: translate(-6px, 260px) } 75% { transform: translate(6px, 390px) } 100% { transform: translate(0, 540px) } }
+
+  /* ---------- bottom HUD ---------- */
+  .hud { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10; padding: 0 8px 8px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .hud-in { margin: 0 auto; max-width: 520px; display: flex; align-items: center; gap: 6px; background: var(--plank);
+    border: 2px solid var(--wood-dark); padding: 4px; min-height: 56px; }
+  .sign { flex: 1; min-width: 0; background: var(--paper); border: 1px solid var(--wood-dark); padding: 4px 8px; min-height: 44px;
+    font-family: var(--pix); color: var(--s-ink); font-size: 11px; line-height: 14px; }
+  .sign b { display: block; font-size: 12px; }
+  .sign span { color: #6B5644; }
+  .tool { flex: none; width: 52px; min-height: 48px; background: var(--wood-light); border: 1px solid var(--wood-dark); color: var(--s-ink);
+    font: 700 9px/1 var(--pix); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; }
+  .tool svg { width: 22px; height: 22px; shape-rendering: crispEdges; }
+  .tool:active { transform: translateY(1px); }
+
+  /* ---------- panel ---------- */
+  .back { position: absolute; inset: 0; z-index: 20; background: rgba(30,20,12,.45); display: none; }
+  .back.on { display: block; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 82%; overflow: auto; background: var(--surface); color: var(--ink);
+    border-top: 3px solid var(--forest); padding: 14px 16px 20px; transform: translateY(105%); transition: transform .25s steps(5); }
+  .sheet.on { transform: translateY(0); }
+  @media (min-width: 900px) {
+    .sheet { left: 50%; right: auto; bottom: auto; top: 50%; width: 440px; border: 3px solid var(--forest);
+      transform: translate(-50%, -40%); opacity: 0; pointer-events: none; transition: opacity .2s steps(4); }
+    .sheet.on { transform: translate(-50%, -50%); opacity: 1; pointer-events: auto; }
+  }
+  .sheet h2 { font-family: var(--head); font-size: 22px; margin: 0 44px 2px 0; color: var(--forest); }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  .sheet p { font-size: 15px; line-height: 1.45; }
+  .x { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border: 0; background: transparent; font-size: 22px; cursor: pointer; color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 12px; }
+  .stat { background: var(--surface2); border: 1px solid var(--line); padding: 8px 4px; text-align: center; }
+  .stat b { display: block; font: 700 24px var(--pix); color: var(--amber); }
+  .stat span { font-size: 13px; color: var(--muted); }
+  .note { color: var(--muted); font-size: 13px !important; }
+  .btn { min-height: 44px; padding: 0 18px; border: 2px solid var(--forest); background: var(--forest); color: var(--surface); font-weight: 700; cursor: pointer; font-size: 15px; }
+  .toast { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 30; background: var(--paper); color: var(--s-ink);
+    border: 2px solid var(--wood-dark); padding: 8px 12px; font: 12px var(--pix); max-width: 92%; display: none; text-align: center; }
+  .toast.on { display: block; }
+
+  /* ---------- variant B: thank-you card only ---------- */
+  #card { position: absolute; inset: 0; display: none; z-index: 15; }
+  #card svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #card .plate { position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%); width: min(320px, 88%); background: var(--paper);
+    border: 3px solid var(--wood-dark); box-shadow: 0 4px 0 rgba(46,31,20,.5); padding: 14px 16px; text-align: center; color: var(--s-ink); font-family: var(--pix); }
+  #card .plate b { display: block; font-size: 16px; margin-bottom: 6px; }
+  #card .plate span { display: block; font-size: 12px; line-height: 1.5; color: #6B5644; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="pv" role="toolbar" aria-label="Prototyp">
+  <button data-v="A" aria-pressed="true">A Zatvorená chata</button>
+  <button data-v="B" aria-pressed="false">B Len poďakovanie</button>
+  <button id="pvStats" aria-pressed="true">čísla: áno</button>
+  <button id="pvReplay">znova</button>
+</div>
+
+<div id="app">
+  <svg id="world" viewBox="0 0 380 520" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges" role="img"
+       aria-label="Zatvorená chata v jesennej krajine"></svg>
+  <div class="hud" id="hud"><div class="hud-in" id="hudIn"></div></div>
+  <div id="card"></div>
+  <div class="back" id="back"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <button class="x" id="sheetX" aria-label="Zavrieť">×</button>
+    <div id="sheetBody"></div>
+  </section>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+
+<script>
+"use strict";
+/* Fixed, fictional demo data. After the event the server sends no parties, no sleeping and no presence:
+   only the event (name, dates), the layout and, if enabled, three whole-event totals. */
+const ENDED = {
+  title: "Chata 5. – 8. 11.",
+  dates: "5. – 8. 11. 2026",
+  totals: { people: 19, parties: 8, nights: 3 },   // whole event only, never per night or per bed
+  keepUntil: "31. 12. 2026"
+};
+let variant = "A", showStats = true;
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function h(tag, cls, text, parent) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; if (parent) parent.appendChild(e); return e; }
+const reduce = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const ľudia = n => n === 1 ? "1 človek" : n + (n < 5 ? " ľudia" : " ľudí");
+
+/* ===== scene: closed houses, no figures, no bed data ===== */
+const HOUSES = [
+  { id: "konica", rect: [14, 64, 176, 196], roof: ["#93492F", "#7A3B2A"], chimney: [140, 70], door: [80, 254] },
+  { id: "dom", rect: [196, 176, 170, 170], roof: ["#6C5A46", "#5A4A3A"], chimney: [230, 182], door: [196, 330] },
+  { id: "kuchynka", rect: [14, 300, 170, 110], roof: ["#857038", "#6E5A2E"], chimney: [40, 306], door: [80, 404] }
+];
+function drawScene(svg, opts) {
+  svg.textContent = "";
+  const g = el("g", {}, svg);
+  el("rect", { x: -200, y: -200, width: 780, height: 920, fill: "#8E9B48" }, g);
+  let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const leaf = ["#76823A", "#B5532A", "#D69A2E", "#8E3424", "#76823A", "#76823A"];
+  for (let i = 0; i < 170; i++) el("rect", { x: Math.floor(rnd() * 376), y: Math.floor(rnd() * 516), width: 3, height: 2, fill: leaf[i % leaf.length] }, g);
+  [[184, 54, 14, 466], [176, 270, 30, 12], [100, 410, 14, 22], [100, 426, 88, 12], [198, 344, 16, 12]]
+    .forEach(r => el("rect", { x: r[0], y: r[1], width: r[2], height: r[3], fill: "#D6BC8E" }, g));
+  [[352, 70], [330, 120], [360, 150], [20, 450], [50, 486], [340, 488], [8, 270], [250, 90], [300, 420]].forEach(([x, y]) => {
+    el("rect", { x: x - 2, y: y + 10, width: 4, height: 6, fill: "#5C4033" }, g);
+    el("rect", { x: x - 10, y: y + 2, width: 20, height: 8, fill: "#3F5E2A" }, g);
+    el("rect", { x: x - 7, y: y - 4, width: 14, height: 8, fill: "#4E7032" }, g);
+    el("rect", { x: x - 3, y: y - 9, width: 6, height: 6, fill: "#5E8238" }, g);
+  });
+  // leaf pile at the doorsteps: nobody swept since
+  [[86, 262], [204, 350], [86, 412]].forEach(([x, y]) => [[0,0,"#B5532A"],[4,2,"#D69A2E"],[8,0,"#8E3424"],[2,4,"#D69A2E"],[7,4,"#B5532A"]]
+    .forEach(([dx, dy, c]) => el("rect", { x: x + dx, y: y + dy, width: 3, height: 2, fill: c }, g)));
+  // closed houses: roof on, no smoke, shutters closed
+  HOUSES.forEach(hs => {
+    const [x, y, w, hh] = hs.rect;
+    const t = el("g", { class: "tap house", tabindex: 0, role: "button", "aria-label": "Zamknutý dom", "data-house": hs.id }, g);
+    el("rect", { class: "ring", x: x - 6, y: y - 6, width: w + 12, height: hh + 12, fill: "none", stroke: "transparent" }, t);
+    el("rect", { x: x - 4, y: y - 4, width: w + 8, height: hh / 2 + 4, fill: hs.roof[0] }, t);
+    el("rect", { x: x - 4, y: y + hh / 2, width: w + 8, height: hh / 2 + 4, fill: hs.roof[1] }, t);
+    el("rect", { x: x - 4, y: y + hh / 2 - 2, width: w + 8, height: 4, fill: "#3a2418" }, t);
+    for (let yy = y + 6; yy < y + hh; yy += 10) el("rect", { x: x - 4, y: yy, width: w + 8, height: 1, fill: "rgba(0,0,0,.18)" }, t);
+    // a few fallen leaves on the roof
+    for (let i = 0; i < 6; i++) el("rect", { x: x + 10 + Math.floor(rnd() * (w - 20)), y: y + 6 + Math.floor(rnd() * (hh - 12)), width: 3, height: 2, fill: leaf[1 + (i % 3)] }, t);
+    el("rect", { x: hs.chimney[0], y: hs.chimney[1], width: 12, height: 14, fill: "#6B5644" }, t);
+    el("rect", { x: hs.chimney[0] - 1, y: hs.chimney[1], width: 14, height: 3, fill: "#4A3A2E" }, t);
+    // padlock on the door
+    const lock = el("g", { "data-lock": hs.id }, t);
+    const [lx, ly] = hs.door;
+    el("rect", { x: lx + 3, y: ly - 4, width: 8, height: 6, fill: "none", stroke: "#3a3a3a", "stroke-width": 2 }, lock);
+    el("rect", { x: lx, y: ly, width: 14, height: 11, fill: "#C9A227", stroke: "#5C4033", "stroke-width": 1 }, lock);
+    el("rect", { x: lx + 6, y: ly + 3, width: 2, height: 4, fill: "#2E1F14" }, lock);
+  });
+  // campfire, cold
+  el("rect", { x: 236, y: 448, width: 22, height: 6, fill: "#7A7068" }, g);
+  el("rect", { x: 240, y: 444, width: 14, height: 4, fill: "#4A3A2E" }, g);
+  el("rect", { x: 244, y: 442, width: 6, height: 2, fill: "#2E2620" }, g);
+  drawGate(g, opts);
+  if (opts.board) drawBoard(g, opts);
+  if (opts.leaves && !reduce()) {
+    const lg = el("g", {}, g);
+    for (let i = 0; i < 9; i++) {
+      const r = el("rect", { class: "leaf", x: 20 + i * 40, y: 0, width: 3, height: 3, fill: leaf[1 + (i % 3)] }, lg);
+      r.style.setProperty("--d", (8 + (i % 4) * 2) + "s"); r.style.setProperty("--delay", (-i * 1.3) + "s");
+    }
+  }
+}
+function drawGate(g, opts) {
+  el("rect", { x: 118, y: 14, width: 6, height: 48, fill: "#5C4033" }, g);
+  el("rect", { x: 256, y: 14, width: 6, height: 48, fill: "#5C4033" }, g);
+  el("rect", { x: 112, y: 8, width: 156, height: 20, fill: "#B98B56", stroke: "#5C4033", "stroke-width": 2 }, g);
+  const t = el("text", { x: 190, y: 22, "font-size": 9, "font-weight": 700, "text-anchor": "middle", fill: "#2E1F14" }, g);
+  t.textContent = ENDED.title;
+  const hang = el("g", { class: opts.anim ? "swing" : "" }, g);
+  el("rect", { x: 150, y: 28, width: 2, height: 6, fill: "#2E1F14" }, hang);
+  el("rect", { x: 228, y: 28, width: 2, height: 6, fill: "#2E1F14" }, hang);
+  el("rect", { x: 134, y: 34, width: 112, height: 16, fill: "#F4EBD0", stroke: "#5C4033", "stroke-width": 1.5 }, hang);
+  const t2 = el("text", { x: 190, y: 45, "font-size": 8, "text-anchor": "middle", fill: "#2E1F14" }, hang);
+  t2.textContent = "Vďaka, že ste prišli!";
+}
+function drawBoard(g, opts) {
+  const bx = 212, by = 368;
+  el("rect", { x: bx + 10, y: by + 70, width: 5, height: 22, fill: "#5C4033" }, g);
+  el("rect", { x: bx + 125, y: by + 70, width: 5, height: 22, fill: "#5C4033" }, g);
+  const tap = el("g", { class: "tap", tabindex: 0, role: "button", id: "board", "aria-label": "Ďakovná tabuľa" }, g);
+  el("rect", { class: "ring", x: bx - 3, y: by - 3, width: 146, height: 80, fill: "none", stroke: "transparent" }, tap);
+  el("rect", { x: bx, y: by, width: 140, height: 74, fill: "#B98B56", stroke: "#5C4033", "stroke-width": 2 }, tap);
+  el("rect", { x: bx + 6, y: by + 6, width: 128, height: 62, fill: "#F4EBD0" }, tap);
+  const t = el("text", { x: bx + 70, y: by + 18, "font-size": 9, "font-weight": 700, "text-anchor": "middle", fill: "#2E1F14" }, tap);
+  t.textContent = "Bolo nás";
+  if (showStats) {
+    const T = ENDED.totals;
+    [["ľudí", T.people], ["partií", T.parties], ["nocí", T.nights]].forEach(([k, v], i) => {
+      const tx = el("text", { x: bx + 24 + i * 46, y: by + 38, "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "#96540F" }, tap); tx.textContent = String(v);
+      const tk = el("text", { x: bx + 24 + i * 46, y: by + 48, "font-size": 7, "text-anchor": "middle", fill: "#2E1F14" }, tap); tk.textContent = k;
+    });
+  } else {
+    t.textContent = "Chata je zatvorená";
+    const tx = el("text", { x: bx + 70, y: by + 38, "font-size": 8, "text-anchor": "middle", fill: "#2E1F14" }, tap); tx.textContent = "Vďaka za krásne dni.";
+  }
+  const tt = el("text", { x: bx + 40, y: by + 63, "font-size": 7, "text-anchor": "middle", fill: "#6B5644" }, tap); tt.textContent = "ťukni";
+  const st = el("g", { class: opts.anim ? "thump" : "" }, tap);
+  const sg = el("g", { transform: "rotate(-12 " + (bx + 111) + " " + (by + 61) + ")" }, st);
+  el("rect", { x: bx + 86, y: by + 54, width: 50, height: 14, fill: "none", stroke: "#B4472F", "stroke-width": 1.5 }, sg);
+  const ts = el("text", { x: bx + 111, y: by + 64, "font-size": 8, "font-weight": 700, "text-anchor": "middle", fill: "#B4472F" }, sg);
+  ts.textContent = "ZATVORENÉ";
+}
+
+/* ===== HUD and panel ===== */
+function icon() {
+  const s = document.createElementNS(NS, "svg"); s.setAttribute("viewBox", "0 0 11 11");
+  const px = (x, y, w, hh, f) => el("rect", { x, y, width: w, height: hh, fill: f }, s);
+  px(4, 1, 3, 2, "#2E1F14"); px(4, 4, 3, 6, "#2E1F14");
+  return s;
+}
+function renderHud() {
+  const hud = $("hudIn"); hud.textContent = "";
+  const s = h("div", "sign", null, hud);
+  h("b", "", "Chata je zatvorená", s); h("span", "", ENDED.dates + " · zapisovať sa už nedá", s);
+  const b = h("button", "tool", null, hud); b.appendChild(icon()); h("span", "", "Čo teraz", b);
+  b.addEventListener("click", openInfo);
+}
+function openSheet(build) { const body = $("sheetBody"); body.textContent = ""; build(body); $("back").classList.add("on"); $("sheet").classList.add("on"); $("sheetX").focus(); }
+function closeSheet() { $("back").classList.remove("on"); $("sheet").classList.remove("on"); }
+$("sheetX").addEventListener("click", closeSheet); $("back").addEventListener("click", closeSheet);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+function countUp(node, to) {
+  if (reduce()) { node.textContent = String(to); return; }
+  let k = 0; const steps = 6; node.textContent = "0";
+  const t = setInterval(() => { k++; node.textContent = String(Math.round(to * k / steps)); if (k >= steps) clearInterval(t); }, 90);
+}
+function openInfo() {
+  openSheet(body => {
+    const t = h("h2", "", "Vďaka, že ste prišli!", body); t.id = "sheetTitle";
+    h("p", "sub", ENDED.dates, body);
+    if (showStats) {
+      const st = h("div", "stats", null, body); const T = ENDED.totals;
+      [[T.people, "ľudí"], [T.parties, "partií"], [T.nights, "noci"]].forEach(([v, k]) => { const d = h("div", "stat", null, st); countUp(h("b", "", "0", d), v); h("span", "", k, d); });
+    }
+    h("p", "", "Chata je zatvorená a zapisovať sa už nedá. Kto kde spal, tu už neukazujeme.", body);
+    h("p", "", "Ak pôjdeme znova, pošleme nový odkaz do WhatsAppu.", body);
+    h("p", "note", "Mená partií a telefónne čísla sme po akcii zmazali. Ak niečo potrebuješ, napíš organizátorovi.", body);
+    const b = h("button", "btn", "Dobre", body); b.addEventListener("click", closeSheet);
+  });
+}
+let toastT;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2200); }
+function rattle(id) {
+  const l = document.querySelector('[data-lock="' + id + '"]'); if (!l) return;
+  l.classList.remove("rattle"); void l.getBBox(); l.classList.add("rattle");
+}
+
+/* ===== variant B: card over the splash landscape ===== */
+function renderCard() {
+  const c = $("card"); c.textContent = "";
+  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("viewBox", "0 0 120 200"); svg.setAttribute("preserveAspectRatio", "xMidYMid slice");
+  svg.setAttribute("shape-rendering", "crispEdges"); c.appendChild(svg);
+  const px = (x, y, w, hh, f) => el("rect", { x, y, width: w, height: hh, fill: f }, svg);
+  px(0, 0, 120, 90, "#D9C9A3"); px(0, 60, 120, 30, "#CDB78E");
+  px(0, 90, 120, 110, "#8E9B48");
+  [[8, 70], [24, 64], [96, 66], [110, 72], [14, 150], [104, 160]].forEach(([x, y]) => { px(x - 1, y + 8, 2, 4, "#5C4033"); px(x - 5, y + 2, 10, 6, "#3F5E2A"); px(x - 3, y - 2, 6, 4, "#4E7032"); });
+  px(40, 72, 40, 30, "#8A6A4A"); px(36, 64, 48, 10, "#93492F"); px(40, 58, 40, 6, "#7A3B2A"); px(70, 54, 5, 8, "#6B5644");
+  px(56, 88, 8, 14, "#4A3A2E"); px(58, 92, 4, 3, "#C9A227");
+  px(46, 80, 6, 6, "#4A3A2E"); px(68, 80, 6, 6, "#4A3A2E");
+  let seed = 3; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < 60; i++) px(Math.floor(rnd() * 118), 92 + Math.floor(rnd() * 106), 2, 1, ["#B5532A", "#D69A2E", "#8E3424", "#76823A"][i % 4]);
+  const p = h("div", "plate", null, c);
+  h("b", "", "Vďaka, že ste prišli!", p);
+  h("span", "", ENDED.title + " je za nami.", p);
+  if (showStats) h("span", "", "Bolo nás " + ľudia(ENDED.totals.people) + " na " + ENDED.totals.nights + " noci.", p);
+  h("span", "", "Ak pôjdeme znova, pošleme nový odkaz.", p);
+}
+
+/* ===== wiring ===== */
+function render(anim) {
+  closeSheet();
+  const isB = variant === "B";
+  $("card").style.display = isB ? "block" : "none";
+  $("hud").style.display = isB ? "none" : "";
+  if (isB) { renderCard(); return; }
+  drawScene($("world"), { anim, board: true, leaves: true });
+  renderHud();
+}
+function onTap(target) {
+  const board = target.closest("#board"), house = target.closest("[data-house]");
+  if (board) openInfo();
+  else if (house) { rattle(house.getAttribute("data-house")); toast("Zamknuté. Vidíme sa nabudúce!"); }
+}
+$("world").addEventListener("click", e => onTap(e.target));
+$("world").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(e.target); } });
+document.querySelectorAll(".pv [data-v]").forEach(b => b.addEventListener("click", () => {
+  variant = b.dataset.v; document.querySelectorAll(".pv [data-v]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); render(true);
+}));
+$("pvStats").addEventListener("click", () => { showStats = !showStats; $("pvStats").setAttribute("aria-pressed", String(showStats)); $("pvStats").textContent = "čísla: " + (showStats ? "áno" : "nie"); render(false); });
+$("pvReplay").addEventListener("click", () => render(true));
+render(true);
+</script>
+</body>
+</html>

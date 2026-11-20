@@ -46,6 +46,7 @@ function drawZzz(parent, px, py, slot) {
 }
 
 function drawBeds() {
+  if (endedMode()) { drawEndedHouses(); return; }      // no beds, figures or labels after the event (app-ended.js)
   var g = app.layers.beds, layout = app.state.layout;
   var view = viewState();
   clearNode(g);

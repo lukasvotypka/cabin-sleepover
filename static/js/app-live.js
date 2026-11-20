@@ -39,7 +39,7 @@ function liveStop() {
 }
 
 function liveOpen() {
-  if (!live.supported) return;
+  if (!live.supported || endedMode()) return;      // a closed cabin has no stream (T-153)
   liveCloseSource();
   var now = Date.now();
   live.active = true;
@@ -56,7 +56,7 @@ function liveOpen() {
 
 // Starts the stream when the page can use one (after the first state, tab visible, not in the code screen).
 function liveEnsure() {
-  if (!app.state || app.codeOpen || document.visibilityState !== "visible") return;
+  if (!app.state || app.codeOpen || document.visibilityState !== "visible" || endedMode()) return;
   if (live.es || live.fallback) return;
   if (!live.supported) { liveFallBack(true); return; }
   liveOpen();

@@ -184,7 +184,7 @@ function request(method, path, body, etag, timeoutMs) {
   var headers = { "Accept": "application/json", "X-Client-Id": clientId };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (etag) headers["If-None-Match"] = etag;
-  if (app.myParty) headers["X-Party-Id"] = app.myParty;
+  if (app.myParty && !endedMode()) headers["X-Party-Id"] = app.myParty;      // closed cabin: nobody is tracked (T-153)
   var abort = typeof AbortController === "function" ? new AbortController() : null;
   var timer = abort ? setTimeout(function () { abort.abort(); }, timeoutMs || WRITE_TIMEOUT_MS) : null;
   if (method === "GET") app.pollAbort = abort;
@@ -253,8 +253,10 @@ function write(method, path, body, ops) {
   });
 }
 
-function poll() {
+// `force`: the one poll after the code was entered (an admin gets the full state); a closed cabin is otherwise read once.
+function poll(force) {
   if (app.codeOpen || app.polling) return Promise.resolve();
+  if (!force && endedMode()) return Promise.resolve();
   app.polling = true;
   var epoch = app.writeEpoch;
   return request("GET", "api/state", undefined, app.etag, POLL_TIMEOUT_MS).then(function (r) {
@@ -299,13 +301,13 @@ function applyState(state) {
   if (!isNaN(serverMs)) { app.serverMs = serverMs; app.serverLocalMs = app.fetchedAt; }
   if (!app.nightSynced) {
     app.nightSynced = true;
-    var remembered = app.myParty ? partyById(state, app.myParty) : null;
+    var remembered = app.myParty && !isEnded(state) ? partyById(state, app.myParty) : null;
     if (remembered) app.night = defaultNightFor(remembered, state.event.nights);
   }
   if (app.night === null || state.event.nights.indexOf(app.night) === -1) app.night = state.event.nights[0];
   document.title = state.event.name + (eventTermShort(state.event) ? " · " + eventTermShort(state.event) : "");
-  if (!app.sessionAsked) { app.sessionAsked = true; loadSession(); }
-  if (app.myParty && !partyById(state, app.myParty)) {
+  if (!app.sessionAsked && !isEnded(state)) { app.sessionAsked = true; loadSession(); }
+  if (app.myParty && !isEnded(state) && !partyById(state, app.myParty)) {
     forgetMyParty();
     app.askWho = true;
   }
