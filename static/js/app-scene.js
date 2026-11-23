@@ -109,7 +109,7 @@ function board(parent, r, face, edge) {
 
 function ensureScene() {
   var layout = app.state.layout;
-  var key = JSON.stringify([layout.map, layout.rooms, layout.houses, app.viewAngle]);
+  var key = JSON.stringify([layout.map, layout.rooms, layout.houses, app.viewAngle, endedMode()]);      // closed mode decides fire, smoke and fireflies at build time (T-154)
   showScene(true);     // visible first: text is measured while drawing
   if (app.layoutKey === key) return;
   app.layoutKey = key;

@@ -228,7 +228,7 @@ The brief hides sleeping data "for non-admins". It does not say whether the admi
 
 - **Default:** the admin gets the full state (plus `ended: true`) and the normal map, so the organizer can still look and fix. The closed scene shows only for the reduced state.
 - Affects: T-152, T-153.
-- **Answer:** open.
+- **Answer:** resolved 23. 11. 2026: the admin sees the normal map and logs in with a „Mám admin kód“ link in „Čo teraz“ (T-154).
 
 ## Q29. The word „partií“ on the board and how the totals are counted (20. 11. 2026)
 
@@ -236,7 +236,7 @@ The approved prototype labels a total „partií“, but the organizer's rule of
 
 - **Default:** follow the approved prototype (newer than the rule) and keep „partií“ / „partie“ / „partia“ by number. `people` = Σ(adults + kids) over all parties including day-only ones, `parties` = all parties, `nights` = number of nights in `cabin.yaml`.
 - Affects: T-152, T-153.
-- **Answer:** open.
+- **Answer:** resolved 23. 11. 2026: the totals say „meno / mená / mien“, never „partia“ (T-154).
 
 ## Q30. The "we deleted names and phone numbers" note in the prototype panel (20. 11. 2026)
 

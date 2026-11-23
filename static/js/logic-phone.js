@@ -161,10 +161,10 @@ function phoneSectionInfo(party, smsEnabled, verifiedIds, verifyOn) {
 var PHONE_TEXTS = {
   addTitle: "Pridať telefón",
   changeTitle: "Zmeniť telefón",
-  addIntro: "Zadaj telefónne číslo. Pošleme na neho kód a potom budeš partiu meniť iba ty.",
+  addIntro: "Zadaj telefónne číslo. Pošleme na neho kód a potom budeš svoj zápis meniť iba ty.",
   changeIntro: "Zadaj nové telefónne číslo. Pošleme na neho kód.",
-  offer: "Chceš si pridať telefón? Potom bude partiu meniť iba ty, na iných zariadeniach sa prihlásiš kódom z SMS.",
-  removeAsk: "Naozaj odstrániť telefón? Partiu potom môže meniť každý, kto má kód skupiny.",
+  offer: "Chceš si pridať telefón? Potom budeš svoj zápis meniť iba ty, na iných zariadeniach sa prihlásiš kódom z SMS.",
+  removeAsk: "Naozaj odstrániť telefón? Tvoj zápis potom môže meniť každý, kto má kód skupiny.",
   removed: "Telefón je odstránený.",
   added: "Telefón je uložený.",
   contactAddIntro: "Zadaj telefónne číslo. Slúži organizátorovi ako kontakt, žiadna SMS sa neposiela.",

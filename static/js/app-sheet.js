@@ -271,7 +271,7 @@ function openWho(opts) {
     };
     function fillParties(list) {
       clearNode(list);
-      var parties = app.state ? app.state.parties : [];
+      var parties = (app.state && app.state.parties) || [];
       if (!parties.length) {
         list.appendChild(htmlEl("li", { "class": "muted" }, "Zatiaľ tu nikto nie je. Pridaj sa ako prvý."));
       }

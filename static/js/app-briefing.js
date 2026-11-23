@@ -12,7 +12,7 @@ function briefingLabel(state) {
   var count = briefingCount(state), mine = briefingDone(state, app.myParty);
   var text = "Pred cestou: čo si zbaliť a čo nás čaká.";
   if (count) text += " Prešlo to " + count.done + " z " + count.total + ".";
-  if (partyById(state, app.myParty)) text += mine ? " Tvoja partia to má prejdené." : " Tvoja partia to ešte nemá prejdené.";
+  if (partyById(state, app.myParty)) text += mine ? " Ty to máš prejdené." : " Ty to ešte nemáš prejdené.";
   return text + " Ťuknutím otvoríš dvor.";
 }
 

@@ -201,7 +201,7 @@ function slWater(box, info) {
   if (!slidesState.water) slidesState.water = waterDefaults(app.state, app.myParty) || { people: bounds.peopleMin, days: bounds.daysMin };
   var vals = slidesState.water;
   var calc = slAdd(box, "div", "yard-calc");
-  calc.appendChild(htmlEl("div", { "class": "yard-who" }, party ? "Podľa tvojej partie „" + party.name + "“. Môžeš zmeniť." : "Môžeš zmeniť."));
+  calc.appendChild(htmlEl("div", { "class": "yard-who" }, party ? "Podľa tvojho zápisu „" + party.name + "“. Môžeš zmeniť." : "Môžeš zmeniť."));
   var steps = htmlEl("div", { "class": "yard-steps" });
   var outs = {};
   [["people", "Ľudia", bounds.peopleMin, bounds.peopleMax], ["days", "Dni", bounds.daysMin, bounds.daysMax]].forEach(function (f) {

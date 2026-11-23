@@ -5518,7 +5518,7 @@ test("view angle: the page keeps the angle in storage, rebuilds on a change and 
   assert.ok(pageFile.includes("static/js/app-turn.js?v=__ASSET_VERSION__"));
   assert.ok(read("app-core.js").includes('angle: "cabin-view-angle"'));
   assert.match(read("app-core.js"), /viewAngle: isoAngle\(storage\.get\(KEYS\.angle\)\)/);
-  assert.match(read("app-scene.js"), /layout\.houses, app\.viewAngle\]/, "the angle is part of the layout key");
+  assert.match(read("app-scene.js"), /layout\.houses, app\.viewAngle[\],]/, "the angle is part of the layout key");
   assert.match(read("app-scene.js"), /isoScene\(layout, \{ azimuth: app\.viewAngle \}\)/);
   assert.ok(!read("app-turn.js").includes("innerHTML"));
   assert.match(read("app-turn.js"), /storage\.set\(KEYS\.angle/);
@@ -5664,7 +5664,7 @@ test("boardPanelModel: rows with arrive and leave, tally cells, occupancy footer
 });
 
 test("boardLabel: counts the parties and says it can be opened", () => {
-  assert.match(L.boardLabel(visitState()), /^Nástenka Kto kedy príde: 2 partií na noc, 3 cez deň\. Ťuknutím ju otvoríš\.$/);
+  assert.match(L.boardLabel(visitState()), /^Nástenka Kto kedy príde\. Na noc: 2, cez deň: 3\. Ťuknutím ju otvoríš\.$/);
 });
 
 test("intro zoom: a focus y centres the start view on it vertically (clamped)", () => {
@@ -5813,14 +5813,21 @@ test("isEnded: only `ended` without a `parties` key; an admin's full state is no
 test("ended plurals: people, nights and parties by number", () => {
   assert.deepEqual([1, 2, 4, 5, 19].map(L.endedPeopleText), ["1 človek", "2 ľudia", "4 ľudia", "5 ľudí", "19 ľudí"]);
   assert.deepEqual([1, 2, 3, 4, 5].map(L.endedNightsText), ["1 noc", "2 noci", "3 noci", "4 noci", "5 nocí"]);
-  assert.deepEqual([1, 2, 4, 5, 8].map(L.endedPartiesText), ["1 partia", "2 partie", "4 partie", "5 partií", "8 partií"]);
+  assert.deepEqual([0, 1, 2, 4, 5, 8].map(L.endedNamesText), ["0 mien", "1 meno", "2 mená", "4 mená", "5 mien", "8 mien"]);
   assert.equal(L.endedPeopleWord(0), "ľudí");
+});
+
+test("closed page texts never say „parti*“ and offer the admin code link", () => {
+  assert.doesNotMatch(JSON.stringify(plain(L.ENDED_TEXTS)), /parti/i);
+  const state = endedState();
+  assert.doesNotMatch(JSON.stringify(plain([L.endedPanelModel(state).lines, L.endedPanelModel(state).stats.map((t) => t.label), L.endedSummaryLines(state), L.endedBoardLabel(state)])), /parti/i);
+  assert.equal(L.endedPanelModel(state).adminCode, "Mám admin kód");
 });
 
 test("endedTotals: three numbers with the fitting word, none when the totals are missing or bad", () => {
   assert.deepEqual(plain(L.endedTotals(endedState())), [
-    { key: "people", value: 19, label: "ľudí" }, { key: "parties", value: 8, label: "partií" }, { key: "nights", value: 3, label: "noci" }]);
-  assert.deepEqual(plain(L.endedTotals(endedState({ totals: { people: 1, parties: 1, nights: 1 } }))).map((t) => t.label), ["človek", "partia", "noc"]);
+    { key: "people", value: 19, label: "ľudí" }, { key: "parties", value: 8, label: "mien" }, { key: "nights", value: 3, label: "noci" }]);
+  assert.deepEqual(plain(L.endedTotals(endedState({ totals: { people: 1, parties: 1, nights: 1 } }))).map((t) => t.label), ["človek", "meno", "noc"]);
   assert.deepEqual(plain(L.endedTotals(endedState({ totals: undefined }))), []);
   assert.deepEqual(plain(L.endedTotals(endedState({ totals: { people: "x", parties: 1, nights: 1 } }))), []);
   assert.deepEqual(plain(L.endedTotals(endedState({ totals: { people: 1.5, parties: 1, nights: 1 } }))), []);
@@ -5834,16 +5841,16 @@ test("ended HUD sign, panel model and screen reader summary: closed, with the to
   const panel = plain(L.endedPanelModel(s));
   assert.equal(panel.title, "Vďaka, že ste prišli!");
   assert.equal(panel.sub, "5. – 8. 11. 2026");
-  assert.deepEqual(panel.stats.map((t) => t.value + " " + t.label), ["19 ľudí", "8 partií", "3 noci"]);
+  assert.deepEqual(panel.stats.map((t) => t.value + " " + t.label), ["19 ľudí", "8 mien", "3 noci"]);
   assert.equal(panel.lines[0], "Chata je zatvorená a zapisovať sa už nedá. Kto kde spal, tu už neukazujeme.");
   assert.equal(panel.lines[1], "Ak pôjdeme znova, pošleme nový odkaz do WhatsAppu.");
   assert.equal(panel.ok, "Dobre");
   const lines = L.endedSummaryLines(s);
   assert.equal(lines[0], "Chata je zatvorená. Zapisovať sa už nedá.");
-  assert.equal(lines[1], "Bolo nás: 19 ľudí, 8 partií, 3 noci.");
+  assert.equal(lines[1], "Bolo nás: 19 ľudí, 8 mien, 3 noci.");
   assert.equal(lines.length, 2);
   assert.deepEqual(L.endedSummaryLines(endedState({ totals: undefined })).length, 1);
-  assert.match(L.endedBoardLabel(s), /^Nástenka Bolo nás: 19 ľudí, 8 partií, 3 noci\./);
+  assert.match(L.endedBoardLabel(s), /^Nástenka Bolo nás: 19 ľudí, 8 mien, 3 noci\./);
   assert.equal(L.ENDED_TEXTS.toast, "Zamknuté. Vidíme sa nabudúce!");
 });
 
@@ -5881,4 +5888,24 @@ test("closed cabin page: scripts listed, closed guards in place, texts by textCo
   assert.match(src("app-daynight.js"), /if \(endedMode\(\)\) dn\.hour = dnNoon\(nights\[0\]\);/);
   assert.match(src("app-summary.js"), /poll\(true\);/);   // the poll after the code still runs in closed mode
   assert.match(pageFile, /\.hud\.ended \.tophud \{ display: none; \}/);
+});
+
+// --- T-154: no Slovak „parti*“ word in any page text, and closed mode survives open panels ---
+test("no Slovak „partia“ wording in static/js strings or index.html", () => {
+  const dir = path.join(root, "static", "js");
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".js")).map((f) => path.join(dir, f)).concat(path.join(root, "static", "index.html"));
+  const bad = /(?<![\p{L}])parti(?:a|u|e|í|i|ou|ám|ách|ami)(?![\p{L}])/iu;
+  for (const file of files) {
+    for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+      if (/^\s*(\/\/|\*|<!--)/.test(line)) continue;
+      assert.doesNotMatch(line.replace(/\s\/\/.*$/, ""), bad, file);
+    }
+  }
+});
+
+test("panels that read `parties` tolerate the closed state without it", () => {
+  for (const f of ["app-sheet.js", "app-admin.js"]) {
+    const src = fs.readFileSync(path.join(root, "static", "js", f), "utf8");
+    assert.doesNotMatch(src, /app\.state \? app\.state\.parties : \[\]/, f);
+  }
 });

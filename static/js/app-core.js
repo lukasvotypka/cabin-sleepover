@@ -323,6 +323,7 @@ function applyState(state) {
 
 function openWhoIfAsked() {
   if (!app.askWho || splash.falling) return;      // during the fall „Kto si?“ waits; the end of the fall asks again
+  if (endedMode()) { app.askWho = false; app.loginPending = null; return; }      // closed cabin: nobody signs up or picks a party (T-154)
   app.askWho = false;
   var pending = app.loginPending && app.state ? partyById(app.state, app.loginPending) : null;
   app.loginPending = null;

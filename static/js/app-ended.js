@@ -231,6 +231,15 @@ function openEndedPanel(returnKey) {
     ok.addEventListener("click", closePanel);
     actions.appendChild(ok);
     body.appendChild(actions);
+    // The organizer's way in: the existing code screen, „Späť“ comes back to the closed page.
+    var adminLine = htmlEl("p", { "class": "admin-line" });
+    var link = htmlEl("button", { "class": "link-btn", type: "button", "data-key": "admin-code" }, model.adminCode);
+    link.addEventListener("click", function () {
+      closePanel();
+      showCodeScreen(true);
+    });
+    adminLine.appendChild(link);
+    body.appendChild(adminLine);
   }, { returnKey: returnKey, onClose: endedCountStop, initialFocus: function (body) { return body.querySelector("[data-key='ended-ok']"); } });
 }
 

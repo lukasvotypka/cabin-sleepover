@@ -103,5 +103,5 @@ function boardPanelModel(state, myPartyId, night) {
 // The screen reader label of the board button.
 function boardLabel(state) {
   var nightParties = overnightParties(state).length, dayParties = ((state && state.parties) || []).filter(isDayOnly).length;
-  return "Nástenka Kto kedy príde: " + nightParties + " partií na noc, " + dayParties + " cez deň. Ťuknutím ju otvoríš.";
+  return "Nástenka Kto kedy príde. Na noc: " + nightParties + ", cez deň: " + dayParties + ". Ťuknutím ju otvoríš.";
 }

@@ -17,7 +17,7 @@ function qkWater(parent, info) {
   var party = partyById(app.state, app.myParty), def = waterDefaults(app.state, app.myParty);
   if (party && def) {
     var r = waterResult(def.people, def.days, water);
-    var p = htmlEl("p", null, "Tvoja partia „" + party.name + "“: ");
+    var p = htmlEl("p", null, "Tvoj zápis „" + party.name + "“: ");
     p.appendChild(htmlEl("b", null, formatNumber(r.liters) + " l (" + bottlesText(r.bottles, water.bottle_liters).replace("≈ ", "") + ")"));
     card.appendChild(p);
   }

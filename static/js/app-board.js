@@ -198,7 +198,7 @@ function boardNameCell(row) {
 function boardNightTable(model) {
   var table = htmlEl("table", { "class": "board-table" });
   var head = htmlEl("tr");
-  ["Partia", "Príde", "Odíde"].forEach(function (t) { head.appendChild(htmlEl("th", { scope: "col" }, t)); });
+  ["Kto", "Príde", "Odíde"].forEach(function (t) { head.appendChild(htmlEl("th", { scope: "col" }, t)); });
   model.cols.forEach(function (c) { head.appendChild(htmlEl("th", { scope: "col", "class": "num" + (c.current ? " current" : "") }, c.label)); });
   table.appendChild(head);
   if (!model.rows.length) {
@@ -228,7 +228,7 @@ function boardNightTable(model) {
 function boardDayTable(model) {
   var table = htmlEl("table", { "class": "board-table" });
   var head = htmlEl("tr");
-  head.appendChild(htmlEl("th", { scope: "col" }, "Partia"));
+  head.appendChild(htmlEl("th", { scope: "col" }, "Kto"));
   model.cols.forEach(function (c) { head.appendChild(htmlEl("th", { scope: "col", "class": "num" }, c.label)); });
   table.appendChild(head);
   if (!model.rows.length) {

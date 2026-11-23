@@ -51,7 +51,7 @@ function openAdmin() {
       clearNode(body);
       var box = htmlEl("div", { "class": "actions admin-tools" });
       body.appendChild(box);
-      var parties = app.state ? app.state.parties : [];
+      var parties = (app.state && app.state.parties) || [];
       if (mode === "confirm" && !partyById(app.state, picked)) mode = "pick";
       if (mode === "main") {
         box.appendChild(btn(signupToggleLabel(app.state.signup_open), "btn", "admin-signup", function () {
@@ -69,9 +69,9 @@ function openAdmin() {
           });
         }));
         box.appendChild(btn("Stiahnuť dáta", "btn secondary", "admin-export", function () { downloadExport(); }));
-        box.appendChild(btn("Zmazať partiu", "btn secondary danger", "admin-delete", function () { mode = "pick"; show(); }));
+        box.appendChild(btn("Zmazať meno", "btn secondary danger", "admin-delete", function () { mode = "pick"; show(); }));
       } else if (mode === "pick") {
-        body.insertBefore(htmlEl("p", null, parties.length ? "Vyber partiu, ktorú chceš zmazať." : "Nie je čo zmazať."), box);
+        body.insertBefore(htmlEl("p", null, parties.length ? "Vyber meno, ktoré chceš zmazať." : "Nie je čo zmazať."), box);
         var list = htmlEl("ul", { "class": "party-list" });
         parties.forEach(function (party) {
           var li = htmlEl("li");

@@ -21,7 +21,8 @@ var ENDED_TEXTS = {
     "Chata je zatvorená a zapisovať sa už nedá. Kto kde spal, tu už neukazujeme.",
     "Ak pôjdeme znova, pošleme nový odkaz do WhatsAppu."
   ],
-  ok: "Dobre"
+  ok: "Dobre",
+  adminCode: "Mám admin kód"
 };
 
 // Closed mode: the server sent the reduced state (`ended` and no `parties` key). An admin gets the full state, which
@@ -37,19 +38,20 @@ function endedPlural(n, one, few, many) {
 }
 
 function endedPeopleWord(n) { return endedPlural(n, "človek", "ľudia", "ľudí"); }
-function endedPartiesWord(n) { return endedPlural(n, "partia", "partie", "partií"); }
+// One sign-up unit is a „meno“ (never „partia“, rule of T-030).
+function endedNamesWord(n) { return endedPlural(n, "meno", "mená", "mien"); }
 function endedNightsWord(n) { return endedPlural(n, "noc", "noci", "nocí"); }
 
 // "1 človek", "2 ľudia", "5 ľudí"
 function endedPeopleText(n) { return n + " " + endedPeopleWord(n); }
 function endedNightsText(n) { return n + " " + endedNightsWord(n); }
-function endedPartiesText(n) { return n + " " + endedPartiesWord(n); }
+function endedNamesText(n) { return n + " " + endedNamesWord(n); }
 
 // The three whole-event totals as [{key, value, label}], or [] when the state has none (or bad ones).
 function endedTotals(state) {
   var t = state && state.totals;
   if (!t || typeof t !== "object") return [];
-  var vals = [["people", t.people, endedPeopleWord], ["parties", t.parties, endedPartiesWord], ["nights", t.nights, endedNightsWord]];
+  var vals = [["people", t.people, endedPeopleWord], ["parties", t.parties, endedNamesWord], ["nights", t.nights, endedNightsWord]];
   for (var i = 0; i < vals.length; i++) {
     if (typeof vals[i][1] !== "number" || vals[i][1] < 0 || Math.floor(vals[i][1]) !== vals[i][1]) return [];
   }
@@ -70,7 +72,8 @@ function endedPanelModel(state) {
     sub: eventTermShort(state.event),
     stats: endedTotals(state),
     lines: ENDED_TEXTS.panelLines.slice(),
-    ok: ENDED_TEXTS.ok
+    ok: ENDED_TEXTS.ok,
+    adminCode: ENDED_TEXTS.adminCode
   };
 }
 
